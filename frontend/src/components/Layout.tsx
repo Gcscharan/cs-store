@@ -8,22 +8,18 @@ interface LayoutProps {
   description?: string;
 }
 
-const Layout: React.FC<LayoutProps> = ({ 
-  children, 
+const Layout: React.FC<LayoutProps> = ({
+  children,
   title = "CPS Store",
-  description = "Village shopkeeper e-commerce platform"
+  description = "Village shopkeeper e-commerce platform",
 }) => {
   return (
     <ToastProvider>
       <div className="min-h-screen bg-secondary-50">
         {/* Skip Links for Accessibility */}
-        <SkipLink href="#main-content">
-          Skip to main content
-        </SkipLink>
-        <SkipLink href="#navigation">
-          Skip to navigation
-        </SkipLink>
-        
+        <SkipLink href="#main-content">Skip to main content</SkipLink>
+        <SkipLink href="#navigation">Skip to navigation</SkipLink>
+
         {/* Document Head */}
         <head>
           <title>{title}</title>
@@ -35,7 +31,7 @@ const Layout: React.FC<LayoutProps> = ({
         {/* Main Layout */}
         <div className="flex flex-col min-h-screen">
           {/* Header */}
-          <header 
+          <header
             id="navigation"
             className="bg-white shadow-sm border-b border-secondary-200 z-sticky"
             role="banner"
@@ -47,18 +43,30 @@ const Layout: React.FC<LayoutProps> = ({
                     CPS Store
                   </h1>
                 </div>
-                <nav className="hidden md:flex space-x-8" role="navigation" aria-label="Main navigation">
-                  <a href="/" className="nav-link">Home</a>
-                  <a href="/products" className="nav-link">Products</a>
-                  <a href="/orders" className="nav-link">Orders</a>
-                  <a href="/profile" className="nav-link">Profile</a>
+                <nav
+                  className="hidden md:flex space-x-8"
+                  role="navigation"
+                  aria-label="Main navigation"
+                >
+                  <a href="/" className="nav-link">
+                    Home
+                  </a>
+                  <a href="/products" className="nav-link">
+                    Products
+                  </a>
+                  <a href="/orders" className="nav-link">
+                    Orders
+                  </a>
+                  <a href="/profile" className="nav-link">
+                    Profile
+                  </a>
                 </nav>
               </div>
             </div>
           </header>
 
           {/* Main Content */}
-          <main 
+          <main
             id="main-content"
             className="flex-1 z-base"
             role="main"
@@ -68,7 +76,7 @@ const Layout: React.FC<LayoutProps> = ({
           </main>
 
           {/* Footer */}
-          <footer 
+          <footer
             className="bg-white border-t border-secondary-200 z-base"
             role="contentinfo"
           >
@@ -79,7 +87,8 @@ const Layout: React.FC<LayoutProps> = ({
                     CPS Store
                   </h3>
                   <p className="text-secondary-600 text-sm">
-                    Empowering village shopkeepers with modern e-commerce solutions.
+                    Empowering village shopkeepers with modern e-commerce
+                    solutions.
                   </p>
                 </div>
                 <div>
@@ -87,9 +96,30 @@ const Layout: React.FC<LayoutProps> = ({
                     Quick Links
                   </h4>
                   <ul className="space-y-2">
-                    <li><a href="/products" className="text-sm text-secondary-600 hover:text-primary-600">Products</a></li>
-                    <li><a href="/orders" className="text-sm text-secondary-600 hover:text-primary-600">Orders</a></li>
-                    <li><a href="/support" className="text-sm text-secondary-600 hover:text-primary-600">Support</a></li>
+                    <li>
+                      <a
+                        href="/products"
+                        className="text-sm text-secondary-600 hover:text-primary-600"
+                      >
+                        Products
+                      </a>
+                    </li>
+                    <li>
+                      <a
+                        href="/orders"
+                        className="text-sm text-secondary-600 hover:text-primary-600"
+                      >
+                        Orders
+                      </a>
+                    </li>
+                    <li>
+                      <a
+                        href="/support"
+                        className="text-sm text-secondary-600 hover:text-primary-600"
+                      >
+                        Support
+                      </a>
+                    </li>
                   </ul>
                 </div>
                 <div>
@@ -97,7 +127,8 @@ const Layout: React.FC<LayoutProps> = ({
                     Contact
                   </h4>
                   <p className="text-sm text-secondary-600">
-                    Phone: +91 9876543210<br />
+                    Phone: +91 9876543210
+                    <br />
                     Email: support@cpsstore.com
                   </p>
                 </div>

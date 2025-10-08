@@ -40,7 +40,10 @@ function App() {
                 <Route path="/products/:id" element={<ProductDetailPage />} />
                 <Route path="/cart" element={<CartPage />} />
                 <Route path="/checkout" element={<CheckoutPage />} />
-                <Route path="/orders/:id/track" element={<OrderTrackingPage />} />
+                <Route
+                  path="/orders/:id/track"
+                  element={<OrderTrackingPage />}
+                />
                 <Route path="/orders" element={<OrdersPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/menu" element={<MenuPage />} />
@@ -57,7 +60,7 @@ function App() {
 
             <BottomNav />
             <FloatingCartCTA />
-            
+
             {/* Development-only accessibility audit */}
             {process.env.NODE_ENV === "development" && <AccessibilityAudit />}
           </div>
