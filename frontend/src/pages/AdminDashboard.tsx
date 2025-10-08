@@ -17,7 +17,9 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import toast from "react-hot-toast";
+import { DashboardSkeleton } from "../components/SkeletonLoader";
+import { AccessibleButton } from "../components/KeyboardNavigation";
+import { useToast } from "../components/AccessibleToast";
 
 interface DashboardData {
   salesData: Array<{
@@ -97,13 +99,14 @@ const AdminDashboard = () => {
     from: "",
     to: "",
   });
+  const { success, error } = useToast();
 
   // Fetch dashboard data
   const fetchDashboardData = async () => {
     try {
       setIsLoading(true);
       const params = new URLSearchParams();
-      
+
       if (dateRange.from && dateRange.to) {
         params.append("from", dateRange.from);
         params.append("to", dateRange.to);
@@ -123,9 +126,9 @@ const AdminDashboard = () => {
       } else {
         throw new Error("Failed to fetch dashboard data");
       }
-    } catch (error) {
-      console.error("Failed to fetch dashboard data:", error);
-      toast.error("Failed to load dashboard data");
+    } catch (err) {
+      console.error("Failed to fetch dashboard data:", err);
+      error("Failed to load dashboard data", "Please try again later");
     } finally {
       setIsLoading(false);
     }
@@ -139,12 +142,12 @@ const AdminDashboard = () => {
   const exportCSV = async (format: "csv" | "labels" = "csv") => {
     try {
       const params = new URLSearchParams();
-      
+
       if (dateRange.from && dateRange.to) {
         params.append("from", dateRange.from);
         params.append("to", dateRange.to);
       }
-      
+
       if (format === "labels") {
         params.append("format", "labels");
       }
@@ -160,20 +163,23 @@ const AdminDashboard = () => {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = format === "labels" 
-          ? `order-labels-${dateRange.from || "all"}-${dateRange.to || "all"}.csv`
-          : `orders-${dateRange.from || "all"}-${dateRange.to || "all"}.csv`;
+        a.download =
+          format === "labels"
+            ? `order-labels-${dateRange.from || "all"}-${dateRange.to || "all"}.csv`
+            : `orders-${dateRange.from || "all"}-${dateRange.to || "all"}.csv`;
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
-        toast.success(`${format === "labels" ? "Order labels" : "Orders"} exported successfully`);
+        success(
+          `${format === "labels" ? "Order labels" : "Orders"} exported successfully`
+        );
       } else {
         throw new Error("Failed to export data");
       }
-    } catch (error) {
-      console.error("Export failed:", error);
-      toast.error("Failed to export data");
+    } catch (err) {
+      console.error("Export failed:", err);
+      error("Failed to export data", "Please try again later");
     }
   };
 
@@ -185,13 +191,10 @@ const AdminDashboard = () => {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="min-h-screen bg-gray-50 py-8 px-4"
+        className="min-h-screen bg-secondary-50 py-8 px-4"
       >
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading dashboard...</p>
-          </div>
+        <div className="container">
+          <DashboardSkeleton />
         </div>
       </motion.div>
     );
@@ -202,15 +205,15 @@ const AdminDashboard = () => {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="min-h-screen bg-gray-50 py-8 px-4"
+        className="min-h-screen bg-secondary-50 py-8 px-4"
       >
-        <div className="max-w-7xl mx-auto">
+        <div className="container">
           <div className="text-center py-12">
             <div className="text-6xl mb-4">❌</div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">
+            <h3 className="text-xl font-semibold text-secondary-900 mb-2">
               Failed to load dashboard
             </h3>
-            <p className="text-gray-600">Please try again later</p>
+            <p className="text-secondary-600">Please try again later</p>
           </div>
         </div>
       </motion.div>
@@ -221,38 +224,44 @@ const AdminDashboard = () => {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="min-h-screen bg-gray-50 py-8 px-4"
+      className="min-h-screen bg-secondary-50 py-8 px-4"
     >
-      <div className="max-w-7xl mx-auto">
+      <div className="container">
         {/* Header */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
+        <div className="card p-6 mb-8">
           <div className="flex items-center justify-between mb-6">
-            <h1 className="text-3xl font-bold text-gray-900">
+            <h1 className="text-3xl font-bold text-secondary-900">
               Admin Dashboard
             </h1>
-            
+
             <div className="flex items-center space-x-4">
               {/* Date Range Picker */}
               <div className="flex items-center space-x-2">
-                <label className="text-sm font-medium text-gray-700">From:</label>
+                <label className="text-sm font-medium text-gray-700">
+                  From:
+                </label>
                 <input
                   type="date"
                   value={dateRange.from}
-                  onChange={(e) => setDateRange(prev => ({ ...prev, from: e.target.value }))}
+                  onChange={(e) =>
+                    setDateRange((prev) => ({ ...prev, from: e.target.value }))
+                  }
                   className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
                 />
               </div>
-              
+
               <div className="flex items-center space-x-2">
                 <label className="text-sm font-medium text-gray-700">To:</label>
                 <input
                   type="date"
                   value={dateRange.to}
-                  onChange={(e) => setDateRange(prev => ({ ...prev, to: e.target.value }))}
+                  onChange={(e) =>
+                    setDateRange((prev) => ({ ...prev, to: e.target.value }))
+                  }
                   className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
                 />
               </div>
-              
+
               {/* Period Selector */}
               <select
                 value={selectedPeriod}
@@ -264,21 +273,23 @@ const AdminDashboard = () => {
                 <option value="month">This Month</option>
                 <option value="year">This Year</option>
               </select>
-              
+
               {/* Export Buttons */}
               <div className="flex space-x-2">
-                <button
+                <AccessibleButton
                   onClick={() => exportCSV("csv")}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                  variant="primary"
+                  size="sm"
                 >
                   Export CSV
-                </button>
-                <button
+                </AccessibleButton>
+                <AccessibleButton
                   onClick={() => exportCSV("labels")}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
+                  variant="secondary"
+                  size="sm"
                 >
                   Order Labels
-                </button>
+                </AccessibleButton>
               </div>
             </div>
           </div>
@@ -287,25 +298,28 @@ const AdminDashboard = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div className="bg-blue-50 rounded-lg p-4">
               <div className="text-2xl font-bold text-blue-600">
-                ₹{data.salesData.reduce((sum, day) => sum + day.totalSales, 0).toLocaleString()}
+                ₹
+                {data.salesData
+                  .reduce((sum, day) => sum + day.totalSales, 0)
+                  .toLocaleString()}
               </div>
               <div className="text-sm text-blue-600">Total Sales</div>
             </div>
-            
+
             <div className="bg-green-50 rounded-lg p-4">
               <div className="text-2xl font-bold text-green-600">
                 {data.salesData.reduce((sum, day) => sum + day.orderCount, 0)}
               </div>
               <div className="text-sm text-green-600">Total Orders</div>
             </div>
-            
+
             <div className="bg-purple-50 rounded-lg p-4">
               <div className="text-2xl font-bold text-purple-600">
                 {data.deliveryStats.activeDrivers}
               </div>
               <div className="text-sm text-purple-600">Active Drivers</div>
             </div>
-            
+
             <div className="bg-orange-50 rounded-lg p-4">
               <div className="text-2xl font-bold text-orange-600">
                 ₹{data.deliveryStats.totalEarnings.toLocaleString()}
@@ -327,7 +341,9 @@ const AdminDashboard = () => {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="_id" />
                 <YAxis />
-                <Tooltip formatter={(value) => [`₹${value.toLocaleString()}`, "Sales"]} />
+                <Tooltip
+                  formatter={(value) => [`₹${value.toLocaleString()}`, "Sales"]}
+                />
                 <Area
                   type="monotone"
                   dataKey="totalSales"
@@ -357,7 +373,10 @@ const AdminDashboard = () => {
                   dataKey="count"
                 >
                   {data.ordersByStatus.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={COLORS[index % COLORS.length]}
+                    />
                   ))}
                 </Pie>
                 <Tooltip />
@@ -375,14 +394,21 @@ const AdminDashboard = () => {
             </h3>
             <div className="space-y-4">
               {data.driverPerformance.slice(0, 5).map((driver, index) => (
-                <div key={driver._id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div
+                  key={driver._id}
+                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                >
                   <div className="flex items-center space-x-3">
                     <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center text-sm font-semibold text-primary-600">
                       {index + 1}
                     </div>
                     <div>
-                      <div className="font-medium text-gray-900">{driver.name}</div>
-                      <div className="text-sm text-gray-600">{driver.vehicleType}</div>
+                      <div className="font-medium text-gray-900">
+                        {driver.name}
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        {driver.vehicleType}
+                      </div>
                     </div>
                   </div>
                   <div className="text-right">
@@ -405,7 +431,10 @@ const AdminDashboard = () => {
             </h3>
             <div className="space-y-3">
               {data.recentOrders.slice(0, 5).map((order) => (
-                <div key={order._id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                <div
+                  key={order._id}
+                  className="flex items-center justify-between p-3 border border-gray-200 rounded-lg"
+                >
                   <div>
                     <div className="font-medium text-gray-900">
                       #{order._id.slice(-6)}
@@ -415,11 +444,15 @@ const AdminDashboard = () => {
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className={`text-xs px-2 py-1 rounded-full ${
-                      order.orderStatus === "delivered" ? "bg-green-100 text-green-800" :
-                      order.orderStatus === "in_transit" ? "bg-blue-100 text-blue-800" :
-                      "bg-yellow-100 text-yellow-800"
-                    }`}>
+                    <div
+                      className={`text-xs px-2 py-1 rounded-full ${
+                        order.orderStatus === "delivered"
+                          ? "bg-green-100 text-green-800"
+                          : order.orderStatus === "in_transit"
+                            ? "bg-blue-100 text-blue-800"
+                            : "bg-yellow-100 text-yellow-800"
+                      }`}
+                    >
                       {order.orderStatus}
                     </div>
                   </div>
@@ -437,12 +470,17 @@ const AdminDashboard = () => {
             </h3>
             <div className="space-y-3">
               {data.topProducts.slice(0, 10).map((product, index) => (
-                <div key={product._id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div
+                  key={product._id}
+                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                >
                   <div className="flex items-center space-x-3">
                     <div className="w-6 h-6 bg-primary-100 rounded-full flex items-center justify-center text-xs font-semibold text-primary-600">
                       {index + 1}
                     </div>
-                    <div className="font-medium text-gray-900">{product._id}</div>
+                    <div className="font-medium text-gray-900">
+                      {product._id}
+                    </div>
                   </div>
                   <div className="text-right">
                     <div className="font-semibold text-gray-900">

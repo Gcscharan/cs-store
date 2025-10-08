@@ -120,7 +120,9 @@ export const getStats = async (req: Request, res: Response) => {
 
     // Driver performance metrics
     const driverPerformance = await DeliveryBoy.find({ isActive: true })
-      .select("name phone vehicleType availability earnings completedOrdersCount assignedOrders")
+      .select(
+        "name phone vehicleType availability earnings completedOrdersCount assignedOrders"
+      )
       .populate("assignedOrders", "orderStatus totalAmount")
       .sort({ completedOrdersCount: -1 })
       .limit(10);
@@ -209,7 +211,9 @@ export const exportOrders = async (req: Request, res: Response) => {
         customerName: (order.userId as any)?.name || "N/A",
         customerPhone: (order.userId as any)?.phone || "N/A",
         address: `${order.address.addressLine}, ${order.address.city}, ${order.address.pincode}`,
-        items: order.items.map(item => `${item.name} (Qty: ${item.qty})`).join(", "),
+        items: order.items
+          .map((item) => `${item.name} (Qty: ${item.qty})`)
+          .join(", "),
         totalAmount: order.totalAmount,
         orderStatus: order.orderStatus,
         deliveryBoy: (order.deliveryBoyId as any)?.name || "Not Assigned",
@@ -219,7 +223,9 @@ export const exportOrders = async (req: Request, res: Response) => {
       res.setHeader("Content-Type", "text/csv");
       res.setHeader(
         "Content-Disposition",
-        `attachment; filename="order-labels-${from || "all"}-${to || "all"}.csv"`
+        `attachment; filename="order-labels-${from || "all"}-${
+          to || "all"
+        }.csv"`
       );
 
       const csvWriter = createObjectCsvWriter({
@@ -251,7 +257,9 @@ export const exportOrders = async (req: Request, res: Response) => {
         orderStatus: order.orderStatus,
         paymentStatus: order.paymentStatus,
         address: `${order.address.addressLine}, ${order.address.city}, ${order.address.pincode}`,
-        items: order.items.map(item => `${item.name} (₹${item.price} x ${item.qty})`).join("; "),
+        items: order.items
+          .map((item) => `${item.name} (₹${item.price} x ${item.qty})`)
+          .join("; "),
         itemsCount: order.items.length,
         createdAt: order.createdAt.toISOString(),
         updatedAt: order.updatedAt.toISOString(),
