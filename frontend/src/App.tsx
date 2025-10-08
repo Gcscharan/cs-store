@@ -13,6 +13,8 @@ import OrderTrackingPage from "./pages/OrderTrackingPage";
 import OrdersPage from "./pages/OrdersPage";
 import ProfilePage from "./pages/ProfilePage";
 import MenuPage from "./pages/MenuPage";
+import LoginPage from "./pages/LoginPage";
+import SignupPage from "./pages/SignupPage";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminDeliveryMap from "./pages/AdminDeliveryMap";
 import DeliveryDashboard from "./pages/DeliveryDashboard";
@@ -40,6 +42,8 @@ function App() {
               <Route path="/orders" element={<OrdersPage />} />
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/menu" element={<MenuPage />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/signup" element={<SignupPage />} />
               <Route path="/admin" element={<AdminDashboard />} />
               <Route
                 path="/admin/delivery-map"

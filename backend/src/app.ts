@@ -1,8 +1,10 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import passport from "passport";
 import { connectDB } from "./utils/database";
 import { errorHandler } from "./middleware/errorHandler";
+import "./config/oauth"; // Initialize OAuth strategies
 import authRoutes from "./routes/auth";
 import productRoutes from "./routes/products";
 import cartRoutes from "./routes/cart";
@@ -22,6 +24,7 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
+app.use(passport.initialize());
 
 // Health check route
 app.get("/health", (req, res) => {

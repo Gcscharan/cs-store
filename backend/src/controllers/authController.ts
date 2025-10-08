@@ -1,5 +1,7 @@
 import { Request, Response } from "express";
 import * as jwt from "jsonwebtoken";
+import * as bcrypt from "bcryptjs";
+import passport from "passport";
 import { User } from "../models/User";
 import { Pincode } from "../models/Pincode";
 import { createError } from "../middleware/errorHandler";
@@ -35,12 +37,16 @@ export const signup = async (req: Request, res: Response) => {
         .json({ error: "User already exists with this email" });
     }
 
+    // Hash password
+    const saltRounds = 12;
+    const passwordHash = await bcrypt.hash(password, saltRounds);
+
     // Create new user
     const user = new User({
       name,
       email,
       phone,
-      passwordHash: password,
+      passwordHash,
       addresses: addresses || [],
     });
 
@@ -83,14 +89,14 @@ export const login = async (req: Request, res: Response) => {
     // Find user by email or phone
     const user = await User.findOne({
       $or: [{ email }, { phone }],
-    }).select("+passwordHash");
+    });
 
-    if (!user) {
+    if (!user || !user.passwordHash) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    // Check password
-    const isPasswordValid = await user.comparePassword(password);
+    // Check password with bcrypt
+    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
     if (!isPasswordValid) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
@@ -216,4 +222,77 @@ export const refresh = async (req: Request, res: Response) => {
 export const logout = async (req: Request, res: Response) => {
   // In a production app, you might want to blacklist the token
   res.json({ message: "Logout successful" });
+};
+
+// OAuth callback handlers
+export const googleCallback = async (req: Request, res: Response) => {
+  try {
+    const user = req.user as any;
+
+    if (!user) {
+      return res.status(401).json({ error: "OAuth authentication failed" });
+    }
+
+    // Generate tokens
+    const accessToken = jwt.sign(
+      { userId: user._id, email: user.email },
+      JWT_SECRET,
+      { expiresIn: "15m" }
+    );
+
+    const refreshToken = jwt.sign({ userId: user._id }, JWT_REFRESH_SECRET, {
+      expiresIn: "7d",
+    });
+
+    res.json({
+      accessToken,
+      refreshToken,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        addresses: user.addresses,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: "OAuth callback failed" });
+    return;
+  }
+};
+
+export const facebookCallback = async (req: Request, res: Response) => {
+  try {
+    const user = req.user as any;
+
+    if (!user) {
+      return res.status(401).json({ error: "OAuth authentication failed" });
+    }
+
+    // Generate tokens
+    const accessToken = jwt.sign(
+      { userId: user._id, email: user.email },
+      JWT_SECRET,
+      { expiresIn: "15m" }
+    );
+
+    const refreshToken = jwt.sign({ userId: user._id }, JWT_REFRESH_SECRET, {
+      expiresIn: "7d",
+    });
+
+    res.json({
+      accessToken,
+      refreshToken,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        addresses: user.addresses,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: "OAuth callback failed" });
+    return;
+  }
 };
