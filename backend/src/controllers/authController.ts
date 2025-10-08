@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import * as jwt from "jsonwebtoken";
 import * as bcrypt from "bcryptjs";
-import passport from "passport";
+import * as passport from "passport";
 import { User } from "../models/User";
 import { Pincode } from "../models/Pincode";
 import { createError } from "../middleware/errorHandler";
