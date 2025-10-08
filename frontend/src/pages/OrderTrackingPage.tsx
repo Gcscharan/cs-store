@@ -14,9 +14,10 @@ const OrderTrackingPage = () => {
     lng: number;
   } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  
+
   // Use socket for real-time updates
-  const { orderStatus, paymentStatus } = useOrderUpdates(id || '');
+  const { orderStatus, paymentStatus } = useOrderUpdates(id || "");
+  const { socket } = useSocket();
 
   // Fetch order data and handle real-time updates
   useEffect(() => {
@@ -27,7 +28,7 @@ const OrderTrackingPage = () => {
             Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
           },
         });
-        
+
         if (response.ok) {
           const orderData = await response.json();
           setOrder(orderData);
@@ -73,7 +74,7 @@ const OrderTrackingPage = () => {
   // Handle real-time status updates
   useEffect(() => {
     if (order && orderStatus && orderStatus !== order.orderStatus) {
-      setOrder(prev => ({ ...prev, orderStatus }));
+      setOrder((prev) => ({ ...prev, orderStatus }));
       toast.success(`Order status updated: ${orderStatus}`);
     }
   }, [orderStatus, order]);
@@ -81,14 +82,40 @@ const OrderTrackingPage = () => {
   // Handle payment status updates
   useEffect(() => {
     if (order && paymentStatus && paymentStatus !== order.paymentStatus) {
-      setOrder(prev => ({ ...prev, paymentStatus }));
-      if (paymentStatus === 'paid') {
-        toast.success('Payment confirmed!');
-      } else if (paymentStatus === 'failed') {
-        toast.error('Payment failed');
+      setOrder((prev) => ({ ...prev, paymentStatus }));
+      if (paymentStatus === "paid") {
+        toast.success("Payment confirmed!");
+      } else if (paymentStatus === "failed") {
+        toast.error("Payment failed");
       }
     }
   }, [paymentStatus, order]);
+
+  // Handle real-time driver location updates
+  useEffect(() => {
+    if (socket && order?.deliveryBoyId) {
+      // Join order room for real-time updates
+      socket.emit("join_room", { 
+        room: `order_${id}`, 
+        userId: "customer", 
+        userRole: "customer" 
+      });
+
+      // Listen for driver location updates
+      socket.on("driver:location:update", (data) => {
+        if (data.driverId === order.deliveryBoyId) {
+          setDeliveryBoyLocation({
+            lat: data.lat,
+            lng: data.lng,
+          });
+        }
+      });
+
+      return () => {
+        socket.off("driver:location:update");
+      };
+    }
+  }, [socket, order, id]);
 
   if (isLoading) {
     return (

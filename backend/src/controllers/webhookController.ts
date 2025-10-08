@@ -32,14 +32,14 @@ export const razorpayWebhook = async (req: Request, res: Response) => {
           },
           { new: true }
         );
-        
+
         if (order1 && io) {
           // Emit payment success event
           io.to(`order_${order1._id}`).emit("order:payment:success", {
             orderId: order1._id,
             paymentId: payload.payment.entity.id,
           });
-          
+
           // Emit to admin room
           io.to("admin_room").emit("order:payment:success", {
             orderId: order1._id,
@@ -55,7 +55,7 @@ export const razorpayWebhook = async (req: Request, res: Response) => {
           { paymentStatus: "failed" },
           { new: true }
         );
-        
+
         if (order2 && io) {
           // Emit payment failure event
           io.to(`order_${order2._id}`).emit("order:payment:failed", {
@@ -72,7 +72,7 @@ export const razorpayWebhook = async (req: Request, res: Response) => {
           { paymentStatus: "paid" },
           { new: true }
         );
-        
+
         if (order3 && io) {
           // Emit order paid event
           io.to(`order_${order3._id}`).emit("order:payment:success", {

@@ -15,7 +15,7 @@ const io = new Server(server, {
 });
 
 // Store socket.io instance in app for webhook access
-app.set('io', io);
+app.set("io", io);
 
 // Socket.io connection handling
 io.on("connection", (socket) => {
@@ -23,15 +23,21 @@ io.on("connection", (socket) => {
 
   // Join rooms based on user role
   socket.on("join_room", (data) => {
-    const { room, userId } = data;
+    const { room, userId, userRole } = data;
     socket.join(room);
-    console.log(`User ${userId} joined room: ${room}`);
+    console.log(`User ${userId} (${userRole}) joined room: ${room}`);
+    
+    // Join admin room if user is admin
+    if (userRole === 'admin') {
+      socket.join('admin_room');
+    }
   });
 
   // Handle order status updates
   socket.on("order_status_update", (data) => {
     const { orderId, status } = data;
     io.to(`order_${orderId}`).emit("order:status:update", { orderId, status });
+    io.to('admin_room').emit("order:status:update", { orderId, status });
   });
 
   // Handle driver location updates
@@ -43,6 +49,31 @@ io.on("connection", (socket) => {
       lng,
       speed,
       eta,
+    });
+    
+    // Emit to admin room for tracking
+    io.to('admin_room').emit("driver:location:update", {
+      driverId,
+      lat,
+      lng,
+      speed,
+      eta,
+    });
+  });
+
+  // Handle order creation events
+  socket.on("order_created", (data) => {
+    const { orderId } = data;
+    io.to('admin_room').emit("order:created", { orderId });
+  });
+
+  // Handle driver status updates
+  socket.on("driver_status_update", (data) => {
+    const { driverId, status, availability } = data;
+    io.to('admin_room').emit("driver:status:update", {
+      driverId,
+      status,
+      availability,
     });
   });
 
