@@ -1,0 +1,150 @@
+{
+  "timestamp": "2025-01-08T03:25:00.000Z",
+  "phase": "Phase 0 - Backup & Baseline",
+  "branch": "infra/phase-0-backup",
+  "summary": {
+    "totalFiles": 45,
+    "backendFiles": 25,
+    "frontendFiles": 20,
+    "lintErrors": 58,
+    "lintWarnings": 23,
+    "testStatus": "No tests configured"
+  },
+  "lintResults": {
+    "backend": {
+      "status": "FAILED",
+      "errors": 35,
+      "warnings": 23,
+      "issues": [
+        {
+          "file": "src/controllers/adminController.ts",
+          "errors": 3,
+          "warnings": 4,
+          "issues": [
+            "'Product' is defined but never used",
+            "'error' is defined but never used (2 instances)",
+            "Unexpected any. Specify a different type (4 instances)"
+          ]
+        },
+        {
+          "file": "src/controllers/authController.ts", 
+          "errors": 4,
+          "warnings": 2,
+          "issues": [
+            "'createError' is defined but never used",
+            "'error' is defined but never used (4 instances)",
+            "Unexpected any. Specify a different type (2 instances)"
+          ]
+        },
+        {
+          "file": "src/controllers/cartController.ts",
+          "errors": 6,
+          "warnings": 1,
+          "issues": [
+            "'error' is defined but never used (5 instances)",
+            "'itemId' is assigned a value but never used",
+            "Unexpected any. Specify a different type"
+          ]
+        },
+        {
+          "file": "src/controllers/cloudinaryController.ts",
+          "errors": 2,
+          "warnings": 1,
+          "issues": [
+            "'Express' is not defined (2 instances)",
+            "Unexpected any. Specify a different type"
+          ]
+        },
+        {
+          "file": "src/controllers/deliveryController.ts",
+          "errors": 4,
+          "warnings": 3,
+          "issues": [
+            "'error' is defined but never used (4 instances)",
+            "'proofImage' is assigned a value but never used",
+            "Unexpected any. Specify a different type (3 instances)"
+          ]
+        },
+        {
+          "file": "src/controllers/orderController.ts",
+          "errors": 3,
+          "warnings": 5,
+          "issues": [
+            "'error' is defined but never used (3 instances)",
+            "Unexpected any. Specify a different type (5 instances)"
+          ]
+        },
+        {
+          "file": "src/controllers/pincodeController.ts",
+          "errors": 1,
+          "warnings": 0,
+          "issues": [
+            "'error' is defined but never used"
+          ]
+        },
+        {
+          "file": "src/controllers/productController.ts",
+          "errors": 5,
+          "warnings": 2,
+          "issues": [
+            "'createError' is defined but never used",
+            "'error' is defined but never used (5 instances)",
+            "Unexpected any. Specify a different type (2 instances)"
+          ]
+        },
+        {
+          "file": "src/middleware/auth.ts",
+          "errors": 1,
+          "warnings": 2,
+          "issues": [
+            "'error' is defined but never used",
+            "Unexpected any. Specify a different type (2 instances)"
+          ]
+        },
+        {
+          "file": "src/middleware/errorHandler.ts",
+          "errors": 1,
+          "warnings": 1,
+          "issues": [
+            "'next' is defined but never used",
+            "Unexpected any. Specify a different type"
+          ]
+        }
+      ]
+    },
+    "frontend": {
+      "status": "CONFIG_ERROR",
+      "errors": 0,
+      "warnings": 0,
+      "issues": [
+        "ESLint configuration error: require is not defined in ES module scope"
+      ]
+    }
+  },
+  "testResults": {
+    "backend": {
+      "status": "NO_TESTS",
+      "message": "No test specified in package.json"
+    },
+    "frontend": {
+      "status": "NO_TESTS", 
+      "message": "No test specified in package.json"
+    }
+  },
+  "failingTests": [],
+  "recommendations": [
+    "Fix ESLint configuration for frontend ES modules",
+    "Remove unused variables and imports",
+    "Replace 'any' types with proper TypeScript types",
+    "Add proper error handling instead of unused error variables",
+    "Set up test framework (Jest/Vitest) for both projects",
+    "Add proper TypeScript types for Express Request/Response objects"
+  ],
+  "nextSteps": [
+    "Fix ESLint configuration issues",
+    "Clean up unused variables and imports", 
+    "Add proper TypeScript types",
+    "Set up testing framework",
+    "Create proper error handling patterns"
+  ]
+}
