@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { Product } from "../models/Product";
 import { createError } from "../middleware/errorHandler";
+import cloudinary from "../config/cloudinary";
 
 export const getProducts = async (req: Request, res: Response) => {
   try {
@@ -71,6 +72,33 @@ export const getProductById = async (req: Request, res: Response) => {
 export const createProduct = async (req: Request, res: Response) => {
   try {
     const productData = req.body;
+    
+    // Handle image uploads if images are provided as base64
+    if (productData.images && Array.isArray(productData.images)) {
+      const uploadedImages = [];
+      
+      for (const image of productData.images) {
+        if (typeof image === 'string' && image.startsWith('data:image/')) {
+          // Upload base64 image to Cloudinary
+          const result = await cloudinary.uploader.upload(image, {
+            folder: "cps-store/products",
+            resource_type: "image",
+            transformation: [
+              { width: 800, height: 600, crop: "limit" },
+              { quality: "auto" },
+              { format: "auto" }
+            ]
+          });
+          uploadedImages.push(result.secure_url);
+        } else {
+          // Already a URL
+          uploadedImages.push(image);
+        }
+      }
+      
+      productData.images = uploadedImages;
+    }
+
     const product = new Product(productData);
     await product.save();
 
@@ -79,7 +107,9 @@ export const createProduct = async (req: Request, res: Response) => {
       product,
     });
   } catch (error) {
+    console.error("Create product error:", error);
     res.status(500).json({ error: "Failed to create product" });
+    return;
   }
 };
 

@@ -1,24 +1,11 @@
 import express from "express";
-import {
-  uploadImage,
-  uploadMultipleImages,
-  deleteImage,
-  getImageUrl,
-  upload,
-} from "../controllers/cloudinaryController";
-import { authenticateToken } from "../middleware/auth";
+import { uploadImage, deleteImage, getUploadSignature } from "../controllers/cloudinaryController";
 
 const router = express.Router();
 
 // Cloudinary routes
-router.post("/upload", authenticateToken, upload.single("image"), uploadImage);
-router.post(
-  "/upload-multiple",
-  authenticateToken,
-  upload.array("images", 10),
-  uploadMultipleImages
-);
-router.delete("/delete", authenticateToken, deleteImage);
-router.get("/url", getImageUrl);
+router.post("/upload", uploadImage);
+router.delete("/delete/:publicId", deleteImage);
+router.get("/signature", getUploadSignature);
 
 export default router;

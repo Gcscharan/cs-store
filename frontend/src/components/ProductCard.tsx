@@ -1,150 +1,129 @@
-import { motion } from "framer-motion";
-import { useState } from "react";
-import { useDispatch } from "react-redux";
-import { addToCart } from "../store/slices/cartSlice";
-import { useNavigate } from "react-router-dom";
+import React, { useState } from 'react';
+import { motion } from 'framer-motion';
+import { useDispatch } from 'react-redux';
+import { addToCart } from '../store/slices/cartSlice';
 
-interface ProductCardProps {
-  product: {
-    _id: string;
-    name: string;
-    description: string;
-    price: number;
-    mrp?: number;
-    images: string[];
-    category: string;
-    stock: number;
-    ratings: {
-      average: number;
-      count: number;
-    };
-  };
+interface Product {
+  _id: string;
+  name: string;
+  description: string;
+  category: string;
+  price: number;
+  mrp?: number;
+  stock: number;
+  images: string[];
+  tags: string[];
 }
 
-const ProductCard = ({ product }: ProductCardProps) => {
-  const dispatch = useDispatch();
-  const navigate = useNavigate();
-  const [imageError, setImageError] = useState(false);
+interface ProductCardProps {
+  product: Product;
+  onQuickView?: (product: Product) => void;
+}
 
-  const handleAddToCart = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    dispatch(
-      addToCart({
-        id: product._id,
+const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }) => {
+  const dispatch = useDispatch();
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleAddToCart = async () => {
+    if (product.stock === 0) return;
+    
+    setIsLoading(true);
+    try {
+      dispatch(addToCart({
         productId: product._id,
         name: product.name,
         price: product.price,
         image: product.images[0],
-        shopkeeperId: "default",
-        shopkeeperName: "CPS Store",
-      })
-    );
+        quantity: 1
+      }));
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleCardClick = () => {
-    navigate(`/products/${product._id}`);
-  };
-
-  const discountPercentage = product.mrp
+  const discountPercentage = product.mrp 
     ? Math.round(((product.mrp - product.price) / product.mrp) * 100)
     : 0;
 
   return (
     <motion.div
-      whileHover={{ y: -4 }}
-      whileTap={{ scale: 0.98 }}
-      className="bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer overflow-hidden"
-      onClick={handleCardClick}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -5 }}
+      className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300"
     >
       {/* Product Image */}
-      <div className="relative h-48 bg-gray-100">
-        {!imageError && product.images[0] ? (
-          <img
-            src={product.images[0]}
-            alt={product.name}
-            className="w-full h-full object-cover"
-            onError={() => setImageError(true)}
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-gray-400">
-            <div className="text-4xl">📦</div>
-          </div>
-        )}
-
-        {/* Discount Badge */}
+      <div className="relative aspect-square bg-gray-100">
+        <img
+          src={product.images[0] || '/placeholder-product.jpg'}
+          alt={product.name}
+          className="w-full h-full object-cover"
+          loading="lazy"
+        />
         {discountPercentage > 0 && (
-          <div className="absolute top-2 left-2 bg-error-500 text-white px-2 py-1 rounded-full text-xs font-semibold">
+          <div className="absolute top-2 left-2 bg-red-500 text-white px-2 py-1 rounded-full text-xs font-semibold">
             {discountPercentage}% OFF
           </div>
         )}
-
-        {/* Stock Badge */}
         {product.stock === 0 && (
-          <div className="absolute top-2 right-2 bg-gray-500 text-white px-2 py-1 rounded-full text-xs font-semibold">
-            Out of Stock
+          <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+            <span className="text-white font-semibold">Out of Stock</span>
           </div>
         )}
       </div>
 
       {/* Product Info */}
       <div className="p-4">
-        <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2">
+        <h3 className="font-semibold text-gray-900 text-lg mb-2 line-clamp-2">
           {product.name}
         </h3>
-
-        <p className="text-sm text-gray-600 mb-3 line-clamp-2">
+        
+        <p className="text-gray-600 text-sm mb-3 line-clamp-2">
           {product.description}
         </p>
 
-        {/* Rating */}
-        {product.ratings.count > 0 && (
-          <div className="flex items-center mb-3">
-            <div className="flex items-center">
-              {[...Array(5)].map((_, i) => (
-                <span
-                  key={i}
-                  className={`text-sm ${
-                    i < Math.floor(product.ratings.average)
-                      ? "text-yellow-400"
-                      : "text-gray-300"
-                  }`}
-                >
-                  ★
-                </span>
-              ))}
-            </div>
-            <span className="text-sm text-gray-600 ml-2">
-              ({product.ratings.count})
-            </span>
-          </div>
-        )}
-
         {/* Price */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center space-x-2">
-            <span className="text-lg font-bold text-gray-900">
-              ₹{product.price}
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-xl font-bold text-gray-900">
+            ₹{product.price}
+          </span>
+          {product.mrp && product.mrp > product.price && (
+            <span className="text-sm text-gray-500 line-through">
+              ₹{product.mrp}
             </span>
-            {product.mrp && product.mrp > product.price && (
-              <span className="text-sm text-gray-500 line-through">
-                ₹{product.mrp}
-              </span>
-            )}
-          </div>
+          )}
         </div>
 
-        {/* Add to Cart Button */}
-        <button
-          onClick={handleAddToCart}
-          disabled={product.stock === 0}
-          className={`w-full py-2 px-4 rounded-lg font-medium transition-colors ${
-            product.stock === 0
-              ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-              : "bg-primary-600 text-white hover:bg-primary-700"
-          }`}
-        >
-          {product.stock === 0 ? "Out of Stock" : "Add to Cart"}
-        </button>
+        {/* Stock Status */}
+        <div className="text-sm text-gray-600 mb-3">
+          {product.stock > 0 ? (
+            <span className="text-green-600">
+              {product.stock} in stock
+            </span>
+          ) : (
+            <span className="text-red-600">Out of stock</span>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-2">
+          <button
+            onClick={handleAddToCart}
+            disabled={product.stock === 0 || isLoading}
+            className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+          >
+            {isLoading ? 'Adding...' : 'Add to Cart'}
+          </button>
+          
+          {onQuickView && (
+            <button
+              onClick={() => onQuickView(product)}
+              className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+            >
+              Quick View
+            </button>
+          )}
+        </div>
       </div>
     </motion.div>
   );
