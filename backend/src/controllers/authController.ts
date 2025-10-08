@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import jwt from "jsonwebtoken";
+import * as jwt from "jsonwebtoken";
 import { User } from "../models/User";
 import { Pincode } from "../models/Pincode";
 import { createError } from "../middleware/errorHandler";
@@ -72,6 +72,7 @@ export const signup = async (req: Request, res: Response) => {
     });
   } catch (error) {
     res.status(500).json({ error: "Registration failed" });
+    return;
   }
 };
 
@@ -120,6 +121,7 @@ export const login = async (req: Request, res: Response) => {
     });
   } catch (error) {
     res.status(500).json({ error: "Login failed" });
+    return;
   }
 };
 
@@ -179,6 +181,7 @@ export const oauth = async (req: Request, res: Response) => {
     });
   } catch (error) {
     res.status(500).json({ error: "OAuth login failed" });
+    return;
   }
 };
 
@@ -206,6 +209,7 @@ export const refresh = async (req: Request, res: Response) => {
     res.json({ accessToken });
   } catch (error) {
     res.status(401).json({ error: "Invalid refresh token" });
+    return;
   }
 };
 

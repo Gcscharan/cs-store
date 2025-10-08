@@ -12,6 +12,7 @@
   "dependencies": {
     "@googlemaps/js-api-loader": "^2.0.1",
     "@reduxjs/toolkit": "^2.9.0",
+    "@tailwindcss/postcss": "^4.1.14",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.1",
     "autoprefixer": "^10.4.21",

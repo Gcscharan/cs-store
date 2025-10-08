@@ -27,7 +27,7 @@
           ]
         },
         {
-          "file": "src/controllers/authController.ts", 
+          "file": "src/controllers/authController.ts",
           "errors": 4,
           "warnings": 2,
           "issues": [
@@ -78,9 +78,7 @@
           "file": "src/controllers/pincodeController.ts",
           "errors": 1,
           "warnings": 0,
-          "issues": [
-            "'error' is defined but never used"
-          ]
+          "issues": ["'error' is defined but never used"]
         },
         {
           "file": "src/controllers/productController.ts",
@@ -127,7 +125,7 @@
       "message": "No test specified in package.json"
     },
     "frontend": {
-      "status": "NO_TESTS", 
+      "status": "NO_TESTS",
       "message": "No test specified in package.json"
     }
   },
@@ -142,7 +140,7 @@
   ],
   "nextSteps": [
     "Fix ESLint configuration issues",
-    "Clean up unused variables and imports", 
+    "Clean up unused variables and imports",
     "Add proper TypeScript types",
     "Set up testing framework",
     "Create proper error handling patterns"

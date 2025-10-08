@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 import { Pincode } from "../models/Pincode";
-import pincodeData from "../data/pincodes_ap_ts.json";
+import pincodeData from "../../data/pincodes_ap_ts.json";
 
 // Load environment variables
 dotenv.config();
@@ -20,7 +20,7 @@ async function importPincodes() {
     console.log("🗑️ Cleared existing pincodes");
 
     // Insert new pincodes
-    const pincodes = pincodeData.map((pincode) => ({
+    const pincodes = pincodeData.map((pincode: any) => ({
       pincode: pincode.pincode,
       state: pincode.state,
       district: pincode.district,

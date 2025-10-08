@@ -1,4 +1,4 @@
-import Razorpay from "razorpay";
+// import Razorpay from "razorpay";
 
 declare global {
   interface Window {

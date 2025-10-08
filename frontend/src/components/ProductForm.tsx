@@ -89,12 +89,12 @@ const ProductForm = ({
       price: parseFloat(formData.price),
       mrp: formData.mrp ? parseFloat(formData.mrp) : undefined,
       stock: parseInt(formData.stock),
-      tags: formData.tags
-        ? formData.tags
-            .split(",")
-            .map((tag) => tag.trim())
-            .filter((tag) => tag)
-        : [],
+        tags: formData.tags
+          ? formData.tags
+              .split(",")
+              .map((tag: string) => tag.trim())
+              .filter((tag: string) => tag)
+          : [],
       images: uploadedImages,
     };
 

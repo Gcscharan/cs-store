@@ -47,7 +47,7 @@ const MapView = ({
           libraries: ["places", "geometry"],
         });
 
-        const google = await loader.load();
+        const google = await (loader as any).load();
 
         if (!mapRef.current) return;
 
