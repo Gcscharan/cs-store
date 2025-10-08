@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useDispatch } from 'react-redux';
-import { addToCart } from '../store/slices/cartSlice';
+import React, { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useDispatch } from "react-redux";
+import { addToCart } from "../store/slices/cartSlice";
 
 interface Product {
   _id: string;
@@ -21,7 +21,11 @@ interface QuickViewModalProps {
   onClose: () => void;
 }
 
-const QuickViewModal: React.FC<QuickViewModalProps> = ({ product, isOpen, onClose }) => {
+const QuickViewModal: React.FC<QuickViewModalProps> = ({
+  product,
+  isOpen,
+  onClose,
+}) => {
   const dispatch = useDispatch();
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [quantity, setQuantity] = useState(1);
@@ -31,22 +35,24 @@ const QuickViewModal: React.FC<QuickViewModalProps> = ({ product, isOpen, onClos
 
   const handleAddToCart = async () => {
     if (product.stock === 0) return;
-    
+
     setIsLoading(true);
     try {
-      dispatch(addToCart({
-        productId: product._id,
-        name: product.name,
-        price: product.price,
-        image: product.images[0],
-        quantity
-      }));
+      dispatch(
+        addToCart({
+          productId: product._id,
+          name: product.name,
+          price: product.price,
+          image: product.images[0],
+          quantity,
+        })
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
-  const discountPercentage = product.mrp 
+  const discountPercentage = product.mrp
     ? Math.round(((product.mrp - product.price) / product.mrp) * 100)
     : 0;
 
@@ -72,12 +78,15 @@ const QuickViewModal: React.FC<QuickViewModalProps> = ({ product, isOpen, onClos
               <div className="lg:w-1/2 p-6">
                 <div className="aspect-square bg-gray-100 rounded-lg mb-4">
                   <img
-                    src={product.images[selectedImageIndex] || '/placeholder-product.jpg'}
+                    src={
+                      product.images[selectedImageIndex] ||
+                      "/placeholder-product.jpg"
+                    }
                     alt={product.name}
                     className="w-full h-full object-cover rounded-lg"
                   />
                 </div>
-                
+
                 {product.images.length > 1 && (
                   <div className="flex gap-2 overflow-x-auto">
                     {product.images.map((image, index) => (
@@ -85,7 +94,9 @@ const QuickViewModal: React.FC<QuickViewModalProps> = ({ product, isOpen, onClos
                         key={index}
                         onClick={() => setSelectedImageIndex(index)}
                         className={`flex-shrink-0 w-16 h-16 rounded-md overflow-hidden ${
-                          selectedImageIndex === index ? 'ring-2 ring-blue-500' : ''
+                          selectedImageIndex === index
+                            ? "ring-2 ring-blue-500"
+                            : ""
                         }`}
                       >
                         <img
@@ -102,13 +113,25 @@ const QuickViewModal: React.FC<QuickViewModalProps> = ({ product, isOpen, onClos
               {/* Product Details */}
               <div className="lg:w-1/2 p-6">
                 <div className="flex justify-between items-start mb-4">
-                  <h2 className="text-2xl font-bold text-gray-900">{product.name}</h2>
+                  <h2 className="text-2xl font-bold text-gray-900">
+                    {product.name}
+                  </h2>
                   <button
                     onClick={onClose}
                     className="text-gray-400 hover:text-gray-600"
                   >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    <svg
+                      className="w-6 h-6"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
                     </svg>
                   </button>
                 </div>
@@ -145,7 +168,9 @@ const QuickViewModal: React.FC<QuickViewModalProps> = ({ product, isOpen, onClos
                       {product.stock} in stock
                     </span>
                   ) : (
-                    <span className="text-red-600 font-medium">Out of stock</span>
+                    <span className="text-red-600 font-medium">
+                      Out of stock
+                    </span>
                   )}
                 </div>
 
@@ -164,7 +189,9 @@ const QuickViewModal: React.FC<QuickViewModalProps> = ({ product, isOpen, onClos
                       </button>
                       <span className="w-12 text-center">{quantity}</span>
                       <button
-                        onClick={() => setQuantity(Math.min(product.stock, quantity + 1))}
+                        onClick={() =>
+                          setQuantity(Math.min(product.stock, quantity + 1))
+                        }
                         className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-50"
                       >
                         +
@@ -199,9 +226,9 @@ const QuickViewModal: React.FC<QuickViewModalProps> = ({ product, isOpen, onClos
                     disabled={product.stock === 0 || isLoading}
                     className="flex-1 bg-blue-600 text-white py-3 px-6 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
                   >
-                    {isLoading ? 'Adding...' : 'Add to Cart'}
+                    {isLoading ? "Adding..." : "Add to Cart"}
                   </button>
-                  
+
                   <button className="px-6 py-3 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
                     Buy Now
                   </button>

@@ -72,13 +72,13 @@ export const getProductById = async (req: Request, res: Response) => {
 export const createProduct = async (req: Request, res: Response) => {
   try {
     const productData = req.body;
-    
+
     // Handle image uploads if images are provided as base64
     if (productData.images && Array.isArray(productData.images)) {
       const uploadedImages = [];
-      
+
       for (const image of productData.images) {
-        if (typeof image === 'string' && image.startsWith('data:image/')) {
+        if (typeof image === "string" && image.startsWith("data:image/")) {
           // Upload base64 image to Cloudinary
           const result = await cloudinary.uploader.upload(image, {
             folder: "cps-store/products",
@@ -86,8 +86,8 @@ export const createProduct = async (req: Request, res: Response) => {
             transformation: [
               { width: 800, height: 600, crop: "limit" },
               { quality: "auto" },
-              { format: "auto" }
-            ]
+              { format: "auto" },
+            ],
           });
           uploadedImages.push(result.secure_url);
         } else {
@@ -95,7 +95,7 @@ export const createProduct = async (req: Request, res: Response) => {
           uploadedImages.push(image);
         }
       }
-      
+
       productData.images = uploadedImages;
     }
 

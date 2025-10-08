@@ -3,6 +3,7 @@ import { Product } from "../models/Product";
 import { Order } from "../models/Order";
 import { DeliveryBoy } from "../models/DeliveryBoy";
 import { Pincode } from "../models/Pincode";
+import { Cart } from "../models/Cart";
 import Razorpay from "razorpay";
 import crypto from "crypto";
 
@@ -13,16 +14,36 @@ const razorpay = new Razorpay({
 
 export const getCart = async (req: Request, res: Response) => {
   try {
-    // For now, return empty cart - in production, you might want to store cart in Redis or database
-    res.json({ items: [], total: 0, itemCount: 0 });
+    const userId = (req as any).user._id;
+    
+    let cart = await Cart.findOne({ userId }).populate('items.productId');
+    
+    if (!cart) {
+      // Create empty cart for user
+      cart = new Cart({
+        userId,
+        items: [],
+        total: 0,
+        itemCount: 0,
+      });
+      await cart.save();
+    }
+    
+    res.json({
+      items: cart.items,
+      total: cart.total,
+      itemCount: cart.itemCount,
+    });
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch cart" });
+    return;
   }
 };
 
 export const addToCart = async (req: Request, res: Response) => {
   try {
     const { productId, quantity = 1 } = req.body;
+    const userId = (req as any).user._id;
 
     // Verify product exists and has stock
     const product = await Product.findById(productId);
@@ -34,25 +55,63 @@ export const addToCart = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Insufficient stock" });
     }
 
-    // In a real implementation, you would store this in Redis or database
-    res.json({
-      message: "Item added to cart",
-      product: {
-        id: product._id,
+    // Get or create cart
+    let cart = await Cart.findOne({ userId });
+    if (!cart) {
+      cart = new Cart({
+        userId,
+        items: [],
+        total: 0,
+        itemCount: 0,
+      });
+    }
+
+    // Check if item already exists in cart
+    const existingItemIndex = cart.items.findIndex(
+      (item) => item.productId.toString() === productId
+    );
+
+    if (existingItemIndex > -1) {
+      // Update quantity
+      cart.items[existingItemIndex].quantity += quantity;
+    } else {
+      // Add new item
+      cart.items.push({
+        productId: product._id,
         name: product.name,
         price: product.price,
         image: product.images[0],
-        stock: product.stock,
+        quantity,
+      });
+    }
+
+    // Recalculate totals
+    cart.total = cart.items.reduce(
+      (sum, item) => sum + item.price * item.quantity,
+      0
+    );
+    cart.itemCount = cart.items.reduce((sum, item) => sum + item.quantity, 0);
+
+    await cart.save();
+
+    res.json({
+      message: "Item added to cart",
+      cart: {
+        items: cart.items,
+        total: cart.total,
+        itemCount: cart.itemCount,
       },
     });
   } catch (error) {
     res.status(500).json({ error: "Failed to add item to cart" });
+    return;
   }
 };
 
 export const updateCartItem = async (req: Request, res: Response) => {
   try {
     const { productId, quantity } = req.body;
+    const userId = (req as any).user._id;
 
     if (quantity <= 0) {
       return res.status(400).json({ error: "Quantity must be greater than 0" });
@@ -68,24 +127,111 @@ export const updateCartItem = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Insufficient stock" });
     }
 
+    // Get cart
+    const cart = await Cart.findOne({ userId });
+    if (!cart) {
+      return res.status(404).json({ error: "Cart not found" });
+    }
+
+    // Find and update item
+    const itemIndex = cart.items.findIndex(
+      (item) => item.productId.toString() === productId
+    );
+
+    if (itemIndex === -1) {
+      return res.status(404).json({ error: "Item not found in cart" });
+    }
+
+    cart.items[itemIndex].quantity = quantity;
+
+    // Recalculate totals
+    cart.total = cart.items.reduce(
+      (sum, item) => sum + item.price * item.quantity,
+      0
+    );
+    cart.itemCount = cart.items.reduce((sum, item) => sum + item.quantity, 0);
+
+    await cart.save();
+
     res.json({
       message: "Cart item updated",
+      cart: {
+        items: cart.items,
+        total: cart.total,
+        itemCount: cart.itemCount,
+      },
     });
   } catch (error) {
     res.status(500).json({ error: "Failed to update cart item" });
+    return;
   }
 };
 
 export const removeFromCart = async (req: Request, res: Response) => {
   try {
     const { itemId } = req.params;
+    const userId = (req as any).user._id;
 
-    // In a real implementation, you would remove from Redis or database
+    // Get cart
+    const cart = await Cart.findOne({ userId });
+    if (!cart) {
+      return res.status(404).json({ error: "Cart not found" });
+    }
+
+    // Remove item
+    cart.items = cart.items.filter(
+      (item) => item.productId.toString() !== itemId
+    );
+
+    // Recalculate totals
+    cart.total = cart.items.reduce(
+      (sum, item) => sum + item.price * item.quantity,
+      0
+    );
+    cart.itemCount = cart.items.reduce((sum, item) => sum + item.quantity, 0);
+
+    await cart.save();
+
     res.json({
       message: "Item removed from cart",
+      cart: {
+        items: cart.items,
+        total: cart.total,
+        itemCount: cart.itemCount,
+      },
     });
   } catch (error) {
     res.status(500).json({ error: "Failed to remove item from cart" });
+    return;
+  }
+};
+
+export const clearCart = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user._id;
+
+    const cart = await Cart.findOne({ userId });
+    if (!cart) {
+      return res.status(404).json({ error: "Cart not found" });
+    }
+
+    cart.items = [];
+    cart.total = 0;
+    cart.itemCount = 0;
+
+    await cart.save();
+
+    res.json({
+      message: "Cart cleared successfully",
+      cart: {
+        items: cart.items,
+        total: cart.total,
+        itemCount: cart.itemCount,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to clear cart" });
+    return;
   }
 };
 
@@ -98,6 +244,7 @@ export const createOrder = async (req: Request, res: Response) => {
     if (totalAmount < 2000) {
       return res.status(400).json({
         error: "Minimum order is ₹2000. Add more items or contact support.",
+        code: "MINIMUM_ORDER_NOT_MET",
       });
     }
 

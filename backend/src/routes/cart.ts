@@ -4,6 +4,7 @@ import {
   addToCart,
   updateCartItem,
   removeFromCart,
+  clearCart,
   createOrder,
   verifyPayment,
 } from "../controllers/cartController";
@@ -16,6 +17,7 @@ router.get("/", authenticateToken, getCart);
 router.post("/", authenticateToken, addToCart);
 router.put("/", authenticateToken, updateCartItem);
 router.delete("/:itemId", authenticateToken, removeFromCart);
+router.delete("/", authenticateToken, clearCart);
 
 // Checkout routes
 router.post("/checkout/create-order", authenticateToken, createOrder);

@@ -1,5 +1,9 @@
 import express from "express";
-import { uploadImage, deleteImage, getUploadSignature } from "../controllers/cloudinaryController";
+import {
+  uploadImage,
+  deleteImage,
+  getUploadSignature,
+} from "../controllers/cloudinaryController";
 
 const router = express.Router();
 

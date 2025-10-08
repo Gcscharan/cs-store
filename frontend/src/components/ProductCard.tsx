@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import { useDispatch } from 'react-redux';
-import { addToCart } from '../store/slices/cartSlice';
+import React, { useState } from "react";
+import { motion } from "framer-motion";
+import { useDispatch } from "react-redux";
+import { addToCart } from "../store/slices/cartSlice";
 
 interface Product {
   _id: string;
@@ -26,22 +26,24 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }) => {
 
   const handleAddToCart = async () => {
     if (product.stock === 0) return;
-    
+
     setIsLoading(true);
     try {
-      dispatch(addToCart({
-        productId: product._id,
-        name: product.name,
-        price: product.price,
-        image: product.images[0],
-        quantity: 1
-      }));
+      dispatch(
+        addToCart({
+          productId: product._id,
+          name: product.name,
+          price: product.price,
+          image: product.images[0],
+          quantity: 1,
+        })
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
-  const discountPercentage = product.mrp 
+  const discountPercentage = product.mrp
     ? Math.round(((product.mrp - product.price) / product.mrp) * 100)
     : 0;
 
@@ -55,7 +57,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }) => {
       {/* Product Image */}
       <div className="relative aspect-square bg-gray-100">
         <img
-          src={product.images[0] || '/placeholder-product.jpg'}
+          src={product.images[0] || "/placeholder-product.jpg"}
           alt={product.name}
           className="w-full h-full object-cover"
           loading="lazy"
@@ -77,7 +79,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }) => {
         <h3 className="font-semibold text-gray-900 text-lg mb-2 line-clamp-2">
           {product.name}
         </h3>
-        
+
         <p className="text-gray-600 text-sm mb-3 line-clamp-2">
           {product.description}
         </p>
@@ -97,9 +99,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }) => {
         {/* Stock Status */}
         <div className="text-sm text-gray-600 mb-3">
           {product.stock > 0 ? (
-            <span className="text-green-600">
-              {product.stock} in stock
-            </span>
+            <span className="text-green-600">{product.stock} in stock</span>
           ) : (
             <span className="text-red-600">Out of stock</span>
           )}
@@ -112,9 +112,9 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }) => {
             disabled={product.stock === 0 || isLoading}
             className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
           >
-            {isLoading ? 'Adding...' : 'Add to Cart'}
+            {isLoading ? "Adding..." : "Add to Cart"}
           </button>
-          
+
           {onQuickView && (
             <button
               onClick={() => onQuickView(product)}

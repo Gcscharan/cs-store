@@ -16,8 +16,8 @@ export const uploadImage = async (req: Request, res: Response) => {
       transformation: [
         { width: 800, height: 600, crop: "limit" },
         { quality: "auto" },
-        { format: "auto" }
-      ]
+        { format: "auto" },
+      ],
     });
 
     res.json({
@@ -59,7 +59,7 @@ export const getUploadSignature = async (req: Request, res: Response) => {
     const params = {
       timestamp,
       folder: "cps-store/products",
-      transformation: "w_800,h_600,c_limit,q_auto,f_auto"
+      transformation: "w_800,h_600,c_limit,q_auto,f_auto",
     };
 
     const signature = cloudinary.utils.api_sign_request(

@@ -1,9 +1,10 @@
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "../store";
 import { clearCart } from "../store/slices/cartSlice";
 import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import RazorpayCheckout from "../components/RazorpayCheckout";
 import AddressForm from "../components/AddressForm";
 import toast from "react-hot-toast";
@@ -15,6 +16,18 @@ const CheckoutPage = () => {
   const navigate = useNavigate();
   const [selectedAddress, setSelectedAddress] = useState<any>(null);
   const [showAddressForm, setShowAddressForm] = useState(false);
+
+  const MINIMUM_ORDER = 2000;
+  const isMinimumMet = cart.total >= MINIMUM_ORDER;
+  const remainingAmount = MINIMUM_ORDER - cart.total;
+
+  // Redirect if minimum order not met
+  useEffect(() => {
+    if (cart.items.length > 0 && !isMinimumMet) {
+      toast.error(`Minimum order is ₹${MINIMUM_ORDER}. Add ₹${remainingAmount.toFixed(2)} more to checkout.`);
+      navigate('/cart');
+    }
+  }, [cart.total, isMinimumMet, remainingAmount, navigate]);
 
   const handlePaymentSuccess = (order: any) => {
     dispatch(clearCart());
@@ -40,7 +53,56 @@ const CheckoutPage = () => {
             <h3 className="text-xl font-semibold text-gray-900 mb-2">
               Your cart is empty
             </h3>
-            <p className="text-gray-600">Add some products to checkout</p>
+            <p className="text-gray-600 mb-6">Add some products to checkout</p>
+            <Link
+              to="/products"
+              className="inline-block bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Continue Shopping
+            </Link>
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
+
+  // Show minimum order warning if not met
+  if (!isMinimumMet) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="min-h-screen bg-gray-50 py-8 px-4"
+      >
+        <div className="max-w-4xl mx-auto">
+          <h1 className="text-3xl font-bold text-gray-900 mb-8">Checkout</h1>
+          
+          <div className="bg-white rounded-lg shadow-sm p-8 text-center">
+            <div className="text-6xl mb-4">⚠️</div>
+            <h2 className="text-2xl font-semibold text-gray-900 mb-4">
+              Minimum Order Not Met
+            </h2>
+            <p className="text-gray-600 mb-6">
+              Your current order total is ₹{cart.total.toFixed(2)}, but the minimum order is ₹{MINIMUM_ORDER}.
+            </p>
+            <p className="text-lg font-medium text-red-600 mb-8">
+              Add ₹{remainingAmount.toFixed(2)} more to proceed with checkout.
+            </p>
+            
+            <div className="space-y-4">
+              <Link
+                to="/cart"
+                className="inline-block bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors mr-4"
+              >
+                Back to Cart
+              </Link>
+              <Link
+                to="/products"
+                className="inline-block bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700 transition-colors"
+              >
+                Continue Shopping
+              </Link>
+            </div>
           </div>
         </div>
       </motion.div>

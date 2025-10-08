@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import ProductCard from '../components/ProductCard';
-import ProductFilters from '../components/ProductFilters';
-import QuickViewModal from '../components/QuickViewModal';
+import React, { useState, useEffect } from "react";
+import { motion } from "framer-motion";
+import ProductCard from "../components/ProductCard";
+import ProductFilters from "../components/ProductFilters";
+import QuickViewModal from "../components/QuickViewModal";
 
 interface Product {
   _id: string;
@@ -34,29 +34,29 @@ const ProductsPage = () => {
   const [loading, setLoading] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [showQuickView, setShowQuickView] = useState(false);
-  
+
   const [filters, setFilters] = useState({
-    category: '',
-    minPrice: '',
-    maxPrice: '',
-    search: '',
-    sortBy: 'createdAt',
-    sortOrder: 'desc',
+    category: "",
+    minPrice: "",
+    maxPrice: "",
+    search: "",
+    sortBy: "createdAt",
+    sortOrder: "desc",
   });
 
   const fetchProducts = async () => {
     setLoading(true);
     try {
       const queryParams = new URLSearchParams();
-      
-      if (filters.category) queryParams.append('category', filters.category);
-      if (filters.minPrice) queryParams.append('minPrice', filters.minPrice);
-      if (filters.maxPrice) queryParams.append('maxPrice', filters.maxPrice);
-      if (filters.search) queryParams.append('search', filters.search);
-      queryParams.append('sortBy', filters.sortBy);
-      queryParams.append('sortOrder', filters.sortOrder);
-      queryParams.append('page', pagination.page.toString());
-      queryParams.append('limit', pagination.limit.toString());
+
+      if (filters.category) queryParams.append("category", filters.category);
+      if (filters.minPrice) queryParams.append("minPrice", filters.minPrice);
+      if (filters.maxPrice) queryParams.append("maxPrice", filters.maxPrice);
+      if (filters.search) queryParams.append("search", filters.search);
+      queryParams.append("sortBy", filters.sortBy);
+      queryParams.append("sortOrder", filters.sortOrder);
+      queryParams.append("page", pagination.page.toString());
+      queryParams.append("limit", pagination.limit.toString());
 
       const response = await fetch(`/api/products?${queryParams}`);
       const data = await response.json();
@@ -65,10 +65,10 @@ const ProductsPage = () => {
         setProducts(data.products);
         setPagination(data.pagination);
       } else {
-        console.error('Failed to fetch products:', data.error);
+        console.error("Failed to fetch products:", data.error);
       }
     } catch (error) {
-      console.error('Error fetching products:', error);
+      console.error("Error fetching products:", error);
     } finally {
       setLoading(false);
     }
@@ -80,7 +80,7 @@ const ProductsPage = () => {
 
   const handleFiltersChange = (newFilters: typeof filters) => {
     setFilters(newFilters);
-    setPagination(prev => ({ ...prev, page: 1 }));
+    setPagination((prev) => ({ ...prev, page: 1 }));
   };
 
   const handleQuickView = (product: Product) => {
@@ -94,7 +94,7 @@ const ProductsPage = () => {
   };
 
   const handlePageChange = (page: number) => {
-    setPagination(prev => ({ ...prev, page }));
+    setPagination((prev) => ({ ...prev, page }));
   };
 
   return (
@@ -105,7 +105,7 @@ const ProductsPage = () => {
     >
       <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold text-gray-900 mb-8">Products</h1>
-        
+
         {/* Filters */}
         <ProductFilters
           filters={filters}
@@ -116,7 +116,10 @@ const ProductsPage = () => {
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {[...Array(8)].map((_, index) => (
-              <div key={index} className="bg-white rounded-lg shadow-md overflow-hidden animate-pulse">
+              <div
+                key={index}
+                className="bg-white rounded-lg shadow-md overflow-hidden animate-pulse"
+              >
                 <div className="aspect-square bg-gray-200"></div>
                 <div className="p-4">
                   <div className="h-4 bg-gray-200 rounded mb-2"></div>
@@ -148,11 +151,11 @@ const ProductsPage = () => {
                 >
                   Previous
                 </button>
-                
+
                 <span className="px-4 py-2">
                   Page {pagination.page} of {pagination.pages}
                 </span>
-                
+
                 <button
                   onClick={() => handlePageChange(pagination.page + 1)}
                   disabled={pagination.page === pagination.pages}
