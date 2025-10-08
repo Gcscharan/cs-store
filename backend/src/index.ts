@@ -26,10 +26,10 @@ io.on("connection", (socket) => {
     const { room, userId, userRole } = data;
     socket.join(room);
     console.log(`User ${userId} (${userRole}) joined room: ${room}`);
-    
+
     // Join admin room if user is admin
-    if (userRole === 'admin') {
-      socket.join('admin_room');
+    if (userRole === "admin") {
+      socket.join("admin_room");
     }
   });
 
@@ -37,7 +37,7 @@ io.on("connection", (socket) => {
   socket.on("order_status_update", (data) => {
     const { orderId, status } = data;
     io.to(`order_${orderId}`).emit("order:status:update", { orderId, status });
-    io.to('admin_room').emit("order:status:update", { orderId, status });
+    io.to("admin_room").emit("order:status:update", { orderId, status });
   });
 
   // Handle driver location updates
@@ -50,9 +50,9 @@ io.on("connection", (socket) => {
       speed,
       eta,
     });
-    
+
     // Emit to admin room for tracking
-    io.to('admin_room').emit("driver:location:update", {
+    io.to("admin_room").emit("driver:location:update", {
       driverId,
       lat,
       lng,
@@ -64,13 +64,13 @@ io.on("connection", (socket) => {
   // Handle order creation events
   socket.on("order_created", (data) => {
     const { orderId } = data;
-    io.to('admin_room').emit("order:created", { orderId });
+    io.to("admin_room").emit("order:created", { orderId });
   });
 
   // Handle driver status updates
   socket.on("driver_status_update", (data) => {
     const { driverId, status, availability } = data;
-    io.to('admin_room').emit("driver:status:update", {
+    io.to("admin_room").emit("driver:status:update", {
       driverId,
       status,
       availability,

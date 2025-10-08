@@ -113,7 +113,11 @@ const DeliveryDashboard = () => {
   };
 
   // Update order status
-  const updateOrderStatus = async (orderId: string, status: string, proofImage?: string) => {
+  const updateOrderStatus = async (
+    orderId: string,
+    status: string,
+    proofImage?: string
+  ) => {
     try {
       const response = await fetch("/api/delivery/update-status", {
         method: "POST",
@@ -131,11 +135,11 @@ const DeliveryDashboard = () => {
       if (response.ok) {
         toast.success(`Order status updated to ${status}`);
         // Update local state
-        setOrders(prev => prev.map(order => 
-          order._id === orderId 
-            ? { ...order, orderStatus: status }
-            : order
-        ));
+        setOrders((prev) =>
+          prev.map((order) =>
+            order._id === orderId ? { ...order, orderStatus: status } : order
+          )
+        );
       } else {
         throw new Error("Failed to update order status");
       }
@@ -234,7 +238,7 @@ const DeliveryDashboard = () => {
                 Welcome back, {user?.name || "Driver"}!
               </p>
             </div>
-            
+
             <div className="flex items-center space-x-4">
               {/* Location Status */}
               <div className="text-center">
@@ -245,7 +249,7 @@ const DeliveryDashboard = () => {
                   {currentLocation ? "Location Active" : "Location Offline"}
                 </p>
               </div>
-              
+
               {/* Update Location Button */}
               <button
                 onClick={updateLocation}
@@ -312,7 +316,9 @@ const DeliveryDashboard = () => {
 
                 {/* Delivery Address */}
                 <div className="mb-4">
-                  <h4 className="font-medium text-gray-900 mb-2">Delivery Address</h4>
+                  <h4 className="font-medium text-gray-900 mb-2">
+                    Delivery Address
+                  </h4>
                   <p className="text-sm text-gray-600">
                     {order.address.label}: {order.address.addressLine}
                   </p>
@@ -325,10 +331,18 @@ const DeliveryDashboard = () => {
                 <div className="space-y-3">
                   {getNextStatus(order.orderStatus) && (
                     <button
-                      onClick={() => updateOrderStatus(order._id, getNextStatus(order.orderStatus)!)}
+                      onClick={() =>
+                        updateOrderStatus(
+                          order._id,
+                          getNextStatus(order.orderStatus)!
+                        )
+                      }
                       className="w-full py-2 px-4 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
                     >
-                      Mark as {getNextStatus(order.orderStatus)?.replace("_", " ").toUpperCase()}
+                      Mark as{" "}
+                      {getNextStatus(order.orderStatus)
+                        ?.replace("_", " ")
+                        .toUpperCase()}
                     </button>
                   )}
 

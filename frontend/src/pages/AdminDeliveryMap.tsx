@@ -41,7 +41,9 @@ const AdminDeliveryMap = () => {
   const { socket } = useSocket();
   const [deliveryBoys, setDeliveryBoys] = useState<DeliveryBoy[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [selectedDriver, setSelectedDriver] = useState<DeliveryBoy | null>(null);
+  const [selectedDriver, setSelectedDriver] = useState<DeliveryBoy | null>(
+    null
+  );
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showReassignModal, setShowReassignModal] = useState(false);
@@ -87,35 +89,39 @@ const AdminDeliveryMap = () => {
   useEffect(() => {
     if (socket) {
       // Join admin room
-      socket.emit("join_room", { 
-        room: "admin_room", 
-        userId: "admin", 
-        userRole: "admin" 
+      socket.emit("join_room", {
+        room: "admin_room",
+        userId: "admin",
+        userRole: "admin",
       });
 
       // Listen for driver location updates
       socket.on("driver:location:update", (data) => {
-        setDeliveryBoys(prev => prev.map(driver => 
-          driver._id === data.driverId 
-            ? {
-                ...driver,
-                currentLocation: {
-                  lat: data.lat,
-                  lng: data.lng,
-                  lastUpdatedAt: new Date().toISOString(),
+        setDeliveryBoys((prev) =>
+          prev.map((driver) =>
+            driver._id === data.driverId
+              ? {
+                  ...driver,
+                  currentLocation: {
+                    lat: data.lat,
+                    lng: data.lng,
+                    lastUpdatedAt: new Date().toISOString(),
+                  },
                 }
-              }
-            : driver
-        ));
+              : driver
+          )
+        );
       });
 
       // Listen for order status updates
       socket.on("order:status:update", (data) => {
-        setOrders(prev => prev.map(order => 
-          order._id === data.orderId 
-            ? { ...order, orderStatus: data.status }
-            : order
-        ));
+        setOrders((prev) =>
+          prev.map((order) =>
+            order._id === data.orderId
+              ? { ...order, orderStatus: data.status }
+              : order
+          )
+        );
         toast.success(`Order ${data.orderId} status updated to ${data.status}`);
       });
 
@@ -145,13 +151,15 @@ const AdminDeliveryMap = () => {
         toast.success("Order reassigned successfully");
         setShowReassignModal(false);
         setSelectedOrder(null);
-        
+
         // Update local state
-        setOrders(prev => prev.map(order => 
-          order._id === orderId 
-            ? { ...order, deliveryBoyId, orderStatus: "assigned" }
-            : order
-        ));
+        setOrders((prev) =>
+          prev.map((order) =>
+            order._id === orderId
+              ? { ...order, deliveryBoyId, orderStatus: "assigned" }
+              : order
+          )
+        );
       } else {
         throw new Error("Failed to reassign order");
       }
@@ -166,7 +174,7 @@ const AdminDeliveryMap = () => {
     const markers: any[] = [];
 
     // Add delivery boy markers
-    deliveryBoys.forEach(driver => {
+    deliveryBoys.forEach((driver) => {
       if (driver.currentLocation.lat && driver.currentLocation.lng) {
         markers.push({
           id: `driver_${driver._id}`,
@@ -184,7 +192,7 @@ const AdminDeliveryMap = () => {
     });
 
     // Add order markers
-    orders.forEach(order => {
+    orders.forEach((order) => {
       if (order.address.lat && order.address.lng) {
         markers.push({
           id: `order_${order._id}`,
@@ -285,19 +293,22 @@ const AdminDeliveryMap = () => {
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-green-600">
-                {deliveryBoys.filter(d => d.availability === "available").length}
+                {
+                  deliveryBoys.filter((d) => d.availability === "available")
+                    .length
+                }
               </div>
               <div className="text-sm text-gray-600">Available</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-yellow-600">
-                {deliveryBoys.filter(d => d.availability === "busy").length}
+                {deliveryBoys.filter((d) => d.availability === "busy").length}
               </div>
               <div className="text-sm text-gray-600">Busy</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-purple-600">
-                {orders.filter(o => o.orderStatus === "in_transit").length}
+                {orders.filter((o) => o.orderStatus === "in_transit").length}
               </div>
               <div className="text-sm text-gray-600">In Transit</div>
             </div>
@@ -344,28 +355,36 @@ const AdminDeliveryMap = () => {
                 </h3>
                 <div className="space-y-3">
                   <div>
-                    <span className="font-medium">Name:</span> {selectedDriver.name}
+                    <span className="font-medium">Name:</span>{" "}
+                    {selectedDriver.name}
                   </div>
                   <div>
-                    <span className="font-medium">Phone:</span> {selectedDriver.phone}
+                    <span className="font-medium">Phone:</span>{" "}
+                    {selectedDriver.phone}
                   </div>
                   <div>
-                    <span className="font-medium">Vehicle:</span> {selectedDriver.vehicleType}
+                    <span className="font-medium">Vehicle:</span>{" "}
+                    {selectedDriver.vehicleType}
                   </div>
                   <div>
                     <span className="font-medium">Status:</span>
-                    <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${getAvailabilityColor(selectedDriver.availability)}`}>
+                    <span
+                      className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${getAvailabilityColor(selectedDriver.availability)}`}
+                    >
                       {selectedDriver.availability.toUpperCase()}
                     </span>
                   </div>
                   <div>
-                    <span className="font-medium">Earnings:</span> ₹{selectedDriver.earnings.toFixed(2)}
+                    <span className="font-medium">Earnings:</span> ₹
+                    {selectedDriver.earnings.toFixed(2)}
                   </div>
                   <div>
-                    <span className="font-medium">Completed Orders:</span> {selectedDriver.completedOrdersCount}
+                    <span className="font-medium">Completed Orders:</span>{" "}
+                    {selectedDriver.completedOrdersCount}
                   </div>
                   <div>
-                    <span className="font-medium">Assigned Orders:</span> {selectedDriver.assignedOrders.length}
+                    <span className="font-medium">Assigned Orders:</span>{" "}
+                    {selectedDriver.assignedOrders.length}
                   </div>
                 </div>
                 <button
@@ -385,22 +404,28 @@ const AdminDeliveryMap = () => {
                 </h3>
                 <div className="space-y-3">
                   <div>
-                    <span className="font-medium">Order ID:</span> #{selectedOrder._id.slice(-6)}
+                    <span className="font-medium">Order ID:</span> #
+                    {selectedOrder._id.slice(-6)}
                   </div>
                   <div>
-                    <span className="font-medium">Customer:</span> {selectedOrder.userId.name}
+                    <span className="font-medium">Customer:</span>{" "}
+                    {selectedOrder.userId.name}
                   </div>
                   <div>
-                    <span className="font-medium">Amount:</span> ₹{selectedOrder.totalAmount.toFixed(2)}
+                    <span className="font-medium">Amount:</span> ₹
+                    {selectedOrder.totalAmount.toFixed(2)}
                   </div>
                   <div>
                     <span className="font-medium">Status:</span>
-                    <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${getAvailabilityColor(selectedOrder.orderStatus)}`}>
+                    <span
+                      className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${getAvailabilityColor(selectedOrder.orderStatus)}`}
+                    >
                       {selectedOrder.orderStatus.toUpperCase()}
                     </span>
                   </div>
                   <div>
-                    <span className="font-medium">Address:</span> {selectedOrder.address.addressLine}
+                    <span className="font-medium">Address:</span>{" "}
+                    {selectedOrder.address.addressLine}
                   </div>
                 </div>
                 <div className="mt-4 space-y-2">
@@ -438,11 +463,17 @@ const AdminDeliveryMap = () => {
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <div className="font-medium text-gray-900">{driver.name}</div>
-                        <div className="text-sm text-gray-600">{driver.vehicleType}</div>
+                        <div className="font-medium text-gray-900">
+                          {driver.name}
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          {driver.vehicleType}
+                        </div>
                       </div>
                       <div className="text-right">
-                        <div className={`text-xs px-2 py-1 rounded-full ${getAvailabilityColor(driver.availability)}`}>
+                        <div
+                          className={`text-xs px-2 py-1 rounded-full ${getAvailabilityColor(driver.availability)}`}
+                        >
                           {driver.availability}
                         </div>
                         <div className="text-xs text-gray-500 mt-1">
@@ -466,15 +497,21 @@ const AdminDeliveryMap = () => {
               </h3>
               <div className="space-y-3 max-h-64 overflow-y-auto">
                 {deliveryBoys
-                  .filter(driver => driver.availability === "available")
+                  .filter((driver) => driver.availability === "available")
                   .map((driver) => (
                     <div
                       key={driver._id}
                       className="p-3 border border-gray-200 rounded-lg cursor-pointer hover:border-blue-300 hover:bg-blue-50"
-                      onClick={() => reassignOrder(selectedOrder._id, driver._id)}
+                      onClick={() =>
+                        reassignOrder(selectedOrder._id, driver._id)
+                      }
                     >
-                      <div className="font-medium text-gray-900">{driver.name}</div>
-                      <div className="text-sm text-gray-600">{driver.vehicleType}</div>
+                      <div className="font-medium text-gray-900">
+                        {driver.name}
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        {driver.vehicleType}
+                      </div>
                       <div className="text-xs text-gray-500">
                         {driver.assignedOrders.length} current orders
                       </div>

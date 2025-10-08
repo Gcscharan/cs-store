@@ -95,10 +95,10 @@ const OrderTrackingPage = () => {
   useEffect(() => {
     if (socket && order?.deliveryBoyId) {
       // Join order room for real-time updates
-      socket.emit("join_room", { 
-        room: `order_${id}`, 
-        userId: "customer", 
-        userRole: "customer" 
+      socket.emit("join_room", {
+        room: `order_${id}`,
+        userId: "customer",
+        userRole: "customer",
       });
 
       // Listen for driver location updates

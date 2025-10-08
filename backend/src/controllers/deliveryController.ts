@@ -4,15 +4,22 @@ import { Order } from "../models/Order";
 import { User } from "../models/User";
 
 // Calculate distance between two coordinates using Haversine formula
-const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
+const calculateDistance = (
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number => {
   const R = 6371; // Earth's radius in kilometers
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = 
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-    Math.sin(dLng/2) * Math.sin(dLng/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 };
 
@@ -20,7 +27,7 @@ const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: numbe
 export const getAllDeliveryBoys = async (req: Request, res: Response) => {
   try {
     const deliveryBoys = await DeliveryBoy.find()
-      .populate('assignedOrders', 'orderStatus totalAmount createdAt')
+      .populate("assignedOrders", "orderStatus totalAmount createdAt")
       .sort({ createdAt: -1 });
 
     res.json({
@@ -37,8 +44,10 @@ export const getAllDeliveryBoys = async (req: Request, res: Response) => {
 export const getDeliveryBoyById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const deliveryBoy = await DeliveryBoy.findById(id)
-      .populate('assignedOrders', 'orderStatus totalAmount createdAt address');
+    const deliveryBoy = await DeliveryBoy.findById(id).populate(
+      "assignedOrders",
+      "orderStatus totalAmount createdAt address"
+    );
 
     if (!deliveryBoy) {
       return res.status(404).json({ error: "Delivery boy not found" });
@@ -66,7 +75,11 @@ export const createDeliveryBoy = async (req: Request, res: Response) => {
       name,
       phone,
       vehicleType,
-      currentLocation: currentLocation || { lat: 0, lng: 0, lastUpdatedAt: new Date() },
+      currentLocation: currentLocation || {
+        lat: 0,
+        lng: 0,
+        lastUpdatedAt: new Date(),
+      },
       availability: "offline",
       isActive: true,
     });
@@ -89,11 +102,10 @@ export const updateDeliveryBoy = async (req: Request, res: Response) => {
     const { id } = req.params;
     const updateData = req.body;
 
-    const deliveryBoy = await DeliveryBoy.findByIdAndUpdate(
-      id,
-      updateData,
-      { new: true, runValidators: true }
-    );
+    const deliveryBoy = await DeliveryBoy.findByIdAndUpdate(id, updateData, {
+      new: true,
+      runValidators: true,
+    });
 
     if (!deliveryBoy) {
       return res.status(404).json({ error: "Delivery boy not found" });
@@ -146,9 +158,14 @@ export const getAvailableDeliveryBoys = async (req: Request, res: Response) => {
       const userLat = parseFloat(lat as string);
       const userLng = parseFloat(lng as string);
 
-      const deliveryBoysWithDistance = deliveryBoys.map(db => ({
+      const deliveryBoysWithDistance = deliveryBoys.map((db) => ({
         ...db.toObject(),
-        distance: calculateDistance(userLat, userLng, db.currentLocation.lat, db.currentLocation.lng),
+        distance: calculateDistance(
+          userLat,
+          userLng,
+          db.currentLocation.lat,
+          db.currentLocation.lng
+        ),
       }));
 
       deliveryBoysWithDistance.sort((a, b) => a.distance - b.distance);
@@ -239,17 +256,17 @@ export const autoAssignOrder = async (req: Request, res: Response) => {
     }
 
     // Calculate distances and workload scores
-    const deliveryBoysWithScore = availableDeliveryBoys.map(db => {
+    const deliveryBoysWithScore = availableDeliveryBoys.map((db) => {
       const distance = calculateDistance(
         order.address.lat,
         order.address.lng,
         db.currentLocation.lat,
         db.currentLocation.lng
       );
-      
+
       const workload = db.assignedOrders.length;
-      const score = distance + (workload * 2); // Weight workload more than distance
-      
+      const score = distance + workload * 2; // Weight workload more than distance
+
       return {
         deliveryBoy: db,
         distance,
@@ -312,9 +329,9 @@ export const updateLocation = async (req: Request, res: Response) => {
     await deliveryBoy.save();
 
     // Emit location update via socket
-    const io = (req as any).app.get('io');
+    const io = (req as any).app.get("io");
     if (io) {
-      io.to('admin_room').emit('driver:location:update', {
+      io.to("admin_room").emit("driver:location:update", {
         driverId: deliveryBoy._id,
         lat: deliveryBoy.currentLocation.lat,
         lng: deliveryBoy.currentLocation.lng,
@@ -323,7 +340,7 @@ export const updateLocation = async (req: Request, res: Response) => {
 
       // Emit to order rooms
       for (const orderId of deliveryBoy.assignedOrders) {
-        io.to(`order_${orderId}`).emit('driver:location:update', {
+        io.to(`order_${orderId}`).emit("driver:location:update", {
           driverId: deliveryBoy._id,
           lat: deliveryBoy.currentLocation.lat,
           lng: deliveryBoy.currentLocation.lng,
@@ -355,7 +372,9 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
 
     // Check if delivery boy is assigned to this order
     if (order.deliveryBoyId?.toString() !== deliveryBoyId) {
-      return res.status(403).json({ error: "Not authorized to update this order" });
+      return res
+        .status(403)
+        .json({ error: "Not authorized to update this order" });
     }
 
     // Update order status
@@ -366,15 +385,15 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
     await order.save();
 
     // Emit status update via socket
-    const io = (req as any).app.get('io');
+    const io = (req as any).app.get("io");
     if (io) {
-      io.to(`order_${orderId}`).emit('order:status:update', {
+      io.to(`order_${orderId}`).emit("order:status:update", {
         orderId,
         status,
         updatedAt: new Date(),
       });
 
-      io.to('admin_room').emit('order:status:update', {
+      io.to("admin_room").emit("order:status:update", {
         orderId,
         status,
         updatedAt: new Date(),
@@ -397,7 +416,7 @@ export const getMyOrders = async (req: Request, res: Response) => {
     const deliveryBoyId = (req as any).user._id;
 
     const orders = await Order.find({ deliveryBoyId })
-      .populate('userId', 'name phone')
+      .populate("userId", "name phone")
       .sort({ createdAt: -1 });
 
     res.json({
