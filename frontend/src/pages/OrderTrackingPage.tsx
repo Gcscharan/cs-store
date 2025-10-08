@@ -1,8 +1,10 @@
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import MapView from "../components/MapView";
 import DeliveryListItem from "../components/DeliveryListItem";
+import { useOrderUpdates } from "../hooks/useSocket";
+import toast from "react-hot-toast";
 
 const OrderTrackingPage = () => {
   const { id } = useParams();
@@ -12,37 +14,81 @@ const OrderTrackingPage = () => {
     lng: number;
   } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Use socket for real-time updates
+  const { orderStatus, paymentStatus } = useOrderUpdates(id || '');
 
-  // Mock order data - in real app, fetch from API
+  // Fetch order data and handle real-time updates
   useEffect(() => {
-    const mockOrder = {
-      _id: id,
-      items: [
-        { name: "Rice 1kg", qty: 2, price: 50 },
-        { name: "Dal 500g", qty: 1, price: 80 },
-      ],
-      totalAmount: 180,
-      address: {
-        label: "Home",
-        addressLine: "123 Main Street",
-        city: "Hyderabad",
-        pincode: "500001",
-        lat: 17.385,
-        lng: 78.4867,
-      },
-      orderStatus: "in_transit",
-      createdAt: new Date().toISOString(),
-      deliveryBoy: {
-        name: "Rajesh Kumar",
-        phone: "9876543210",
-        vehicleType: "bike",
-      },
+    const fetchOrder = async () => {
+      try {
+        const response = await fetch(`/api/orders/${id}`, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
+          },
+        });
+        
+        if (response.ok) {
+          const orderData = await response.json();
+          setOrder(orderData);
+        } else {
+          // Fallback to mock data for demo
+          const mockOrder = {
+            _id: id,
+            items: [
+              { name: "Rice 1kg", qty: 2, price: 50 },
+              { name: "Dal 500g", qty: 1, price: 80 },
+            ],
+            totalAmount: 180,
+            address: {
+              label: "Home",
+              addressLine: "123 Main Street",
+              city: "Hyderabad",
+              pincode: "500001",
+              lat: 17.385,
+              lng: 78.4867,
+            },
+            orderStatus: "in_transit",
+            paymentStatus: "paid",
+            createdAt: new Date().toISOString(),
+            deliveryBoy: {
+              name: "Rajesh Kumar",
+              phone: "9876543210",
+              vehicleType: "bike",
+            },
+          };
+          setOrder(mockOrder);
+        }
+      } catch (error) {
+        console.error("Failed to fetch order:", error);
+      } finally {
+        setIsLoading(false);
+      }
     };
 
-    setOrder(mockOrder);
+    fetchOrder();
     setDeliveryBoyLocation({ lat: 17.39, lng: 78.49 }); // Mock delivery boy location
-    setIsLoading(false);
   }, [id]);
+
+  // Handle real-time status updates
+  useEffect(() => {
+    if (order && orderStatus && orderStatus !== order.orderStatus) {
+      setOrder(prev => ({ ...prev, orderStatus }));
+      toast.success(`Order status updated: ${orderStatus}`);
+    }
+  }, [orderStatus, order]);
+
+  // Handle payment status updates
+  useEffect(() => {
+    if (order && paymentStatus && paymentStatus !== order.paymentStatus) {
+      setOrder(prev => ({ ...prev, paymentStatus }));
+      if (paymentStatus === 'paid') {
+        toast.success('Payment confirmed!');
+      } else if (paymentStatus === 'failed') {
+        toast.error('Payment failed');
+      }
+    }
+  }, [paymentStatus, order]);
 
   if (isLoading) {
     return (

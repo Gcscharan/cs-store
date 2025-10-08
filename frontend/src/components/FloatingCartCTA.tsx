@@ -38,9 +38,7 @@ const FloatingCartCTA = () => {
             <span className="text-sm font-semibold">
               {cart.itemCount} items
             </span>
-            <span className="text-xs opacity-90">
-              ₹{cart.total.toFixed(2)}
-            </span>
+            <span className="text-xs opacity-90">₹{cart.total.toFixed(2)}</span>
             {!isMinimumMet && (
               <span className="text-xs opacity-75">
                 +₹{remainingAmount.toFixed(0)} for free delivery

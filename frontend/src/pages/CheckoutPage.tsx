@@ -24,8 +24,10 @@ const CheckoutPage = () => {
   // Redirect if minimum order not met
   useEffect(() => {
     if (cart.items.length > 0 && !isMinimumMet) {
-      toast.error(`Minimum order is ₹${MINIMUM_ORDER}. Add ₹${remainingAmount.toFixed(2)} more to checkout.`);
-      navigate('/cart');
+      toast.error(
+        `Minimum order is ₹${MINIMUM_ORDER}. Add ₹${remainingAmount.toFixed(2)} more to checkout.`
+      );
+      navigate("/cart");
     }
   }, [cart.total, isMinimumMet, remainingAmount, navigate]);
 
@@ -76,19 +78,20 @@ const CheckoutPage = () => {
       >
         <div className="max-w-4xl mx-auto">
           <h1 className="text-3xl font-bold text-gray-900 mb-8">Checkout</h1>
-          
+
           <div className="bg-white rounded-lg shadow-sm p-8 text-center">
             <div className="text-6xl mb-4">⚠️</div>
             <h2 className="text-2xl font-semibold text-gray-900 mb-4">
               Minimum Order Not Met
             </h2>
             <p className="text-gray-600 mb-6">
-              Your current order total is ₹{cart.total.toFixed(2)}, but the minimum order is ₹{MINIMUM_ORDER}.
+              Your current order total is ₹{cart.total.toFixed(2)}, but the
+              minimum order is ₹{MINIMUM_ORDER}.
             </p>
             <p className="text-lg font-medium text-red-600 mb-8">
               Add ₹{remainingAmount.toFixed(2)} more to proceed with checkout.
             </p>
-            
+
             <div className="space-y-4">
               <Link
                 to="/cart"

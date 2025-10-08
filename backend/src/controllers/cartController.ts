@@ -15,9 +15,9 @@ const razorpay = new Razorpay({
 export const getCart = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user._id;
-    
-    let cart = await Cart.findOne({ userId }).populate('items.productId');
-    
+
+    let cart = await Cart.findOne({ userId }).populate("items.productId");
+
     if (!cart) {
       // Create empty cart for user
       cart = new Cart({
@@ -28,7 +28,7 @@ export const getCart = async (req: Request, res: Response) => {
       });
       await cart.save();
     }
-    
+
     res.json({
       items: cart.items,
       total: cart.total,

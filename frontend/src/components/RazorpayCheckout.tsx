@@ -37,12 +37,26 @@ const RazorpayCheckout = ({
         );
       }
 
-      // Create Razorpay order
-      const orderResponse = await createRazorpayOrder(
-        orderData.totalAmount,
-        "INR",
-        `order_${Date.now()}`
-      );
+      // Create order and get Razorpay order ID
+      const orderResponse = await fetch("/api/cart/checkout/create-order", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
+        },
+        body: JSON.stringify({
+          items: orderData.items,
+          address: orderData.address,
+          totalAmount: orderData.totalAmount,
+        }),
+      });
+
+      if (!orderResponse.ok) {
+        const errorData = await orderResponse.json();
+        throw new Error(errorData.error || "Failed to create order");
+      }
+
+      const orderData_response = await orderResponse.json();
 
       const razorpayOptions = {
         key: import.meta.env.VITE_RAZORPAY_KEY_ID || "",
@@ -50,7 +64,7 @@ const RazorpayCheckout = ({
         currency: "INR",
         name: "CPS Store",
         description: "Order Payment",
-        order_id: orderResponse.razorpayOrderId,
+        order_id: orderData_response.razorpayOrderId,
         prefill: {
           name: user?.name || "",
           email: user?.email || "",

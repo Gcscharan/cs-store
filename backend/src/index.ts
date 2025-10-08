@@ -14,6 +14,9 @@ const io = new Server(server, {
   },
 });
 
+// Store socket.io instance in app for webhook access
+app.set('io', io);
+
 // Socket.io connection handling
 io.on("connection", (socket) => {
   console.log("Client connected:", socket.id);

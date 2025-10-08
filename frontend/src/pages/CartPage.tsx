@@ -14,14 +14,17 @@ const CartPage = () => {
   const isMinimumMet = cart.total >= MINIMUM_ORDER;
   const remainingAmount = MINIMUM_ORDER - cart.total;
 
-  const handleQuantityChange = async (productId: string, newQuantity: number) => {
+  const handleQuantityChange = async (
+    productId: string,
+    newQuantity: number
+  ) => {
     if (newQuantity < 1) return;
-    
+
     setIsUpdating(productId);
     try {
       // Update in Redux store
       dispatch(updateCartItem({ productId, quantity: newQuantity }));
-      
+
       // TODO: Update on server
       // await fetch('/api/cart', {
       //   method: 'PUT',
@@ -29,7 +32,7 @@ const CartPage = () => {
       //   body: JSON.stringify({ productId, quantity: newQuantity })
       // });
     } catch (error) {
-      console.error('Failed to update quantity:', error);
+      console.error("Failed to update quantity:", error);
     } finally {
       setIsUpdating(null);
     }
@@ -39,11 +42,11 @@ const CartPage = () => {
     try {
       // Remove from Redux store
       dispatch(removeFromCart(productId));
-      
+
       // TODO: Remove from server
       // await fetch(`/api/cart/${productId}`, { method: 'DELETE' });
     } catch (error) {
-      console.error('Failed to remove item:', error);
+      console.error("Failed to remove item:", error);
     }
   };
 
@@ -62,7 +65,9 @@ const CartPage = () => {
             <h3 className="text-xl font-semibold text-gray-900 mb-2">
               Your cart is empty
             </h3>
-            <p className="text-gray-600 mb-6">Add some products to get started</p>
+            <p className="text-gray-600 mb-6">
+              Add some products to get started
+            </p>
             <Link
               to="/products"
               className="inline-block bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
@@ -80,7 +85,7 @@ const CartPage = () => {
                     Cart Items ({cart.items.length})
                   </h2>
                 </div>
-                
+
                 <div className="divide-y">
                   {cart.items.map((item) => (
                     <motion.div
@@ -93,7 +98,7 @@ const CartPage = () => {
                       {/* Product Image */}
                       <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
                         <img
-                          src={item.image || '/placeholder-product.jpg'}
+                          src={item.image || "/placeholder-product.jpg"}
                           alt={item.name}
                           className="w-full h-full object-cover"
                         />
@@ -112,19 +117,25 @@ const CartPage = () => {
                       {/* Quantity Controls */}
                       <div className="flex items-center space-x-2">
                         <button
-                          onClick={() => handleQuantityChange(item.id, item.quantity - 1)}
-                          disabled={isUpdating === item.id || item.quantity <= 1}
+                          onClick={() =>
+                            handleQuantityChange(item.id, item.quantity - 1)
+                          }
+                          disabled={
+                            isUpdating === item.id || item.quantity <= 1
+                          }
                           className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           -
                         </button>
-                        
+
                         <span className="w-12 text-center font-medium">
-                          {isUpdating === item.id ? '...' : item.quantity}
+                          {isUpdating === item.id ? "..." : item.quantity}
                         </span>
-                        
+
                         <button
-                          onClick={() => handleQuantityChange(item.id, item.quantity + 1)}
+                          onClick={() =>
+                            handleQuantityChange(item.id, item.quantity + 1)
+                          }
                           disabled={isUpdating === item.id}
                           className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
@@ -145,8 +156,18 @@ const CartPage = () => {
                         className="text-red-500 hover:text-red-700 p-2"
                         title="Remove item"
                       >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        <svg
+                          className="w-5 h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                          />
                         </svg>
                       </button>
                     </motion.div>
@@ -168,8 +189,16 @@ const CartPage = () => {
                     <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
                       <div className="flex items-start">
                         <div className="flex-shrink-0">
-                          <svg className="w-5 h-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                          <svg
+                            className="w-5 h-5 text-red-400"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                              clipRule="evenodd"
+                            />
                           </svg>
                         </div>
                         <div className="ml-3">
@@ -177,7 +206,8 @@ const CartPage = () => {
                             Minimum order not met
                           </h4>
                           <p className="text-sm text-red-700 mt-1">
-                            Add ₹{remainingAmount.toFixed(2)} more to reach the minimum order of ₹{MINIMUM_ORDER}
+                            Add ₹{remainingAmount.toFixed(2)} more to reach the
+                            minimum order of ₹{MINIMUM_ORDER}
                           </p>
                         </div>
                       </div>
@@ -187,15 +217,19 @@ const CartPage = () => {
                   {/* Order Details */}
                   <div className="space-y-3 mb-6">
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Subtotal ({cart.items.length} items)</span>
-                      <span className="font-medium">₹{cart.total.toFixed(2)}</span>
+                      <span className="text-gray-600">
+                        Subtotal ({cart.items.length} items)
+                      </span>
+                      <span className="font-medium">
+                        ₹{cart.total.toFixed(2)}
+                      </span>
                     </div>
-                    
+
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Delivery</span>
                       <span className="font-medium text-green-600">FREE</span>
                     </div>
-                    
+
                     <div className="border-t pt-3">
                       <div className="flex justify-between text-lg font-semibold">
                         <span>Total</span>
