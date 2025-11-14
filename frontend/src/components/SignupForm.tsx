@@ -1,7 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useDispatch } from "react-redux";
 import { motion } from "framer-motion";
-import { setUser, setTokens } from "../store/slices/authSlice";
+import { setAuth } from "../store/slices/authSlice";
 
 interface SignupFormData {
   name: string;
@@ -9,19 +9,18 @@ interface SignupFormData {
   phone: string;
   password: string;
   confirmPassword: string;
-  address: {
-    label: string;
-    pincode: string;
-    city: string;
-    state: string;
-    addressLine: string;
-    lat: number;
-    lng: number;
-    isDefault: boolean;
-  };
 }
 
-const SignupForm: React.FC = () => {
+interface PrefilledCredentials {
+  emailOrPhone?: string;
+  fromLogin?: boolean;
+}
+
+interface SignupFormProps {
+  prefilledCredentials?: PrefilledCredentials | null;
+}
+
+const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
   const dispatch = useDispatch();
   const [formData, setFormData] = useState<SignupFormData>({
     name: "",
@@ -29,77 +28,54 @@ const SignupForm: React.FC = () => {
     phone: "",
     password: "",
     confirmPassword: "",
-    address: {
-      label: "Home",
-      pincode: "",
-      city: "",
-      state: "",
-      addressLine: "",
-      lat: 0,
-      lng: 0,
-      isDefault: true,
-    },
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
-  const [pincodeValid, setPincodeValid] = useState<boolean | null>(null);
 
-  const validatePincode = async (pincode: string) => {
-    if (!pincode || pincode.length !== 6) {
-      setPincodeValid(false);
-      return false;
-    }
-
-    try {
-      const response = await fetch(`/api/pincode/check/${pincode}`);
-      const data = await response.json();
-
-      if (data.serviceable) {
-        setPincodeValid(true);
-        setFormData((prev) => ({
-          ...prev,
-          address: {
-            ...prev.address,
-            city: data.district || "",
-            state: data.state,
-          },
-        }));
-        return true;
-      } else {
-        setPincodeValid(false);
-        return false;
-      }
-    } catch (error) {
-      setPincodeValid(false);
-      return false;
-    }
+  // Helper function to detect if input is phone or email
+  const detectInputType = (input: string): "phone" | "email" => {
+    const phoneRegex = /^[0-9]{10,12}$/;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    
+    if (phoneRegex.test(input)) return "phone";
+    if (emailRegex.test(input)) return "email";
+    return "email"; // Default to email if unclear
   };
 
-  const handlePincodeChange = async (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const pincode = e.target.value;
-    setFormData((prev) => ({
-      ...prev,
-      address: { ...prev.address, pincode },
-    }));
-
-    if (pincode.length === 6) {
-      await validatePincode(pincode);
-    } else {
-      setPincodeValid(null);
+  // Handle credential pre-filling from login redirect
+  useEffect(() => {
+    if (prefilledCredentials?.emailOrPhone) {
+      console.log("🔄 SIGNUP FORM: Pre-filling credentials:", prefilledCredentials.emailOrPhone);
+      
+      const inputType = detectInputType(prefilledCredentials.emailOrPhone);
+      
+      setFormData(prev => ({
+        ...prev,
+        [inputType]: prefilledCredentials.emailOrPhone || ""
+      }));
+      
+      console.log(`✅ SIGNUP FORM: Pre-filled ${inputType} field with:`, prefilledCredentials.emailOrPhone);
     }
+  }, [prefilledCredentials]);
+
+  // Mobile number validation function
+  const isValidPhoneNumber = (number: string): boolean => {
+    return /^[6-9]\d{9}$/.test(number);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    if (name.startsWith("address.")) {
-      const field = name.split(".")[1];
-      setFormData((prev) => ({
-        ...prev,
-        address: { ...prev.address, [field]: value },
-      }));
+
+    if (name === "phone") {
+      // Format phone number as user types (limit to 10 digits)
+      const phoneDigits = value.replace(/\D/g, "").slice(0, 10);
+      setFormData((prev) => ({ ...prev, [name]: phoneDigits }));
+
+      // Clear phone error when user starts typing
+      if (errors.phone) {
+        setErrors((prev) => ({ ...prev, phone: "" }));
+      }
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }));
     }
@@ -110,17 +86,15 @@ const SignupForm: React.FC = () => {
 
     if (!formData.name.trim()) newErrors.name = "Name is required";
     if (!formData.email.trim()) newErrors.email = "Email is required";
-    if (!formData.phone.trim()) newErrors.phone = "Phone is required";
+    if (!formData.phone.trim()) {
+      newErrors.phone = "Please enter your mobile number";
+    } else if (!isValidPhoneNumber(formData.phone)) {
+      newErrors.phone =
+        "Invalid number. Enter a 10-digit number starting with 6–9.";
+    }
     if (!formData.password) newErrors.password = "Password is required";
     if (formData.password !== formData.confirmPassword) {
       newErrors.confirmPassword = "Passwords do not match";
-    }
-    if (!formData.address.pincode) newErrors.pincode = "Pincode is required";
-    if (!formData.address.addressLine.trim())
-      newErrors.addressLine = "Address is required";
-
-    if (pincodeValid === false) {
-      newErrors.pincode = "Unable to deliver to this location";
     }
 
     setErrors(newErrors);
@@ -134,7 +108,7 @@ const SignupForm: React.FC = () => {
 
     setIsLoading(true);
     try {
-      const response = await fetch("/api/auth/signup", {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/auth/signup`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -144,24 +118,37 @@ const SignupForm: React.FC = () => {
           email: formData.email,
           phone: formData.phone,
           password: formData.password,
-          addresses: [formData.address],
         }),
       });
 
       const data = await response.json();
 
       if (response.ok) {
-        dispatch(setUser(data.user));
         dispatch(
-          setTokens({
-            accessToken: data.accessToken,
-            refreshToken: data.refreshToken,
+          setAuth({
+            user: data.user,
+            tokens: {
+              accessToken: data.accessToken,
+              refreshToken: data.refreshToken,
+            },
           })
         );
         // Redirect to home or dashboard
         window.location.href = "/";
       } else {
-        setErrors({ general: data.error || "Signup failed" });
+        // Handle specific error messages
+        const errorMessage = data.error || "Signup failed";
+
+        // Check if it's an email or phone conflict
+        if (errorMessage.includes("email already exists")) {
+          setErrors({ email: "An account with this email already exists" });
+        } else if (errorMessage.includes("phone number already exists")) {
+          setErrors({
+            phone: "An account with this phone number already exists",
+          });
+        } else {
+          setErrors({ general: errorMessage });
+        }
       }
     } catch (error) {
       setErrors({ general: "Network error. Please try again." });
@@ -218,15 +205,20 @@ const SignupForm: React.FC = () => {
         {/* Phone */}
         <div>
           <label className="block text-sm font-medium text-gray-700">
-            Phone
+            Mobile Number
           </label>
           <input
             type="tel"
             name="phone"
             value={formData.phone}
             onChange={handleInputChange}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Enter your phone number"
+            className={`mt-1 block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+              errors.phone
+                ? "border-red-500 focus:ring-red-500"
+                : "border-gray-300 focus:ring-blue-500"
+            }`}
+            placeholder="Enter your 10-digit mobile number"
+            maxLength={10}
           />
           {errors.phone && (
             <p className="text-red-500 text-sm mt-1">{errors.phone}</p>
@@ -271,89 +263,6 @@ const SignupForm: React.FC = () => {
           )}
         </div>
 
-        {/* Address Section */}
-        <div className="border-t pt-4">
-          <h3 className="text-lg font-medium mb-4">Address Information</h3>
-
-          {/* Pincode */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Pincode
-            </label>
-            <input
-              type="text"
-              name="address.pincode"
-              value={formData.address.pincode}
-              onChange={handlePincodeChange}
-              className={`mt-1 block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                pincodeValid === false
-                  ? "border-red-500"
-                  : pincodeValid === true
-                    ? "border-green-500"
-                    : "border-gray-300"
-              }`}
-              placeholder="Enter 6-digit pincode"
-              maxLength={6}
-            />
-            {pincodeValid === true && (
-              <p className="text-green-500 text-sm mt-1">✓ Serviceable area</p>
-            )}
-            {errors.pincode && (
-              <p className="text-red-500 text-sm mt-1">{errors.pincode}</p>
-            )}
-          </div>
-
-          {/* City (auto-filled) */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              City
-            </label>
-            <input
-              type="text"
-              name="address.city"
-              value={formData.address.city}
-              onChange={handleInputChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="City (auto-filled from pincode)"
-              readOnly
-            />
-          </div>
-
-          {/* State (auto-filled) */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              State
-            </label>
-            <input
-              type="text"
-              name="address.state"
-              value={formData.address.state}
-              onChange={handleInputChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="State (auto-filled from pincode)"
-              readOnly
-            />
-          </div>
-
-          {/* Address Line */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Address
-            </label>
-            <textarea
-              name="address.addressLine"
-              value={formData.address.addressLine}
-              onChange={handleInputChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Enter your full address"
-              rows={3}
-            />
-            {errors.addressLine && (
-              <p className="text-red-500 text-sm mt-1">{errors.addressLine}</p>
-            )}
-          </div>
-        </div>
-
         {/* General Error */}
         {errors.general && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
@@ -364,12 +273,21 @@ const SignupForm: React.FC = () => {
         {/* Submit Button */}
         <button
           type="submit"
-          disabled={isLoading || pincodeValid !== true}
+          disabled={isLoading}
           className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isLoading ? "Creating Account..." : "Create Account"}
         </button>
       </form>
+
+      <div className="mt-6 text-center">
+        <p className="text-sm text-gray-600">
+          Already have an account?{" "}
+          <a href="/login" className="text-blue-600 hover:text-blue-500">
+            Sign in
+          </a>
+        </p>
+      </div>
     </motion.div>
   );
 };

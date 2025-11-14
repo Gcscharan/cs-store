@@ -1,0 +1,37 @@
+version: '3.8'
+
+# Development overrides for docker-compose.yml
+# This file is automatically loaded by docker-compose
+
+services:
+  backend:
+    build:
+      target: development
+    environment:
+      NODE_ENV: development
+      DEBUG: cps-store:*
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+      - /app/dist
+    command: npm run dev
+    stdin_open: true
+    tty: true
+
+  frontend:
+    build:
+      target: development
+    environment:
+      NODE_ENV: development
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/dist
+    command: npm run dev
+    stdin_open: true
+    tty: true
+
+  # Disable nginx in development
+  nginx:
+    profiles:
+      - production

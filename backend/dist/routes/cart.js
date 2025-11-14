@@ -11,6 +11,7 @@ router.get("/", auth_1.authenticateToken, cartController_1.getCart);
 router.post("/", auth_1.authenticateToken, cartController_1.addToCart);
 router.put("/", auth_1.authenticateToken, cartController_1.updateCartItem);
 router.delete("/:itemId", auth_1.authenticateToken, cartController_1.removeFromCart);
+router.delete("/", auth_1.authenticateToken, cartController_1.clearCart);
 router.post("/checkout/create-order", auth_1.authenticateToken, cartController_1.createOrder);
 router.post("/checkout/verify", auth_1.authenticateToken, cartController_1.verifyPayment);
 exports.default = router;

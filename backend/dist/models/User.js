@@ -32,13 +32,10 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.User = void 0;
 const mongoose_1 = __importStar(require("mongoose"));
-const bcryptjs_1 = __importDefault(require("bcryptjs"));
+const bcrypt = __importStar(require("bcryptjs"));
 const AddressSchema = new mongoose_1.Schema({
     label: { type: String, required: true },
     pincode: { type: String, required: true },
@@ -50,7 +47,7 @@ const AddressSchema = new mongoose_1.Schema({
     isDefault: { type: Boolean, default: false },
 });
 const OAuthProviderSchema = new mongoose_1.Schema({
-    provider: { type: String, enum: ["google", "facebook"], required: true },
+    provider: { type: String, enum: ["google"], required: true },
     providerId: { type: String, required: true },
 });
 const UserSchema = new mongoose_1.Schema({
@@ -73,8 +70,11 @@ const UserSchema = new mongoose_1.Schema({
     },
     phone: {
         type: String,
-        required: [true, "Phone number is required"],
-        match: [/^[6-9]\d{9}$/, "Please enter a valid 10-digit phone number"],
+        required: () => false,
+        match: [
+            /^[0-9]{10,15}$/,
+            "Please enter a valid phone number (10-15 digits)",
+        ],
     },
     passwordHash: {
         type: String,
@@ -87,25 +87,23 @@ const UserSchema = new mongoose_1.Schema({
         default: "customer",
     },
     addresses: [AddressSchema],
+    appLanguage: {
+        type: String,
+        default: "English",
+        trim: true,
+    },
+    preferredLanguage: {
+        type: String,
+        default: "English",
+        trim: true,
+    },
 }, {
     timestamps: true,
-});
-UserSchema.pre("save", async function (next) {
-    if (!this.isModified("passwordHash") || !this.passwordHash)
-        return next();
-    try {
-        const salt = await bcryptjs_1.default.genSalt(12);
-        this.passwordHash = await bcryptjs_1.default.hash(this.passwordHash, salt);
-        next();
-    }
-    catch (error) {
-        next(error);
-    }
 });
 UserSchema.methods.comparePassword = async function (candidatePassword) {
     if (!this.passwordHash)
         return false;
-    return bcryptjs_1.default.compare(candidatePassword, this.passwordHash);
+    return bcrypt.compare(candidatePassword, this.passwordHash);
 };
 exports.User = mongoose_1.default.model("User", UserSchema);
 //# sourceMappingURL=User.js.map

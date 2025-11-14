@@ -23,7 +23,7 @@ const AccessibilityAudit: React.FC = () => {
           type: "error",
           message: "Image missing alt text",
           element: img as HTMLElement,
-          fix: "Add alt attribute or aria-label"
+          fix: "Add alt attribute or aria-label",
         });
       }
     });
@@ -34,7 +34,7 @@ const AccessibilityAudit: React.FC = () => {
       const id = input.getAttribute("id");
       const ariaLabel = input.getAttribute("aria-label");
       const ariaLabelledBy = input.getAttribute("aria-labelledby");
-      
+
       if (!id && !ariaLabel && !ariaLabelledBy) {
         const label = document.querySelector(`label[for="${id}"]`);
         if (!label) {
@@ -42,7 +42,7 @@ const AccessibilityAudit: React.FC = () => {
             type: "error",
             message: "Form input missing label",
             element: input as HTMLElement,
-            fix: "Add label element or aria-label attribute"
+            fix: "Add label element or aria-label attribute",
           });
         }
       }
@@ -58,7 +58,7 @@ const AccessibilityAudit: React.FC = () => {
           type: "warning",
           message: `Heading hierarchy skipped from h${previousLevel} to h${level}`,
           element: heading as HTMLElement,
-          fix: "Use proper heading hierarchy (h1, h2, h3, etc.)"
+          fix: "Use proper heading hierarchy (h1, h2, h3, etc.)",
         });
       }
       previousLevel = level;
@@ -72,31 +72,33 @@ const AccessibilityAudit: React.FC = () => {
       const computedStyle = window.getComputedStyle(element);
       const outline = computedStyle.outline;
       const boxShadow = computedStyle.boxShadow;
-      
+
       if (outline === "none" && !boxShadow.includes("0 0 0")) {
         foundIssues.push({
           type: "warning",
           message: "Element may lack visible focus indicator",
           element: element as HTMLElement,
-          fix: "Add focus styles for keyboard navigation"
+          fix: "Add focus styles for keyboard navigation",
         });
       }
     });
 
     // Check for color contrast (simplified)
-    const textElements = document.querySelectorAll("p, span, div, h1, h2, h3, h4, h5, h6");
+    const textElements = document.querySelectorAll(
+      "p, span, div, h1, h2, h3, h4, h5, h6"
+    );
     textElements.forEach((element) => {
       const computedStyle = window.getComputedStyle(element);
       const color = computedStyle.color;
       const backgroundColor = computedStyle.backgroundColor;
-      
+
       // This is a simplified check - in a real audit, you'd use a proper contrast ratio calculator
       if (color === backgroundColor) {
         foundIssues.push({
           type: "error",
           message: "Text and background colors may be identical",
           element: element as HTMLElement,
-          fix: "Ensure sufficient color contrast (4.5:1 for normal text)"
+          fix: "Ensure sufficient color contrast (4.5:1 for normal text)",
         });
       }
     });
@@ -109,13 +111,13 @@ const AccessibilityAudit: React.FC = () => {
       const hasAriaLabel = element.getAttribute("aria-label");
       const hasAriaLabelledBy = element.getAttribute("aria-labelledby");
       const hasTextContent = element.textContent?.trim();
-      
+
       if (!hasAriaLabel && !hasAriaLabelledBy && !hasTextContent) {
         foundIssues.push({
           type: "warning",
           message: "Interactive element may lack accessible name",
           element: element as HTMLElement,
-          fix: "Add aria-label, aria-labelledby, or visible text content"
+          fix: "Add aria-label, aria-labelledby, or visible text content",
         });
       }
     });
@@ -124,13 +126,15 @@ const AccessibilityAudit: React.FC = () => {
     const hasMain = document.querySelector("main, [role='main']");
     const hasNavigation = document.querySelector("nav, [role='navigation']");
     const hasBanner = document.querySelector("header, [role='banner']");
-    const hasContentInfo = document.querySelector("footer, [role='contentinfo']");
+    const hasContentInfo = document.querySelector(
+      "footer, [role='contentinfo']"
+    );
 
     if (!hasMain) {
       foundIssues.push({
         type: "error",
         message: "Missing main landmark",
-        fix: "Add <main> element or role='main'"
+        fix: "Add <main> element or role='main'",
       });
     }
 
@@ -138,7 +142,7 @@ const AccessibilityAudit: React.FC = () => {
       foundIssues.push({
         type: "warning",
         message: "Missing navigation landmark",
-        fix: "Add <nav> element or role='navigation'"
+        fix: "Add <nav> element or role='navigation'",
       });
     }
 
@@ -146,7 +150,7 @@ const AccessibilityAudit: React.FC = () => {
       foundIssues.push({
         type: "warning",
         message: "Missing banner landmark",
-        fix: "Add <header> element or role='banner'"
+        fix: "Add <header> element or role='banner'",
       });
     }
 
@@ -154,7 +158,7 @@ const AccessibilityAudit: React.FC = () => {
       foundIssues.push({
         type: "warning",
         message: "Missing contentinfo landmark",
-        fix: "Add <footer> element or role='contentinfo'"
+        fix: "Add <footer> element or role='contentinfo'",
       });
     }
 
@@ -247,8 +251,8 @@ const AccessibilityAudit: React.FC = () => {
           <div className="flex justify-between text-xs text-secondary-500">
             <span>Issues: {issues.length}</span>
             <span>
-              Errors: {issues.filter(i => i.type === "error").length} | 
-              Warnings: {issues.filter(i => i.type === "warning").length}
+              Errors: {issues.filter((i) => i.type === "error").length} |
+              Warnings: {issues.filter((i) => i.type === "warning").length}
             </span>
           </div>
         </div>

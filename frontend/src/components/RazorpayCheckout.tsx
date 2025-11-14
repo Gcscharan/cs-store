@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "../store";
+import { setAuth, logout } from "../store/slices/authSlice";
+import { useRefreshTokenMutation } from "../store/api";
 import {
   openRazorpayCheckout,
   createRazorpayOrder,
@@ -24,25 +26,88 @@ const RazorpayCheckout = ({
   onError,
 }: RazorpayCheckoutProps) => {
   const [isLoading, setIsLoading] = useState(false);
-  const { user } = useSelector((state: RootState) => state.auth);
+  const dispatch = useDispatch();
+  const { user, tokens } = useSelector((state: RootState) => state.auth);
+  const [refreshTokenMutation] = useRefreshTokenMutation();
+
+  const refreshToken = async (): Promise<string | null> => {
+    try {
+      if (!tokens?.refreshToken) {
+        console.log("🔑 No refresh token available");
+        return null;
+      }
+
+      console.log("🔑 Attempting to refresh token...");
+      const result = await refreshTokenMutation(tokens.refreshToken).unwrap();
+
+      if (result.accessToken) {
+        console.log("🔑 Token refreshed successfully");
+        dispatch(
+          setAuth({
+            user: user!,
+            tokens: {
+              accessToken: result.accessToken,
+              refreshToken: result.refreshToken || tokens.refreshToken,
+            },
+          })
+        );
+        return result.accessToken;
+      }
+
+      return null;
+    } catch (error) {
+      console.error("🔑 Token refresh failed:", error);
+      dispatch(logout());
+      return null;
+    }
+  };
 
   const handlePayment = async () => {
     try {
       setIsLoading(true);
 
-      // Validate minimum order amount
-      if (orderData.totalAmount < 2000) {
-        throw new Error(
-          "Minimum order is ₹2000. Add more items or contact support."
-        );
+      // Check if user is authenticated
+      if (!user || !tokens?.accessToken) {
+        toast.error("Please log in to continue");
+        onError("User not authenticated");
+        return;
+      }
+
+      // Check if address is selected
+      if (!orderData.address) {
+        toast.error("Please select a delivery address");
+        onError("Delivery address required");
+        return;
+      }
+
+      // Check if token is expired and refresh if needed
+      let accessToken = tokens.accessToken;
+      try {
+        const payload = JSON.parse(atob(accessToken.split(".")[1]));
+        const currentTime = Math.floor(Date.now() / 1000);
+        if (payload.exp < currentTime) {
+          console.log("🔑 Token expired, refreshing...");
+          const newToken = await refreshToken();
+          if (!newToken) {
+            throw new Error("Failed to refresh token");
+          }
+          accessToken = newToken;
+        }
+      } catch (error) {
+        console.log("🔑 Invalid token, refreshing...");
+        const newToken = await refreshToken();
+        if (!newToken) {
+          throw new Error("Failed to refresh token");
+        }
+        accessToken = newToken;
       }
 
       // Create order and get Razorpay order ID
-      const orderResponse = await fetch("/api/cart/checkout/create-order", {
+      const orderResponse = await fetch("/api/payment/create-order", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
+          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
           items: orderData.items,
@@ -59,11 +124,11 @@ const RazorpayCheckout = ({
       const orderData_response = await orderResponse.json();
 
       const razorpayOptions = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID || "",
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_RREROYUEXDmjIA",
         amount: orderData.totalAmount * 100, // Convert to paise
         currency: "INR",
-        name: "CPS Store",
-        description: "Order Payment",
+        name: "CS Store",
+        description: "Secure Payment for Your Order",
         order_id: orderData_response.razorpayOrderId,
         prefill: {
           name: user?.name || "",
@@ -71,8 +136,35 @@ const RazorpayCheckout = ({
           contact: user?.phone || "",
         },
         theme: {
-          color: "#0ea5e9",
+          color: "#2E86DE",
         },
+        // Enable all payment methods
+        method: {
+          upi: true,
+          card: true,
+          netbanking: true,
+          wallet: true,
+          emi: true,
+          paylater: true,
+        },
+        // Additional options for better UX
+        modal: {
+          ondismiss: function () {
+            toast.error("Payment cancelled by user");
+            onError("Payment cancelled by user");
+          },
+          escape: true,
+          handleback: true,
+        },
+        // Enable retry for failed payments
+        retry: {
+          enabled: true,
+          max_count: 3,
+        },
+        // Enable callback URL for webhook (optional)
+        callback_url: `${
+          import.meta.env.VITE_API_URL || "http://localhost:5001"
+        }/api/payment/callback`,
         handler: async (response: any) => {
           try {
             // Verify payment
@@ -82,19 +174,13 @@ const RazorpayCheckout = ({
               response.razorpay_signature
             );
 
-            toast.success("Payment successful!");
-            onSuccess(verificationResult.order);
+            toast.success("Payment Successful ✅");
+            onSuccess(verificationResult.payment);
           } catch (error) {
             console.error("Payment verification failed:", error);
-            toast.error("Payment verification failed");
+            toast.error("Payment Failed ❌ Please try again");
             onError("Payment verification failed");
           }
-        },
-        modal: {
-          ondismiss: () => {
-            toast.error("Payment cancelled");
-            onError("Payment cancelled");
-          },
         },
       };
 
@@ -111,9 +197,9 @@ const RazorpayCheckout = ({
   return (
     <button
       onClick={handlePayment}
-      disabled={isLoading || orderData.totalAmount < 2000}
+      disabled={isLoading}
       className={`w-full py-3 px-6 rounded-lg font-semibold text-white transition-colors ${
-        isLoading || orderData.totalAmount < 2000
+        isLoading
           ? "bg-gray-400 cursor-not-allowed"
           : "bg-primary-600 hover:bg-primary-700"
       }`}
@@ -123,8 +209,6 @@ const RazorpayCheckout = ({
           <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
           Processing...
         </div>
-      ) : orderData.totalAmount < 2000 ? (
-        `Minimum order is ₹2000 (Current: ₹${orderData.totalAmount})`
       ) : (
         `Pay ₹${orderData.totalAmount}`
       )}

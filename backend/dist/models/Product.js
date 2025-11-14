@@ -52,6 +52,11 @@ const ProductSchema = new mongoose_1.Schema({
         type: String,
         required: [true, "Category is required"],
         enum: [
+            "chocolates",
+            "biscuits",
+            "ladoos",
+            "cakes",
+            "hot_snacks",
             "groceries",
             "vegetables",
             "fruits",
@@ -80,6 +85,12 @@ const ProductSchema = new mongoose_1.Schema({
         type: Number,
         required: [true, "Stock quantity is required"],
         min: [0, "Stock cannot be negative"],
+        default: 0,
+    },
+    weight: {
+        type: Number,
+        required: [true, "Weight is required"],
+        min: [0, "Weight cannot be negative"],
         default: 0,
     },
     images: [

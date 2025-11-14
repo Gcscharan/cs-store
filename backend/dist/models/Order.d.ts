@@ -25,6 +25,7 @@ export interface IOrder extends Document {
     address: IOrderAddress;
     razorpayOrderId?: string;
     razorpayPaymentId?: string;
+    deliveryProof?: string;
     createdAt: Date;
     updatedAt: Date;
 }

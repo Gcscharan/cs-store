@@ -1,7 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useCheckPincodeQuery } from "../store/api";
-import toast from "react-hot-toast";
+import { useToast } from "./AccessibleToast";
+import { isValidPincode, getPincodeError } from "../utils/pincodeValidator";
+import { getCurrentLocationWithAddress } from "../utils/geolocation";
+import { getPincodeInfo } from "../utils/pincodeValidation";
+import { MapPin, Loader2 } from "lucide-react";
 
 interface AddressFormProps {
   onClose: () => void;
@@ -9,6 +12,7 @@ interface AddressFormProps {
 }
 
 const AddressForm = ({ onClose, onSave }: AddressFormProps) => {
+  const { success, error: showError } = useToast();
   const [formData, setFormData] = useState({
     label: "",
     addressLine: "",
@@ -21,8 +25,62 @@ const AddressForm = ({ onClose, onSave }: AddressFormProps) => {
   });
 
   const [pincode, setPincode] = useState("");
-  const { data: pincodeData, isLoading: isCheckingPincode } =
-    useCheckPincodeQuery(pincode, { skip: !pincode || pincode.length !== 6 });
+  const [address, setAddress] = useState("");
+  const [deliveryStatus, setDeliveryStatus] = useState<
+    "idle" | "checking" | "available" | "unavailable"
+  >("idle");
+  const [isLoadingLocation, setIsLoadingLocation] = useState(false);
+  const [pincodeError, setPincodeError] = useState("");
+  const [pincodeData, setPincodeData] = useState<{
+    deliverable: boolean;
+    state?: string;
+    district?: string;
+    taluka?: string;
+    message?: string;
+  } | null>(null);
+  const [validationSource, setValidationSource] = useState<
+    "manual" | "location" | null
+  >(null);
+
+  // Debounced pincode validation effect - only for manual entry
+  useEffect(() => {
+    // Only validate if it's manual entry and pincode is complete
+    if (validationSource !== "manual" || !pincode || pincode.length < 6) {
+      if (validationSource === "manual") {
+        setDeliveryStatus("idle");
+        setPincodeData(null);
+      }
+      return;
+    }
+
+    // Clear previous validation data
+    setPincodeData(null);
+    setDeliveryStatus("idle");
+
+    const delay = setTimeout(async () => {
+      try {
+        setDeliveryStatus("checking");
+        const pincodeInfo = await getPincodeInfo(pincode);
+
+        setPincodeData(pincodeInfo);
+
+        if (pincodeInfo.deliverable) {
+          setDeliveryStatus("available");
+        } else {
+          setDeliveryStatus("unavailable");
+        }
+      } catch (error) {
+        console.error("Pincode validation failed:", error);
+        setDeliveryStatus("unavailable");
+        setPincodeData({
+          deliverable: false,
+          message: "Failed to validate pincode",
+        });
+      }
+    }, 500); // 500ms debounce
+
+    return () => clearTimeout(delay);
+  }, [pincode, validationSource]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
@@ -39,25 +97,189 @@ const AddressForm = ({ onClose, onSave }: AddressFormProps) => {
       ...prev,
       pincode: value,
     }));
+
+    // Set validation source to manual
+    setValidationSource("manual");
+
+    // Clear previous validation data when user types
+    setPincodeData(null);
+    setDeliveryStatus("idle");
+    setPincodeError("");
+
+    // Basic format validation
+    if (value.length === 6) {
+      const error = getPincodeError(value);
+      setPincodeError(error);
+    }
+  };
+
+  const handleUseCurrentLocation = async () => {
+    try {
+      setIsLoadingLocation(true);
+      setValidationSource("location");
+      setDeliveryStatus("checking");
+      setPincodeData(null);
+      setPincodeError("");
+
+      // Check if geolocation is supported
+      if (!navigator.geolocation) {
+        setDeliveryStatus("unavailable");
+        showError(
+          "Geolocation not supported",
+          "Your browser doesn't support location services. Please enter address manually."
+        );
+        return;
+      }
+
+      // Request geolocation permission and get coordinates
+      const locationData = await getCurrentLocationWithAddress();
+
+      if (!locationData) {
+        setDeliveryStatus("unavailable");
+        showError(
+          "Location access denied",
+          "Unable to get your current location. Please enable location services and try again."
+        );
+        return;
+      }
+
+      // Validate pincode format
+      if (!isValidPincode(locationData.pincode)) {
+        setDeliveryStatus("unavailable");
+        const error = getPincodeError(locationData.pincode);
+        showError("Invalid Location", error);
+        return;
+      }
+
+      // Update form data with location information
+      setFormData((prev) => ({
+        ...prev,
+        addressLine: locationData.address,
+        city: locationData.city,
+        state: locationData.state,
+        pincode: locationData.pincode,
+        lat: locationData.lat,
+        lng: locationData.lng,
+      }));
+
+      // Update pincode state
+      setPincode(locationData.pincode);
+      setAddress(locationData.address);
+
+      // Validate delivery availability
+      try {
+        const pincodeInfo = await getPincodeInfo(locationData.pincode);
+        setPincodeData(pincodeInfo);
+
+        if (pincodeInfo.deliverable) {
+          setDeliveryStatus("available");
+          success(
+            "Location detected successfully!",
+            `Your location has been set to ${locationData.city}, ${locationData.state}. Delivery is available to this area.`
+          );
+        } else {
+          setDeliveryStatus("unavailable");
+          showError(
+            "Delivery not available",
+            `We currently don't deliver to ${locationData.city}, ${locationData.state}. Please enter a different address.`
+          );
+        }
+      } catch (validationError) {
+        console.error("Location validation failed:", validationError);
+        setDeliveryStatus("unavailable");
+        setPincodeData({
+          deliverable: false,
+          message: "Failed to validate location",
+        });
+        showError(
+          "Validation failed",
+          "Unable to validate delivery to this location. Please try again or enter address manually."
+        );
+      }
+    } catch (error) {
+      console.error("Error getting current location:", error);
+      setDeliveryStatus("unavailable");
+
+      // Provide specific error messages based on error type
+      if (error instanceof GeolocationPositionError) {
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            showError(
+              "Location access denied",
+              "Please allow location access in your browser settings and try again."
+            );
+            break;
+          case error.POSITION_UNAVAILABLE:
+            showError(
+              "Location unavailable",
+              "Your location could not be determined. Please check your GPS/WiFi settings."
+            );
+            break;
+          case error.TIMEOUT:
+            showError(
+              "Location timeout",
+              "Location request timed out. Please try again."
+            );
+            break;
+          default:
+            showError(
+              "Location error",
+              "Unable to get your current location. Please enter address manually."
+            );
+        }
+      } else {
+        showError(
+          "Location error",
+          "Unable to get your current location. Please enter address manually."
+        );
+      }
+    } finally {
+      setIsLoadingLocation(false);
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!pincodeData?.serviceable) {
-      toast.error("Unable to deliver to this location.");
+    // Validate pincode first
+    if (!isValidPincode(pincode)) {
+      const error = getPincodeError(pincode);
+      showError("Invalid Pincode", error);
+      return;
+    }
+
+    // Check if validation is still in progress
+    if (deliveryStatus === "checking") {
+      showError(
+        "Please wait",
+        "Pincode validation is in progress. Please wait for the result."
+      );
+      return;
+    }
+
+    // Check delivery availability
+    if (deliveryStatus !== "available" || !pincodeData?.deliverable) {
+      showError(
+        "Unable to deliver to this location.",
+        "Please enter a valid pincode from Andhra Pradesh or Telangana."
+      );
       return;
     }
 
     if (!formData.label || !formData.addressLine || !formData.city) {
-      toast.error("Please fill in all required fields.");
+      showError(
+        "Please fill in all required fields.",
+        "All fields marked with * are required."
+      );
       return;
     }
 
     onSave({
       ...formData,
-      state: pincodeData.state,
+      state: pincodeData?.state || formData.state,
     });
+
+    success("Address saved", "Your address has been saved successfully.");
   };
 
   return (
@@ -120,6 +342,27 @@ const AddressForm = ({ onClose, onSave }: AddressFormProps) => {
                   className="input min-h-[80px] resize-none"
                   required
                 />
+
+                {/* Use Current Location Button */}
+                <div className="mt-2">
+                  <button
+                    type="button"
+                    onClick={handleUseCurrentLocation}
+                    disabled={isLoadingLocation}
+                    className="flex items-center space-x-2 px-4 py-2 text-sm bg-blue-50 text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {isLoadingLocation ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <MapPin className="h-4 w-4" />
+                    )}
+                    <span>
+                      {isLoadingLocation
+                        ? "Detecting location..."
+                        : "Use My Current Location"}
+                    </span>
+                  </button>
+                </div>
               </div>
 
               {/* Pincode */}
@@ -134,19 +377,25 @@ const AddressForm = ({ onClose, onSave }: AddressFormProps) => {
                   maxLength={6}
                   required
                 />
-                {isCheckingPincode && (
-                  <div className="text-sm text-gray-600 mt-1">
-                    Checking pincode...
+                {pincodeError && (
+                  <div className="text-sm text-red-600 mt-1">
+                    {pincodeError}
                   </div>
                 )}
-                {pincodeData && !pincodeData.serviceable && (
-                  <div className="text-sm text-error-600 mt-1">
-                    Unable to deliver to this location.
+                {deliveryStatus === "checking" && (
+                  <div className="text-sm text-blue-600 mt-1 flex items-center">
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Checking delivery availability...
                   </div>
                 )}
-                {pincodeData && pincodeData.serviceable && (
-                  <div className="text-sm text-success-600 mt-1">
-                    ✓ Delivery available to {pincodeData.state}
+                {deliveryStatus === "available" && pincodeData && (
+                  <div className="text-sm text-green-600 mt-1">
+                    ✅ Delivery available to {pincodeData.state}
+                  </div>
+                )}
+                {deliveryStatus === "unavailable" && (
+                  <div className="text-sm text-red-600 mt-1">
+                    ❌ Not deliverable to this location or pincode
                   </div>
                 )}
               </div>
@@ -166,7 +415,7 @@ const AddressForm = ({ onClose, onSave }: AddressFormProps) => {
               </div>
 
               {/* State (auto-filled from pincode) */}
-              {pincodeData?.state && (
+              {pincodeData?.state && deliveryStatus === "available" && (
                 <div>
                   <label className="label">State</label>
                   <input
@@ -203,10 +452,16 @@ const AddressForm = ({ onClose, onSave }: AddressFormProps) => {
                 </button>
                 <button
                   type="submit"
-                  disabled={!pincodeData?.serviceable}
+                  disabled={
+                    deliveryStatus === "checking" ||
+                    deliveryStatus === "unavailable" ||
+                    deliveryStatus === "idle"
+                  }
                   className="flex-1 py-2 px-4 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
                 >
-                  Save Address
+                  {deliveryStatus === "checking"
+                    ? "Validating..."
+                    : "Save Address"}
                 </button>
               </div>
             </form>

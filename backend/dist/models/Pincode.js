@@ -54,7 +54,6 @@ const PincodeSchema = new mongoose_1.Schema({
         type: String,
     },
 });
-PincodeSchema.index({ pincode: 1 });
 PincodeSchema.index({ state: 1 });
 exports.Pincode = mongoose_1.default.model("Pincode", PincodeSchema);
 //# sourceMappingURL=Pincode.js.map

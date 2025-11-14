@@ -1,0 +1,241 @@
+// Delivery Fee Calculation Utility
+// Calculates delivery fees based on distance between store and customer address
+
+export interface Coordinates {
+  lat: number;
+  lng: number;
+}
+
+export interface Address {
+  address: string;
+  city: string;
+  state: string;
+  pincode: string;
+}
+
+export interface DeliveryFeeCalculation {
+  distance: number; // in kilometers
+  baseFee: number;
+  distanceFee: number;
+  totalFee: number;
+  isDeliverable: boolean;
+  estimatedTime: string; // in minutes
+}
+
+// Store location (CS Store headquarters)
+const STORE_LOCATION: Coordinates = {
+  lat: 17.385, // Hyderabad coordinates (example)
+  lng: 78.4867,
+};
+
+// Delivery fee tiers based on distance
+const DELIVERY_TIERS = [
+  { maxDistance: 5, baseFee: 50, perKmFee: 5, estimatedTime: "30-45 mins" },
+  { maxDistance: 10, baseFee: 80, perKmFee: 8, estimatedTime: "45-60 mins" },
+  { maxDistance: 20, baseFee: 120, perKmFee: 10, estimatedTime: "1-2 hours" },
+  { maxDistance: 50, baseFee: 200, perKmFee: 15, estimatedTime: "2-4 hours" },
+  {
+    maxDistance: Infinity,
+    baseFee: 300,
+    perKmFee: 20,
+    estimatedTime: "4+ hours",
+  },
+];
+
+// Maximum delivery distance (in kilometers)
+const MAX_DELIVERY_DISTANCE = 100;
+
+/**
+ * Calculate distance between two coordinates using Haversine formula
+ * @param coord1 First coordinate
+ * @param coord2 Second coordinate
+ * @returns Distance in kilometers
+ */
+export function calculateDistance(
+  coord1: Coordinates,
+  coord2: Coordinates
+): number {
+  const R = 6371; // Earth's radius in kilometers
+  const dLat = toRadians(coord2.lat - coord1.lat);
+  const dLng = toRadians(coord2.lng - coord1.lng);
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRadians(coord1.lat)) *
+      Math.cos(toRadians(coord2.lat)) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+function toRadians(degrees: number): number {
+  return degrees * (Math.PI / 180);
+}
+
+/**
+ * Geocode an address to get coordinates
+ * This is a mock implementation - in production, use a real geocoding service
+ * @param address Address object
+ * @returns Promise<Coordinates>
+ */
+export async function geocodeAddress(address: Address): Promise<Coordinates> {
+  // Mock geocoding - in production, use Google Maps API, OpenStreetMap, etc.
+  // For now, we'll use a simple mapping based on pincode/city
+
+  const mockCoordinates: { [key: string]: Coordinates } = {
+    // Hyderabad area
+    "500001": { lat: 17.385, lng: 78.4867 },
+    "500032": { lat: 17.436, lng: 78.377 },
+    "500045": { lat: 17.4399, lng: 78.3481 },
+    "500081": { lat: 17.4065, lng: 78.4772 },
+
+    // Mancherial area (from the image)
+    "504208": { lat: 18.87, lng: 79.45 },
+    "504201": { lat: 18.85, lng: 79.43 },
+
+    // Other major cities
+    "110001": { lat: 28.6139, lng: 77.209 }, // Delhi
+    "400001": { lat: 19.076, lng: 72.8777 }, // Mumbai
+    "560001": { lat: 12.9716, lng: 77.5946 }, // Bangalore
+    "600001": { lat: 13.0827, lng: 80.2707 }, // Chennai
+    "700001": { lat: 22.5726, lng: 88.3639 }, // Kolkata
+  };
+
+  // Try to find coordinates by pincode first
+  if (mockCoordinates[address.pincode]) {
+    return mockCoordinates[address.pincode];
+  }
+
+  // Fallback: try to find by city name
+  const cityLower = address.city.toLowerCase();
+  if (cityLower.includes("hyderabad")) {
+    return { lat: 17.385, lng: 78.4867 };
+  } else if (cityLower.includes("mancherial")) {
+    return { lat: 18.87, lng: 79.45 };
+  } else if (cityLower.includes("delhi")) {
+    return { lat: 28.6139, lng: 77.209 };
+  } else if (cityLower.includes("mumbai")) {
+    return { lat: 19.076, lng: 72.8777 };
+  } else if (cityLower.includes("bangalore")) {
+    return { lat: 12.9716, lng: 77.5946 };
+  } else if (cityLower.includes("chennai")) {
+    return { lat: 13.0827, lng: 80.2707 };
+  } else if (cityLower.includes("kolkata")) {
+    return { lat: 22.5726, lng: 88.3639 };
+  }
+
+  // Default fallback to Hyderabad
+  console.warn(
+    `Could not geocode address: ${address.city}, ${address.pincode}. Using default location.`
+  );
+  return { lat: 17.385, lng: 78.4867 };
+}
+
+/**
+ * Calculate delivery fee based on distance
+ * @param distance Distance in kilometers
+ * @returns DeliveryFeeCalculation object
+ */
+export function calculateDeliveryFee(distance: number): DeliveryFeeCalculation {
+  // Check if delivery is possible
+  if (distance > MAX_DELIVERY_DISTANCE) {
+    return {
+      distance,
+      baseFee: 0,
+      distanceFee: 0,
+      totalFee: 0,
+      isDeliverable: false,
+      estimatedTime: "Not available",
+    };
+  }
+
+  // Find the appropriate tier
+  const tier =
+    DELIVERY_TIERS.find((t) => distance <= t.maxDistance) ||
+    DELIVERY_TIERS[DELIVERY_TIERS.length - 1];
+
+  // Calculate fees
+  const baseFee = tier.baseFee;
+  const distanceFee = Math.max(0, distance - 2) * tier.perKmFee; // First 2km included in base fee
+  const totalFee = baseFee + distanceFee;
+
+  return {
+    distance: Math.round(distance * 10) / 10, // Round to 1 decimal place
+    baseFee,
+    distanceFee: Math.round(distanceFee),
+    totalFee: Math.round(totalFee),
+    isDeliverable: true,
+    estimatedTime: tier.estimatedTime,
+  };
+}
+
+/**
+ * Main function to calculate delivery fee for an address
+ * @param address Customer address
+ * @returns Promise<DeliveryFeeCalculation>
+ */
+export async function getDeliveryFeeForAddress(
+  address: Address
+): Promise<DeliveryFeeCalculation> {
+  try {
+    // Geocode the address to get coordinates
+    const customerCoords = await geocodeAddress(address);
+
+    // Calculate distance from store
+    const distance = calculateDistance(STORE_LOCATION, customerCoords);
+
+    // Calculate delivery fee
+    const deliveryFee = calculateDeliveryFee(distance);
+
+    console.log("Delivery fee calculation:", {
+      address: `${address.city}, ${address.pincode}`,
+      customerCoords,
+      storeCoords: STORE_LOCATION,
+      distance: `${distance.toFixed(2)} km`,
+      deliveryFee,
+    });
+
+    return deliveryFee;
+  } catch (error) {
+    console.error("Error calculating delivery fee:", error);
+    // Return a default fee if calculation fails
+    return {
+      distance: 0,
+      baseFee: 50,
+      distanceFee: 0,
+      totalFee: 50,
+      isDeliverable: true,
+      estimatedTime: "30-45 mins",
+    };
+  }
+}
+
+/**
+ * Get delivery fee tiers for display
+ */
+export function getDeliveryFeeTiers() {
+  return DELIVERY_TIERS.map((tier) => ({
+    ...tier,
+    maxDistance:
+      tier.maxDistance === Infinity ? "Unlimited" : `${tier.maxDistance} km`,
+  }));
+}
+
+/**
+ * Format delivery fee for display
+ */
+export function formatDeliveryFee(fee: number): string {
+  return `₹${fee}`;
+}
+
+/**
+ * Format distance for display
+ */
+export function formatDistance(distance: number): string {
+  if (distance < 1) {
+    return `${Math.round(distance * 1000)} m`;
+  }
+  return `${distance.toFixed(1)} km`;
+}

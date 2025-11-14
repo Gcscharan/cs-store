@@ -7,13 +7,12 @@ exports.connectDB = void 0;
 const mongoose_1 = __importDefault(require("mongoose"));
 const connectDB = async () => {
     try {
-        const mongoURI = process.env.MONGODB_URI || "mongodb://localhost:27017/cps-store";
+        const mongoURI = process.env.MONGODB_URI || "mongodb://localhost:27017/cs-store";
         const options = {
             maxPoolSize: 10,
             serverSelectionTimeoutMS: 5000,
             socketTimeoutMS: 45000,
             bufferCommands: false,
-            bufferMaxEntries: 0,
         };
         await mongoose_1.default.connect(mongoURI, options);
         console.log("✅ MongoDB connected successfully");

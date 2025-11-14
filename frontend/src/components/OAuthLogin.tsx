@@ -8,85 +8,8 @@ interface OAuthLoginProps {
 
 const OAuthLogin: React.FC<OAuthLoginProps> = ({ onSuccess, onError }) => {
   const handleGoogleLogin = () => {
-    // Open Google OAuth in popup
-    const popup = window.open(
-      "/api/auth/google",
-      "google-login",
-      "width=500,height=600,scrollbars=yes,resizable=yes"
-    );
-
-    // Listen for popup completion
-    const checkClosed = setInterval(() => {
-      if (popup?.closed) {
-        clearInterval(checkClosed);
-        // Handle the case where popup was closed without completion
-        onError?.("Login cancelled");
-      }
-    }, 1000);
-
-    // Listen for message from popup
-    const handleMessage = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return;
-
-      if (event.data.type === "GOOGLE_OAUTH_SUCCESS") {
-        clearInterval(checkClosed);
-        popup?.close();
-        onSuccess?.(event.data.data);
-      } else if (event.data.type === "GOOGLE_OAUTH_ERROR") {
-        clearInterval(checkClosed);
-        popup?.close();
-        onError?.(event.data.error);
-      }
-    };
-
-    window.addEventListener("message", handleMessage);
-
-    // Cleanup listener after 5 minutes
-    setTimeout(() => {
-      window.removeEventListener("message", handleMessage);
-      clearInterval(checkClosed);
-    }, 300000);
-  };
-
-  const handleFacebookLogin = () => {
-    // Open Facebook OAuth in popup
-    const popup = window.open(
-      "/api/auth/facebook",
-      "facebook-login",
-      "width=500,height=600,scrollbars=yes,resizable=yes"
-    );
-
-    // Listen for popup completion
-    const checkClosed = setInterval(() => {
-      if (popup?.closed) {
-        clearInterval(checkClosed);
-        // Handle the case where popup was closed without completion
-        onError?.("Login cancelled");
-      }
-    }, 1000);
-
-    // Listen for message from popup
-    const handleMessage = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return;
-
-      if (event.data.type === "FACEBOOK_OAUTH_SUCCESS") {
-        clearInterval(checkClosed);
-        popup?.close();
-        onSuccess?.(event.data.data);
-      } else if (event.data.type === "FACEBOOK_OAUTH_ERROR") {
-        clearInterval(checkClosed);
-        popup?.close();
-        onError?.(event.data.error);
-      }
-    };
-
-    window.addEventListener("message", handleMessage);
-
-    // Cleanup listener after 5 minutes
-    setTimeout(() => {
-      window.removeEventListener("message", handleMessage);
-      clearInterval(checkClosed);
-    }, 300000);
+    // Redirect to Google OAuth endpoint
+    window.location.href = `${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/auth/google`;
   };
 
   return (
@@ -116,18 +39,6 @@ const OAuthLogin: React.FC<OAuthLoginProps> = ({ onSuccess, onError }) => {
           />
         </svg>
         Continue with Google
-      </motion.button>
-
-      <motion.button
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
-        onClick={handleFacebookLogin}
-        className="w-full flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-      >
-        <svg className="w-5 h-5 mr-2" fill="#1877F2" viewBox="0 0 24 24">
-          <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
-        </svg>
-        Continue with Facebook
       </motion.button>
     </div>
   );

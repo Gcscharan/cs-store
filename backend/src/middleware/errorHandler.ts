@@ -23,6 +23,12 @@ export const errorHandler = (
   } else if (error.name === "MongoError" && (error as any).code === 11000) {
     statusCode = 400;
     message = "Duplicate field value";
+  } else if (
+    error.message &&
+    error.message.includes("Unknown authentication strategy")
+  ) {
+    statusCode = 400;
+    message = "Authentication strategy not configured";
   }
 
   // Log error in development

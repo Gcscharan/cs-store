@@ -1,0 +1,21 @@
+User-agent: *
+Allow: /
+
+# Sitemap location
+Sitemap: https://csstore.com/sitemap.xml
+
+# Disallow admin and private areas
+Disallow: /admin/
+Disallow: /delivery/
+Disallow: /api/
+Disallow: /debug/
+Disallow: /test-otp/
+
+# Allow important pages
+Allow: /
+Allow: /products
+Allow: /login
+Allow: /signup
+Allow: /about-us
+Allow: /contact-us
+Allow: /customer-care

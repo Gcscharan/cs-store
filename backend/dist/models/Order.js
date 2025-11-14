@@ -105,6 +105,9 @@ const OrderSchema = new mongoose_1.Schema({
     razorpayPaymentId: {
         type: String,
     },
+    deliveryProof: {
+        type: String,
+    },
 }, {
     timestamps: true,
 });

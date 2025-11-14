@@ -1,0 +1,13 @@
+# Ignore build outputs
+**/dist/
+dist/
+
+# Ignore dependencies
+**/node_modules/
+node_modules/
+
+# Ignore other build artifacts
+*.map
+*.log
+.DS_Store
+

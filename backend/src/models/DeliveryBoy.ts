@@ -6,17 +6,33 @@ export interface ICurrentLocation {
   lastUpdatedAt: Date;
 }
 
+export interface IActiveRoute {
+  polyline: string; // Encoded polyline from Google Directions API
+  destination: {
+    lat: number;
+    lng: number;
+  };
+  orderId?: mongoose.Types.ObjectId;
+  startedAt: Date;
+  estimatedArrival?: Date;
+}
+
 export interface IDeliveryBoy extends Document {
   _id: mongoose.Types.ObjectId;
   name: string;
   phone: string;
+  email?: string;
+  userId?: mongoose.Types.ObjectId;
   vehicleType: string;
   isActive: boolean;
   availability: "available" | "busy" | "offline";
   currentLocation: ICurrentLocation;
+  activeRoute?: IActiveRoute; // Current delivery route
   earnings: number;
   completedOrdersCount: number;
   assignedOrders: mongoose.Types.ObjectId[];
+  currentLoad: number; // Number of orders currently assigned
+  selfieUrl?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -25,6 +41,17 @@ const CurrentLocationSchema = new Schema<ICurrentLocation>({
   lat: { type: Number, required: true },
   lng: { type: Number, required: true },
   lastUpdatedAt: { type: Date, default: Date.now },
+});
+
+const ActiveRouteSchema = new Schema<IActiveRoute>({
+  polyline: { type: String, required: true },
+  destination: {
+    lat: { type: Number, required: true },
+    lng: { type: Number, required: true },
+  },
+  orderId: { type: Schema.Types.ObjectId, ref: "Order" },
+  startedAt: { type: Date, default: Date.now },
+  estimatedArrival: { type: Date },
 });
 
 const DeliveryBoySchema = new Schema<IDeliveryBoy>(
@@ -56,6 +83,7 @@ const DeliveryBoySchema = new Schema<IDeliveryBoy>(
       default: "offline",
     },
     currentLocation: CurrentLocationSchema,
+    activeRoute: ActiveRouteSchema,
     earnings: {
       type: Number,
       default: 0,
@@ -72,6 +100,24 @@ const DeliveryBoySchema = new Schema<IDeliveryBoy>(
         ref: "Order",
       },
     ],
+    currentLoad: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    email: {
+      type: String,
+      trim: true,
+      lowercase: true,
+    },
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+    },
+    selfieUrl: {
+      type: String,
+      trim: true,
+    },
   },
   {
     timestamps: true,

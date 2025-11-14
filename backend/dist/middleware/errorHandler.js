@@ -15,6 +15,11 @@ const errorHandler = (error, req, res, next) => {
         statusCode = 400;
         message = "Duplicate field value";
     }
+    else if (error.message &&
+        error.message.includes("Unknown authentication strategy")) {
+        statusCode = 400;
+        message = "Authentication strategy not configured";
+    }
     if (process.env.NODE_ENV === "development") {
         console.error("Error:", error);
     }

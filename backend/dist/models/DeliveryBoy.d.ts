@@ -8,6 +8,8 @@ export interface IDeliveryBoy extends Document {
     _id: mongoose.Types.ObjectId;
     name: string;
     phone: string;
+    email?: string;
+    userId?: mongoose.Types.ObjectId;
     vehicleType: string;
     isActive: boolean;
     availability: "available" | "busy" | "offline";
@@ -15,6 +17,7 @@ export interface IDeliveryBoy extends Document {
     earnings: number;
     completedOrdersCount: number;
     assignedOrders: mongoose.Types.ObjectId[];
+    selfieUrl?: string;
     createdAt: Date;
     updatedAt: Date;
 }

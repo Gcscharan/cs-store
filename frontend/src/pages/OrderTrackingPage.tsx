@@ -229,6 +229,15 @@ const OrderTrackingPage = () => {
           <div className="space-y-6">
             <DeliveryListItem order={order} />
 
+            {/* Cancellation Message */}
+            {order.orderStatus === "cancelled" && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <p className="text-red-600 font-semibold text-center">
+                  Order has been cancelled by the seller
+                </p>
+              </div>
+            )}
+
             {/* Status Timeline */}
             <div className="bg-white rounded-lg shadow-sm p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
