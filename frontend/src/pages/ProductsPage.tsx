@@ -1,40 +1,16 @@
 import React, { useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import { useSelector, useDispatch } from "react-redux";
+import { RootState } from "../store";
+import { useGetProductsQuery } from "../store/api";
 import ProductCard from "../components/ProductCard";
 import ProductFilters from "../components/ProductFilters";
-import QuickViewModal from "../components/QuickViewModal";
+import SortingDropdown, { SortOption } from "../components/SortingDropdown";
+import SkeletonLoader from "../components/SkeletonLoader";
+import { motion } from "framer-motion";
 
-interface Product {
-  _id: string;
-  name: string;
-  description: string;
-  category: string;
-  price: number;
-  mrp?: number;
-  stock: number;
-  images: string[];
-  tags: string[];
-}
-
-interface Pagination {
-  page: number;
-  limit: number;
-  total: number;
-  pages: number;
-}
-
-const ProductsPage = () => {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [pagination, setPagination] = useState<Pagination>({
-    page: 1,
-    limit: 20,
-    total: 0,
-    pages: 0,
-  });
-  const [loading, setLoading] = useState(true);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [showQuickView, setShowQuickView] = useState(false);
-
+const ProductsPage: React.FC = () => {
+  const dispatch = useDispatch();
+  const [sortBy, setSortBy] = useState<SortOption>("newest");
   const [filters, setFilters] = useState({
     category: "",
     minPrice: "",
@@ -43,149 +19,206 @@ const ProductsPage = () => {
     sortBy: "createdAt",
     sortOrder: "desc",
   });
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
-  const fetchProducts = async () => {
-    setLoading(true);
-    try {
-      const queryParams = new URLSearchParams();
+  const {
+    data: productsData,
+    error,
+    isLoading,
+    refetch,
+  } = useGetProductsQuery({
+    search: filters.search,
+    category: filters.category,
+    sortBy: filters.sortBy,
+    minPrice: filters.minPrice,
+    maxPrice: filters.maxPrice,
+  });
 
-      if (filters.category) queryParams.append("category", filters.category);
-      if (filters.minPrice) queryParams.append("minPrice", filters.minPrice);
-      if (filters.maxPrice) queryParams.append("maxPrice", filters.maxPrice);
-      if (filters.search) queryParams.append("search", filters.search);
-      queryParams.append("sortBy", filters.sortBy);
-      queryParams.append("sortOrder", filters.sortOrder);
-      queryParams.append("page", pagination.page.toString());
-      queryParams.append("limit", pagination.limit.toString());
+  const products = productsData?.products || [];
 
-      const response = await fetch(`/api/products?${queryParams}`);
-      const data = await response.json();
+  const categories = [
+    "All",
+    "Electronics",
+    "Clothing",
+    "Books",
+    "Home & Garden",
+    "Sports",
+    "Toys",
+    "Beauty",
+    "Automotive",
+    "Health",
+  ];
 
-      if (response.ok) {
-        setProducts(data.products);
-        setPagination(data.pagination);
-      } else {
-        console.error("Failed to fetch products:", data.error);
-      }
-    } catch (error) {
-      console.error("Error fetching products:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const sortOptions = [
+    { value: "name", label: "Name A-Z" },
+    { value: "-name", label: "Name Z-A" },
+    { value: "price", label: "Price Low to High" },
+    { value: "-price", label: "Price High to Low" },
+    { value: "-createdAt", label: "Newest First" },
+    { value: "createdAt", label: "Oldest First" },
+  ];
 
-  useEffect(() => {
-    fetchProducts();
-  }, [filters, pagination.page]);
-
-  const handleFiltersChange = (newFilters: typeof filters) => {
+  const handleFiltersChange = (newFilters: any) => {
     setFilters(newFilters);
-    setPagination((prev) => ({ ...prev, page: 1 }));
   };
 
-  const handleQuickView = (product: Product) => {
-    setSelectedProduct(product);
-    setShowQuickView(true);
-  };
-
-  const handleCloseQuickView = () => {
-    setShowQuickView(false);
-    setSelectedProduct(null);
-  };
-
-  const handlePageChange = (page: number) => {
-    setPagination((prev) => ({ ...prev, page }));
-  };
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center py-12">
+            <div className="text-red-500 text-lg font-medium mb-4">
+              Failed to load products
+            </div>
+            <p className="text-gray-600 mb-6">
+              There was an error loading the products. Please try again.
+            </p>
+            <button
+              onClick={() => refetch()}
+              className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Try Again
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="min-h-screen bg-gray-50 py-8 px-4"
-    >
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Products</h1>
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Products</h1>
+          <p className="text-gray-600">Discover our wide range of products</p>
+        </div>
 
-        {/* Filters */}
-        <ProductFilters
-          filters={filters}
-          onFiltersChange={handleFiltersChange}
-        />
+        {/* Filters and Search */}
+        <div className="mb-8">
+          <ProductFilters
+            filters={filters}
+            onFiltersChange={handleFiltersChange}
+          />
+        </div>
 
-        {/* Products Grid */}
-        {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {[...Array(8)].map((_, index) => (
-              <div
-                key={index}
-                className="bg-white rounded-lg shadow-md overflow-hidden animate-pulse"
-              >
-                <div className="aspect-square bg-gray-200"></div>
-                <div className="p-4">
-                  <div className="h-4 bg-gray-200 rounded mb-2"></div>
-                  <div className="h-3 bg-gray-200 rounded mb-2"></div>
-                  <div className="h-6 bg-gray-200 rounded w-1/2"></div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : products.length > 0 ? (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
-              {products.map((product) => (
-                <ProductCard
-                  key={product._id}
-                  product={product}
-                  onQuickView={handleQuickView}
-                />
-              ))}
-            </div>
-
-            {/* Pagination */}
-            {pagination.pages > 1 && (
-              <div className="flex justify-center items-center gap-2">
-                <button
-                  onClick={() => handlePageChange(pagination.page - 1)}
-                  disabled={pagination.page === 1}
-                  className="px-4 py-2 border border-gray-300 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-                >
-                  Previous
-                </button>
-
-                <span className="px-4 py-2">
-                  Page {pagination.page} of {pagination.pages}
-                </span>
-
-                <button
-                  onClick={() => handlePageChange(pagination.page + 1)}
-                  disabled={pagination.page === pagination.pages}
-                  className="px-4 py-2 border border-gray-300 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-                >
-                  Next
-                </button>
-              </div>
-            )}
-          </>
-        ) : (
-          <div className="text-center py-12">
-            <div className="text-6xl mb-4">🔍</div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">
-              No products found
-            </h3>
-            <p className="text-gray-600">
-              Try adjusting your filters or search terms
+        {/* Results Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+          <div className="mb-4 sm:mb-0">
+            <p className="text-sm text-gray-600">
+              {isLoading ? "Loading..." : `${products.length} products found`}
             </p>
           </div>
-        )}
+          <div className="flex items-center space-x-4">
+            <SortingDropdown
+              currentSort={sortBy}
+              onSortChange={setSortBy}
+            />
+            <div className="flex border border-gray-300 rounded-lg">
+              <button
+                onClick={() => setViewMode("grid")}
+                className={`p-2 ${
+                  viewMode === "grid"
+                    ? "bg-blue-600 text-white"
+                    : "text-gray-600 hover:bg-gray-100"
+                }`}
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                </svg>
+              </button>
+              <button
+                onClick={() => setViewMode("list")}
+                className={`p-2 ${
+                  viewMode === "list"
+                    ? "bg-blue-600 text-white"
+                    : "text-gray-600 hover:bg-gray-100"
+                }`}
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
 
-        {/* Quick View Modal */}
-        <QuickViewModal
-          product={selectedProduct}
-          isOpen={showQuickView}
-          onClose={handleCloseQuickView}
-        />
+        {/* Products Grid/List */}
+        {isLoading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {Array.from({ length: 8 }).map((_, index) => (
+              <SkeletonLoader key={index} />
+            ))}
+          </div>
+        ) : products.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="text-gray-400 text-6xl mb-4">📦</div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              No products found
+            </h3>
+            <p className="text-gray-600 mb-6">
+              {filters.search ||
+              filters.category ||
+              filters.minPrice ||
+              filters.maxPrice
+                ? "Try adjusting your search or filter criteria."
+                : "No products are available at the moment."}
+            </p>
+            {(filters.search ||
+              filters.category ||
+              filters.minPrice ||
+              filters.maxPrice) && (
+              <button
+                onClick={() => {
+                  setFilters({
+                    category: "",
+                    minPrice: "",
+                    maxPrice: "",
+                    search: "",
+                    sortBy: "createdAt",
+                    sortOrder: "desc",
+                  });
+                }}
+                className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Clear Filters
+              </button>
+            )}
+          </div>
+        ) : (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
+            className={
+              viewMode === "grid"
+                ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+                : "space-y-4"
+            }
+          >
+            {products.map((product) => (
+              <ProductCard
+                key={product._id}
+                product={product}
+                viewMode={viewMode}
+              />
+            ))}
+          </motion.div>
+        )}
       </div>
-    </motion.div>
+    </div>
   );
 };
 

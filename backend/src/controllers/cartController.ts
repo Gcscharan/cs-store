@@ -12,8 +12,18 @@ const razorpay = new Razorpay({
   key_secret: process.env.RAZORPAY_KEY_SECRET || "",
 });
 
-export const getCart = async (req: Request, res: Response) => {
+export const getCart = async (
+  req: Request,
+  res: Response
+): Promise<Response | void> => {
   try {
+    console.log('🛒 CART CONTROLLER: getCart called');
+    console.log('🛒 CART CONTROLLER: User from req:', {
+      userId: (req as any).user?._id,
+      userEmail: (req as any).user?.email,
+      userRole: (req as any).user?.role
+    });
+    
     const userId = (req as any).user._id;
 
     let cart = await Cart.findOne({ userId }).populate("items.productId");
@@ -30,7 +40,13 @@ export const getCart = async (req: Request, res: Response) => {
     }
 
     res.json({
-      items: cart.items,
+      items: cart.items.map((item) => ({
+        productId: item.productId,
+        name: item.name,
+        price: item.price,
+        image: item.image,
+        quantity: item.quantity,
+      })),
       total: cart.total,
       itemCount: cart.itemCount,
     });
@@ -40,8 +56,19 @@ export const getCart = async (req: Request, res: Response) => {
   }
 };
 
-export const addToCart = async (req: Request, res: Response) => {
+export const addToCart = async (
+  req: Request,
+  res: Response
+): Promise<Response | void> => {
   try {
+    console.log('🛒 CART CONTROLLER: addToCart called');
+    console.log('🛒 CART CONTROLLER: Request body:', req.body);
+    console.log('🛒 CART CONTROLLER: User from req:', {
+      userId: (req as any).user?._id,
+      userEmail: (req as any).user?.email,
+      userRole: (req as any).user?.role
+    });
+    
     const { productId, quantity = 1 } = req.body;
     const userId = (req as any).user._id;
 
@@ -108,7 +135,10 @@ export const addToCart = async (req: Request, res: Response) => {
   }
 };
 
-export const updateCartItem = async (req: Request, res: Response) => {
+export const updateCartItem = async (
+  req: Request,
+  res: Response
+): Promise<Response | void> => {
   try {
     const { productId, quantity } = req.body;
     const userId = (req as any).user._id;
@@ -167,7 +197,10 @@ export const updateCartItem = async (req: Request, res: Response) => {
   }
 };
 
-export const removeFromCart = async (req: Request, res: Response) => {
+export const removeFromCart = async (
+  req: Request,
+  res: Response
+): Promise<Response | void> => {
   try {
     const { itemId } = req.params;
     const userId = (req as any).user._id;
@@ -206,7 +239,10 @@ export const removeFromCart = async (req: Request, res: Response) => {
   }
 };
 
-export const clearCart = async (req: Request, res: Response) => {
+export const clearCart = async (
+  req: Request,
+  res: Response
+): Promise<Response | void> => {
   try {
     const userId = (req as any).user._id;
 
@@ -235,18 +271,15 @@ export const clearCart = async (req: Request, res: Response) => {
   }
 };
 
-export const createOrder = async (req: Request, res: Response) => {
+export const createOrder = async (
+  req: Request,
+  res: Response
+): Promise<Response | void> => {
   try {
     const { items, address, totalAmount } = req.body;
     const userId = (req as any).user._id;
 
-    // Validate minimum order amount
-    if (totalAmount < 2000) {
-      return res.status(400).json({
-        error: "Minimum order is ₹2000. Add more items or contact support.",
-        code: "MINIMUM_ORDER_NOT_MET",
-      });
-    }
+    // Removed minimum order requirement - delivery charges will apply for all orders
 
     // Validate pincode
     const pincodeExists = await Pincode.findOne({ pincode: address.pincode });
@@ -304,10 +337,14 @@ export const createOrder = async (req: Request, res: Response) => {
   }
 };
 
-export const verifyPayment = async (req: Request, res: Response) => {
+export const verifyPayment = async (
+  req: Request,
+  res: Response
+): Promise<Response | void> => {
   try {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature } =
       req.body;
+    const userId = (req as any).user._id;
 
     // Verify Razorpay signature
     const body = razorpay_order_id + "|" + razorpay_payment_id;
@@ -320,18 +357,37 @@ export const verifyPayment = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Invalid payment signature" });
     }
 
-    // Update order payment status
+    // Update order payment status and set to pending for admin review
     const order = await Order.findOneAndUpdate(
       { razorpayOrderId: razorpay_order_id },
       {
         paymentStatus: "paid",
         razorpayPaymentId: razorpay_payment_id,
+        orderStatus: "pending", // Move to pending so admin can accept/decline
       },
       { new: true }
     );
 
     if (!order) {
       return res.status(404).json({ error: "Order not found" });
+    }
+
+    // Clear user's cart after successful payment verification
+    await Cart.findOneAndUpdate(
+      { userId },
+      { items: [], total: 0, itemCount: 0 },
+      { new: true }
+    );
+
+    // Emit socket event to notify admin of new order
+    const io = (req as any).app.get("io");
+    if (io) {
+      io.to("admin_room").emit("order:new", {
+        orderId: order._id,
+        status: "pending",
+        totalAmount: order.totalAmount,
+        message: "New order received and awaiting review",
+      });
     }
 
     res.json({

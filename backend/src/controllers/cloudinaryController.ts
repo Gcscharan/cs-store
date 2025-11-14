@@ -1,7 +1,10 @@
 import { Request, Response } from "express";
 import cloudinary from "../config/cloudinary";
 
-export const uploadImage = async (req: Request, res: Response) => {
+export const uploadImage = async (
+  req: Request,
+  res: Response
+): Promise<Response | void> => {
   try {
     const { image } = req.body;
 
@@ -31,7 +34,10 @@ export const uploadImage = async (req: Request, res: Response) => {
   }
 };
 
-export const deleteImage = async (req: Request, res: Response) => {
+export const deleteImage = async (
+  req: Request,
+  res: Response
+): Promise<Response | void> => {
   try {
     const { publicId } = req.params;
 

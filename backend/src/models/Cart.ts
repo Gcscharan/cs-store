@@ -63,7 +63,6 @@ const CartSchema: Schema = new Schema(
   { timestamps: true }
 );
 
-// Index for better performance
-CartSchema.index({ userId: 1 });
+// Index for better performance (userId already has unique index)
 
 export const Cart = mongoose.model<ICart>("Cart", CartSchema);

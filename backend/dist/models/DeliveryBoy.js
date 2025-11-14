@@ -84,6 +84,19 @@ const DeliveryBoySchema = new mongoose_1.Schema({
             ref: "Order",
         },
     ],
+    email: {
+        type: String,
+        trim: true,
+        lowercase: true,
+    },
+    userId: {
+        type: mongoose_1.Schema.Types.ObjectId,
+        ref: "User",
+    },
+    selfieUrl: {
+        type: String,
+        trim: true,
+    },
 }, {
     timestamps: true,
 });

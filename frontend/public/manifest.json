@@ -1,0 +1,19 @@
+{
+  "name": "CS Store - Online Shopping",
+  "short_name": "CS Store",
+  "description": "Your one-stop destination for online shopping. Discover amazing deals on electronics, fashion, home & garden, and more.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3b82f6",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ],
+  "categories": ["shopping", "ecommerce", "retail"],
+  "lang": "en",
+  "dir": "ltr"
+}

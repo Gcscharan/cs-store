@@ -1,128 +1,131 @@
 "use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.getMyOrders = exports.updateStatus = exports.updateLocation = exports.assignDelivery = exports.getAvailableDrivers = void 0;
-const DeliveryBoy_1 = require("../models/DeliveryBoy");
-const Order_1 = require("../models/Order");
-const getAvailableDrivers = async (req, res) => {
-    try {
-        const drivers = await DeliveryBoy_1.DeliveryBoy.find({
-            availability: "available",
-            isActive: true,
-        }).select("name phone vehicleType currentLocation");
-        res.json({ drivers });
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
     }
-    catch (error) {
-        res.status(500).json({ error: "Failed to fetch available drivers" });
-    }
-};
-exports.getAvailableDrivers = getAvailableDrivers;
-const assignDelivery = async (req, res) => {
-    try {
-        const { orderId, driverId } = req.body;
-        const order = await Order_1.Order.findById(orderId);
-        if (!order) {
-            return res.status(404).json({ error: "Order not found" });
-        }
-        const driver = await DeliveryBoy_1.DeliveryBoy.findById(driverId);
-        if (!driver) {
-            return res.status(404).json({ error: "Driver not found" });
-        }
-        if (driver.availability !== "available") {
-            return res.status(400).json({ error: "Driver not available" });
-        }
-        order.deliveryBoyId = driver._id;
-        order.orderStatus = "assigned";
-        await order.save();
-        driver.assignedOrders.push(order._id);
-        driver.availability = "busy";
-        await driver.save();
-        res.json({
-            message: "Order assigned to driver successfully",
-            order,
-            driver,
-        });
-    }
-    catch (error) {
-        res.status(500).json({ error: "Failed to assign delivery" });
-    }
-};
-exports.assignDelivery = assignDelivery;
-const updateLocation = async (req, res) => {
-    try {
-        const { lat, lng } = req.body;
-        const driverId = req.user._id;
-        const driver = await DeliveryBoy_1.DeliveryBoy.findById(driverId);
-        if (!driver) {
-            return res.status(404).json({ error: "Driver not found" });
-        }
-        driver.currentLocation = {
-            lat,
-            lng,
-            lastUpdatedAt: new Date(),
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
         };
-        await driver.save();
-        res.json({
-            message: "Location updated successfully",
-            location: driver.currentLocation,
-        });
-    }
-    catch (error) {
-        res.status(500).json({ error: "Failed to update location" });
-    }
-};
-exports.updateLocation = updateLocation;
-const updateStatus = async (req, res) => {
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.getAdminAddress = exports.checkDeliveryAvailability = exports.calculateDeliveryFeeController = void 0;
+const deliveryFeeCalculator_1 = require("../utils/deliveryFeeCalculator");
+const calculateDeliveryFeeController = async (req, res) => {
     try {
-        const { orderId, status, proofImage } = req.body;
-        const driverId = req.user._id;
-        const order = await Order_1.Order.findOne({
-            _id: orderId,
-            deliveryBoyId: driverId,
-        });
-        if (!order) {
-            return res.status(404).json({ error: "Order not found" });
+        const { userAddress, orderAmount } = req.body;
+        if (!userAddress || !orderAmount) {
+            res.status(400).json({
+                error: "userAddress and orderAmount are required",
+            });
+            return;
         }
-        order.orderStatus = status;
-        await order.save();
-        if (status === "delivered") {
-            const driver = await DeliveryBoy_1.DeliveryBoy.findById(driverId);
-            if (driver) {
-                const baseEarnings = 50;
-                const distanceEarnings = 0;
-                const timeEarnings = 0;
-                const totalEarnings = baseEarnings + distanceEarnings + timeEarnings;
-                driver.earnings += totalEarnings;
-                driver.completedOrdersCount += 1;
-                driver.availability = "available";
-                driver.assignedOrders = driver.assignedOrders.filter((id) => id.toString() !== orderId);
-                await driver.save();
-            }
+        if (!userAddress.lat || !userAddress.lng || !userAddress.pincode) {
+            res.status(400).json({
+                error: "userAddress must include lat, lng, and pincode",
+            });
+            return;
         }
+        if (!(0, deliveryFeeCalculator_1.isDeliveryAvailable)(userAddress.pincode)) {
+            res.status(400).json({
+                error: "Delivery not available to this pincode",
+            });
+            return;
+        }
+        const feeDetails = await (0, deliveryFeeCalculator_1.calculateDeliveryFee)(userAddress, orderAmount);
+        const breakdown = await (0, deliveryFeeCalculator_1.getDeliveryFeeBreakdown)(userAddress, orderAmount);
         res.json({
-            message: "Status updated successfully",
-            order,
+            success: true,
+            data: {
+                ...feeDetails,
+                breakdown,
+                userAddress: {
+                    city: userAddress.city,
+                    state: userAddress.state,
+                    pincode: userAddress.pincode,
+                },
+            },
         });
     }
     catch (error) {
-        res.status(500).json({ error: "Failed to update status" });
+        console.error("Error calculating delivery fee:", error);
+        res.status(500).json({
+            error: "Failed to calculate delivery fee",
+        });
     }
 };
-exports.updateStatus = updateStatus;
-const getMyOrders = async (req, res) => {
+exports.calculateDeliveryFeeController = calculateDeliveryFeeController;
+const checkDeliveryAvailability = async (req, res) => {
     try {
-        const driverId = req.user._id;
-        const { status } = req.query;
-        const query = { deliveryBoyId: driverId };
-        if (status)
-            query.orderStatus = status;
-        const orders = await Order_1.Order.find(query)
-            .sort({ createdAt: -1 })
-            .populate("userId", "name phone");
-        res.json({ orders });
+        const { pincode } = req.params;
+        if (!pincode) {
+            res.status(400).json({
+                error: "Pincode is required",
+            });
+            return;
+        }
+        const isAvailable = (0, deliveryFeeCalculator_1.isDeliveryAvailable)(pincode);
+        res.json({
+            success: true,
+            data: {
+                pincode,
+                isAvailable,
+                message: isAvailable
+                    ? "Delivery available to this pincode"
+                    : "Delivery not available to this pincode",
+            },
+        });
     }
     catch (error) {
-        res.status(500).json({ error: "Failed to fetch orders" });
+        console.error("Error checking delivery availability:", error);
+        res.status(500).json({
+            error: "Failed to check delivery availability",
+        });
     }
 };
-exports.getMyOrders = getMyOrders;
+exports.checkDeliveryAvailability = checkDeliveryAvailability;
+const getAdminAddress = async (req, res) => {
+    try {
+        const { getAdminAddress } = await Promise.resolve().then(() => __importStar(require("../utils/deliveryFeeCalculator")));
+        const adminAddress = getAdminAddress();
+        res.json({
+            success: true,
+            data: {
+                address: adminAddress,
+                message: "Admin's default delivery address",
+            },
+        });
+    }
+    catch (error) {
+        console.error("Error getting admin address:", error);
+        res.status(500).json({
+            error: "Failed to get admin address",
+        });
+    }
+};
+exports.getAdminAddress = getAdminAddress;
 //# sourceMappingURL=deliveryController.js.map

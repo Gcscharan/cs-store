@@ -1,7 +1,13 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useDispatch } from "react-redux";
-import { addToCart } from "../store/slices/cartSlice";
+import { useDispatch, useSelector } from "react-redux";
+import { addToCart, setCart } from "../store/slices/cartSlice";
+import { useAddToCartMutation } from "../store/api";
+import { RootState } from "../store";
+import { useToast } from "./AccessibleToast";
+import { useNavigate } from "react-router-dom";
+import { getProductImages } from "../utils/productImageMapper";
+import { useFlyingCartContext } from "../contexts/FlyingCartContext";
 
 interface Product {
   _id: string;
@@ -27,28 +33,96 @@ const QuickViewModal: React.FC<QuickViewModalProps> = ({
   onClose,
 }) => {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const auth = useSelector((state: RootState) => state.auth);
+  const [addToCartMutation, { isLoading: isAddingToCart }] =
+    useAddToCartMutation();
+  const { success, error: showError } = useToast();
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [quantity, setQuantity] = useState(1);
-  const [isLoading, setIsLoading] = useState(false);
+  const [showLoginPopup, setShowLoginPopup] = useState(false);
+  
+  // Flying cart animation
+  const { triggerFlyingCart } = useFlyingCartContext();
+  const addToCartButtonRef = useRef<HTMLButtonElement>(null);
 
   if (!product) return null;
+
+  const productImages = getProductImages(product.name, product.category);
 
   const handleAddToCart = async () => {
     if (product.stock === 0) return;
 
-    setIsLoading(true);
+    // Check if user is authenticated
+    if (!auth.isAuthenticated) {
+      setShowLoginPopup(true);
+      return;
+    }
+
     try {
+      // Add to Redux store immediately for UI feedback
       dispatch(
         addToCart({
-          productId: product._id,
+          id: product._id,
           name: product.name,
           price: product.price,
-          image: product.images[0],
+          image: getProductImages(product.name, product.category)[0],
           quantity,
         })
       );
-    } finally {
-      setIsLoading(false);
+
+      // Call backend API
+      const result = await addToCartMutation({
+        productId: product._id,
+        quantity,
+      }).unwrap();
+
+      // Update Redux store with backend response
+      if (result.cart) {
+        dispatch(
+          setCart({
+            items: result.cart.items,
+            total: result.cart.total,
+            itemCount: result.cart.itemCount,
+          })
+        );
+      }
+
+      // Show success toast
+      success("Added to Cart", `${product.name} has been added to your cart.`);
+      
+      // Trigger flying cart animation
+      if (addToCartButtonRef.current) {
+        const productImage = productImages[0];
+        triggerFlyingCart(addToCartButtonRef.current, productImage);
+      }
+    } catch (error: any) {
+      console.error("Failed to add to cart:", error);
+
+      // Handle specific error cases with toast notifications
+      if (
+        error?.data?.error === "Access token required" ||
+        error?.status === 401
+      ) {
+        setShowLoginPopup(true);
+      } else if (
+        error?.data?.error === "Product not found" ||
+        error?.status === 404
+      ) {
+        showError("Product Not Found", "This product is no longer available.");
+      } else if (
+        error?.data?.error === "Insufficient stock" ||
+        error?.data?.error === "Insufficient stock available"
+      ) {
+        showError("Out of Stock", "This item is currently out of stock.");
+      } else if (error?.status === 403) {
+        showError(
+          "Access Denied",
+          "You don't have permission to perform this action."
+        );
+      } else {
+        showError("Unable to add to cart", "Please try again.");
+      }
     }
   };
 
@@ -79,7 +153,7 @@ const QuickViewModal: React.FC<QuickViewModalProps> = ({
                 <div className="aspect-square bg-gray-100 rounded-lg mb-4">
                   <img
                     src={
-                      product.images[selectedImageIndex] ||
+                      productImages[selectedImageIndex] ||
                       "/placeholder-product.jpg"
                     }
                     alt={product.name}
@@ -87,9 +161,9 @@ const QuickViewModal: React.FC<QuickViewModalProps> = ({
                   />
                 </div>
 
-                {product.images.length > 1 && (
+                {productImages.length > 1 && (
                   <div className="flex gap-2 overflow-x-auto">
-                    {product.images.map((image, index) => (
+                    {productImages.map((image, index) => (
                       <button
                         key={index}
                         onClick={() => setSelectedImageIndex(index)}
@@ -222,21 +296,57 @@ const QuickViewModal: React.FC<QuickViewModalProps> = ({
                 {/* Actions */}
                 <div className="flex gap-3">
                   <button
+                    ref={addToCartButtonRef}
                     onClick={handleAddToCart}
-                    disabled={product.stock === 0 || isLoading}
+                    disabled={product.stock === 0 || isAddingToCart}
                     className="flex-1 bg-blue-600 text-white py-3 px-6 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
                   >
-                    {isLoading ? "Adding..." : "Add to Cart"}
-                  </button>
-
-                  <button className="px-6 py-3 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
-                    Buy Now
+                    {isAddingToCart ? "Adding..." : "Add to Cart"}
                   </button>
                 </div>
               </div>
             </div>
           </motion.div>
         </motion.div>
+      )}
+
+      {/* Login Popup Modal */}
+      {showLoginPopup && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="bg-white rounded-lg p-6 max-w-md w-full mx-4"
+          >
+            <div className="text-center">
+              <div className="text-6xl mb-4">🔒</div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                Login Required
+              </h3>
+              <p className="text-gray-600 mb-6">
+                Please log in to add items to your cart.
+              </p>
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => setShowLoginPopup(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setShowLoginPopup(false);
+                    navigate("/login");
+                  }}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Login
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
       )}
     </AnimatePresence>
   );

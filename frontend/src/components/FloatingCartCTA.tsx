@@ -6,14 +6,17 @@ import { motion, AnimatePresence } from "framer-motion";
 
 const FloatingCartCTA = () => {
   const location = useLocation();
-  const { cart } = useSelector((state: RootState) => state);
+  const cart = useSelector((state: RootState) => state.cart);
+  const { isAuthenticated } = useSelector((state: RootState) => state.auth);
 
-  const MINIMUM_ORDER = 2000;
-  const isMinimumMet = cart.total >= MINIMUM_ORDER;
-  const remainingAmount = MINIMUM_ORDER - cart.total;
+  // Removed minimum order requirement - delivery charges will apply for all orders
 
-  // Don't show on cart page or if cart is empty
-  if (location.pathname === "/cart" || cart.itemCount === 0) {
+  // Don't show on cart page, if cart is empty, or if user is not authenticated
+  if (
+    location.pathname === "/cart" ||
+    cart.itemCount === 0 ||
+    !isAuthenticated
+  ) {
     return null;
   }
 
@@ -27,11 +30,7 @@ const FloatingCartCTA = () => {
       >
         <Link
           to="/cart"
-          className={`p-4 rounded-full shadow-lg transition-colors flex items-center space-x-2 ${
-            isMinimumMet
-              ? "bg-blue-600 text-white hover:bg-blue-700"
-              : "bg-orange-500 text-white hover:bg-orange-600"
-          }`}
+          className="p-4 rounded-full shadow-lg transition-colors flex items-center space-x-2 bg-blue-600 text-white hover:bg-blue-700"
         >
           <div className="text-2xl">🛒</div>
           <div className="flex flex-col">
@@ -39,9 +38,9 @@ const FloatingCartCTA = () => {
               {cart.itemCount} items
             </span>
             <span className="text-xs opacity-90">₹{cart.total.toFixed(2)}</span>
-            {!isMinimumMet && (
+            {cart.total < 500 && (
               <span className="text-xs opacity-75">
-                +₹{remainingAmount.toFixed(0)} for free delivery
+                +₹{(500 - cart.total).toFixed(0)} for free delivery
               </span>
             )}
           </div>

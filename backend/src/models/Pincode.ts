@@ -27,8 +27,7 @@ const PincodeSchema = new Schema<IPincode>({
   },
 });
 
-// Index for fast lookups
-PincodeSchema.index({ pincode: 1 });
+// Index for fast lookups (pincode already has unique index)
 PincodeSchema.index({ state: 1 });
 
 export const Pincode = mongoose.model<IPincode>("Pincode", PincodeSchema);

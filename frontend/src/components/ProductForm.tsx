@@ -21,6 +21,7 @@ const ProductForm = ({
     price: initialData?.price || "",
     mrp: initialData?.mrp || "",
     stock: initialData?.stock || "",
+    weight: initialData?.weight || "",
     sku: initialData?.sku || "",
     tags: initialData?.tags?.join(", ") || "",
     images: initialData?.images || [],
@@ -29,6 +30,7 @@ const ProductForm = ({
   const [uploadedImages, setUploadedImages] = useState<string[]>(
     formData.images
   );
+  const [imageUrl, setImageUrl] = useState("");
 
   const categories = [
     "groceries",
@@ -66,6 +68,31 @@ const ProductForm = ({
     setUploadedImages((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const handleAddImageUrl = () => {
+    if (!imageUrl.trim()) {
+      toast.error("Please enter an image URL");
+      return;
+    }
+
+    // Basic URL validation
+    try {
+      new URL(imageUrl);
+    } catch {
+      toast.error("Please enter a valid URL");
+      return;
+    }
+
+    // Check if it's an image URL
+    if (!imageUrl.match(/\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i)) {
+      toast.error("Please enter a valid image URL (jpg, png, gif, webp, svg)");
+      return;
+    }
+
+    setUploadedImages((prev) => [...prev, imageUrl.trim()]);
+    setImageUrl("");
+    toast.success("Image URL added successfully");
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -89,12 +116,12 @@ const ProductForm = ({
       price: parseFloat(formData.price),
       mrp: formData.mrp ? parseFloat(formData.mrp) : undefined,
       stock: parseInt(formData.stock),
-        tags: formData.tags
-          ? formData.tags
-              .split(",")
-              .map((tag: string) => tag.trim())
-              .filter((tag: string) => tag)
-          : [],
+      tags: formData.tags
+        ? formData.tags
+            .split(",")
+            .map((tag: string) => tag.trim())
+            .filter((tag: string) => tag)
+        : [],
       images: uploadedImages,
     };
 
@@ -189,7 +216,7 @@ const ProductForm = ({
       <div className="bg-white rounded-lg shadow-sm p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Pricing</h3>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
             <label className="label">Price (₹) *</label>
             <input
@@ -232,6 +259,20 @@ const ProductForm = ({
               required
             />
           </div>
+
+          <div>
+            <label className="label">Weight (grams) *</label>
+            <input
+              type="number"
+              name="weight"
+              value={formData.weight}
+              onChange={handleInputChange}
+              className="input"
+              placeholder="0"
+              min="0"
+              required
+            />
+          </div>
         </div>
       </div>
 
@@ -249,6 +290,32 @@ const ProductForm = ({
           folder="products"
           className="mb-4"
         />
+
+        {/* URL Input for External Images */}
+        <div className="border-t pt-4 mt-4">
+          <h4 className="text-sm font-medium text-gray-900 mb-2">
+            Or add image from URL:
+          </h4>
+          <div className="flex gap-2">
+            <input
+              type="url"
+              value={imageUrl}
+              onChange={(e) => setImageUrl(e.target.value)}
+              placeholder="Paste image URL from Chrome (e.g., https://example.com/image.jpg)"
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            />
+            <button
+              type="button"
+              onClick={handleAddImageUrl}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+            >
+              Add URL
+            </button>
+          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            Supports: JPG, PNG, GIF, WebP, SVG formats
+          </p>
+        </div>
 
         {/* Image Preview */}
         {uploadedImages.length > 0 && (

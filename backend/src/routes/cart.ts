@@ -8,19 +8,22 @@ import {
   createOrder,
   verifyPayment,
 } from "../controllers/cartController";
-import { authenticateToken } from "../middleware/auth";
+import { authenticateToken, requireRole } from "../middleware/auth";
 
 const router = express.Router();
 
-// Cart routes
-router.get("/", authenticateToken, getCart);
-router.post("/", authenticateToken, addToCart);
-router.put("/", authenticateToken, updateCartItem);
-router.delete("/:itemId", authenticateToken, removeFromCart);
-router.delete("/", authenticateToken, clearCart);
+// Middleware to ensure customers and admins can access cart (for debugging - expanded access)
+const customerOrAdmin = requireRole(["customer", "admin"]);
 
-// Checkout routes
-router.post("/checkout/create-order", authenticateToken, createOrder);
-router.post("/checkout/verify", authenticateToken, verifyPayment);
+// Cart routes - customers and admins can manage carts (for debugging)
+router.get("/", authenticateToken, customerOrAdmin, getCart);
+router.post("/", authenticateToken, customerOrAdmin, addToCart);
+router.put("/", authenticateToken, customerOrAdmin, updateCartItem);
+router.delete("/:itemId", authenticateToken, customerOrAdmin, removeFromCart);
+router.delete("/", authenticateToken, customerOrAdmin, clearCart);
+
+// Checkout routes - customers and admins can create orders (for debugging)
+router.post("/checkout/create-order", authenticateToken, customerOrAdmin, createOrder);
+router.post("/checkout/verify", authenticateToken, customerOrAdmin, verifyPayment);
 
 export default router;

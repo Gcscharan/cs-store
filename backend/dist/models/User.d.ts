@@ -11,7 +11,7 @@ export interface IAddress {
     isDefault: boolean;
 }
 export interface IOAuthProvider {
-    provider: "google" | "facebook";
+    provider: "google";
     providerId: string;
 }
 export interface IUser extends Document {
@@ -23,6 +23,8 @@ export interface IUser extends Document {
     oauthProviders?: IOAuthProvider[];
     role: "customer" | "admin" | "delivery";
     addresses: IAddress[];
+    appLanguage?: string;
+    preferredLanguage?: string;
     createdAt: Date;
     updatedAt: Date;
     comparePassword(candidatePassword: string): Promise<boolean>;

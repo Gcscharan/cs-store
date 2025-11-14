@@ -1,3 +1,6 @@
 import { Request, Response } from "express";
-export declare const checkPincode: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
+export declare const validatePincodeController: (req: Request, res: Response) => Promise<void>;
+export declare const validateBulkPincodesController: (req: Request, res: Response) => Promise<void>;
+export declare const getValidPincodeRangesController: (req: Request, res: Response) => Promise<void>;
+export declare const checkPincodeController: (req: Request, res: Response) => Promise<void>;
 //# sourceMappingURL=pincodeController.d.ts.map

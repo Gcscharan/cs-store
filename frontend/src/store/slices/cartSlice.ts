@@ -1,14 +1,11 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 
-interface CartItem {
+export interface CartItem {
   id: string;
-  productId: string;
   name: string;
   price: number;
   quantity: number;
   image: string;
-  shopkeeperId: string;
-  shopkeeperName: string;
 }
 
 interface CartState {
@@ -17,6 +14,7 @@ interface CartState {
   itemCount: number;
 }
 
+// Initialize with empty cart - cart will be loaded from backend via useGetCartQuery
 const initialState: CartState = {
   items: [],
   total: 0,
@@ -27,50 +25,15 @@ const cartSlice = createSlice({
   name: "cart",
   initialState,
   reducers: {
-    addToCart: (state, action: PayloadAction<Omit<CartItem, "quantity">>) => {
+    addToCart: (state, action: PayloadAction<CartItem>) => {
       const existingItem = state.items.find(
-        (item) => item.productId === action.payload.productId
+        (item) => item.id === action.payload.id
       );
-
       if (existingItem) {
-        existingItem.quantity += 1;
+        existingItem.quantity += action.payload.quantity;
       } else {
-        state.items.push({ ...action.payload, quantity: 1 });
+        state.items.push(action.payload);
       }
-
-      cartSlice.caseReducers.calculateTotals(state);
-    },
-    removeFromCart: (state, action: PayloadAction<string>) => {
-      state.items = state.items.filter(
-        (item) => item.productId !== action.payload
-      );
-      cartSlice.caseReducers.calculateTotals(state);
-    },
-    updateQuantity: (
-      state,
-      action: PayloadAction<{ productId: string; quantity: number }>
-    ) => {
-      const { productId, quantity } = action.payload;
-      const item = state.items.find((item) => item.productId === productId);
-
-      if (item) {
-        if (quantity <= 0) {
-          state.items = state.items.filter(
-            (item) => item.productId !== productId
-          );
-        } else {
-          item.quantity = quantity;
-        }
-      }
-
-      cartSlice.caseReducers.calculateTotals(state);
-    },
-    clearCart: (state) => {
-      state.items = [];
-      state.total = 0;
-      state.itemCount = 0;
-    },
-    calculateTotals: (state) => {
       state.total = state.items.reduce(
         (sum, item) => sum + item.price * item.quantity,
         0
@@ -80,10 +43,69 @@ const cartSlice = createSlice({
         0
       );
     },
+    removeFromCart: (state, action: PayloadAction<string>) => {
+      state.items = state.items.filter((item) => item.id !== action.payload);
+      state.total = state.items.reduce(
+        (sum, item) => sum + item.price * item.quantity,
+        0
+      );
+      state.itemCount = state.items.reduce(
+        (sum, item) => sum + item.quantity,
+        0
+      );
+    },
+    updateCartItem: (
+      state,
+      action: PayloadAction<{ id: string; quantity: number }>
+    ) => {
+      const item = state.items.find((item) => item.id === action.payload.id);
+      if (item) {
+        item.quantity = action.payload.quantity;
+        state.total = state.items.reduce(
+          (sum, item) => sum + item.price * item.quantity,
+          0
+        );
+        state.itemCount = state.items.reduce(
+          (sum, item) => sum + item.quantity,
+          0
+        );
+      }
+    },
+    clearCart: (state) => {
+      state.items = [];
+      state.total = 0;
+      state.itemCount = 0;
+    },
+    setCart: (
+      state,
+      action: PayloadAction<{
+        items: CartItem[];
+        total: number;
+        itemCount: number;
+      }>
+    ) => {
+      console.log("🛒 setCart action called with:", action.payload);
+      state.items = action.payload.items;
+      state.total = action.payload.total;
+      state.itemCount = action.payload.itemCount;
+    },
+    clearCartOnLogout: (state) => {
+      state.items = [];
+      state.total = 0;
+      state.itemCount = 0;
+    },
   },
 });
 
-export const { addToCart, removeFromCart, updateQuantity, clearCart } =
-  cartSlice.actions;
+export const {
+  addToCart,
+  removeFromCart,
+  updateCartItem,
+  clearCart,
+  setCart,
+  clearCartOnLogout,
+} = cartSlice.actions;
+
+// Cart middleware removed - MongoDB is now the single source of truth
 
 export default cartSlice.reducer;
