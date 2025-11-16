@@ -8,6 +8,9 @@ import Otp from "../../../models/Otp";
 import mongoose from "mongoose";
 import { smartGeocode } from "../../../utils/geocoding";
 import redisClient from "../../../config/redis";
+import { verifyOtp } from "../../security/controllers/otpController";
+import * as jwt from "jsonwebtoken";
+import { PendingUser } from "../../../models/PendingUser";
 
 // Get user profile
 export const getUserProfile = async (
@@ -42,6 +45,154 @@ export const getUserProfile = async (
   } catch (error) {
     console.error("Error fetching user profile:", error);
     res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// Mark mobile as verified with OTP
+export const markMobileAsVerified = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const userId = (req as any).userId || (req as any).user?._id;
+    const { otp, phone, pendingUserId } = req.body;
+
+    if (!otp) {
+      res.status(400).json({ error: "OTP is required" });
+      return;
+    }
+
+    // Case A: Authenticated user verifying their mobile post-signup
+    if (userId) {
+      const user = await User.findById(userId);
+      if (!user) {
+        res.status(404).json({ error: "User not found" });
+        return;
+      }
+      if (!user.phone) {
+        res.status(400).json({ error: "User does not have a registered phone" });
+        return;
+      }
+
+      const result = await verifyOtp(user.phone, otp, "verification");
+      if (!result.valid) {
+        res.status(400).json({ error: result.error || "Invalid OTP" });
+        return;
+      }
+
+      user.mobileVerified = true;
+      await user.save();
+      await Otp.deleteMany({ phone: user.phone, type: "verification", isUsed: false });
+
+      const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
+      const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || "your-refresh-secret";
+      const accessToken = jwt.sign(
+        { userId: user._id, email: user.email, role: user.role },
+        JWT_SECRET,
+        { expiresIn: "24h" }
+      );
+      const refreshToken = jwt.sign({ userId: user._id }, JWT_REFRESH_SECRET, { expiresIn: "7d" });
+
+      res.status(200).json({
+        message: "Mobile number verified successfully",
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          phone: user.phone,
+          role: user.role,
+          isAdmin: user.role === "admin",
+          addresses: user.addresses,
+          isProfileComplete: (user as any).isProfileComplete || false,
+          mobileVerified: true,
+        },
+        accessToken,
+        refreshToken,
+      });
+      return;
+    }
+
+    // Case B: Unauthenticated verification flow for pending users
+    if (!phone) {
+      res.status(400).json({ error: "Phone is required for verification" });
+      return;
+    }
+
+    console.log("[verify-mobile] Verifying OTP for", { phone });
+    const result = await verifyOtp(phone, otp, "verification");
+    if (!result.valid) {
+      res.status(400).json({ error: result.error || "Invalid OTP" });
+      return;
+    }
+
+    console.log("[verify-mobile] OTP verified. Fetching PendingUser", { pendingUserId, phone });
+    let pendingUser = null as any;
+    if (pendingUserId) {
+      pendingUser = await PendingUser.findOne({ _id: pendingUserId, phone });
+    } else {
+      pendingUser = await PendingUser.findOne({ phone });
+    }
+
+    if (!pendingUser) {
+      res.status(404).json({ error: "Pending signup not found for this phone" });
+      return;
+    }
+
+    console.log("[verify-mobile] Creating final User from PendingUser", { id: pendingUser._id.toString(), email: pendingUser.email });
+    const user = new User({
+      name: pendingUser.name,
+      email: pendingUser.email,
+      phone: pendingUser.phone,
+      passwordHash: pendingUser.passwordHash,
+      addresses: pendingUser.addresses || [],
+      mobileVerified: true,
+    });
+    await user.save();
+
+    console.log("[verify-mobile] Cleanup PendingUser and unused OTPs", { id: pendingUser._id.toString() });
+    await PendingUser.deleteOne({ _id: pendingUser._id });
+    await Otp.deleteMany({ phone, type: "verification", isUsed: false });
+
+    const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
+    const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || "your-refresh-secret";
+    const accessToken = jwt.sign(
+      { userId: user._id, email: user.email, role: user.role },
+      JWT_SECRET,
+      { expiresIn: "24h" }
+    );
+    const refreshToken = jwt.sign({ userId: user._id }, JWT_REFRESH_SECRET, { expiresIn: "7d" });
+
+    res.status(201).json({
+      message: "Account created and mobile verified successfully",
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        isAdmin: user.role === "admin",
+        addresses: user.addresses,
+        isProfileComplete: (user as any).isProfileComplete || false,
+        mobileVerified: true,
+      },
+      accessToken,
+      refreshToken,
+    });
+    return;
+  } catch (error: any) {
+    console.error("Error verifying mobile:", {
+      name: error?.name,
+      message: error?.message,
+      code: error?.code,
+      keyValue: error?.keyValue,
+      stack: error?.stack?.split("\n").slice(0, 2).join(" | "),
+    });
+    res.status(500).json({ error: "Failed to verify mobile number", ...(process.env.NODE_ENV !== 'production' ? { errorDetails: {
+      name: error?.name,
+      message: error?.message,
+      code: error?.code,
+      keyValue: error?.keyValue,
+    }} : {}) });
   }
 };
 
@@ -822,7 +973,10 @@ export const getNotificationPreferences = async (
       },
     };
 
-    res.json(user.notificationPreferences || defaultPreferences);
+    const stored = (user as any).notificationPreferences;
+    const hasStored = stored && typeof stored === "object" && Object.keys(stored).length > 0;
+
+    res.json(hasStored ? stored : defaultPreferences);
   } catch (error) {
     console.error("Error fetching notification preferences:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -836,16 +990,38 @@ export const updateNotificationPreferences = async (
 ): Promise<void> => {
   try {
     const userId = (req as any).userId || (req as any).user?._id;
-    const { channelId, categoryKey, subcategoryKey, enabled } = req.body;
-    
-    // Type check channelId
-    if (typeof channelId !== 'string' || !['whatsapp', 'email', 'sms', 'push', 'desktop', 'inapp'].includes(channelId)) {
-      res.status(400).json({ error: "Invalid channel ID" });
-      return;
-    }
+    const { preferences, channelId, categoryKey, subcategoryKey, enabled } = req.body;
 
     if (!userId) {
       res.status(401).json({ error: "User not authenticated" });
+      return;
+    }
+
+    // Full-object update path
+    if (preferences && typeof preferences === "object") {
+      const updatedUser = await User.findByIdAndUpdate(
+        userId,
+        { notificationPreferences: preferences },
+        { new: true }
+      ).select("notificationPreferences");
+
+      if (!updatedUser) {
+        res.status(404).json({ error: "User not found" });
+        return;
+      }
+
+      res.json({
+        success: true,
+        message: "Notification preferences updated successfully",
+        preferences: (updatedUser as any).notificationPreferences,
+      });
+      return;
+    }
+
+    // Granular toggle update path
+    // Type check channelId
+    if (typeof channelId !== "string" || !["whatsapp", "email", "sms", "push", "desktop", "inapp"].includes(channelId)) {
+      res.status(400).json({ error: "Invalid channel ID" });
       return;
     }
 
@@ -858,58 +1034,43 @@ export const updateNotificationPreferences = async (
 
     // Initialize notificationPreferences if it doesn't exist
     if (!user.notificationPreferences) {
-      user.notificationPreferences = {};
+      user.notificationPreferences = {} as any;
     }
 
-    // Type assertion for notification preferences
-    const preferences = user.notificationPreferences as any;
+    const prefs: any = user.notificationPreferences;
 
-    // Handle channel-level toggle
     if (enabled !== undefined && !categoryKey) {
-      if (!preferences[channelId]) {
-        preferences[channelId] = { enabled: true, categories: {} };
+      if (!prefs[channelId]) {
+        prefs[channelId] = { enabled: true, categories: {} };
       }
-      preferences[channelId].enabled = enabled;
-    }
-    // Handle category or subcategory toggle
-    else if (channelId && categoryKey) {
-      // Initialize channel if it doesn't exist
-      if (!preferences[channelId]) {
-        preferences[channelId] = { enabled: true, categories: {} };
+      prefs[channelId].enabled = enabled;
+    } else if (channelId && categoryKey) {
+      if (!prefs[channelId]) {
+        prefs[channelId] = { enabled: true, categories: {} };
       }
-      if (!preferences[channelId].categories) {
-        preferences[channelId].categories = {};
+      if (!prefs[channelId].categories) {
+        prefs[channelId].categories = {};
       }
 
       if (subcategoryKey) {
-        // Handle subcategory under reminders
-        if (categoryKey === 'reminders') {
-          if (!preferences[channelId].categories[categoryKey]) {
-            preferences[channelId].categories[categoryKey] = {
-              enabled: true,
-              subcategories: {},
-            };
+        if (categoryKey === "reminders") {
+          if (!prefs[channelId].categories[categoryKey]) {
+            prefs[channelId].categories[categoryKey] = { enabled: true, subcategories: {} };
           }
-          if (!preferences[channelId].categories[categoryKey].subcategories) {
-            preferences[channelId].categories[categoryKey].subcategories = {};
+          if (!prefs[channelId].categories[categoryKey].subcategories) {
+            prefs[channelId].categories[categoryKey].subcategories = {};
           }
-          preferences[channelId].categories[categoryKey].subcategories[subcategoryKey] = enabled;
+          prefs[channelId].categories[categoryKey].subcategories[subcategoryKey] = enabled;
         }
       } else {
-        // Handle main category toggle
-        if (categoryKey === 'reminders') {
-          // For reminders, update the enabled property
-          if (!preferences[channelId].categories[categoryKey]) {
-            preferences[channelId].categories[categoryKey] = {
-              enabled: enabled,
-              subcategories: {},
-            };
+        if (categoryKey === "reminders") {
+          if (!prefs[channelId].categories[categoryKey]) {
+            prefs[channelId].categories[categoryKey] = { enabled: enabled, subcategories: {} };
           } else {
-            preferences[channelId].categories[categoryKey].enabled = enabled;
+            prefs[channelId].categories[categoryKey].enabled = enabled;
           }
         } else {
-          // For simple categories (myOrders, recommendations, etc.)
-          preferences[channelId].categories[categoryKey] = enabled;
+          prefs[channelId].categories[categoryKey] = enabled;
         }
       }
     }

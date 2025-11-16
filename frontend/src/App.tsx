@@ -185,7 +185,11 @@ function OtherRoutes() {
         <Route path="/customer-care" element={<CustomerCarePage />} />
         <Route
           path="/notification-preferences"
-          element={<NotificationPreferencesPage />}
+          element={
+            <ProtectedRoute redirectTo="/login">
+              <NotificationPreferencesPage />
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/settings"

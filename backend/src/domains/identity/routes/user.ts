@@ -11,6 +11,7 @@ import {
   deleteAccount,
   getNotificationPreferences,
   updateNotificationPreferences,
+  markMobileAsVerified,
 } from "../controllers/userController";
 
 const router = express.Router();
@@ -18,6 +19,9 @@ const router = express.Router();
 // User profile routes
 router.get("/profile", authenticateToken, getUserProfile);
 router.put("/profile", authenticateToken, updateUserProfile);
+
+// Mobile verification route
+router.post("/verify-mobile", markMobileAsVerified);
 
 // User address routes
 router.get("/addresses", authenticateToken, getUserAddresses);

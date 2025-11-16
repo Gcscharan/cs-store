@@ -15,34 +15,48 @@ export const sendSMS = async (
     const authToken = process.env.TWILIO_AUTH_TOKEN;
     const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
 
-    if (!accountSid || !authToken || !twilioPhoneNumber) {
+    const credsPresent = !!accountSid && !!authToken && !!twilioPhoneNumber;
+    if (!credsPresent) {
       console.error(
-        "Twilio credentials not configured, falling back to console log"
+        "Twilio credentials missing: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, or TWILIO_PHONE_NUMBER not set"
       );
-      console.log(`📱 [FALLBACK] SMS to ${phone}: ${message}`);
-      return true;
+      console.error("SMS not sent. Ensure environment variables are configured.", {
+        TWILIO_ACCOUNT_SID_present: !!accountSid,
+        TWILIO_AUTH_TOKEN_present: !!authToken,
+        TWILIO_PHONE_NUMBER_present: !!twilioPhoneNumber,
+      });
+      // Do NOT claim success when creds are missing
+      return false;
     }
 
     // Import Twilio dynamically to avoid issues if not installed
     const twilio = require("twilio");
     const client = twilio(accountSid, authToken);
 
+    const formattedTo = `+91${phone.replace(/\D/g, "")}`; // normalize to E.164 for India
+
     const result = await client.messages.create({
       body: message,
       from: twilioPhoneNumber,
-      to: `+91${phone}`, // Assuming Indian numbers
+      to: formattedTo,
     });
 
-    console.log(`📱 SMS sent to ${phone}: ${message}`);
+    console.log(`📱 SMS sent to ${formattedTo}: ${message}`);
     console.log(`📱 Twilio SID: ${result.sid}`);
 
     return true;
-  } catch (error) {
-    console.error("SMS sending failed:", error);
-
-    // Fallback to console log for development
-    console.log(`📱 [FALLBACK] SMS to ${phone}: ${message}`);
-    return true; // Return true to not break the flow
+  } catch (error: any) {
+    // Capture common Twilio/NW errors
+    const details = {
+      name: error?.name,
+      code: error?.code,
+      status: error?.status,
+      message: error?.message,
+      stack: error?.stack?.split("\n").slice(0, 3).join(" | ") || undefined,
+    };
+    console.error("❌ SMS sending failed:", details);
+    // Do NOT return true on failure; surface it to caller
+    return false;
   }
 };
 

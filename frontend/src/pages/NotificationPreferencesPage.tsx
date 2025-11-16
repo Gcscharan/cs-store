@@ -299,102 +299,109 @@ const NotificationPreferencesPage: React.FC = () => {
     }
   }, [preferencesData]);
 
+  // NEW: Save all preferences in one request
+  const handleSaveAll = async () => {
+    try {
+      await updatePreferences({ preferences: settings }).unwrap();
+      showSuccess("All preferences saved");
+    } catch (error) {
+      showError("Failed to save all preferences");
+      console.error("Save all error:", error);
+    }
+  };
+
   // Automatic save function
   const handleAutoSave = async (channelId: string, categoryKey: string, subcategoryKey?: string, enabled?: boolean) => {
     const saveKey = subcategoryKey ? `${channelId}-${categoryKey}-${subcategoryKey}` : `${channelId}-${categoryKey}`;
     
     // Add to saving state
     setSavingItems(prev => new Set([...prev, saveKey]));
-
+  
     try {
-      // Update local state immutably
-      setSettings(prev => {
-        const prevChannel = prev[channelId] || {
-          enabled: true,
-          categories: {},
-        };
-
-        const prevCategories = (prevChannel.categories || {}) as any;
-        let newCategories: any = { ...prevCategories };
-
-        if (!subcategoryKey) {
-          // Category-level toggle
-          if (categoryKey === "reminders") {
-            const prevReminders = (prevCategories.reminders || {
-              enabled: false,
-              subcategories: {
-                reminders_cart: false,
-                reminders_payment: false,
-                reminders_restock: false,
-              },
-            }) as any;
-
-            const newEnabled = enabled ?? false;
-
-            // Master toggle should also toggle all sub-settings
-            const newSubcategories = {
-              ...(prevReminders.subcategories || {}),
-              reminders_cart: newEnabled,
-              reminders_payment: newEnabled,
-              reminders_restock: newEnabled,
-            };
-
-            newCategories = {
-              ...newCategories,
-              reminders: {
-                ...prevReminders,
-                enabled: newEnabled,
-                subcategories: newSubcategories,
-              },
-            };
-          } else {
-            newCategories = {
-              ...newCategories,
-              [categoryKey]: enabled,
-            };
-          }
+      // Compute next settings immutably based on current state
+      const prevChannel = settings[channelId] || {
+        enabled: true,
+        categories: {},
+      };
+  
+      const prevCategories = (prevChannel.categories || {}) as any;
+      let newCategories: any = { ...prevCategories };
+  
+      if (!subcategoryKey) {
+        // Category-level toggle
+        if (categoryKey === "reminders") {
+          const prevReminders = (prevCategories.reminders || {
+            enabled: false,
+            subcategories: {
+              reminders_cart: false,
+              reminders_payment: false,
+              reminders_restock: false,
+            },
+          }) as any;
+  
+          const newEnabled = enabled ?? false;
+  
+          // Master toggle should also toggle all sub-settings
+          const newSubcategories = {
+            ...(prevReminders.subcategories || {}),
+            reminders_cart: newEnabled,
+            reminders_payment: newEnabled,
+            reminders_restock: newEnabled,
+          };
+  
+          newCategories = {
+            ...newCategories,
+            reminders: {
+              ...prevReminders,
+              enabled: newEnabled,
+              subcategories: newSubcategories,
+            },
+          };
         } else {
-          // Subcategory-level toggle
-          if (categoryKey === "reminders") {
-            const prevReminders = (prevCategories.reminders || {
-              enabled: true,
-              subcategories: {},
-            }) as any;
-
-            const newSubcategories = {
-              ...(prevReminders.subcategories || {}),
-              [subcategoryKey]: enabled,
-            };
-
-            newCategories = {
-              ...newCategories,
-              reminders: {
-                ...prevReminders,
-                subcategories: newSubcategories,
-              },
-            };
-          }
+          newCategories = {
+            ...newCategories,
+            [categoryKey]: enabled,
+          };
         }
-
-        const newChannel = {
-          ...prevChannel,
-          categories: newCategories,
-        };
-
-        return {
-          ...prev,
-          [channelId]: newChannel,
-        };
-      });
-
-      // Save to backend
-      await updatePreferences({
-        channelId,
-        categoryKey,
-        subcategoryKey,
-        enabled,
-      }).unwrap();
-
+      } else {
+        // Subcategory-level toggle
+        if (categoryKey === "reminders") {
+          const prevReminders = (prevCategories.reminders || {
+            enabled: true,
+            subcategories: {},
+          }) as any;
+  
+          const newSubcategories = {
+            ...(prevReminders.subcategories || {}),
+            [subcategoryKey]: enabled,
+          };
+  
+          newCategories = {
+            ...newCategories,
+            reminders: {
+              ...prevReminders,
+              subcategories: newSubcategories,
+            },
+          };
+        }
+      }
+  
+      const newChannel = {
+        ...prevChannel,
+        categories: newCategories,
+      };
+  
+      const nextSettings: NotificationSettings = {
+        ...settings,
+        [channelId]: newChannel,
+      };
+  
+      // Update local state
+      setSettings(nextSettings);
+  
+      // Save entire preferences to backend immediately
+      await updatePreferences({ preferences: nextSettings }).unwrap();
+  
       // Show success indication
       showSuccess("Preferences updated");
     } catch (error) {
@@ -444,12 +451,15 @@ const NotificationPreferencesPage: React.FC = () => {
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="py-6">
-            <div className="flex items-center gap-3">
-              <Settings className="h-8 w-8 text-blue-600" />
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Notification Preferences</h1>
-                <p className="text-gray-600">Manage how you receive notifications</p>
+            <div className="flex items-center gap-3 justify-between">
+              <div className="flex items-center gap-3">
+                <Settings className="h-8 w-8 text-blue-600" />
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-900">Notification Preferences</h1>
+                  <p className="text-gray-600">Manage how you receive notifications</p>
+                </div>
               </div>
+              {/* Save Changes button removed for instant auto-save */}
             </div>
           </div>
         </div>

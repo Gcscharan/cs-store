@@ -1,17 +1,19 @@
 import React, { useEffect, useRef } from "react";
 import { useSelector } from "react-redux";
-import { useLocation } from "react-router-dom";
+import { useLocation, Navigate } from "react-router-dom";
 import { useOtpModal } from "../contexts/OtpModalContext";
 import { RootState } from "../store";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requireAuth?: boolean;
+  redirectTo?: string;
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children,
   requireAuth = true,
+  redirectTo,
 }) => {
   const { isAuthenticated } = useSelector((state: RootState) => state.auth);
   const { showOtpModal } = useOtpModal();
@@ -51,8 +53,11 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     }
   }, [isAuthenticated, requireAuth, showOtpModal, location.pathname]);
 
-  // If authentication is required and user is not authenticated, don't render children
+  // If authentication is required and user is not authenticated
   if (requireAuth && !isAuthenticated) {
+    if (redirectTo) {
+      return <Navigate to={redirectTo} replace state={{ from: location.pathname }} />;
+    }
     return null;
   }
 

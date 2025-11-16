@@ -11,6 +11,7 @@ import { useToast } from "../components/AccessibleToast";
 import { getProductPrimaryImage } from "../utils/productImageMapper";
 import { useOtpModal } from "../contexts/OtpModalContext";
 import { useTokenRefresh } from "../hooks/useTokenRefresh";
+import { getGradientPlaceholder } from '../utils/mockImages';
 
 const HomePage = () => {
   const navigate = useNavigate();
@@ -893,7 +894,7 @@ const HomePage = () => {
             <div className="mb-4 md:mb-0">© 2023-2024 CS Store.com</div>
             <div>
               <img
-                src="https://static-assets-web.flixcart.com/fk-p-static/2022/09/27/a0b360c5-f32f-486a-b37a-f01057817e6b.png"
+                src={getGradientPlaceholder('Banner', 1200, 300).src}
                 alt="Payment Methods"
                 className="h-6"
               />
