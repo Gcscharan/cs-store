@@ -4,9 +4,13 @@ import {
   generatePaymentOTP,
   verifyPaymentOTP,
   resendPaymentOTP,
+  generateVerificationOTP,
 } from "../controllers/otpController";
 
 const router = express.Router();
+
+// Generate OTP for mobile verification
+router.post("/verification/generate", authenticateToken, generateVerificationOTP);
 
 // Generate OTP for payment verification
 router.post("/payment/generate", authenticateToken, generatePaymentOTP);

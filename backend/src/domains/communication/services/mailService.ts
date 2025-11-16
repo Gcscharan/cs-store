@@ -23,33 +23,76 @@ interface EmailOptions {
  * Send email using a single SMTP transporter configured via environment variables
  */
 export const sendEmail = async (options: EmailOptions): Promise<void> => {
-	try {
-		// Basic configuration validation
-		if (!process.env.EMAIL_HOST || !process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-			console.error(
-				"[MailService] EMAIL_HOST, EMAIL_USER or EMAIL_PASS is not configured. Skipping actual email send."
-			);
-			console.log(
-				`[MailService] Would send email to ${options.to} with subject "${options.subject}" (missing SMTP config)`
-			);
-			return;
-		}
+  try {
+    if (!process.env.EMAIL_HOST || !process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      console.error(
+        "[MailService] EMAIL_HOST, EMAIL_USER or EMAIL_PASS is not configured. Skipping actual email send."
+      );
+      console.log(
+        `[MailService] Would send email to ${options.to} with subject "${options.subject}" (missing SMTP config)`
+      );
+      return;
+    }
 
-		const info = await smtpTransporter.sendMail({
-			from: `"CS Store" <${process.env.EMAIL_USER}>`,
-			to: options.to,
-			subject: options.subject,
-			html: options.html,
-		});
+    // Verify transporter connectivity before sending
+    try {
+      await smtpTransporter.verify();
+    } catch (verifyErr: any) {
+      console.error("❌ [MailService] SMTP verify failed:", {
+        message: verifyErr?.message,
+        code: verifyErr?.code,
+        response: verifyErr?.response,
+        responseCode: verifyErr?.responseCode,
+        host: process.env.EMAIL_HOST,
+        port: smtpPort,
+        secure: smtpPort === 465,
+      });
+      throw verifyErr;
+    }
 
-		console.log(
-			`✅ [MailService] Email sent via SMTP to ${options.to} (MessageId: ${info.messageId || "unknown"})`
-		);
-	} catch (error: any) {
-		console.error("❌ [MailService] Email send failed:", error?.message || error);
-		// Log for debugging but don't throw - allows OTP to still be shown in console
-		console.log(`⚠️  [MailService] Email could not be delivered to ${options.to}`);
-	}
+    const info = await smtpTransporter.sendMail({
+      from: `"CS Store" <${process.env.EMAIL_USER}>`,
+      to: options.to,
+      subject: options.subject,
+      html: options.html,
+    });
+
+    console.log(
+      `✅ [MailService] Email sent via SMTP to ${options.to} (MessageId: ${info.messageId || "unknown"})`
+    );
+  } catch (error: any) {
+    const details = {
+      message: error?.message,
+      code: error?.code,
+      errno: error?.errno,
+      syscall: error?.syscall,
+      address: error?.address,
+      port: error?.port,
+      response: error?.response,
+      responseCode: error?.responseCode,
+      command: error?.command,
+      host: process.env.EMAIL_HOST,
+      smtpPort,
+      secure: smtpPort === 465,
+      user: process.env.EMAIL_USER,
+    };
+
+    // Classify common failure causes
+    let hint = "Unknown error";
+    if (error?.code === "EAUTH" || error?.responseCode === 535) {
+      hint = "Authentication failed. Check EMAIL_USER/EMAIL_PASS and provider app-password settings.";
+    } else if (error?.code === "ENOTFOUND" || error?.code === "EAI_AGAIN") {
+      hint = "SMTP host not found or DNS issue. Verify EMAIL_HOST.";
+    } else if (error?.code === "ETIMEDOUT" || error?.code === "ECONNREFUSED") {
+      hint = "Connection timed out/refused. Check network/firewall and port settings.";
+    } else if (error?.responseCode === 454 || error?.responseCode === 530) {
+      hint = "SMTP requires TLS or authentication. Adjust secure/port or enable less secure/app passwords.";
+    }
+
+    console.error("❌ [MailService] Email send failed:", details);
+    console.error("ℹ️  [MailService] Hint:", hint);
+    console.log(`⚠️  [MailService] Email could not be delivered to ${options.to}`);
+  }
 };
 
 /**

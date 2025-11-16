@@ -45,9 +45,7 @@ export const signup = async (
           pincode: defaultAddress.pincode,
         });
         if (!pincodeExists) {
-          res.status(400).json({
-            error: "Unable to deliver to this location.",
-          });
+          res.status(400).json({ error: "Unable to deliver to this location." });
           return;
         }
       }
@@ -56,18 +54,14 @@ export const signup = async (
     // Check if user already exists with this email
     const existingUserByEmail = await User.findOne({ email });
     if (existingUserByEmail) {
-      res
-        .status(400)
-        .json({ error: "An account with this email already exists" });
+      res.status(400).json({ error: "An account with this email already exists" });
       return;
     }
 
     // Check if user already exists with this phone number
     const existingUserByPhone = await User.findOne({ phone });
     if (existingUserByPhone) {
-      res
-        .status(400)
-        .json({ error: "An account with this phone number already exists" });
+      res.status(400).json({ error: "An account with this phone number already exists" });
       return;
     }
 
@@ -75,43 +69,48 @@ export const signup = async (
     const saltRounds = 12;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
-    // Create new user (addresses are optional)
-    const user = new User({
+    // Store as pending user with TTL (24 hours)
+    const { PendingUser } = require("../../../models/PendingUser");
+    const pendingUser = await PendingUser.create({
       name,
       email,
       phone,
       passwordHash,
       addresses: addresses || [],
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
     });
 
-    await user.save();
-
-    // Generate tokens
-    const accessToken = jwt.sign(
-      { userId: user._id, email: user.email, role: user.role },
-      JWT_SECRET,
-      { expiresIn: "24h" } // Extended from 15m to 24h to prevent frequent expiration
-    );
-
-    const refreshToken = jwt.sign({ userId: user._id }, JWT_REFRESH_SECRET, {
-      expiresIn: "7d",
+    // Generate verification OTP and send via SMS
+    const otp = generateOTP();
+    const otpRecord = new Otp({
+      phone,
+      otp,
+      type: "verification",
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
     });
+    await otpRecord.save();
 
-    res.status(201).json({
-      message: "User registered successfully",
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        role: user.role,
-        isAdmin: user.role === "admin",
-        addresses: user.addresses,
-        isProfileComplete: user.isProfileComplete,
-      },
-      accessToken,
-      refreshToken,
+    const message = `Your CS Store verification OTP is ${otp}. Valid for 10 minutes. Do not share this OTP with anyone.`;
+    const smsOk = await sendSMS(phone, message);
+
+    if (!smsOk) {
+      console.error("❌ Signup: failed to send verification OTP", {
+        phone,
+        pendingUserId: pendingUser._id?.toString(),
+      });
+      // Optionally clean up pending user when SMS fails
+      // await PendingUser.deleteOne({ _id: pendingUser._id });
+      res.status(500).json({ error: "Failed to send verification OTP" });
+      return;
+    }
+
+    // Return pending user ID to continue verification on client side
+    res.status(202).json({
+      message: "Signup initiated. Verification OTP sent.",
+      pendingUserId: pendingUser._id,
+      expiresIn: 600,
     });
+    return;
   } catch (error) {
     console.error("Signup error:", error);
     res.status(500).json({ error: "Registration failed" });

@@ -176,6 +176,7 @@ export interface IUser extends Document {
   appLanguage?: string;
   preferredLanguage?: string;
   isProfileComplete?: boolean;
+  mobileVerified?: boolean;
   createdAt: Date;
   updatedAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
@@ -285,6 +286,10 @@ const UserSchema = new Schema<IUser>(
       type: Boolean,
       default: false,
     },
+    mobileVerified: {
+      type: Boolean,
+      default: false,
+    },
     notificationPreferences: {
       type: Schema.Types.Mixed,
       default: {},
@@ -295,9 +300,6 @@ const UserSchema = new Schema<IUser>(
   }
 );
 
-// Password hashing is handled in the controller
-
-// Compare password method
 UserSchema.methods.comparePassword = async function (
   candidatePassword: string
 ): Promise<boolean> {

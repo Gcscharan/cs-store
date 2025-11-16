@@ -12,7 +12,7 @@ import {
   useRemoveFromCartMutation,
   useGetAddressesQuery,
 } from "../store/api";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   calculateDeliveryFee,
   formatDeliveryFee,
@@ -35,6 +35,8 @@ const CartPage = () => {
     itemId: null,
     itemName: "",
   });
+
+  const navigate = useNavigate();
 
   // API mutations
   const [updateCartItemMutation] = useUpdateCartItemMutation();
@@ -60,29 +62,29 @@ const CartPage = () => {
         return {
           _id: defaultAddr._id,
           label: defaultAddr.label || "",
-          addressLine: defaultAddr.addressLine || "",
+          pincode: defaultAddr.pincode || "",
           city: defaultAddr.city || "",
           state: defaultAddr.state || "",
-          pincode: defaultAddr.pincode || "",
-          lat: defaultAddr.lat,
-          lng: defaultAddr.lng,
+          addressLine: defaultAddr.addressLine || "",
+          lat: (defaultAddr.location?.lat ?? defaultAddr.lat ?? 0),
+          lng: (defaultAddr.location?.lng ?? defaultAddr.lng ?? 0),
           isDefault: true,
         };
       }
     }
 
-    // Fallback to first address if no default
+    // Fallback: Return the first address if no default is set
     if (addresses.length > 0) {
       const firstAddr = addresses[0];
       return {
         _id: firstAddr._id,
         label: firstAddr.label || "",
-        addressLine: firstAddr.addressLine || "",
+        pincode: firstAddr.pincode || "",
         city: firstAddr.city || "",
         state: firstAddr.state || "",
-        pincode: firstAddr.pincode || "",
-        lat: firstAddr.lat,
-        lng: firstAddr.lng,
+        addressLine: firstAddr.addressLine || "",
+        lat: (firstAddr.location?.lat ?? firstAddr.lat ?? 0),
+        lng: (firstAddr.location?.lng ?? firstAddr.lng ?? 0),
         isDefault: false,
       };
     }
@@ -256,6 +258,12 @@ const CartPage = () => {
             <p className="text-gray-600 mb-6">
               Add some products to get started
             </p>
+            <button
+              onClick={() => navigate("/")}
+              className="inline-block bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Continue Shopping
+            </button>
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
