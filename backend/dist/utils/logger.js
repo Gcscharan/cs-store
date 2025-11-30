@@ -57,6 +57,7 @@ class Logger {
     info(message, data) {
         const formattedMessage = this.formatMessage("INFO", message, data);
         console.log(formattedMessage);
+        // Send to Sentry with info level
         Sentry.addBreadcrumb({
             message,
             level: "info",
@@ -66,6 +67,7 @@ class Logger {
     warn(message, data) {
         const formattedMessage = this.formatMessage("WARN", message, data);
         console.warn(formattedMessage);
+        // Send to Sentry with warning level
         Sentry.addBreadcrumb({
             message,
             level: "warning",
@@ -78,6 +80,7 @@ class Logger {
         if (error) {
             console.error("Error stack:", error.stack);
         }
+        // Send to Sentry with error level
         Sentry.captureException(error || new Error(message), {
             level: "error",
             tags: {
@@ -93,6 +96,7 @@ class Logger {
             console.debug(formattedMessage);
         }
     }
+    // Specialized logging methods
     auth(message, data) {
         this.setContext({ component: "auth" });
         this.info(message, data);
@@ -113,9 +117,11 @@ class Logger {
         this.setContext({ component: "admin" });
         this.info(message, data);
     }
+    // Security logging
     security(message, data) {
         this.setContext({ component: "security" });
         this.warn(message, data);
+        // Always send security events to Sentry
         Sentry.captureMessage(message, {
             level: "warning",
             tags: {
@@ -125,9 +131,11 @@ class Logger {
             extra: data,
         });
     }
+    // Performance logging
     performance(operation, duration, data) {
         this.setContext({ component: "performance" });
         this.info(`Performance: ${operation} took ${duration}ms`, data);
+        // Send performance data to Sentry
         Sentry.addBreadcrumb({
             message: `Performance: ${operation}`,
             level: "info",
@@ -139,9 +147,11 @@ class Logger {
             },
         });
     }
+    // Business metrics logging
     metrics(event, value, data) {
         this.setContext({ component: "metrics" });
         this.info(`Metrics: ${event} = ${value}`, data);
+        // Send metrics to Sentry
         Sentry.addBreadcrumb({
             message: `Metrics: ${event}`,
             level: "info",
@@ -154,7 +164,9 @@ class Logger {
         });
     }
 }
+// Create singleton instance
 exports.logger = new Logger();
+// Initialize Sentry
 const initializeSentry = () => {
     const dsn = process.env.SENTRY_DSN;
     if (!dsn) {
@@ -166,9 +178,11 @@ const initializeSentry = () => {
         environment: process.env.NODE_ENV || "development",
         tracesSampleRate: process.env.NODE_ENV === "production" ? 0.1 : 1.0,
         beforeSend(event) {
+            // Filter out sensitive data
             if (event.request?.data) {
                 const data = event.request.data;
                 if (typeof data === "object") {
+                    // Remove sensitive fields
                     const sensitiveFields = [
                         "password",
                         "passwordHash",
@@ -194,11 +208,13 @@ const initializeSentry = () => {
     exports.logger.info("Sentry initialized successfully");
 };
 exports.initializeSentry = initializeSentry;
+// Express middleware for Sentry
 exports.sentryMiddleware = {
     requestHandler: () => (req, res, next) => next(),
     tracingHandler: () => (req, res, next) => next(),
     errorHandler: () => (err, req, res, next) => next(err),
 };
+// Helper functions for common logging patterns
 const logAuthAttempt = (email, success, ip) => {
     exports.logger.auth(`Authentication attempt: ${email} - ${success ? "SUCCESS" : "FAILED"}`, {
         email,
@@ -247,4 +263,3 @@ const logBusinessMetric = (metric, value, data) => {
 };
 exports.logBusinessMetric = logBusinessMetric;
 exports.default = exports.logger;
-//# sourceMappingURL=logger.js.map

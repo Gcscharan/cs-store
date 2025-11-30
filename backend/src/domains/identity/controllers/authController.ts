@@ -6,8 +6,8 @@ import { User } from "../../../models/User";
 import { Pincode } from "../../../models/Pincode";
 import { createError } from "../../../middleware/errorHandler";
 import Otp from "../../../models/Otp";
-import { generateOTP, sendSMS } from "../../../utils/sms";
-import { sendOTPEmail } from "../../communication/services/mailService";
+import { generateOTP, sendSMS, validatePhoneNumber } from "../../../utils/sms";
+import { sendEmailOTP } from "../../../utils/sendEmailOTP";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 const JWT_REFRESH_SECRET =
@@ -23,7 +23,7 @@ export const signup = async (
     // Validate required fields for email/password registration
     if (!name || !email || !phone || !password) {
       res.status(400).json({
-        error: "Name, email, phone, and password are required for registration",
+        message: "Name, email, phone, and password are required for registration",
       });
       return;
     }
@@ -31,7 +31,7 @@ export const signup = async (
     // Validate phone number format for Indian mobile numbers
     if (!/^[6-9]\d{9}$/.test(phone)) {
       res.status(400).json({
-        error:
+        message:
           "Invalid phone number format. Please enter a valid 10-digit mobile number starting with 6-9.",
       });
       return;
@@ -45,7 +45,7 @@ export const signup = async (
           pincode: defaultAddress.pincode,
         });
         if (!pincodeExists) {
-          res.status(400).json({ error: "Unable to deliver to this location." });
+          res.status(400).json({ message: "Unable to deliver to this location." });
           return;
         }
       }
@@ -54,14 +54,14 @@ export const signup = async (
     // Check if user already exists with this email
     const existingUserByEmail = await User.findOne({ email });
     if (existingUserByEmail) {
-      res.status(400).json({ error: "An account with this email already exists" });
+      res.status(400).json({ message: "Email already exists" });
       return;
     }
 
     // Check if user already exists with this phone number
     const existingUserByPhone = await User.findOne({ phone });
     if (existingUserByPhone) {
-      res.status(400).json({ error: "An account with this phone number already exists" });
+      res.status(400).json({ message: "Phone number already exists" });
       return;
     }
 
@@ -69,46 +69,26 @@ export const signup = async (
     const saltRounds = 12;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
-    // Store as pending user with TTL (24 hours)
-    const { PendingUser } = require("../../../models/PendingUser");
-    const pendingUser = await PendingUser.create({
+    // Create user directly
+    const user = await User.create({
       name,
       email,
       phone,
       passwordHash,
       addresses: addresses || [],
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      role: "customer",
     });
 
-    // Generate verification OTP and send via SMS
-    const otp = generateOTP();
-    const otpRecord = new Otp({
-      phone,
-      otp,
-      type: "verification",
-      expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
-    });
-    await otpRecord.save();
-
-    const message = `Your CS Store verification OTP is ${otp}. Valid for 10 minutes. Do not share this OTP with anyone.`;
-    const smsOk = await sendSMS(phone, message);
-
-    if (!smsOk) {
-      console.error("❌ Signup: failed to send verification OTP", {
-        phone,
-        pendingUserId: pendingUser._id?.toString(),
-      });
-      // Optionally clean up pending user when SMS fails
-      // await PendingUser.deleteOne({ _id: pendingUser._id });
-      res.status(500).json({ error: "Failed to send verification OTP" });
-      return;
-    }
-
-    // Return pending user ID to continue verification on client side
-    res.status(202).json({
-      message: "Signup initiated. Verification OTP sent.",
-      pendingUserId: pendingUser._id,
-      expiresIn: 600,
+    // Return success response
+    res.status(201).json({
+      message: "User created successfully",
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+      },
     });
     return;
   } catch (error) {
@@ -131,14 +111,14 @@ export const login = async (
     });
 
     if (!user || !user.passwordHash) {
-      res.status(401).json({ error: "Invalid credentials" });
+      res.status(400).json({ message: "Invalid email or password" });
       return;
     }
 
     // Check password with bcrypt
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
     if (!isPasswordValid) {
-      res.status(401).json({ error: "Invalid credentials" });
+      res.status(400).json({ message: "Invalid email or password" });
       return;
     }
 
@@ -153,6 +133,8 @@ export const login = async (
       expiresIn: "7d",
     });
 
+    const isProfileComplete = !!(user.name && user.phone);
+
     res.json({
       message: "Login successful",
       user: {
@@ -163,9 +145,9 @@ export const login = async (
         role: user.role,
         isAdmin: user.role === "admin",
         addresses: user.addresses,
-        isProfileComplete: user.isProfileComplete,
+        isProfileComplete,
       },
-      accessToken,
+      token: accessToken,
       refreshToken,
     });
   } catch (error) {
@@ -246,7 +228,7 @@ export const refresh = async (
     const { refreshToken } = req.body;
 
     if (!refreshToken) {
-      res.status(401).json({ error: "Refresh token required" });
+      res.status(400).json({ message: "Refresh token is required" });
       return;
     }
 
@@ -255,19 +237,19 @@ export const refresh = async (
       const redisClient = require('../../../config/redis').default;
       const isBlacklisted = await redisClient.get(`blacklist:refresh:${refreshToken}`);
       if (isBlacklisted) {
-        console.log('❌ REFRESH: Refresh token is blacklisted (logged out)');
-        res.status(401).json({ error: "Refresh token revoked - please login again", code: "REFRESH_TOKEN_REVOKED" });
+        res.status(401).json({ message: "Refresh token revoked - please login again" });
         return;
       }
     } catch (redisError) {
-      console.warn('⚠️ REFRESH: Redis blacklist check failed, proceeding with token verification');
+      // Redis not available, proceed with token verification
     }
 
     const decoded = jwt.verify(refreshToken, JWT_REFRESH_SECRET) as any;
-    const user = await User.findById(decoded.userId);
+    const userId = decoded.userId || decoded.id;
+    const user = await User.findById(userId);
 
     if (!user) {
-      res.status(401).json({ error: "Invalid refresh token" });
+      res.status(401).json({ message: "Invalid refresh token" });
       return;
     }
 
@@ -277,9 +259,19 @@ export const refresh = async (
       { expiresIn: "24h" } // Extended from 15m to 24h to prevent frequent expiration
     );
 
-    res.json({ accessToken });
+    // Generate new refresh token
+    const newRefreshToken = jwt.sign(
+      { userId: user._id },
+      JWT_REFRESH_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    res.json({ 
+      message: "Token refreshed",
+      accessToken,
+    });
   } catch (error) {
-    res.status(401).json({ error: "Invalid refresh token" });
+    res.status(401).json({ message: "Invalid refresh token" });
     return;
   }
 };
@@ -289,8 +281,6 @@ export const logout = async (
   res: Response
 ): Promise<Response | void> => {
   try {
-    console.log('🚪 SECURE LOGOUT: Processing server-side session revocation...');
-    
     // Get user from auth middleware
     const userId = req.user?._id || req.userId;
     
@@ -298,12 +288,6 @@ export const logout = async (
     const { refreshToken } = req.body;
     const authHeader = req.headers.authorization;
     const accessToken = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
-    
-    console.log('🚪 SECURE LOGOUT: Received tokens for blacklisting', {
-      userId: userId?.toString(),
-      hasAccessToken: !!accessToken,
-      hasRefreshToken: !!refreshToken
-    });
 
     // Import Redis client for token blacklisting
     const redisClient = require('../../../config/redis').default;
@@ -314,10 +298,9 @@ export const logout = async (
     if (accessToken) {
       try {
         await redisClient.set(`blacklist:access:${accessToken}`, 'revoked', 24 * 60 * 60); // 24h TTL
-        console.log('✅ Access token blacklisted successfully');
         tokensRevoked++;
       } catch (error) {
-        console.error('❌ Failed to blacklist access token:', error);
+        // Failed to blacklist access token
       }
     }
     
@@ -325,10 +308,9 @@ export const logout = async (
     if (refreshToken) {
       try {
         await redisClient.set(`blacklist:refresh:${refreshToken}`, 'revoked', 7 * 24 * 60 * 60); // 7d TTL
-        console.log('✅ Refresh token blacklisted successfully');
         tokensRevoked++;
       } catch (error) {
-        console.error('❌ Failed to blacklist refresh token:', error);
+        // Failed to blacklist refresh token
       }
     }
     
@@ -336,24 +318,20 @@ export const logout = async (
     if (userId) {
       try {
         await redisClient.set(`user_session_revoked:${userId}`, Date.now().toString(), 7 * 24 * 60 * 60);
-        console.log('✅ User session invalidated');
       } catch (error) {
-        console.error('❌ Failed to invalidate user session:', error);
+        // Failed to invalidate user session
       }
     }
     
-    console.log(`✅ SECURE LOGOUT: ${tokensRevoked} tokens blacklisted successfully`);
-    
     res.json({ 
       success: true,
-      message: "Logout successful - session revoked and tokens blacklisted",
+      message: "Logout successful",
       tokensRevoked
     });
   } catch (error) {
-    console.error('❌ SECURE LOGOUT ERROR:', error);
     res.status(500).json({ 
       success: false,
-      error: "Logout failed - unable to revoke session" 
+      message: "Logout failed - unable to revoke session" 
     });
   }
 };
@@ -416,32 +394,32 @@ export const changePassword = async (
     const userId = (req as any).userId || (req as any).user?._id;
 
     if (!userId) {
-      return res.status(401).json({ error: "User not authenticated" });
+      return res.status(401).json({ message: "User not authenticated" });
     }
 
     // Validate input
     if (!currentPassword || !newPassword) {
       return res.status(400).json({
-        error: "Current password and new password are required",
+        message: "Current password and new password are required",
       });
     }
 
     if (newPassword.length < 6) {
       return res.status(400).json({
-        error: "New password must be at least 6 characters long",
+        message: "New password must be at least 6 characters long",
       });
     }
 
     // Find user
     const user = await User.findById(userId);
     if (!user) {
-      return res.status(404).json({ error: "User not found" });
+      return res.status(404).json({ message: "User not found" });
     }
 
     // Verify current password
     const isCurrentPasswordValid = await user.comparePassword(currentPassword);
     if (!isCurrentPasswordValid) {
-      return res.status(400).json({ error: "Current password is incorrect" });
+      return res.status(400).json({ message: "Current password is incorrect" });
     }
 
     // Hash new password
@@ -474,25 +452,21 @@ export const sendAuthOTP = async (
     const userInput = phone || email;
 
     if (!userInput) {
-      console.log("❌ Error: No phone or email provided");
-      return res.status(400).json({ error: "Phone or email is required" });
+      return res.status(400).json({ message: "Phone or email is required" });
     }
 
     // Detect input type: phone or email
-    const isPhone = /^[0-9]{10,12}$/.test(userInput);
+    // Use validatePhoneNumber for proper international format support
+    const isPhone = validatePhoneNumber(userInput);
     const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userInput);
 
-    console.log(`📋 Input type: ${isPhone ? "Phone" : isEmail ? "Email" : "Invalid"}`);
-
     if (!isPhone && !isEmail) {
-      console.log("❌ Error: Invalid format");
       return res.status(400).json({
-        error: "Invalid phone or email format",
+        message: "Invalid phone or email format",
       });
     }
 
     // Find user by phone or email
-    console.log(`🔍 Searching for user with ${isPhone ? "phone" : "email"}: ${userInput}`);
     const user = await User.findOne({
       $or: [{ phone: userInput }, { email: userInput }],
     });
@@ -524,11 +498,9 @@ export const sendAuthOTP = async (
       const message = `Your CS Store login OTP is ${otp}. Valid for 10 minutes. Do not share this OTP with anyone.`;
       await sendSMS(userInput, message);
     } else if (isEmail) {
-      // Send OTP via Email
-      await sendOTPEmail(userInput, otp);
+      // Send OTP via Email using Gmail SMTP
+      await sendEmailOTP(userInput, otp);
     }
-
-    console.log(`✅ OTP sent to ${isPhone ? 'phone' : 'email'}: ${userInput}`);
 
     res.json({
       message: "OTP sent successfully",
@@ -536,9 +508,8 @@ export const sendAuthOTP = async (
       sentTo: isPhone ? "phone" : "email",
     });
   } catch (error: any) {
-    console.error("❌ Send auth OTP error:", error.message);
     res.status(500).json({ 
-      error: "Failed to send OTP",
+      message: "Failed to send OTP",
       details: process.env.NODE_ENV === "development" ? error.message : undefined
     });
     return;
@@ -616,6 +587,8 @@ export const verifyAuthOTP = async (
       expiresIn: "7d",
     });
 
+    const isProfileComplete = !!(user.name && user.phone);
+
     res.json({
       message: "Login successful",
       user: {
@@ -626,7 +599,7 @@ export const verifyAuthOTP = async (
         role: user.role,
         isAdmin: user.role === "admin",
         addresses: user.addresses,
-        isProfileComplete: user.isProfileComplete,
+        isProfileComplete,
       },
       accessToken,
       refreshToken,
@@ -638,95 +611,119 @@ export const verifyAuthOTP = async (
   }
 };
 
+// Check if phone number exists
+export const checkPhoneExists = async (
+  req: Request,
+  res: Response
+): Promise<Response | void> => {
+  try {
+    const { phone } = req.body;
+
+    if (!phone) {
+      return res.status(400).json({ error: "Phone number is required" });
+    }
+
+    // Validate phone number format
+    if (!/^[6-9]\d{9}$/.test(phone)) {
+      return res.status(400).json({ error: "Invalid phone number format" });
+    }
+
+    // Check if phone exists in User collection
+    const existingUser = await User.findOne({ phone });
+
+    return res.status(200).json({
+      exists: !!existingUser,
+      message: existingUser 
+        ? "This phone number is already registered" 
+        : "Phone number is available",
+    });
+  } catch (error) {
+    console.error("Check phone exists error:", error);
+    return res.status(500).json({ error: "Failed to check phone number" });
+  }
+};
+
 // Complete user profile for OAuth users
 export const completeProfile = async (
   req: Request,
   res: Response
 ): Promise<Response | void> => {
   try {
-    const { name, phone } = req.body;
-    const userId = (req as any).userId || (req as any).user?._id;
+    const userId = (req as any).user?._id; // from auth middleware
 
     if (!userId) {
-      return res.status(401).json({ error: "User not authenticated" });
+      return res.status(401).json({ message: "Unauthorized" });
     }
 
-    // Validate required fields
-    if (!name || !phone) {
-      return res.status(400).json({
-        error: "Name and phone number are required",
-      });
-    }
+    const { fullName, phone, email } = req.body;
 
-    // Validate phone number format for Indian mobile numbers
-    if (!/^[6-9]\d{9}$/.test(phone)) {
-      return res.status(400).json({
-        error: "Invalid phone number format. Please enter a valid 10-digit mobile number starting with 6-9.",
-      });
-    }
-
-    // Get current user to check if they already have this phone number
-    const currentUser = await User.findById(userId);
-    
-    console.log('📱 COMPLETE PROFILE: Phone validation', {
-      requestedPhone: phone,
-      currentUserPhone: currentUser?.phone,
-      userId: userId,
-      isSamePhone: currentUser?.phone === phone
-    });
-    
-    // If user is trying to set the same phone number they already have, allow it
-    if (currentUser?.phone === phone) {
-      console.log('📱 COMPLETE PROFILE: User setting same phone number - allowing');
-    } else {
-      // Check if phone number is already in use by another user
-      const existingUser = await User.findOne({ 
-        phone, 
-        _id: { $ne: userId } 
-      });
-      
-      if (existingUser) {
-        console.log('📱 COMPLETE PROFILE: Phone number already registered by another user', {
-          existingUserId: existingUser._id,
-          existingUserEmail: existingUser.email
-        });
-        return res.status(400).json({
-          error: "This phone number is already registered with another account",
-        });
-      }
-    }
-
-    // Update user profile
-    const user = await User.findByIdAndUpdate(
+    const updatedUser = await User.findByIdAndUpdate(
       userId,
       {
-        name: name.trim(),
-        phone: phone.trim(),
+        fullName,
+        phone,
+        email,
         isProfileComplete: true,
       },
       { new: true }
     );
 
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
+    return res.json({
+      success: true,
+      user: updatedUser,
+    });
+  } catch (err) {
+    console.error("completeProfile error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// Get current user profile
+export const getMe = async (
+  req: Request,
+  res: Response
+): Promise<Response | void> => {
+  try {
+    const userId = (req as any).userId || (req as any).user?._id;
+    
+    if (!userId) {
+      return res.status(401).json({ message: "Authentication required" });
     }
 
-    res.json({
-      message: "Profile completed successfully",
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        role: user.role,
-        isAdmin: user.role === "admin",
-        addresses: user.addresses,
-        isProfileComplete: user.isProfileComplete,
-      },
-    });
-  } catch (error) {
-    console.error("Complete profile error:", error);
-    res.status(500).json({ error: "Failed to complete profile" });
-    return;
+    const user = await User.findById(userId).select("-passwordHash");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json({ user });
+  } catch (error: any) {
+    console.error("Get profile error:", error);
+    res.status(500).json({ message: "Failed to fetch profile" });
+  }
+};
+
+// Delete user account
+export const deleteAccount = async (
+  req: Request,
+  res: Response
+): Promise<Response | void> => {
+  try {
+    const userId = (req as any).userId || (req as any).user?._id;
+    
+    if (!userId) {
+      return res.status(401).json({ message: "Authentication required" });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    await User.findByIdAndDelete(userId);
+
+    res.json({ message: "Account deleted successfully" });
+  } catch (error: any) {
+    console.error("Delete account error:", error);
+    res.status(500).json({ message: "Failed to delete account" });
   }
 };

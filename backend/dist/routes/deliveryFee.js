@@ -6,8 +6,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const deliveryController_1 = require("../controllers/deliveryController");
 const router = express_1.default.Router();
+// Calculate delivery fee
 router.post("/calculate-fee", deliveryController_1.calculateDeliveryFeeController);
-router.get("/check-availability/:pincode", deliveryController_1.checkDeliveryAvailability);
-router.get("/admin-address", deliveryController_1.getAdminAddress);
 exports.default = router;
-//# sourceMappingURL=deliveryFee.js.map

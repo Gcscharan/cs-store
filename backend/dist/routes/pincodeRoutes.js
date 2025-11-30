@@ -6,9 +6,12 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const pincodeController_1 = require("../controllers/pincodeController");
 const router = express_1.default.Router();
+// Validate single pincode
 router.post("/validate", pincodeController_1.validatePincodeController);
+// Validate multiple pincodes
 router.post("/validate-bulk", pincodeController_1.validateBulkPincodesController);
+// Get valid pincode ranges
 router.get("/ranges", pincodeController_1.getValidPincodeRangesController);
+// Check pincode deliverability
 router.get("/check/:pincode", pincodeController_1.checkPincodeController);
 exports.default = router;
-//# sourceMappingURL=pincodeRoutes.js.map

@@ -12,13 +12,16 @@ const DEV_ADMIN_NAME = "Admin";
 const DEV_ADMIN_PHONE = "9391795162";
 const bootstrapDevAdmin = async () => {
     try {
+        // Only run in development
         if (process.env.NODE_ENV === "production") {
             console.log("⚠️  Skipping dev admin bootstrap in production");
             return;
         }
         console.log("🔧 Bootstrapping dev admin user...");
+        // Check if dev admin user exists
         let devAdmin = await User_1.User.findOne({ email: DEV_ADMIN_EMAIL });
         if (!devAdmin) {
+            // Create new dev admin user
             const passwordHash = await bcryptjs_1.default.hash(DEV_ADMIN_PASSWORD, 12);
             devAdmin = new User_1.User({
                 name: DEV_ADMIN_NAME,
@@ -33,7 +36,7 @@ const bootstrapDevAdmin = async () => {
                         city: "Tiruvuru",
                         state: "Andhra Pradesh",
                         addressLine: "Admin Office, Tiruvuru",
-                        lat: 16.5,
+                        lat: 16.5, // Approximate coordinates for Tiruvuru
                         lng: 80.5,
                         isDefault: true,
                     },
@@ -48,11 +51,13 @@ const bootstrapDevAdmin = async () => {
             console.log(`🔐 isAdmin: true`);
         }
         else {
+            // Update existing user to ensure admin status and correct password
             const passwordHash = await bcryptjs_1.default.hash(DEV_ADMIN_PASSWORD, 12);
             const updateData = {
                 role: "admin",
                 phone: DEV_ADMIN_PHONE,
                 passwordHash: passwordHash,
+                // Ensure admin has default address
                 addresses: [
                     {
                         label: "Admin Office",
@@ -60,7 +65,7 @@ const bootstrapDevAdmin = async () => {
                         city: "Tiruvuru",
                         state: "Andhra Pradesh",
                         addressLine: "Admin Office, Tiruvuru",
-                        lat: 16.5,
+                        lat: 16.5, // Approximate coordinates for Tiruvuru
                         lng: 80.5,
                         isDefault: true,
                     },
@@ -82,4 +87,3 @@ const bootstrapDevAdmin = async () => {
     }
 };
 exports.bootstrapDevAdmin = bootstrapDevAdmin;
-//# sourceMappingURL=bootstrapDevAdmin.js.map

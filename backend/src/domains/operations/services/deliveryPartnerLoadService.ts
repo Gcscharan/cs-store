@@ -1,105 +1,34 @@
-import redisClient from "../../../config/redis";
 import { DeliveryBoy } from "../../../models/DeliveryBoy";
 import { User } from "../../../models/User";
 
 /**
- * Redis ZSET-based Delivery Partner Load Management Service
+ * MongoDB-based Delivery Partner Load Management Service
  * 
- * Uses Redis Sorted Set (ZSET) for O(log N) delivery partner assignment
- * Structure: delivery_partner_load
- * - Score: currentLoad (number of active orders)
- * - Member: deliveryBoyId (User ID, not DeliveryBoy document ID)
+ * Uses MongoDB queries for delivery partner assignment
+ * No Redis dependency - all operations go directly to MongoDB
  */
 export class DeliveryPartnerLoadService {
-  private readonly ZSET_KEY = "delivery_partner_load";
-  private readonly ZSET_KEY_BY_VEHICLE = {
-    bike: "delivery_partner_load:bike",
-    car: "delivery_partner_load:car",
-    auto: "delivery_partner_load:auto",
-    scooter: "delivery_partner_load:scooter",
-    cycle: "delivery_partner_load:cycle",
-  };
-
+  
   /**
-   * Initialize ZSET with current delivery partner loads from MongoDB
-   * Should be called on server startup
+   * Initialize loads (no-op for MongoDB-only implementation)
+   * Previously used to populate Redis ZSET, now data stays in MongoDB
    */
   async initializeLoads(): Promise<void> {
-    if (!redisClient.isReady()) {
-      console.warn("⚠️  Redis not ready, skipping delivery partner load initialization");
-      return;
-    }
-
-    try {
-      console.log("🚚 Initializing delivery partner loads in Redis...");
-      
-      // Find all active delivery partners with their current loads
-      const deliveryBoys = await DeliveryBoy.find({ isActive: true })
-        .populate("userId", "_id vehicleType")
-        .select("userId currentLoad");
-
-      if (deliveryBoys.length === 0) {
-        console.log("📋 No active delivery partners found");
-        return;
-      }
-
-      // Clear existing ZSET data
-      await this.clearAllLoads();
-
-      let addedCount = 0;
-      
-      for (const deliveryBoy of deliveryBoys) {
-        const userId = (deliveryBoy.userId as any)?._id?.toString();
-        if (!userId) continue;
-
-        const currentLoad = deliveryBoy.currentLoad || 0;
-        
-        // Add to main ZSET
-        await this.setLoad(userId, currentLoad);
-        
-        // Add to vehicle-specific ZSET
-        const user = await User.findById(userId).select("deliveryProfile.vehicleType");
-        const vehicleType = user?.deliveryProfile?.vehicleType;
-        
-        if (vehicleType && this.ZSET_KEY_BY_VEHICLE[vehicleType as keyof typeof this.ZSET_KEY_BY_VEHICLE]) {
-          await redisClient.set(
-            `${this.ZSET_KEY_BY_VEHICLE[vehicleType as keyof typeof this.ZSET_KEY_BY_VEHICLE]}`,
-            JSON.stringify({ [userId]: currentLoad }),
-            3600
-          );
-        }
-        
-        addedCount++;
-      }
-
-      console.log(`✅ Initialized ${addedCount} delivery partner loads in Redis`);
-      
-      // Log current state for debugging
-      await this.logCurrentState();
-      
-    } catch (error) {
-      console.error("❌ Failed to initialize delivery partner loads:", error);
-    }
+    console.log("🚚 Delivery partner load service initialized (MongoDB-only mode)");
   }
 
   /**
-   * Set/update delivery partner load in Redis ZSET
+   * Set/update delivery partner load in MongoDB
    */
   async setLoad(deliveryBoyId: string, load: number): Promise<boolean> {
-    if (!redisClient.isReady()) {
-      console.warn(`⚠️  Redis not ready, skipping load set for ${deliveryBoyId}`);
-      return false;
-    }
-
     try {
-      // Use Redis ZADD to set the score (load) for the member (deliveryBoyId)
-      const result = await redisClient.zAdd(this.ZSET_KEY, {
-        score: load,
-        value: deliveryBoyId,
-      });
+      const result = await DeliveryBoy.updateOne(
+        { userId: deliveryBoyId },
+        { $set: { currentLoad: load } }
+      );
       
       console.log(`💾 Set load for delivery partner ${deliveryBoyId}: ${load}`);
-      return result !== null;
+      return result.modifiedCount > 0;
     } catch (error) {
       console.error(`❌ Failed to set load for ${deliveryBoyId}:`, error);
       return false;
@@ -110,17 +39,23 @@ export class DeliveryPartnerLoadService {
    * Increment delivery partner load (when order is assigned)
    */
   async incrementLoad(deliveryBoyId: string, increment: number = 1): Promise<number | null> {
-    if (!redisClient.isReady()) {
-      console.warn(`⚠️  Redis not ready, skipping load increment for ${deliveryBoyId}`);
-      return null;
-    }
-
     try {
-      // Use Redis ZINCRBY to increment the score
-      const newLoad = await redisClient.zIncrBy(this.ZSET_KEY, increment, deliveryBoyId);
+      const result = await DeliveryBoy.updateOne(
+        { userId: deliveryBoyId },
+        { $inc: { currentLoad: increment } }
+      );
+
+      if (result.modifiedCount === 0) {
+        console.warn(`⚠️  Delivery partner ${deliveryBoyId} not found for load increment`);
+        return null;
+      }
+
+      // Get the new load value
+      const deliveryBoy = await DeliveryBoy.findOne({ userId: deliveryBoyId }).select('currentLoad');
+      const newLoad = deliveryBoy?.currentLoad || 0;
       
       console.log(`📈 Incremented load for delivery partner ${deliveryBoyId} by ${increment}. New load: ${newLoad}`);
-      return newLoad || null;
+      return newLoad;
     } catch (error) {
       console.error(`❌ Failed to increment load for ${deliveryBoyId}:`, error);
       return null;
@@ -131,19 +66,27 @@ export class DeliveryPartnerLoadService {
    * Decrement delivery partner load (when order is completed)
    */
   async decrementLoad(deliveryBoyId: string, decrement: number = 1): Promise<number | null> {
-    if (!redisClient.isReady()) {
-      console.warn(`⚠️  Redis not ready, skipping load decrement for ${deliveryBoyId}`);
-      return null;
-    }
-
     try {
-      // Use Redis ZINCRBY with negative value to decrement
-      const newLoad = await redisClient.zIncrBy(this.ZSET_KEY, -decrement, deliveryBoyId);
+      // First get current load to ensure we don't go negative
+      const deliveryBoy = await DeliveryBoy.findOne({ userId: deliveryBoyId }).select('currentLoad');
       
-      // Ensure load doesn't go negative
-      const finalLoad = Math.max(0, newLoad || 0);
-      if (finalLoad !== newLoad && newLoad !== undefined) {
-        await this.setLoad(deliveryBoyId, finalLoad);
+      if (!deliveryBoy) {
+        console.warn(`⚠️  Delivery partner ${deliveryBoyId} not found for load decrement`);
+        return null;
+      }
+
+      const currentLoad = deliveryBoy.currentLoad || 0;
+      const finalLoad = Math.max(0, currentLoad - decrement);
+
+      // Update with the final load to prevent negative values
+      const result = await DeliveryBoy.updateOne(
+        { userId: deliveryBoyId },
+        { $set: { currentLoad: finalLoad } }
+      );
+
+      if (result.modifiedCount === 0) {
+        console.warn(`⚠️  No update made for delivery partner ${deliveryBoyId}`);
+        return null;
       }
       
       console.log(`📉 Decremented load for delivery partner ${deliveryBoyId} by ${decrement}. New load: ${finalLoad}`);
@@ -158,13 +101,9 @@ export class DeliveryPartnerLoadService {
    * Get delivery partner's current load
    */
   async getLoad(deliveryBoyId: string): Promise<number | null> {
-    if (!redisClient.isReady()) {
-      return null;
-    }
-
     try {
-      const score = await redisClient.zScore(this.ZSET_KEY, deliveryBoyId);
-      return score || 0;
+      const deliveryBoy = await DeliveryBoy.findOne({ userId: deliveryBoyId }).select('currentLoad');
+      return deliveryBoy?.currentLoad || 0;
     } catch (error) {
       console.error(`❌ Failed to get load for ${deliveryBoyId}:`, error);
       return null;
@@ -172,27 +111,19 @@ export class DeliveryPartnerLoadService {
   }
 
   /**
-   * Get least loaded delivery partners (O(log N) operation)
+   * Get least loaded delivery partners
    */
   async getLeastLoadedPartners(limit: number = 1): Promise<Array<{id: string, load: number}>> {
-    if (!redisClient.isReady()) {
-      console.warn("⚠️  Redis not ready, falling back to empty result");
-      return [];
-    }
-
     try {
-      // Use ZRANGE to get partners with lowest scores (loads)
-      const result = await redisClient.zRangeWithScores(this.ZSET_KEY, 0, limit - 1);
-      
-      if (!result || result.length === 0) {
-        console.log("📭 No delivery partners found in Redis ZSET");
-        return [];
-      }
+      const deliveryBoys = await DeliveryBoy.find({ isActive: true })
+        .sort({ currentLoad: 1 })
+        .limit(limit)
+        .select('userId currentLoad');
 
-      const partners = result.map(item => ({
-        id: item.value,
-        load: item.score,
-      }));
+      const partners = deliveryBoys.map(db => ({
+        id: db.userId?.toString() || '',
+        load: db.currentLoad || 0
+      })).filter(p => p.id); // Filter out invalid IDs
 
       console.log(`🎯 Found ${partners.length} least loaded delivery partners:`, 
         partners.map(p => `${p.id}(load:${p.load})`).join(', '));
@@ -211,60 +142,15 @@ export class DeliveryPartnerLoadService {
     vehicleTypes: string[], 
     limit: number = 1
   ): Promise<Array<{id: string, load: number}>> {
-    if (!redisClient.isReady()) {
-      console.warn("⚠️  Redis not ready, falling back to MongoDB query");
-      return this.fallbackToMongoDB(vehicleTypes, limit);
-    }
-
     try {
-      // For now, get all least loaded partners and filter by vehicle type
-      // In production, you might want separate ZSETs per vehicle type for better performance
-      const allPartners = await this.getLeastLoadedPartners(50); // Get more to filter
-      
-      if (allPartners.length === 0) {
-        return [];
-      }
-
-      // Get delivery partners with their vehicle types
-      const userIds = allPartners.map(p => p.id);
+      // Find users with specified vehicle types
       const users = await User.find({ 
-        _id: { $in: userIds },
-        'deliveryProfile.vehicleType': { $in: vehicleTypes }
-      }).select('_id deliveryProfile.vehicleType');
-
-      const userVehicleMap = new Map(
-        users.map(u => [u._id.toString(), u.deliveryProfile?.vehicleType])
-      );
-
-      // Filter and sort by load, then take the limit
-      const filteredPartners = allPartners
-        .filter(p => userVehicleMap.has(p.id))
-        .sort((a, b) => a.load - b.load)
-        .slice(0, limit);
-
-      console.log(`🚐 Found ${filteredPartners.length} least loaded partners for vehicle types [${vehicleTypes.join(', ')}]`);
-      
-      return filteredPartners;
-    } catch (error) {
-      console.error("❌ Failed to get least loaded partners by vehicle:", error);
-      return this.fallbackToMongoDB(vehicleTypes, limit);
-    }
-  }
-
-  /**
-   * Fallback to MongoDB when Redis is unavailable
-   */
-  private async fallbackToMongoDB(vehicleTypes: string[], limit: number): Promise<Array<{id: string, load: number}>> {
-    try {
-      console.log("🔄 Falling back to MongoDB for delivery partner lookup");
-      
-      const users = await User.find({
-        role: "delivery",
         'deliveryProfile.vehicleType': { $in: vehicleTypes }
       }).select('_id');
 
       const userIds = users.map(u => u._id);
       
+      // Find delivery boys for those users, sorted by load
       const deliveryBoys = await DeliveryBoy.find({
         userId: { $in: userIds },
         isActive: true
@@ -273,28 +159,32 @@ export class DeliveryPartnerLoadService {
       .limit(limit)
       .select('userId currentLoad');
 
-      return deliveryBoys.map(db => ({
+      const partners = deliveryBoys.map(db => ({
         id: db.userId?.toString() || '',
         load: db.currentLoad || 0
       })).filter(p => p.id); // Filter out invalid IDs
+
+      console.log(`🚐 Found ${partners.length} least loaded partners for vehicle types [${vehicleTypes.join(', ')}]`);
+      
+      return partners;
     } catch (error) {
-      console.error("❌ MongoDB fallback failed:", error);
+      console.error("❌ Failed to get least loaded partners by vehicle:", error);
       return [];
     }
   }
 
   /**
-   * Remove delivery partner from load tracking
+   * Remove delivery partner from load tracking (deactivate)
    */
   async removePartner(deliveryBoyId: string): Promise<boolean> {
-    if (!redisClient.isReady()) {
-      return false;
-    }
-
     try {
-      const result = await redisClient.zRem(this.ZSET_KEY, deliveryBoyId);
-      console.log(`🗑️  Removed delivery partner ${deliveryBoyId} from load tracking`);
-      return result !== null && result > 0;
+      const result = await DeliveryBoy.updateOne(
+        { userId: deliveryBoyId },
+        { $set: { isActive: false } }
+      );
+      
+      console.log(`🗑️  Deactivated delivery partner ${deliveryBoyId}`);
+      return result.modifiedCount > 0;
     } catch (error) {
       console.error(`❌ Failed to remove partner ${deliveryBoyId}:`, error);
       return false;
@@ -302,22 +192,16 @@ export class DeliveryPartnerLoadService {
   }
 
   /**
-   * Clear all load data (for reinitialization)
+   * Clear all load data (reset all delivery partners to load 0)
    */
   async clearAllLoads(): Promise<boolean> {
-    if (!redisClient.isReady()) {
-      return false;
-    }
-
     try {
-      await redisClient.del(this.ZSET_KEY);
+      const result = await DeliveryBoy.updateMany(
+        { isActive: true },
+        { $set: { currentLoad: 0 } }
+      );
       
-      // Clear vehicle-specific ZSETs
-      for (const vehicleKey of Object.values(this.ZSET_KEY_BY_VEHICLE)) {
-        await redisClient.del(vehicleKey);
-      }
-      
-      console.log("🗑️  Cleared all delivery partner load data");
+      console.log(`🗑️  Reset load for ${result.modifiedCount} delivery partners`);
       return true;
     } catch (error) {
       console.error("❌ Failed to clear load data:", error);
@@ -326,16 +210,12 @@ export class DeliveryPartnerLoadService {
   }
 
   /**
-   * Get total number of tracked delivery partners
+   * Get total number of active delivery partners
    */
   async getTotalPartnerCount(): Promise<number> {
-    if (!redisClient.isReady()) {
-      return 0;
-    }
-
     try {
-      const count = await redisClient.zCard(this.ZSET_KEY);
-      return count || 0;
+      const count = await DeliveryBoy.countDocuments({ isActive: true });
+      return count;
     } catch (error) {
       console.error("❌ Failed to get partner count:", error);
       return 0;
@@ -346,21 +226,21 @@ export class DeliveryPartnerLoadService {
    * Log current state for debugging
    */
   async logCurrentState(): Promise<void> {
-    if (!redisClient.isReady()) {
-      return;
-    }
-
     try {
-      const allPartners = await redisClient.zRangeWithScores(this.ZSET_KEY, 0, -1);
+      const allPartners = await DeliveryBoy.find({ isActive: true })
+        .sort({ currentLoad: 1 })
+        .limit(10)
+        .select('userId currentLoad');
+      
       const totalCount = await this.getTotalPartnerCount();
       
       console.log("📊 Current Delivery Partner Load State:");
-      console.log(`   📈 Total Partners: ${totalCount}`);
+      console.log(`   📈 Total Active Partners: ${totalCount}`);
       
-      if (allPartners && allPartners.length > 0) {
+      if (allPartners.length > 0) {
         console.log("   🏆 Top 5 Least Loaded:");
         allPartners.slice(0, 5).forEach((partner, index) => {
-          console.log(`      ${index + 1}. ID: ${partner.value}, Load: ${partner.score}`);
+          console.log(`      ${index + 1}. ID: ${partner.userId}, Load: ${partner.currentLoad}`);
         });
       }
     } catch (error) {
@@ -369,30 +249,12 @@ export class DeliveryPartnerLoadService {
   }
 
   /**
-   * Sync load from MongoDB to Redis for specific delivery partner
+   * Sync load from MongoDB (no-op for MongoDB-only implementation)
+   * Data is always in MongoDB, so no sync needed
    */
   async syncLoadFromMongoDB(deliveryBoyId: string): Promise<boolean> {
-    try {
-      const deliveryBoy = await DeliveryBoy.findOne({ 
-        userId: deliveryBoyId, 
-        isActive: true 
-      }).select('currentLoad');
-
-      if (!deliveryBoy) {
-        console.log(`⚠️  Delivery partner ${deliveryBoyId} not found or inactive`);
-        await this.removePartner(deliveryBoyId);
-        return false;
-      }
-
-      const currentLoad = deliveryBoy.currentLoad || 0;
-      await this.setLoad(deliveryBoyId, currentLoad);
-      
-      console.log(`🔄 Synced load for ${deliveryBoyId}: ${currentLoad}`);
-      return true;
-    } catch (error) {
-      console.error(`❌ Failed to sync load for ${deliveryBoyId}:`, error);
-      return false;
-    }
+    console.log(`🔄 Sync request for ${deliveryBoyId} - no sync needed (MongoDB-only mode)`);
+    return true;
   }
 }
 

@@ -1,3 +1,26 @@
+// Load environment variables FIRST before any other imports
+import dotenv from "dotenv";
+dotenv.config();
+
+// Validate critical environment variables immediately
+console.log("\n========================================");
+console.log("🔧 Environment Variables Check");
+console.log("========================================");
+console.log(`🌍 NODE_ENV: ${process.env.NODE_ENV || "development"}`);
+console.log(`🚪 PORT: ${process.env.PORT || "5001"}`);
+console.log(`🔗 MONGODB_URI present: ${!!process.env.MONGODB_URI ? "✅ Yes" : "❌ NO"}`);
+console.log(`🔑 JWT_SECRET present: ${!!process.env.JWT_SECRET ? "✅ Yes" : "❌ NO"}`);
+console.log(`🔑 JWT_REFRESH_SECRET present: ${!!process.env.JWT_REFRESH_SECRET ? "✅ Yes" : "❌ NO"}`);
+console.log(`☁️ CLOUDINARY_CLOUD_NAME present: ${!!process.env.CLOUDINARY_CLOUD_NAME ? "✅ Yes" : "❌ NO"}`);
+console.log(`📧 MOCK_OTP: ${process.env.MOCK_OTP || "false"}`);
+console.log("[ENV][SMS] FAST2SMS key loaded:", !!process.env.FAST2SMS_API_KEY);
+
+// Check FAST2SMS API key validity
+if (process.env.FAST2SMS_API_KEY && process.env.FAST2SMS_API_KEY.length < 20) {
+   console.warn("[SMS][WARN] FAST2SMS_API_KEY appears invalid.");
+}
+console.log("========================================\n");
+
 import { createServer } from "http";
 import { Server } from "socket.io";
 import app from "./app";
@@ -27,6 +50,7 @@ const io = new Server(server, {
     origin: [
       "http://localhost:3000",
       "http://localhost:3001",
+      "http://localhost:5173", // Vite default port
       process.env.FRONTEND_URL || "http://localhost:3000",
     ],
     methods: ["GET", "POST"],

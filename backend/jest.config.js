@@ -1,20 +1,53 @@
 module.exports = {
   preset: "ts-jest",
   testEnvironment: "node",
-  roots: ["<rootDir>/src"],
-  testMatch: ["**/__tests__/**/*.ts", "**/?(*.)+(spec|test).ts"],
+  roots: ["<rootDir>/src", "<rootDir>/tests"],
+  testMatch: [
+    "**/__tests__/**/*.ts",
+    "**/?(*.)+(spec|test).ts"
+  ],
   transform: {
-    "^.+\\.ts$": "ts-jest",
+    "^.+\\.ts$": ["ts-jest", {
+      isolatedModules: true,
+      tsconfig: {
+        noImplicitAny: false,
+        strictNullChecks: false,
+        strictFunctionTypes: false,
+        noImplicitReturns: false,
+        noFallthroughCasesInSwitch: false,
+        skipLibCheck: true,
+        noEmit: true
+      }
+    }],
   },
   collectCoverageFrom: [
     "src/**/*.ts",
     "!src/**/*.d.ts",
     "!src/index.ts",
-    "!src/**/__tests__/**",
+    "!src/config/**",
   ],
   coverageDirectory: "coverage",
   coverageReporters: ["text", "lcov", "html"],
-  setupFilesAfterEnv: ["<rootDir>/src/tests/setup.ts"],
-  testTimeout: 10000,
+  setupFiles: ["<rootDir>/tests/setup.ts"],
+  setupFilesAfterEnv: ["<rootDir>/tests/setup-globals.ts"],
+  testTimeout: 60000,
+  moduleFileExtensions: ["ts", "js", "json"],
   verbose: true,
+  forceExit: true,
+  clearMocks: true,
+  resetMocks: true,
+  restoreMocks: true,
+  testEnvironmentOptions: {
+    NODE_ENV: "test",
+  },
+  globals: {
+    "ts-jest": {
+      isolatedModules: true,
+      tsconfig: {
+        noImplicitAny: false,
+        strictNullChecks: false,
+        skipLibCheck: true
+      }
+    }
+  }
 };

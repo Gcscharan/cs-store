@@ -1,11 +1,43 @@
-import express from "express";
+import express, { Application } from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import passport from "passport";
+
+// JWT Secret Validation - Startup Security Check
+function validateJwtSecrets() {
+  const jwtSecret = process.env.JWT_SECRET;
+  const jwtRefreshSecret = process.env.JWT_REFRESH_SECRET;
+  
+  if (!jwtSecret || jwtSecret.length < 32) {
+    const isDev = process.env.NODE_ENV !== 'production';
+    const errorMsg = `JWT_SECRET must be at least 32 characters long. Current length: ${jwtSecret?.length || 0}`;
+    if (isDev) {
+      console.warn(`[DEV WARNING] ${errorMsg} - Using weak secret in development`);
+    } else {
+      console.error(`[FATAL] ${errorMsg}`);
+      process.exit(1);
+    }
+  }
+  
+  if (!jwtRefreshSecret || jwtRefreshSecret.length < 32) {
+    const isDev = process.env.NODE_ENV !== 'production';
+    const errorMsg = `JWT_REFRESH_SECRET must be at least 32 characters long. Current length: ${jwtRefreshSecret?.length || 0}`;
+    if (isDev) {
+      console.warn(`[DEV WARNING] ${errorMsg} - Using weak secret in development`);
+    } else {
+      console.error(`[FATAL] ${errorMsg}`);
+      process.exit(1);
+    }
+  }
+}
+
+// Run validation immediately on startup
+validateJwtSecrets();
+
+import compression from "compression";
+import { apiLimiter } from "./middleware/security";
 import { connectDB } from "./utils/database";
 import { errorHandler } from "./middleware/errorHandler";
 import "./config/oauth"; // Initialize OAuth strategies
-import "./config/redis"; // Initialize Redis connection
 import { deliveryPartnerLoadService } from "./domains/operations/services/deliveryPartnerLoadService";
 import authRoutes from "./domains/identity/routes/auth";
 import productRoutes from "./domains/catalog/routes/products";
@@ -19,34 +51,28 @@ import pincodeRoutes from "./routes/pincode";
 import locationRoutes from "./routes/locationRoutes";
 import adminRoutes from "./routes/admin";
 import webhookRoutes from "./domains/finance/routes/webhooks";
-import cloudinaryRoutes from "./routes/cloudinary";
 import userRoutes from "./domains/identity/routes/user";
 import otpRoutes from "./domains/security/routes/otpRoutes";
+import mobileVerifyRoutes from "./domains/security/routes/mobileVerifyRoutes";
 import deliveryRoutes from "./routes/deliveryRoutes";
 import razorpayRoutes from "./domains/finance/routes/razorpay";
 import notificationRoutes from "./domains/communication/routes/notifications";
 import paymentRoutes from "./domains/finance/routes/paymentRoutes";
+import uploadRoutes from "./domains/uploads/routes/uploads";
 
 console.log("App.ts loaded successfully");
 
-// Load environment variables
-dotenv.config();
-
-const app = express();
+const app: Application = express();
 
 // Middleware
 app.use(
   cors({
-    origin: [
-      "http://localhost:3000",
-      "http://localhost:3001",
-      process.env.FRONTEND_URL || "http://localhost:3001",
-    ],
+    origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
     credentials: true,
   })
 );
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true }));
+app.use(compression() as any);
+app.use('/api/', apiLimiter as any);
 app.use(passport.initialize());
 
 // Health check route
@@ -66,6 +92,7 @@ app.get("/api/payment/test-direct", (req, res) => {
 // API Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
+app.use("/api/users", mobileVerifyRoutes); // Only use mobile verify routes for /api/users
 app.use("/api/products", productRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/orders", orderRoutes);
@@ -77,18 +104,26 @@ app.use("/api/pincode", pincodeRoutes);
 app.use("/api/location", locationRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/webhooks", webhookRoutes);
-app.use("/api/cloudinary", cloudinaryRoutes);
 app.use("/api/payment", paymentRoutes);
 app.use("/api/razorpay", razorpayRoutes);
 app.use("/api/otp", otpRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/uploads", uploadRoutes);
+
+// body parsers AFTER multer routes
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true }));
+
 console.log("Payment routes registered successfully");
 console.log("Razorpay routes registered successfully");
 console.log("OTP routes registered successfully");
 console.log("Notification routes registered successfully");
+console.log("Upload routes registered successfully");
 
-// Serve static files from uploads directory
-app.use("/uploads", express.static("uploads"));
+// Global 404 handler
+app.use((req, res) => {
+  res.status(404).json({ message: "Route not found" });
+});
 
 // Error handling middleware (must be last)
 app.use(errorHandler);

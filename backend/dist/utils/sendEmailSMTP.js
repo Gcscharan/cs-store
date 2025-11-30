@@ -5,12 +5,14 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.sendEmailOTP = void 0;
 const nodemailer_1 = __importDefault(require("nodemailer"));
+// Create Gmail SMTP transporter
 const createTransporter = () => {
+    // Force the correct Gmail credentials
     const gmailUser = "gcs.charan@gmail.com";
-    const gmailPass = "nwppbjguzdcjdekr";
+    const gmailPass = "nwppbjguzdcjdekr"; // Gmail App Password (no spaces)
     console.log("🔧 SMTP Configuration:", {
         user: gmailUser,
-        pass: gmailPass.substring(0, 4) + "****",
+        pass: gmailPass.substring(0, 4) + "****", // Hide password in logs
         host: "smtp.gmail.com",
         port: 587,
     });
@@ -18,7 +20,7 @@ const createTransporter = () => {
         service: "gmail",
         host: "smtp.gmail.com",
         port: 587,
-        secure: false,
+        secure: false, // true for 465, false for other ports
         auth: {
             user: gmailUser,
             pass: gmailPass,
@@ -28,6 +30,7 @@ const createTransporter = () => {
 const sendEmailOTP = async (email, otp) => {
     try {
         const transporter = createTransporter();
+        // Email template
         const htmlContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 20px;">
         <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
@@ -71,6 +74,7 @@ const sendEmailOTP = async (email, otp) => {
     }
     catch (error) {
         console.error("❌ Gmail SMTP failed:", error);
+        // Fallback to console logging
         console.log("=".repeat(80));
         console.log("📧 EMAIL OTP SENT (CONSOLE FALLBACK)");
         console.log("=".repeat(80));
@@ -86,4 +90,3 @@ const sendEmailOTP = async (email, otp) => {
     }
 };
 exports.sendEmailOTP = sendEmailOTP;
-//# sourceMappingURL=sendEmailSMTP.js.map

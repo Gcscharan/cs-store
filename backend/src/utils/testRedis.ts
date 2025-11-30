@@ -6,14 +6,14 @@ async function testRedis() {
   // Wait a bit for connection to establish
   await new Promise(resolve => setTimeout(resolve, 2000));
   
-  if (redisClient.isReady()) {
+  if (redisClient.isReady) {
     console.log("✅ Redis is ready!");
     
     // Test set/get
     const testKey = "test:key";
     const testValue = "Hello Redis!";
     
-    await redisClient.set(testKey, testValue, 60);
+    await redisClient.set(testKey, testValue, { EX: 60 });
     const retrieved = await redisClient.get(testKey);
     
     if (retrieved === testValue) {
@@ -24,7 +24,7 @@ async function testRedis() {
     
     // Test cache key generation
     const mockQuery = { page: 1, limit: 20, category: "test" };
-    const cacheKey = redisClient.generateProductsListKey(mockQuery);
+    const cacheKey = `products:${JSON.stringify(mockQuery)}`;
     console.log("📋 Generated cache key:", cacheKey);
     
     // Clean up

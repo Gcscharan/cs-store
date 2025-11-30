@@ -8,7 +8,7 @@ const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const User_1 = require("../models/User");
 class SocketService {
     constructor(server) {
-        this.connectedUsers = new Map();
+        this.connectedUsers = new Map(); // userId -> socketId
         this.io = new socket_io_1.Server(server, {
             cors: {
                 origin: [
@@ -53,6 +53,7 @@ class SocketService {
             if (userId) {
                 console.log(`🔌 User ${userId} connected via WebSocket`);
                 this.connectedUsers.set(userId, socket.id);
+                // Join user to their personal room
                 socket.join(`user_${userId}`);
             }
             socket.on("disconnect", () => {
@@ -61,14 +62,19 @@ class SocketService {
                     this.connectedUsers.delete(userId);
                 }
             });
+            // Handle OTP verification requests
             socket.on("verify_otp", (data) => {
                 console.log("OTP verification request:", data);
+                // This will be handled by the OTP controller
             });
+            // Handle payment status requests
             socket.on("get_payment_status", (data) => {
                 console.log("Payment status request:", data);
+                // This will be handled by the payment controller
             });
         });
     }
+    // Send OTP to specific user
     sendOTPToUser(userId, otpData) {
         const socketId = this.connectedUsers.get(userId);
         if (socketId) {
@@ -79,6 +85,7 @@ class SocketService {
         console.log(`📱 User ${userId} not connected, OTP will be sent via SMS`);
         return false;
     }
+    // Send OTP verification result
     sendOTPVerificationResult(userId, result) {
         const socketId = this.connectedUsers.get(userId);
         if (socketId) {
@@ -88,6 +95,7 @@ class SocketService {
         }
         return false;
     }
+    // Send payment status update
     sendPaymentStatusUpdate(userId, status) {
         const socketId = this.connectedUsers.get(userId);
         if (socketId) {
@@ -97,12 +105,13 @@ class SocketService {
         }
         return false;
     }
+    // Get connected users count
     getConnectedUsersCount() {
         return this.connectedUsers.size;
     }
+    // Get all connected users
     getConnectedUsers() {
         return Array.from(this.connectedUsers.keys());
     }
 }
 exports.default = SocketService;
-//# sourceMappingURL=socketService.js.map

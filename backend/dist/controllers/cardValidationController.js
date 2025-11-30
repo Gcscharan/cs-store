@@ -2,15 +2,18 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.validateCardDetails = void 0;
 const cardValidation_1 = require("../utils/cardValidation");
+// Validate card details (PCI compliant - no storage)
 const validateCardDetails = async (req, res) => {
     try {
         const { cardNumber, expiryDate, cvv, cardHolderName } = req.body;
+        // Basic validation
         if (!cardNumber || !expiryDate || !cvv || !cardHolderName) {
             return res.status(400).json({
                 valid: false,
                 message: "All card details are required",
             });
         }
+        // Use the existing card validation utility
         const validation = (0, cardValidation_1.validateCard)(cardNumber, expiryDate, cvv, cardHolderName);
         if (validation.isValid) {
             return res.status(200).json({
@@ -36,4 +39,3 @@ const validateCardDetails = async (req, res) => {
     }
 };
 exports.validateCardDetails = validateCardDetails;
-//# sourceMappingURL=cardValidationController.js.map

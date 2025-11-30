@@ -5,38 +5,70 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
-const dotenv_1 = __importDefault(require("dotenv"));
 const passport_1 = __importDefault(require("passport"));
+// JWT Secret Validation - Startup Security Check
+function validateJwtSecrets() {
+    const jwtSecret = process.env.JWT_SECRET;
+    const jwtRefreshSecret = process.env.JWT_REFRESH_SECRET;
+    if (!jwtSecret || jwtSecret.length < 32) {
+        const isDev = process.env.NODE_ENV !== 'production';
+        const errorMsg = `JWT_SECRET must be at least 32 characters long. Current length: ${jwtSecret?.length || 0}`;
+        if (isDev) {
+            console.warn(`[DEV WARNING] ${errorMsg} - Using weak secret in development`);
+        }
+        else {
+            console.error(`[FATAL] ${errorMsg}`);
+            process.exit(1);
+        }
+    }
+    if (!jwtRefreshSecret || jwtRefreshSecret.length < 32) {
+        const isDev = process.env.NODE_ENV !== 'production';
+        const errorMsg = `JWT_REFRESH_SECRET must be at least 32 characters long. Current length: ${jwtRefreshSecret?.length || 0}`;
+        if (isDev) {
+            console.warn(`[DEV WARNING] ${errorMsg} - Using weak secret in development`);
+        }
+        else {
+            console.error(`[FATAL] ${errorMsg}`);
+            process.exit(1);
+        }
+    }
+}
+// Run validation immediately on startup
+validateJwtSecrets();
+const compression_1 = __importDefault(require("compression"));
+const security_1 = require("./middleware/security");
 const errorHandler_1 = require("./middleware/errorHandler");
-require("./config/oauth");
-const auth_1 = __importDefault(require("./routes/auth"));
-const products_1 = __importDefault(require("./routes/products"));
+require("./config/oauth"); // Initialize OAuth strategies
+const auth_1 = __importDefault(require("./domains/identity/routes/auth"));
+const products_1 = __importDefault(require("./domains/catalog/routes/products"));
 const cart_1 = __importDefault(require("./routes/cart"));
 const orders_1 = __importDefault(require("./routes/orders"));
 const deliveryFee_1 = __importDefault(require("./routes/deliveryFee"));
+const enhancedDeliveryFeeRoutes_1 = __importDefault(require("./routes/enhancedDeliveryFeeRoutes"));
 const deliveryPersonnel_1 = __importDefault(require("./routes/deliveryPersonnel"));
+const deliveryAuth_1 = __importDefault(require("./routes/deliveryAuth"));
 const pincode_1 = __importDefault(require("./routes/pincode"));
 const locationRoutes_1 = __importDefault(require("./routes/locationRoutes"));
 const admin_1 = __importDefault(require("./routes/admin"));
-const webhooks_1 = __importDefault(require("./routes/webhooks"));
-const cloudinary_1 = __importDefault(require("./routes/cloudinary"));
-const user_1 = __importDefault(require("./routes/user"));
-const otpRoutes_1 = __importDefault(require("./routes/otpRoutes"));
-const paymentRoutes = require("./routes/paymentRoutes");
+const webhooks_1 = __importDefault(require("./domains/finance/routes/webhooks"));
+const user_1 = __importDefault(require("./domains/identity/routes/user"));
+const otpRoutes_1 = __importDefault(require("./domains/security/routes/otpRoutes"));
+const mobileVerifyRoutes_1 = __importDefault(require("./domains/security/routes/mobileVerifyRoutes"));
+const razorpay_1 = __importDefault(require("./domains/finance/routes/razorpay"));
+const notifications_1 = __importDefault(require("./domains/communication/routes/notifications"));
+const paymentRoutes_1 = __importDefault(require("./domains/finance/routes/paymentRoutes"));
+const uploads_1 = __importDefault(require("./domains/uploads/routes/uploads"));
 console.log("App.ts loaded successfully");
-dotenv_1.default.config();
 const app = (0, express_1.default)();
+// Middleware
 app.use((0, cors_1.default)({
-    origin: [
-        "http://localhost:3000",
-        "http://localhost:3001",
-        process.env.FRONTEND_URL || "http://localhost:3001",
-    ],
+    origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
     credentials: true,
 }));
-app.use(express_1.default.json({ limit: "10mb" }));
-app.use(express_1.default.urlencoded({ extended: true }));
+app.use((0, compression_1.default)());
+app.use('/api/', security_1.apiLimiter);
 app.use(passport_1.default.initialize());
+// Health check route
 app.get("/health", (req, res) => {
     res.status(200).json({
         status: "OK",
@@ -44,26 +76,42 @@ app.get("/health", (req, res) => {
         uptime: process.uptime(),
     });
 });
+// Test payment route directly in app.ts
 app.get("/api/payment/test-direct", (req, res) => {
     res.json({ message: "Direct payment route working!" });
 });
+// API Routes
 app.use("/api/auth", auth_1.default);
 app.use("/api/user", user_1.default);
+app.use("/api/users", mobileVerifyRoutes_1.default); // Only use mobile verify routes for /api/users
 app.use("/api/products", products_1.default);
 app.use("/api/cart", cart_1.default);
 app.use("/api/orders", orders_1.default);
 app.use("/api/delivery-fee", deliveryFee_1.default);
-app.use("/api/delivery", deliveryPersonnel_1.default);
+app.use("/api/delivery-fee-v2", enhancedDeliveryFeeRoutes_1.default); // Enhanced delivery fee calculation
+app.use("/api/delivery-personnel", deliveryPersonnel_1.default);
+app.use("/api/delivery", deliveryAuth_1.default); // Delivery auth & order management
 app.use("/api/pincode", pincode_1.default);
 app.use("/api/location", locationRoutes_1.default);
 app.use("/api/admin", admin_1.default);
 app.use("/api/webhooks", webhooks_1.default);
-app.use("/api/cloudinary", cloudinary_1.default);
-app.use("/api/payment", paymentRoutes);
+app.use("/api/payment", paymentRoutes_1.default);
+app.use("/api/razorpay", razorpay_1.default);
 app.use("/api/otp", otpRoutes_1.default);
+app.use("/api/notifications", notifications_1.default);
+app.use("/api/uploads", uploads_1.default);
+// body parsers AFTER multer routes
+app.use(express_1.default.json({ limit: "10mb" }));
+app.use(express_1.default.urlencoded({ extended: true }));
 console.log("Payment routes registered successfully");
+console.log("Razorpay routes registered successfully");
 console.log("OTP routes registered successfully");
-app.use("/uploads", express_1.default.static("uploads"));
+console.log("Notification routes registered successfully");
+console.log("Upload routes registered successfully");
+// Global 404 handler
+app.use((req, res) => {
+    res.status(404).json({ message: "Route not found" });
+});
+// Error handling middleware (must be last)
 app.use(errorHandler_1.errorHandler);
 exports.default = app;
-//# sourceMappingURL=app.js.map

@@ -28,9 +28,12 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
       },
       async (accessToken, refreshToken, profile, done) => {
         try {
-          // Check if user exists with this Google ID
+          const googleId = profile.id;
+          const email = profile.emails?.[0]?.value;
+
+          // 1) If user already linked with this Google account, log them in
           let user = await User.findOne({
-            "oauthProviders.providerId": profile.id,
+            "oauthProviders.providerId": googleId,
             "oauthProviders.provider": "google",
           });
 
@@ -38,45 +41,42 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
             return done(null, user);
           }
 
-          // Check if user exists with same email
-          user = await User.findOne({ email: profile.emails?.[0]?.value });
+          // 2) Try to find existing user by email and link Google provider
+          if (email) {
+            user = await User.findOne({ email });
 
-          if (user) {
-            // Link Google account to existing user
-            user.oauthProviders = user.oauthProviders || [];
-            user.oauthProviders.push({
-              provider: "google",
-              providerId: profile.id,
-            });
-            await user.save();
-            return done(null, user);
+            if (user) {
+              user.oauthProviders = user.oauthProviders || [];
+
+              const alreadyLinked = user.oauthProviders.some(
+                (p: any) => p.provider === "google" && p.providerId === googleId
+              );
+
+              if (!alreadyLinked) {
+                user.oauthProviders.push({
+                  provider: "google",
+                  providerId: googleId,
+                });
+                await user.save();
+              }
+
+              return done(null, user);
+            }
           }
 
-          // Check if user already exists with this email
-          const existingUser = await User.findOne({
-            email: profile.emails?.[0]?.value,
-          });
-          if (existingUser) {
-            return done(
-              new Error("An account with this email already exists"),
-              undefined
-            );
-          }
-
-          // Create new user
+          // 3) No existing user found, create a new one
           const newUser = new User({
             name: profile.displayName || "",
-            email: profile.emails?.[0]?.value,
+            email: email || "",
             phone: "", // Google OAuth typically doesn't provide phone
             oauthProviders: [
               {
                 provider: "google",
-                providerId: profile.id,
+                providerId: googleId,
               },
             ],
             addresses: [],
-            // Check if profile is complete (has name and phone)
-            isProfileComplete: !!(profile.displayName && false), // Always false since Google doesn't provide phone
+            isProfileComplete: false,
           });
 
           await newUser.save();
@@ -87,7 +87,8 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
       }
     )
   );
-} else {
+}
+ else {
   console.warn(
     "⚠️  Google OAuth credentials not found. Google login will be disabled."
   );

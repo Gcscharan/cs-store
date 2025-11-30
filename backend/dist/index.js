@@ -3,63 +3,135 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+// Load environment variables FIRST before any other imports
+const dotenv_1 = __importDefault(require("dotenv"));
+dotenv_1.default.config();
+// Validate critical environment variables immediately
+console.log("\n========================================");
+console.log("🔧 Environment Variables Check");
+console.log("========================================");
+console.log(`🌍 NODE_ENV: ${process.env.NODE_ENV || "development"}`);
+console.log(`🚪 PORT: ${process.env.PORT || "5001"}`);
+console.log(`🔗 MONGODB_URI present: ${!!process.env.MONGODB_URI ? "✅ Yes" : "❌ NO"}`);
+console.log(`🔑 JWT_SECRET present: ${!!process.env.JWT_SECRET ? "✅ Yes" : "❌ NO"}`);
+console.log(`🔑 JWT_REFRESH_SECRET present: ${!!process.env.JWT_REFRESH_SECRET ? "✅ Yes" : "❌ NO"}`);
+console.log(`☁️ CLOUDINARY_CLOUD_NAME present: ${!!process.env.CLOUDINARY_CLOUD_NAME ? "✅ Yes" : "❌ NO"}`);
+console.log(`📧 MOCK_OTP: ${process.env.MOCK_OTP || "false"}`);
+console.log("[ENV][SMS] FAST2SMS key loaded:", !!process.env.FAST2SMS_API_KEY);
+// Check FAST2SMS API key validity
+if (process.env.FAST2SMS_API_KEY && process.env.FAST2SMS_API_KEY.length < 20) {
+    console.warn("[SMS][WARN] FAST2SMS_API_KEY appears invalid.");
+}
+console.log("========================================\n");
 const http_1 = require("http");
 const socket_io_1 = require("socket.io");
 const app_1 = __importDefault(require("./app"));
 const database_1 = require("./utils/database");
 const bootstrapDevAdmin_1 = require("./scripts/bootstrapDevAdmin");
+// import SocketService from "./services/socketService";
 const child_process_1 = require("child_process");
 const util_1 = require("util");
+const locationSmoothing_1 = require("./utils/locationSmoothing");
+const DeliveryBoy_1 = require("./models/DeliveryBoy");
+const deliveryPartnerLoadService_1 = require("./domains/operations/services/deliveryPartnerLoadService");
 const execAsync = (0, util_1.promisify)(child_process_1.exec);
+// Initialize live location store for smooth tracking
+const liveLocationStore = new locationSmoothing_1.LiveLocationStore();
+// Create HTTP server
 const server = (0, http_1.createServer)(app_1.default);
+// Initialize Socket.io
 const io = new socket_io_1.Server(server, {
     cors: {
         origin: [
             "http://localhost:3000",
             "http://localhost:3001",
+            "http://localhost:5173", // Vite default port
             process.env.FRONTEND_URL || "http://localhost:3000",
         ],
         methods: ["GET", "POST"],
         credentials: true,
     },
 });
+// Initialize Socket Service for OTP (disabled for now)
+// const socketService = new SocketService(server);
+// Store socket.io instance in app for webhook access
 app_1.default.set("io", io);
+// app.set("socketService", socketService);
+// Socket.io connection handling
 io.on("connection", (socket) => {
     console.log("Client connected:", socket.id);
+    // Join rooms based on user role
     socket.on("join_room", (data) => {
         const { room, userId, userRole } = data;
         socket.join(room);
         console.log(`User ${userId} (${userRole}) joined room: ${room}`);
+        // Join admin room if user is admin
         if (userRole === "admin") {
             socket.join("admin_room");
         }
     });
+    // Handle order status updates
     socket.on("order_status_update", (data) => {
         const { orderId, status } = data;
         io.to(`order_${orderId}`).emit("order:status:update", { orderId, status });
         io.to("admin_room").emit("order:status:update", { orderId, status });
     });
-    socket.on("driver_location_update", (data) => {
-        const { driverId, lat, lng, speed, eta } = data;
-        io.to(`driver_${driverId}`).emit("driver:location:update", {
-            driverId,
-            lat,
-            lng,
-            speed,
-            eta,
-        });
-        io.to("admin_room").emit("driver:location:update", {
-            driverId,
-            lat,
-            lng,
-            speed,
-            eta,
-        });
+    // Handle driver location updates with smooth tracking
+    socket.on("driver_location_update", async (data) => {
+        const { driverId, lat, lng } = data;
+        try {
+            // Update location in live store with smoothing and throttling
+            const smoothedLocation = liveLocationStore.updateLocation(driverId, {
+                lat,
+                lng,
+                timestamp: Date.now(),
+            });
+            // Only broadcast if throttle allows (every 3 seconds)
+            if (smoothedLocation) {
+                // Get delivery boy's active route
+                const deliveryBoy = await DeliveryBoy_1.DeliveryBoy.findById(driverId)
+                    .select("activeRoute currentLocation assignedOrders")
+                    .lean();
+                // Generate smooth path for animation
+                const oldLocation = deliveryBoy?.currentLocation || { lat, lng };
+                const smoothPath = (0, locationSmoothing_1.smoothMarkerMovement)(oldLocation, { lat: smoothedLocation.lat, lng: smoothedLocation.lng }, 10 // 10 interpolation steps
+                );
+                const updateData = {
+                    driverId,
+                    lat: smoothedLocation.lat,
+                    lng: smoothedLocation.lng,
+                    speed: smoothedLocation.speed || 0,
+                    heading: smoothedLocation.heading || 0,
+                    smoothPath, // Array of intermediate positions for smooth animation
+                    activeRoute: deliveryBoy?.activeRoute?.polyline || null,
+                    destination: deliveryBoy?.activeRoute?.destination || null,
+                    eta: deliveryBoy?.activeRoute?.estimatedArrival || null,
+                    timestamp: smoothedLocation.timestamp,
+                };
+                // Emit to driver's room
+                io.to(`driver_${driverId}`).emit("driver:location:update", updateData);
+                // Emit to admin room for tracking
+                io.to("admin_room").emit("driver:location:update", updateData);
+                // Emit to order rooms for customers tracking their delivery
+                if (deliveryBoy?.assignedOrders) {
+                    deliveryBoy.assignedOrders.forEach((orderId) => {
+                        io.to(`order_${orderId}`).emit("driver:location:update", updateData);
+                    });
+                }
+                // Update database every 30 seconds (batch update to reduce DB writes)
+                // This is handled by a separate periodic task
+            }
+        }
+        catch (error) {
+            console.error("Error processing driver location update:", error);
+        }
     });
+    // Handle order creation events
     socket.on("order_created", (data) => {
         const { orderId } = data;
         io.to("admin_room").emit("order:created", { orderId });
     });
+    // Handle driver status updates
     socket.on("driver_status_update", (data) => {
         const { driverId, status, availability } = data;
         io.to("admin_room").emit("driver:status:update", {
@@ -72,9 +144,37 @@ io.on("connection", (socket) => {
         console.log("Client disconnected:", socket.id);
     });
 });
+// Periodic task to batch update delivery boy locations in database
+// Runs every 30 seconds to reduce DB write load
+setInterval(async () => {
+    try {
+        const activeDeliveryBoys = liveLocationStore.getActiveDeliveryBoys();
+        for (const deliveryBoyId of activeDeliveryBoys) {
+            const location = liveLocationStore.getLocation(deliveryBoyId);
+            if (location) {
+                await DeliveryBoy_1.DeliveryBoy.findByIdAndUpdate(deliveryBoyId, {
+                    $set: {
+                        "currentLocation.lat": location.lat,
+                        "currentLocation.lng": location.lng,
+                        "currentLocation.lastUpdatedAt": new Date(location.timestamp || Date.now()),
+                    },
+                }, { new: false });
+            }
+        }
+        if (activeDeliveryBoys.length > 0) {
+            console.log(`✅ Batch updated ${activeDeliveryBoys.length} delivery boy locations`);
+        }
+    }
+    catch (error) {
+        console.error("Error in batch location update:", error);
+    }
+}, 30000); // 30 seconds
+// Start server
 const PORT = process.env.PORT || 5001;
+// Function to gracefully close existing server instances on a port
 const closeExistingServer = async (port) => {
     try {
+        // Find processes using the port
         const { stdout } = await execAsync(`lsof -ti:${port}`);
         const pids = stdout
             .trim()
@@ -82,6 +182,7 @@ const closeExistingServer = async (port) => {
             .filter((pid) => pid);
         if (pids.length > 0) {
             console.log(`🔄 Found existing processes on port ${port}, closing them gracefully...`);
+            // Try graceful shutdown first (SIGTERM)
             for (const pid of pids) {
                 try {
                     await execAsync(`kill -TERM ${pid}`);
@@ -91,7 +192,9 @@ const closeExistingServer = async (port) => {
                     console.log(`⚠️  Could not send SIGTERM to process ${pid}`);
                 }
             }
+            // Wait a bit for graceful shutdown
             await new Promise((resolve) => setTimeout(resolve, 2000));
+            // Check if processes are still running and force kill if needed
             try {
                 const { stdout: remainingPids } = await execAsync(`lsof -ti:${port}`);
                 const stillRunning = remainingPids
@@ -112,20 +215,28 @@ const closeExistingServer = async (port) => {
                 }
             }
             catch (err) {
+                // No processes found, port is free
             }
             console.log(`✅ Port ${port} is now available`);
         }
     }
     catch (err) {
+        // No processes found on this port, which is fine
         console.log(`✅ Port ${port} is available`);
     }
 };
 const startServer = async () => {
     try {
         await (0, database_1.connectDB)();
+        // Bootstrap dev admin user in development
         await (0, bootstrapDevAdmin_1.bootstrapDevAdmin)();
+        // Initialize Redis ZSET for delivery partner load tracking
+        console.log("🚚 Initializing delivery partner load tracking...");
+        await deliveryPartnerLoadService_1.deliveryPartnerLoadService.initializeLoads();
+        // Function to try starting server on a specific port
         const tryStartServer = (port) => {
             return new Promise((resolve, reject) => {
+                // Check if server is already listening
                 if (server.listening) {
                     console.log(`✅ Server already running on port ${port}`);
                     resolve();
@@ -147,16 +258,18 @@ const startServer = async () => {
                 });
             });
         };
+        // Try to start server on the specified port, then try next ports if needed
         let currentPort = parseInt(PORT.toString());
-        const maxAttempts = 5;
+        const maxAttempts = 5; // Reduced attempts to prevent too many servers
         let attempts = 0;
         while (attempts < maxAttempts) {
             try {
+                // First try to close any existing server on this port
                 if (attempts === 0) {
                     await closeExistingServer(currentPort);
                 }
                 await tryStartServer(currentPort);
-                break;
+                break; // Success, exit the loop
             }
             catch (error) {
                 if (error.code === "EADDRINUSE") {
@@ -168,7 +281,7 @@ const startServer = async () => {
                     }
                 }
                 else {
-                    throw error;
+                    throw error; // Re-throw non-port-related errors
                 }
             }
         }
@@ -178,6 +291,7 @@ const startServer = async () => {
         process.exit(1);
     }
 };
+// Graceful shutdown handling
 process.on("SIGTERM", () => {
     console.log("SIGTERM received, shutting down gracefully");
     server.close(() => {
@@ -192,6 +306,7 @@ process.on("SIGINT", () => {
         process.exit(0);
     });
 });
+// Prevent multiple servers
 if (process.env.NODE_ENV !== "production") {
     process.on("uncaughtException", (error) => {
         console.error("Uncaught Exception:", error);
@@ -203,4 +318,3 @@ if (process.env.NODE_ENV !== "production") {
     });
 }
 startServer();
-//# sourceMappingURL=index.js.map

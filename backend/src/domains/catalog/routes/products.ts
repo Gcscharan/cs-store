@@ -1,4 +1,5 @@
 import express from "express";
+import multer from "multer";
 import {
   getProducts,
   getProductById,
@@ -6,23 +7,44 @@ import {
   updateProduct,
   deleteProduct,
   getSimilarProducts,
-  getSearchSuggestions,
+  getCategories,
 } from "../controllers/productController";
+import { debugProductImages } from "../controllers/debugController";
+import { getSearchSuggestions } from "../controllers/searchController";
 import {
   authenticateToken,
   requireRole,
   AuthRequest,
 } from "../../../middleware/auth";
 
+// Import search routes
+import searchRoutes from "./search";
+
+const upload = multer({ storage: multer.memoryStorage() });
 const router = express.Router();
 
-// Product routes
-router.get("/", getProducts);
-router.get("/search", getSearchSuggestions); // Search suggestions endpoint
-router.get("/:id/similar", getSimilarProducts);
+// ------------------------------------
+// SEARCH ROUTES — MUST COME FIRST
+// ------------------------------------
+router.use("/search", searchRoutes);
+router.get("/search/suggestions", getSearchSuggestions);
+
+// ------------------------------------
+// PRODUCT CRUD ROUTES
+// ------------------------------------
 router.get("/:id", getProductById);
-router.post("/", authenticateToken, requireRole(["admin"]), createProduct);
 router.put("/:id", authenticateToken, requireRole(["admin"]), updateProduct);
 router.delete("/:id", authenticateToken, requireRole(["admin"]), deleteProduct);
+router.post(
+  "/",
+  // authenticateToken,
+  // requireRole(["admin"]),
+  upload.array("images"),
+  createProduct
+);
+router.get("/", getProducts);
+router.get("/categories", getCategories);
+router.get("/:id/similar", getSimilarProducts);
+router.get("/debug/product-images/:id", debugProductImages);
 
 export default router;

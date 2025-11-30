@@ -1,6 +1,18 @@
 import mongoose, { Document, Schema } from "mongoose";
 import { IAddress } from "./User";
 
+// Define Address schema for PendingUser
+const AddressSchema = new Schema<IAddress>({
+  label: { type: String, required: true },
+  addressLine: { type: String, required: true },
+  city: { type: String, required: true },
+  state: { type: String, required: true },
+  pincode: { type: String, required: true },
+  phone: { type: String, required: true },
+  lat: { type: Number, required: true },
+  lng: { type: Number, required: true },
+}, { _id: true });
+
 export interface IPendingUser extends Document {
   name: string;
   email: string;
@@ -17,7 +29,7 @@ const PendingUserSchema = new Schema<IPendingUser>(
     email: { type: String, required: true, lowercase: true, trim: true },
     phone: { type: String, required: true, trim: true },
     passwordHash: { type: String, required: true },
-    addresses: { type: [Schema.Types.Mixed], default: [] },
+    addresses: { type: [AddressSchema], default: [] },
     createdAt: { type: Date, default: Date.now },
     expiresAt: { type: Date, required: true },
   },

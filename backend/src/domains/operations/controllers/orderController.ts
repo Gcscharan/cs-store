@@ -31,8 +31,14 @@ export const getOrders = async (
 
     const total = await Order.countDocuments(query);
 
+    // Map orderStatus to status for test compatibility
+    const ordersWithStatus = orders.map(order => ({
+      ...order.toObject(),
+      status: order.orderStatus
+    }));
+
     res.json({
-      orders,
+      orders: ordersWithStatus,
       pagination: {
         page: Number(page),
         limit: Number(limit),
@@ -41,7 +47,7 @@ export const getOrders = async (
       },
     });
   } catch (error) {
-    res.status(500).json({ error: "Failed to fetch orders" });
+    res.status(500).json({ message: "Failed to fetch orders" });
   }
 };
 
@@ -66,12 +72,17 @@ export const getOrderById = async (
       .populate("items.productId", "name images");
 
     if (!order) {
-      return res.status(404).json({ error: "Order not found" });
+      return res.status(404).json({ message: "Order not found" });
     }
 
-    res.json(order);
+    res.json({ 
+      order: {
+        ...order.toObject(),
+        status: order.orderStatus, // Map orderStatus to status for test compatibility
+      }
+    });
   } catch (error) {
-    res.status(500).json({ error: "Failed to fetch order" });
+    res.status(500).json({ message: "Failed to fetch order" });
   }
 };
 
@@ -86,16 +97,20 @@ export const cancelOrder = async (
     const order = await Order.findOne({ _id: id, userId });
 
     if (!order) {
-      return res.status(404).json({ error: "Order not found" });
+      return res.status(404).json({ message: "Order not found" });
     }
 
     // Check if order can be cancelled
     if (order.orderStatus === "delivered") {
-      return res.status(400).json({ error: "Cannot cancel delivered order" });
+      return res.status(400).json({ message: "Cannot cancel delivered order" });
     }
 
     if (order.orderStatus === "cancelled") {
-      return res.status(400).json({ error: "Order already cancelled" });
+      return res.status(400).json({ message: "Order already cancelled" });
+    }
+
+    if (order.orderStatus === "confirmed") {
+      return res.status(400).json({ message: "Cannot cancel confirmed order" });
     }
 
     // Update order status
@@ -122,10 +137,13 @@ export const cancelOrder = async (
 
     res.json({
       message: "Order cancelled successfully",
-      order,
+      order: {
+        ...order.toObject(),
+        status: order.orderStatus, // Map orderStatus to status for test compatibility
+      },
     });
   } catch (error) {
-    res.status(500).json({ error: "Failed to cancel order" });
+    res.status(500).json({ message: "Failed to cancel order" });
   }
 };
 
@@ -135,24 +153,24 @@ export const placeOrderCOD = async (req: Request, res: Response) => {
     const { items, address, totalAmount } = req.body;
 
     if (!userId) {
-      return res.status(401).json({ error: "User not authenticated" });
+      return res.status(401).json({ message: "User not authenticated" });
     }
 
     if (!items || !Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ error: "Items are required" });
+      return res.status(400).json({ message: "Items are required" });
     }
 
     if (!address) {
-      return res.status(400).json({ error: "Delivery address is required" });
+      return res.status(400).json({ message: "Delivery address is required" });
     }
 
     if (!totalAmount || totalAmount <= 0) {
-      return res.status(400).json({ error: "Invalid total amount" });
+      return res.status(400).json({ message: "Invalid total amount" });
     }
 
     // Validate required address fields
     if (!address.label || !address.addressLine || !address.pincode || !address.city || !address.state) {
-      return res.status(400).json({ error: "Address is missing required fields (label, addressLine, pincode, city, state)" });
+      return res.status(400).json({ message: "Address is missing required fields (label, addressLine, pincode, city, state)" });
     }
 
     // Validate that address has valid coordinates (from auto-geocoding)
@@ -177,7 +195,7 @@ export const placeOrderCOD = async (req: Request, res: Response) => {
     // Fetch user to get complete address details (name, phone)
     const user = await User.findById(userId);
     if (!user) {
-      return res.status(404).json({ error: "User not found" });
+      return res.status(404).json({ message: "User not found" });
     }
 
     // Enrich address with user's name and phone from saved addresses
@@ -305,14 +323,14 @@ export const getPaymentStatus = async (req: Request, res: Response) => {
     const userId = (req as any).user?._id;
 
     if (!userId) {
-      return res.status(401).json({ error: "User not authenticated" });
+      return res.status(401).json({ message: "User not authenticated" });
     }
 
     // Find the order
     const order = await Order.findById(orderId);
     
     if (!order) {
-      return res.status(404).json({ error: "Order not found" });
+      return res.status(404).json({ message: "Order not found" });
     }
 
     // Verify the user has access to this order (delivery boy or order owner)
@@ -321,7 +339,7 @@ export const getPaymentStatus = async (req: Request, res: Response) => {
     const isOrderOwner = order.userId.toString() === userId.toString();
 
     if (!isDeliveryBoy && !isOrderOwner) {
-      return res.status(403).json({ error: "You are not authorized to view this order" });
+      return res.status(403).json({ message: "You are not authorized to view this order" });
     }
 
     // Return the payment status
@@ -335,7 +353,7 @@ export const getPaymentStatus = async (req: Request, res: Response) => {
 
   } catch (error) {
     console.error("Get payment status error:", error);
-    return res.status(500).json({ error: "Failed to get payment status" });
+    return res.status(500).json({ message: "Failed to get payment status" });
   }
 };
 
@@ -349,14 +367,14 @@ export const updatePaymentStatus = async (req: Request, res: Response) => {
     const userId = (req as any).user?._id;
 
     if (!userId) {
-      return res.status(401).json({ error: "User not authenticated" });
+      return res.status(401).json({ message: "User not authenticated" });
     }
 
     // Find the order
     const order = await Order.findById(orderId);
     
     if (!order) {
-      return res.status(404).json({ error: "Order not found" });
+      return res.status(404).json({ message: "Order not found" });
     }
 
     // Verify the order belongs to the authenticated delivery boy or user
@@ -365,12 +383,12 @@ export const updatePaymentStatus = async (req: Request, res: Response) => {
     const isOrderOwner = order.userId.toString() === userId.toString();
 
     if (!isDeliveryBoy && !isOrderOwner) {
-      return res.status(403).json({ error: "You are not authorized to update this order" });
+      return res.status(403).json({ message: "You are not authorized to update this order" });
     }
 
     // Only allow updating payment status for COD orders
     if (order.paymentMethod !== "cod") {
-      return res.status(400).json({ error: "Payment status can only be updated for COD orders" });
+      return res.status(400).json({ message: "Payment status can only be updated for COD orders" });
     }
 
     // Update payment status to paid with timestamp

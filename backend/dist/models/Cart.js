@@ -76,5 +76,5 @@ const CartSchema = new mongoose_1.Schema({
         default: 0,
     },
 }, { timestamps: true });
+// Index for better performance (userId already has unique index)
 exports.Cart = mongoose_1.default.model("Cart", CartSchema);
-//# sourceMappingURL=Cart.js.map

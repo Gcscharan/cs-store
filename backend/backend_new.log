@@ -1,0 +1,94 @@
+
+========================================
+🔧 Environment Variables Check
+========================================
+🌍 NODE_ENV: development
+🚪 PORT: 5001
+🔗 MONGODB_URI present: ✅ Yes
+🔑 JWT_SECRET present: ✅ Yes
+🔑 JWT_REFRESH_SECRET present: ✅ Yes
+☁️ CLOUDINARY_CLOUD_NAME present: ✅ Yes
+📧 MOCK_OTP: true
+[ENV][SMS] FAST2SMS key loaded: true
+======================================node:events:485
+      throw er; // Unhandled 'error' event
+      ^
+
+Error: read EIO
+    at TTY.onStreamRead (node:internal/stream_base_commons:216:20)
+Emitted 'error' event on ReadStream instance at:
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  errno: -5,
+  code: 'EIO',
+  syscall: 'read'
+}
+
+Node.js v23.7.0
+Writes=true&w=majority&appName=csstore
+🌍 Environment: development
+🔗 Mongoose connected to MongoDB Atlas
+✅ MongoDB Atlas connected successfully
+🗄️  Database: cps-store
+🏠 Host: ac-vjrq9op-shard-00-00.2mobf49.mongodb.net
+
+🔧 Bootstrapping dev admin user...
+✅ Dev admin user updated successfully
+📧 Email: gcs.charan@gmail.com
+📱 Phone: 9391795162
+🔑 Password: Gcs@2004
+👤 Role: admin
+🔐 isAdmin: true
+🎯 Dev admin bootstrap completed
+🚚 Initializing delivery partner load tracking...
+🚚 Delivery partner load service initialized (MongoDB-only mode)
+✅ Port 5001 is available
+🚀 Server running on port 5001
+🏥 Health check: http://localhost:5001/health
+⚡ Redis connected successfully
+🔥 Incoming headers: {
+  host: 'localhost:5001',
+  'user-agent': 'curl/8.7.1',
+  accept: '*/*',
+  authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2OTE5ZGFmOTcxMzJkYzczNzQ5OWE2M2YiLCJlbWFpbCI6Imdjcy5jaGFyYW5AZ21haWwuY29tIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzY0NDkxNTY1LCJleHAiOjE3NjQ1Nzc5NjV9.jFBKtOwjG_URwN5ogCkIEI-xv8U2mn1TdcYdRldpIV4',
+  'content-length': '36021',
+  'content-type': 'multipart/form-data; boundary=------------------------wFwAyRPuxsiuBTJ9l5bnGC'
+}
+🔥 Incoming body: [Object: null prototype] {
+  name: 'Real Product',
+  description: 'Testing real image upload',
+  category: 'vegetables',
+  price: '10',
+  mrp: '12',
+  stock: '5',
+  weight: '250',
+  tags: 'real,test'
+}
+🔥 Incoming files count: 1
+🔥 Valid files after filter (size>0 & image mimetype): [ { name: 'photo.jpg', size: 34950, mime: 'image/jpeg' } ]
+🔥 Processing file: photo.jpg size: 34950 first 32 bytes: ffd8ffe100de45786966000049492a0008000000060012010300010000000100
+🔍 [GetProducts] Request received: {
+  limit: 10,
+  page: 1,
+  category: undefined,
+  minPrice: undefined,
+  maxPrice: undefined,
+  sortBy: undefined,
+  sortOrder: undefined,
+  search: undefined,
+  tags: undefined
+}
+📊 [GetProducts] Query built: { filter: {}, sort: { createdAt: -1 } }
+🔍 [GetProducts] Request received: {
+  limit: 10,
+  page: 1,
+  category: undefined,
+  minPrice: undefined,
+  maxPrice: undefined,
+  sortBy: undefined,
+  sortOrder: undefined,
+  search: undefined,
+  tags: undefined
+}
+📊 [GetProducts] Query built: { filter: {}, sort: { createdAt: -1 } }

@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getCurrentLocationController = exports.reverseGeocodeController = void 0;
+// Reverse geocode coordinates to get address information
 const reverseGeocodeController = async (req, res) => {
     try {
         const { lat, lng } = req.query;
@@ -20,6 +21,7 @@ const reverseGeocodeController = async (req, res) => {
             });
             return;
         }
+        // Call OpenStreetMap Nominatim API
         const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1&accept-language=en`);
         if (!response.ok) {
             throw new Error("Failed to fetch location data from geocoding service");
@@ -33,14 +35,18 @@ const reverseGeocodeController = async (req, res) => {
             return;
         }
         const address = data.address;
+        // Extract pincode (postcode)
         const pincode = address.postcode || "";
+        // Extract city (try multiple fields)
         const city = address.city ||
             address.town ||
             address.village ||
             address.county ||
             address.state_district ||
             "Unknown City";
+        // Extract state
         const state = address.state || "Unknown State";
+        // Create formatted address
         const formattedAddress = [
             address.house_number,
             address.road,
@@ -74,8 +80,11 @@ const reverseGeocodeController = async (req, res) => {
     }
 };
 exports.reverseGeocodeController = reverseGeocodeController;
+// Get current location with reverse geocoding (for testing)
 const getCurrentLocationController = async (req, res) => {
     try {
+        // This endpoint is for testing purposes
+        // In production, coordinates should come from the frontend
         res.status(200).json({
             success: true,
             message: "Use the reverse-geocode endpoint with lat and lng parameters",
@@ -91,4 +100,3 @@ const getCurrentLocationController = async (req, res) => {
     }
 };
 exports.getCurrentLocationController = getCurrentLocationController;
-//# sourceMappingURL=locationController.js.map

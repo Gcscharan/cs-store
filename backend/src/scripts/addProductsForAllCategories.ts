@@ -4,11 +4,20 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
+// CRITICAL: Only use MONGODB_URI from environment - no fallbacks
+const MONGODB_URI = process.env.MONGODB_URI;
+
+if (!MONGODB_URI) {
+  console.error("❌ CRITICAL: MONGODB_URI environment variable is not set!");
+  console.error("❌ Please set MONGODB_URI in your .env file and restart.");
+  process.exit(1);
+}
+
 // Connect to MongoDB
 const connectDB = async () => {
   try {
     await mongoose.connect(
-      process.env.MONGODB_URI || "mongodb://localhost:27017/cps-store"
+      MONGODB_URI
     );
     console.log("✅ Connected to MongoDB");
   } catch (error) {

@@ -148,6 +148,7 @@ const PaymentSchema = new mongoose_1.Schema({
 }, {
     timestamps: true,
 });
+// Indexes
 PaymentSchema.index({ orderId: 1 });
 PaymentSchema.index({ userId: 1, createdAt: -1 });
 PaymentSchema.index({ status: 1 });
@@ -155,4 +156,3 @@ PaymentSchema.index({ method: 1 });
 PaymentSchema.index({ razorpayPaymentId: 1 });
 PaymentSchema.index({ createdAt: -1 });
 exports.Payment = mongoose_1.default.model("Payment", PaymentSchema);
-//# sourceMappingURL=Payment.js.map

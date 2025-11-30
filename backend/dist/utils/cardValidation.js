@@ -1,6 +1,8 @@
 "use strict";
+// Card validation utilities for real card processing
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.isTestCard = exports.formatCardNumber = exports.validateCard = exports.validateCardHolderName = exports.validateCVV = exports.validateExpiryDate = exports.validateCardLength = exports.detectCardType = exports.validateLuhn = void 0;
+// Luhn algorithm for card number validation
 const validateLuhn = (cardNumber) => {
     const cleaned = cardNumber.replace(/\D/g, "");
     let sum = 0;
@@ -19,23 +21,29 @@ const validateLuhn = (cardNumber) => {
     return sum % 10 === 0;
 };
 exports.validateLuhn = validateLuhn;
+// Detect card type based on number
 const detectCardType = (cardNumber) => {
     const cleaned = cardNumber.replace(/\D/g, "");
+    // Visa: starts with 4
     if (/^4/.test(cleaned)) {
         return "visa";
     }
+    // Mastercard: starts with 5[1-5] or 2[2-7]
     if (/^5[1-5]/.test(cleaned) || /^2[2-7]/.test(cleaned)) {
         return "mastercard";
     }
+    // American Express: starts with 34 or 37
     if (/^3[47]/.test(cleaned)) {
         return "amex";
     }
+    // Discover: starts with 6
     if (/^6/.test(cleaned)) {
         return "discover";
     }
     return "unknown";
 };
 exports.detectCardType = detectCardType;
+// Validate card number length based on type
 const validateCardLength = (cardNumber, cardType) => {
     const cleaned = cardNumber.replace(/\D/g, "");
     switch (cardType) {
@@ -50,6 +58,7 @@ const validateCardLength = (cardNumber, cardType) => {
     }
 };
 exports.validateCardLength = validateCardLength;
+// Validate expiry date
 const validateExpiryDate = (expiryDate) => {
     const regex = /^(0[1-9]|1[0-2])\/([0-9]{2})$/;
     if (!regex.test(expiryDate)) {
@@ -70,6 +79,7 @@ const validateExpiryDate = (expiryDate) => {
     return true;
 };
 exports.validateExpiryDate = validateExpiryDate;
+// Validate CVV based on card type
 const validateCVV = (cvv, cardType) => {
     const cleaned = cvv.replace(/\D/g, "");
     switch (cardType) {
@@ -84,26 +94,35 @@ const validateCVV = (cvv, cardType) => {
     }
 };
 exports.validateCVV = validateCVV;
+// Validate card holder name
 const validateCardHolderName = (name) => {
     return name.trim().length >= 2 && /^[a-zA-Z\s]+$/.test(name);
 };
 exports.validateCardHolderName = validateCardHolderName;
+// Main card validation function
 const validateCard = (cardNumber, expiryDate, cvv, cardHolderName) => {
     const errors = [];
+    // Clean card number
     const cleanedCardNumber = cardNumber.replace(/\D/g, "");
+    // Detect card type
     const cardType = (0, exports.detectCardType)(cleanedCardNumber);
+    // Validate card number length
     if (!(0, exports.validateCardLength)(cleanedCardNumber, cardType)) {
         errors.push(`Invalid ${cardType} card number length`);
     }
+    // Validate Luhn algorithm (only for non-test cards)
     if (!(0, exports.isTestCard)(cleanedCardNumber) && !(0, exports.validateLuhn)(cleanedCardNumber)) {
         errors.push("Invalid card number (checksum failed)");
     }
+    // Validate expiry date
     if (!(0, exports.validateExpiryDate)(expiryDate)) {
         errors.push("Invalid or expired expiry date");
     }
+    // Validate CVV
     if (!(0, exports.validateCVV)(cvv, cardType)) {
         errors.push(`Invalid CVV for ${cardType} card`);
     }
+    // Validate card holder name
     if (!(0, exports.validateCardHolderName)(cardHolderName)) {
         errors.push("Invalid card holder name");
     }
@@ -114,27 +133,29 @@ const validateCard = (cardNumber, expiryDate, cvv, cardHolderName) => {
     };
 };
 exports.validateCard = validateCard;
+// Format card number for display (masked)
 const formatCardNumber = (cardNumber) => {
     const cleaned = cardNumber.replace(/\D/g, "");
     const last4 = cleaned.slice(-4);
     return `**** **** **** ${last4}`;
 };
 exports.formatCardNumber = formatCardNumber;
+// Check if a card number is a known test card
 const isTestCard = (cardNumber) => {
     const cleaned = cardNumber.replace(/\D/g, "");
+    // Common test card numbers that don't pass Luhn but are used for testing
     const testCards = [
-        "4687796308081910",
-        "4687796308011910",
-        "4000000000000002",
-        "4000000000000069",
-        "4000000000000119",
-        "5555555555554444",
-        "2223003122003222",
-        "378282246310005",
-        "6011111111111117",
-        "6011000990139424",
+        "4687796308081910", // Your test card (original)
+        "4687796308011910", // Your test card (corrected)
+        "4000000000000002", // Visa test (declined)
+        "4000000000000069", // Visa test (expired)
+        "4000000000000119", // Visa test (processing error)
+        "5555555555554444", // MasterCard test
+        "2223003122003222", // MasterCard test
+        "378282246310005", // Amex test
+        "6011111111111117", // Discover test
+        "6011000990139424", // Discover test
     ];
     return testCards.includes(cleaned);
 };
 exports.isTestCard = isTestCard;
-//# sourceMappingURL=cardValidation.js.map

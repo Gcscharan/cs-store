@@ -9,6 +9,7 @@ const csv_writer_1 = require("csv-writer");
 const getStats = async (req, res) => {
     try {
         const { period = "month", from, to } = req.query;
+        // Calculate date range
         const now = new Date();
         let startDate;
         let endDate = now;
@@ -28,6 +29,7 @@ const getStats = async (req, res) => {
         else {
             startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         }
+        // Sales analytics with more detailed breakdown
         const salesData = await Order_1.Order.aggregate([
             {
                 $match: {
@@ -47,6 +49,7 @@ const getStats = async (req, res) => {
             },
             { $sort: { _id: 1 } },
         ]);
+        // Monthly sales data
         const monthlySales = await Order_1.Order.aggregate([
             {
                 $match: {
@@ -65,6 +68,7 @@ const getStats = async (req, res) => {
             },
             { $sort: { _id: 1 } },
         ]);
+        // Orders by status with detailed breakdown
         const ordersByStatus = await Order_1.Order.aggregate([
             {
                 $match: { createdAt: { $gte: startDate, $lte: endDate } },
@@ -77,6 +81,7 @@ const getStats = async (req, res) => {
                 },
             },
         ]);
+        // Payment status breakdown
         const paymentStatusBreakdown = await Order_1.Order.aggregate([
             {
                 $match: { createdAt: { $gte: startDate, $lte: endDate } },
@@ -89,6 +94,7 @@ const getStats = async (req, res) => {
                 },
             },
         ]);
+        // Delivery analytics with performance metrics
         const deliveryStats = await DeliveryBoy_1.DeliveryBoy.aggregate([
             {
                 $group: {
@@ -109,11 +115,13 @@ const getStats = async (req, res) => {
                 },
             },
         ]);
+        // Driver performance metrics
         const driverPerformance = await DeliveryBoy_1.DeliveryBoy.find({ isActive: true })
             .select("name phone vehicleType availability earnings completedOrdersCount assignedOrders")
             .populate("assignedOrders", "orderStatus totalAmount")
             .sort({ completedOrdersCount: -1 })
             .limit(10);
+        // User stats with role breakdown
         const userStats = await User_1.User.aggregate([
             {
                 $group: {
@@ -122,6 +130,7 @@ const getStats = async (req, res) => {
                 },
             },
         ]);
+        // Top products by sales
         const topProducts = await Order_1.Order.aggregate([
             {
                 $match: {
@@ -140,6 +149,7 @@ const getStats = async (req, res) => {
             { $sort: { totalRevenue: -1 } },
             { $limit: 10 },
         ]);
+        // Recent orders for dashboard
         const recentOrders = await Order_1.Order.find({
             createdAt: { $gte: startDate, $lte: endDate },
         })
@@ -171,6 +181,7 @@ const getStats = async (req, res) => {
 exports.getStats = getStats;
 const getAdminProfile = async (req, res) => {
     try {
+        // Get admin user from authenticated request
         const adminUser = req.user;
         if (!adminUser) {
             return res.status(401).json({ error: "User not authenticated" });
@@ -180,6 +191,7 @@ const getAdminProfile = async (req, res) => {
                 .status(403)
                 .json({ error: "Access denied. Admin role required." });
         }
+        // Return only essential admin profile information
         const adminProfile = {
             name: adminUser.name || "Unknown",
             email: adminUser.email || "Unknown",
@@ -196,6 +208,7 @@ const getAdminProfile = async (req, res) => {
 exports.getAdminProfile = getAdminProfile;
 const getUsers = async (req, res) => {
     try {
+        // Get admin user from authenticated request
         const adminUser = req.user;
         if (!adminUser) {
             return res.status(401).json({ error: "User not authenticated" });
@@ -205,6 +218,7 @@ const getUsers = async (req, res) => {
                 .status(403)
                 .json({ error: "Access denied. Admin role required." });
         }
+        // Fetch all users with basic information only
         const users = await User_1.User.find({})
             .select("name email phone role createdAt isActive")
             .sort({ createdAt: -1 });
@@ -218,6 +232,7 @@ const getUsers = async (req, res) => {
 exports.getUsers = getUsers;
 const getAdminProducts = async (req, res) => {
     try {
+        // Get admin user from authenticated request
         const adminUser = req.user;
         if (!adminUser) {
             return res.status(401).json({ error: "User not authenticated" });
@@ -227,6 +242,7 @@ const getAdminProducts = async (req, res) => {
                 .status(403)
                 .json({ error: "Access denied. Admin role required." });
         }
+        // Fetch all products
         const products = await Product_1.Product.find({})
             .select("name price stock category weight images description createdAt updatedAt")
             .sort({ createdAt: -1 });
@@ -240,6 +256,7 @@ const getAdminProducts = async (req, res) => {
 exports.getAdminProducts = getAdminProducts;
 const getAdminOrders = async (req, res) => {
     try {
+        // Get admin user from authenticated request
         const adminUser = req.user;
         if (!adminUser) {
             return res.status(401).json({ error: "User not authenticated" });
@@ -249,6 +266,7 @@ const getAdminOrders = async (req, res) => {
                 .status(403)
                 .json({ error: "Access denied. Admin role required." });
         }
+        // Fetch all orders with populated user and delivery boy info
         const orders = await Order_1.Order.find({})
             .populate("userId", "name email phone")
             .populate("deliveryBoyId", "name phone")
@@ -263,6 +281,7 @@ const getAdminOrders = async (req, res) => {
 exports.getAdminOrders = getAdminOrders;
 const getAdminDeliveryBoys = async (req, res) => {
     try {
+        // Get admin user from authenticated request
         const adminUser = req.user;
         if (!adminUser) {
             return res.status(401).json({ error: "User not authenticated" });
@@ -272,6 +291,7 @@ const getAdminDeliveryBoys = async (req, res) => {
                 .status(403)
                 .json({ error: "Access denied. Admin role required." });
         }
+        // Fetch all delivery boys
         const deliveryBoys = await DeliveryBoy_1.DeliveryBoy.find({})
             .populate("assignedOrders", "orderStatus totalAmount createdAt")
             .sort({ createdAt: -1 });
@@ -298,6 +318,7 @@ const exportOrders = async (req, res) => {
             .populate("deliveryBoyId", "name phone")
             .sort({ createdAt: -1 });
         if (format === "labels") {
+            // Generate order labels for printing
             const labelsData = orders.map((order) => ({
                 orderId: order._id.toString().slice(-6),
                 customerName: order.userId?.name || "N/A",
@@ -331,6 +352,7 @@ const exportOrders = async (req, res) => {
             res.download("/tmp/order-labels.csv");
         }
         else {
+            // Standard CSV export with detailed information
             const csvData = orders.map((order) => ({
                 orderId: order._id,
                 customerName: order.userId?.name || "N/A",
@@ -379,8 +401,10 @@ const exportOrders = async (req, res) => {
     }
 };
 exports.exportOrders = exportOrders;
+// Simple dashboard stats for the admin dashboard
 const getDashboardStats = async (req, res) => {
     try {
+        // Get admin user from authenticated request
         const adminUser = req.user;
         if (!adminUser) {
             return res.status(401).json({ error: "User not authenticated" });
@@ -390,15 +414,18 @@ const getDashboardStats = async (req, res) => {
                 .status(403)
                 .json({ error: "Access denied. Admin role required." });
         }
+        // Get basic counts
         const totalProducts = await Product_1.Product.countDocuments();
         const totalUsers = await User_1.User.countDocuments();
         const totalOrders = await Order_1.Order.countDocuments();
         const totalDeliveryBoys = await DeliveryBoy_1.DeliveryBoy.countDocuments();
+        // Get recent orders count (last 30 days)
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
         const recentOrders = await Order_1.Order.countDocuments({
             createdAt: { $gte: thirtyDaysAgo },
         });
+        // Get total revenue (from paid orders)
         const totalRevenue = await Order_1.Order.aggregate([
             { $match: { paymentStatus: "paid" } },
             { $group: { _id: null, total: { $sum: "$totalAmount" } } },
@@ -420,10 +447,12 @@ const getDashboardStats = async (req, res) => {
     }
 };
 exports.getDashboardStats = getDashboardStats;
+// Update product
 const updateProduct = async (req, res) => {
     try {
         const { id } = req.params;
         const { name, description, price, category, stock, weight, image, images } = req.body;
+        // Get admin user from authenticated request
         const adminUser = req.user;
         if (!adminUser) {
             return res.status(401).json({ error: "User not authenticated" });
@@ -433,11 +462,13 @@ const updateProduct = async (req, res) => {
                 .status(403)
                 .json({ error: "Access denied. Admin role required." });
         }
+        // Validate required fields
         if (!name || !description || !price || !category || stock === undefined) {
             return res.status(400).json({
                 error: "Name, description, price, category, and stock are required",
             });
         }
+        // Prepare update data
         const updateData = {
             name,
             description,
@@ -447,12 +478,14 @@ const updateProduct = async (req, res) => {
             weight: weight ? Number(weight) : undefined,
             updatedAt: new Date(),
         };
+        // Handle images - prioritize images array over single image
         if (images && Array.isArray(images)) {
             updateData.images = images;
         }
         else if (image) {
             updateData.images = [image];
         }
+        // Find and update product
         const product = await Product_1.Product.findByIdAndUpdate(id, updateData, {
             new: true,
             runValidators: true,
@@ -472,9 +505,11 @@ const updateProduct = async (req, res) => {
     }
 };
 exports.updateProduct = updateProduct;
+// Delete product
 const deleteProduct = async (req, res) => {
     try {
         const { id } = req.params;
+        // Get admin user from authenticated request
         const adminUser = req.user;
         if (!adminUser) {
             return res.status(401).json({ error: "User not authenticated" });
@@ -484,6 +519,7 @@ const deleteProduct = async (req, res) => {
                 .status(403)
                 .json({ error: "Access denied. Admin role required." });
         }
+        // Find and delete product
         const product = await Product_1.Product.findByIdAndDelete(id);
         if (!product) {
             return res.status(404).json({ error: "Product not found" });
@@ -499,9 +535,11 @@ const deleteProduct = async (req, res) => {
     }
 };
 exports.deleteProduct = deleteProduct;
+// Make user a delivery boy
 const makeDeliveryBoy = async (req, res) => {
     try {
         const { id } = req.params;
+        // Get admin user from authenticated request
         const adminUser = req.user;
         if (!adminUser) {
             return res.status(401).json({ error: "User not authenticated" });
@@ -511,22 +549,26 @@ const makeDeliveryBoy = async (req, res) => {
                 .status(403)
                 .json({ error: "Access denied. Admin role required." });
         }
+        // Find the user to update
         const user = await User_1.User.findById(id);
         if (!user) {
             return res.status(404).json({ error: "User not found" });
         }
+        // Check if delivery boy record already exists
         const existingDeliveryBoy = await DeliveryBoy_1.DeliveryBoy.findOne({
             phone: user.phone,
         });
         if (existingDeliveryBoy) {
             return res.status(400).json({ error: "User is already a delivery boy" });
         }
+        // Update user role to delivery
         user.role = "delivery";
         await user.save();
+        // Create delivery boy record
         const deliveryBoy = new DeliveryBoy_1.DeliveryBoy({
             name: user.name,
             phone: user.phone,
-            vehicleType: "bike",
+            vehicleType: "bike", // Default vehicle type
             currentLocation: {
                 lat: 0,
                 lng: 0,
@@ -563,4 +605,3 @@ const makeDeliveryBoy = async (req, res) => {
     }
 };
 exports.makeDeliveryBoy = makeDeliveryBoy;
-//# sourceMappingURL=adminController.js.map

@@ -9,7 +9,27 @@ export interface IProduct extends Document {
   mrp?: number;
   stock: number;
   weight: number;
-  images: string[];
+  images: {
+    publicId?: string;
+    variants?: {
+      micro?: string;
+      thumb?: string;
+      small?: string;
+      medium?: string;
+      large?: string;
+      original?: string;
+    };
+    formats?: {
+      avif?: string;
+      webp?: string;
+      jpg?: string;
+    };
+    metadata?: {
+      width?: number;
+      height?: number;
+      aspectRatio?: number;
+    };
+  }[];
   sku?: string;
   tags: string[];
   createdAt: Date;
@@ -77,9 +97,26 @@ const ProductSchema = new Schema<IProduct>(
     },
     images: [
       {
-        type: String,
-        required: [true, "At least one image is required"],
-      },
+        publicId: { type: String },
+        variants: {
+          micro: { type: String },
+          thumb: { type: String },
+          small: { type: String },
+          medium: { type: String },
+          large: { type: String },
+          original: { type: String }
+        },
+        formats: {
+          avif: { type: String },
+          webp: { type: String },
+          jpg: { type: String }
+        },
+        metadata: {
+          width: { type: Number },
+          height: { type: Number },
+          aspectRatio: { type: Number }
+        }
+      }
     ],
     sku: {
       type: String,
