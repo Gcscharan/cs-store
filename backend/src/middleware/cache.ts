@@ -15,7 +15,7 @@ export const cacheMiddleware = (options: CacheOptions = {}) => {
     }
 
     // Skip caching if Redis is not available
-    if (!redisClient.isReady()) {
+    if (!redisClient.isReady) {
       console.warn("⚠️  Redis not ready, skipping cache for:", req.path);
       return next();
     }
@@ -51,7 +51,7 @@ export const cacheMiddleware = (options: CacheOptions = {}) => {
       res.json = function(data: any) {
         // Cache the response data
         const ttl = options.ttl || 3600; // Default 1 hour
-        redisClient.set(cacheKey, JSON.stringify(data), ttl).catch(error => {
+        redisClient.set(cacheKey, JSON.stringify(data), { EX: ttl }).catch((error: any) => {
           console.error("❌ Failed to cache response:", error);
         });
         
@@ -71,13 +71,30 @@ export const cacheMiddleware = (options: CacheOptions = {}) => {
 
 // Cache invalidation helper
 export const invalidateCache = {
+  // Helper function to delete keys by pattern
+  deleteByPattern: async (pattern: string): Promise<void> => {
+    try {
+      const keys = [];
+      for await (const key of redisClient.scanIterator({
+        MATCH: pattern,
+      })) {
+        keys.push(key);
+      }
+      if (keys.length > 0) {
+        await redisClient.del(keys);
+      }
+    } catch (error) {
+      console.error(`❌ Failed to delete pattern ${pattern}:`, error);
+    }
+  },
+
   // Invalidate all product-related cache
   products: async (): Promise<void> => {
     try {
-      await redisClient.delPattern("products:*");
-      await redisClient.delPattern("product:*");
-      await redisClient.delPattern("search:*");
-      await redisClient.delPattern("similar:*");
+      await invalidateCache.deleteByPattern("products:*");
+      await invalidateCache.deleteByPattern("product:*");
+      await invalidateCache.deleteByPattern("search:*");
+      await invalidateCache.deleteByPattern("similar:*");
       console.log("🗑️  Invalidated all product caches");
     } catch (error) {
       console.error("❌ Failed to invalidate product caches:", error);
@@ -88,8 +105,8 @@ export const invalidateCache = {
   product: async (id: string): Promise<void> => {
     try {
       await redisClient.del(`product:${id}`);
-      await redisClient.delPattern(`similar:${id}:*`);
-      await redisClient.delPattern("products:*"); // Invalidate product lists
+      await invalidateCache.deleteByPattern(`similar:${id}:*`);
+      await invalidateCache.deleteByPattern("products:*"); // Invalidate product lists
       console.log(`🗑️  Invalidated cache for product: ${id}`);
     } catch (error) {
       console.error(`❌ Failed to invalidate cache for product ${id}:`, error);
@@ -99,7 +116,7 @@ export const invalidateCache = {
   // Invalidate search cache
   search: async (): Promise<void> => {
     try {
-      await redisClient.delPattern("search:*");
+      await invalidateCache.deleteByPattern("search:*");
       console.log("🗑️  Invalidated all search caches");
     } catch (error) {
       console.error("❌ Failed to invalidate search caches:", error);

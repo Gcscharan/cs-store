@@ -1,13 +1,24 @@
 import mongoose from "mongoose";
 import { User } from "../models/User";
+import * as dotenv from "dotenv";
 
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/cps-store";
+// Load environment variables
+dotenv.config();
+
+// CRITICAL: Only use MONGODB_URI from environment - no fallbacks
+const MONGODB_URI = process.env.MONGODB_URI;
+
+if (!MONGODB_URI) {
+  console.error("❌ CRITICAL: MONGODB_URI environment variable is not set!");
+  console.error("❌ Please set MONGODB_URI in your .env file and restart.");
+  process.exit(1);
+}
 
 async function fixAddresses() {
   try {
-    // Connect to MongoDB
-    await mongoose.connect(MONGODB_URI);
-    console.log("✅ Connected to MongoDB");
+    // Connect to MongoDB Atlas
+    await mongoose.connect(MONGODB_URI as string);
+    console.log("✅ Connected to MongoDB Atlas");
 
     // Find all users with addresses
     const users = await User.find({ "addresses.0": { $exists: true } });

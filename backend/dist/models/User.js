@@ -37,23 +37,50 @@ exports.User = void 0;
 const mongoose_1 = __importStar(require("mongoose"));
 const bcrypt = __importStar(require("bcryptjs"));
 const AddressSchema = new mongoose_1.Schema({
+    name: { type: String, required: false, default: "" },
     label: { type: String, required: true },
     pincode: { type: String, required: true },
     city: { type: String, required: true },
     state: { type: String, required: true },
     addressLine: { type: String, required: true },
+    phone: { type: String, required: false, default: "" },
     lat: { type: Number, required: true },
     lng: { type: Number, required: true },
     isDefault: { type: Boolean, default: false },
+    isGeocoded: { type: Boolean, default: false },
+    coordsSource: {
+        type: String,
+        enum: ['manual', 'geocoded', 'pincode', 'unresolved'],
+        default: 'unresolved'
+    },
 });
 const OAuthProviderSchema = new mongoose_1.Schema({
     provider: { type: String, enum: ["google"], required: true },
     providerId: { type: String, required: true },
 });
+const DeliveryDocumentSchema = new mongoose_1.Schema({
+    type: { type: String, required: true },
+    url: { type: String, required: true },
+    uploadedAt: { type: Date, default: Date.now },
+});
+const DeliveryProfileSchema = new mongoose_1.Schema({
+    phone: { type: String, required: true },
+    vehicleType: {
+        type: String,
+        enum: ["bike", "car", "cycle", "scooter", "walking"],
+        required: true,
+    },
+    assignedAreas: [{ type: String }],
+    aadharOrId: { type: String },
+    documents: [DeliveryDocumentSchema],
+    approvedAt: { type: Date },
+    approvedBy: { type: mongoose_1.Schema.Types.ObjectId, ref: "User" },
+});
 const UserSchema = new mongoose_1.Schema({
     name: {
         type: String,
-        required: [true, "Name is required"],
+        required: false, // Make name optional for OAuth users
+        default: "",
         trim: true,
         maxlength: [100, "Name cannot exceed 100 characters"],
     },
@@ -63,14 +90,20 @@ const UserSchema = new mongoose_1.Schema({
         unique: true,
         lowercase: true,
         trim: true,
+        // Updated regex to support:
+        // - Plus signs in local part (user+tag@domain.com)
+        // - Multiple dots in domain (sub.domain.co.in)
+        // - TLDs of any length (.museum, .technology, etc.)
+        // - Special characters in local part (user.name@domain.com)
         match: [
-            /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/,
+            /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i,
             "Please enter a valid email",
         ],
     },
     phone: {
         type: String,
-        required: () => false,
+        required: false, // Make phone optional by default
+        default: "",
         match: [
             /^[0-9]{10,15}$/,
             "Please enter a valid phone number (10-15 digits)",
@@ -86,6 +119,12 @@ const UserSchema = new mongoose_1.Schema({
         enum: ["customer", "admin", "delivery"],
         default: "customer",
     },
+    status: {
+        type: String,
+        enum: ["pending", "active", "suspended"],
+        default: "active",
+    },
+    deliveryProfile: DeliveryProfileSchema,
     addresses: [AddressSchema],
     appLanguage: {
         type: String,
@@ -97,6 +136,18 @@ const UserSchema = new mongoose_1.Schema({
         default: "English",
         trim: true,
     },
+    isProfileComplete: {
+        type: Boolean,
+        default: false,
+    },
+    mobileVerified: {
+        type: Boolean,
+        default: false,
+    },
+    notificationPreferences: {
+        type: mongoose_1.Schema.Types.Mixed,
+        default: {},
+    },
 }, {
     timestamps: true,
 });
@@ -106,4 +157,3 @@ UserSchema.methods.comparePassword = async function (candidatePassword) {
     return bcrypt.compare(candidatePassword, this.passwordHash);
 };
 exports.User = mongoose_1.default.model("User", UserSchema);
-//# sourceMappingURL=User.js.map

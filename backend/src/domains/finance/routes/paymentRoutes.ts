@@ -1,4 +1,5 @@
 import express from "express";
+import { authenticateToken } from "../../../middleware/auth";
 import {
   createOrder,
   verifyPayment,
@@ -14,7 +15,7 @@ router.get("/test", (req, res) => {
 });
 
 // Create Razorpay order
-router.post("/create-order", createOrder);
+router.post("/create-order", authenticateToken, createOrder);
 
 // Verify payment signature
 router.post("/verify", verifyPayment);

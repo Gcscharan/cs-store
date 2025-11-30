@@ -6,12 +6,18 @@ import * as dotenv from "dotenv";
 
 dotenv.config();
 
-const MONGODB_URI =
-  process.env.MONGODB_URI || "mongodb://localhost:27017/cps-store";
+// CRITICAL: Only use MONGODB_URI from environment - no fallbacks
+const MONGODB_URI = process.env.MONGODB_URI;
+
+if (!MONGODB_URI) {
+  console.error("❌ CRITICAL: MONGODB_URI environment variable is not set!");
+  console.error("❌ Please set MONGODB_URI in your .env file and restart.");
+  process.exit(1);
+}
 
 async function createTestDeliveryAccount() {
   try {
-    await mongoose.connect(MONGODB_URI);
+    await mongoose.connect(MONGODB_URI as string);
     console.log("✅ Connected to MongoDB Atlas\n");
 
     // Check if test delivery user already exists

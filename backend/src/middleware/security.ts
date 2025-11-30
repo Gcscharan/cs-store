@@ -8,6 +8,14 @@ interface ExtendedRequest extends Request {
   verifiedPayment?: any;
 }
 
+// Global API rate limiter
+export const apiLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 /**
  * Security Middleware for CS Store
  * Implements security best practices and input validation

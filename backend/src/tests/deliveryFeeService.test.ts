@@ -15,6 +15,8 @@ export async function testLocalDelivery() {
   const address: IAddress = {
     _id: "test1" as any,
     label: "Home",
+    name: "Test User",
+    phone: "919876543210",
     addressLine: "Gachibowli, Hyderabad",
     city: "Hyderabad",
     state: "Telangana",
@@ -62,12 +64,14 @@ export async function testFreeDelivery() {
   const address: IAddress = {
     _id: "test2" as any,
     label: "Office",
-    addressLine: "Banjara Hills, Hyderabad",
+    name: "Test User",
+    phone: "919876543210",
+    addressLine: "Hitech City, Hyderabad",
     city: "Hyderabad",
     state: "Telangana",
-    pincode: "500034",
-    lat: 17.4239,
-    lng: 78.4738,
+    pincode: "500081",
+    lat: 17.4485,
+    lng: 78.3908,
     isDefault: false,
   };
 
@@ -99,14 +103,16 @@ export async function testLongDistanceHeavy() {
   console.log("\n=== TEST 3: Long Distance + Heavy Item ===");
 
   const address: IAddress = {
-    _id: "test3" as any,
+    _id: "test5" as any,
     label: "Home",
-    addressLine: "Bangalore",
-    city: "Bangalore",
-    state: "Karnataka",
-    pincode: "560001",
-    lat: 12.9716,
-    lng: 77.5946,
+    name: "Test User",
+    phone: "919876543210",
+    addressLine: "Gachibowli, Hyderabad",
+    city: "Hyderabad",
+    state: "Telangana",
+    pincode: "500081",
+    lat: 17.4065,
+    lng: 78.4772,
     isDefault: true,
   };
 
@@ -144,12 +150,14 @@ export async function testExpressDelivery() {
   const address: IAddress = {
     _id: "test4" as any,
     label: "Home",
-    addressLine: "Secunderabad",
-    city: "Secunderabad",
+    name: "Test User",
+    phone: "919876543210",
+    addressLine: "Gachibowli, Hyderabad",
+    city: "Hyderabad",
     state: "Telangana",
-    pincode: "500003",
-    lat: 17.4399,
-    lng: 78.4983,
+    pincode: "500081",
+    lat: 17.4065,
+    lng: 78.4772,
     isDefault: true,
   };
 
@@ -184,6 +192,8 @@ export async function testUndeliverableLocation() {
   const address: IAddress = {
     _id: "test5" as any,
     label: "Home",
+    name: "Test User",
+    phone: "919876543210",
     addressLine: "Delhi",
     city: "Delhi",
     state: "Delhi",

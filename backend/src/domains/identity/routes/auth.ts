@@ -12,6 +12,9 @@ import {
   sendAuthOTP,
   verifyAuthOTP,
   completeProfile,
+  checkPhoneExists,
+  getMe,
+  deleteAccount,
 } from "../controllers/authController";
 
 const router = express.Router();
@@ -25,8 +28,8 @@ const handleOAuthError = (
 ): void => {
   if (err && err.name === "TokenError") {
     res.status(400).json({
-      error: "OAuth authentication failed",
-      message:
+      message: "OAuth authentication failed",
+      details:
         "Invalid OAuth credentials. Please contact support to set up proper OAuth configuration.",
     });
     return;
@@ -41,16 +44,24 @@ router.post("/oauth", oauth);
 router.post("/refresh", refresh);
 router.post("/logout", authenticateToken, logout);
 router.post("/change-password", authenticateToken, changePassword);
+router.post("/complete-profile", authenticateToken, completeProfile);
 router.put("/complete-profile", authenticateToken, completeProfile);
+router.get("/me", authenticateToken, getMe);
+router.delete("/delete-account", authenticateToken, deleteAccount);
 
 // OTP authentication routes
 router.post("/send-otp", sendAuthOTP);
 router.post("/verify-otp", verifyAuthOTP);
+router.post("/check-phone", checkPhoneExists);
 
 // OAuth routes
 router.get(
   "/google",
-  passport.authenticate("google", { scope: ["profile", "email"] })
+  passport.authenticate("google", { 
+    scope: ["profile", "email"],
+    prompt: "select_account", // Force account selection
+    accessType: "offline" // Get refresh token for long-term access (corrected property name)
+  })
 );
 router.get(
   "/google/callback",

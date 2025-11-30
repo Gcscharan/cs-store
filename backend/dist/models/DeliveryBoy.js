@@ -40,6 +40,16 @@ const CurrentLocationSchema = new mongoose_1.Schema({
     lng: { type: Number, required: true },
     lastUpdatedAt: { type: Date, default: Date.now },
 });
+const ActiveRouteSchema = new mongoose_1.Schema({
+    polyline: { type: String, required: true },
+    destination: {
+        lat: { type: Number, required: true },
+        lng: { type: Number, required: true },
+    },
+    orderId: { type: mongoose_1.Schema.Types.ObjectId, ref: "Order" },
+    startedAt: { type: Date, default: Date.now },
+    estimatedArrival: { type: Date },
+});
 const DeliveryBoySchema = new mongoose_1.Schema({
     name: {
         type: String,
@@ -68,6 +78,7 @@ const DeliveryBoySchema = new mongoose_1.Schema({
         default: "offline",
     },
     currentLocation: CurrentLocationSchema,
+    activeRoute: ActiveRouteSchema,
     earnings: {
         type: Number,
         default: 0,
@@ -84,6 +95,11 @@ const DeliveryBoySchema = new mongoose_1.Schema({
             ref: "Order",
         },
     ],
+    currentLoad: {
+        type: Number,
+        default: 0,
+        min: 0,
+    },
     email: {
         type: String,
         trim: true,
@@ -100,7 +116,7 @@ const DeliveryBoySchema = new mongoose_1.Schema({
 }, {
     timestamps: true,
 });
+// Indexes
 DeliveryBoySchema.index({ availability: 1, isActive: 1 });
 DeliveryBoySchema.index({ "currentLocation.lat": 1, "currentLocation.lng": 1 });
 exports.DeliveryBoy = mongoose_1.default.model("DeliveryBoy", DeliveryBoySchema);
-//# sourceMappingURL=DeliveryBoy.js.map

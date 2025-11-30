@@ -241,8 +241,13 @@ const UserSchema = new Schema<IUser>(
       unique: true,
       lowercase: true,
       trim: true,
+      // Updated regex to support:
+      // - Plus signs in local part (user+tag@domain.com)
+      // - Multiple dots in domain (sub.domain.co.in)
+      // - TLDs of any length (.museum, .technology, etc.)
+      // - Special characters in local part (user.name@domain.com)
       match: [
-        /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/,
+        /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i,
         "Please enter a valid email",
       ],
     },

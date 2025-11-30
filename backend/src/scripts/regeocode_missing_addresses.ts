@@ -13,6 +13,19 @@
 import mongoose from "mongoose";
 import { User, IAddress } from "../models/User";
 import { smartGeocode, geocodeByPincode } from "../utils/geocoding";
+import * as dotenv from "dotenv";
+
+// Load environment variables
+dotenv.config();
+
+// CRITICAL: Only use MONGODB_URI from environment - no fallbacks
+const MONGODB_URI = process.env.MONGODB_URI;
+
+if (!MONGODB_URI) {
+  console.error("❌ CRITICAL: MONGODB_URI environment variable is not set!");
+  console.error("❌ Please set MONGODB_URI in your .env file and restart.");
+  process.exit(1);
+}
 
 // Configuration
 const DEFAULT_THROTTLE_MS = 1500; // 1.5 seconds between requests (Nominatim limit: 1 req/sec)
@@ -195,11 +208,10 @@ async function migrateAddresses(dryRun: boolean = true, throttleMs: number = DEF
   const allResults: ProcessedAddress[] = [];
 
   try {
-    // Connect to MongoDB
-    const mongoUri = process.env.MONGODB_URI || "mongodb://localhost:27017/cs-store";
-    console.log(`📡 Connecting to MongoDB: ${mongoUri.split('@')[1] || mongoUri}\n`);
-    await mongoose.connect(mongoUri);
-    console.log(`✅ Connected to MongoDB\n`);
+    // Connect to MongoDB Atlas
+    console.log(`📡 Connecting to MongoDB Atlas: MONGODB_URI\n`);
+    await mongoose.connect(MONGODB_URI as string);
+    console.log(`✅ Connected to MongoDB Atlas\n`);
 
     // Find all users with addresses
     const users = await User.find({ 'addresses.0': { $exists: true } });

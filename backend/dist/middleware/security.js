@@ -3,11 +3,23 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.corsOptions = exports.requestSizeLimit = exports.securityLogger = exports.productValidationRules = exports.addressValidationRules = exports.userValidationRules = exports.validateInput = exports.verifyRazorpaySignature = exports.sanitizeInput = exports.securityHeaders = exports.paymentRateLimit = exports.apiRateLimit = exports.authRateLimit = exports.createRateLimit = void 0;
+exports.corsOptions = exports.requestSizeLimit = exports.securityLogger = exports.productValidationRules = exports.addressValidationRules = exports.userValidationRules = exports.validateInput = exports.verifyRazorpaySignature = exports.sanitizeInput = exports.securityHeaders = exports.paymentRateLimit = exports.apiRateLimit = exports.authRateLimit = exports.createRateLimit = exports.apiLimiter = void 0;
 const crypto_1 = __importDefault(require("crypto"));
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const helmet_1 = __importDefault(require("helmet"));
 const express_validator_1 = require("express-validator");
+// Global API rate limiter
+exports.apiLimiter = (0, express_rate_limit_1.default)({
+    windowMs: 60 * 1000, // 1 minute
+    max: 120,
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+/**
+ * Security Middleware for CS Store
+ * Implements security best practices and input validation
+ */
+// Rate limiting configurations
 const createRateLimit = (windowMs, max, message) => {
     return (0, express_rate_limit_1.default)({
         windowMs,
@@ -25,9 +37,17 @@ const createRateLimit = (windowMs, max, message) => {
     });
 };
 exports.createRateLimit = createRateLimit;
-exports.authRateLimit = (0, exports.createRateLimit)(15 * 60 * 1000, 5, "Too many authentication attempts, please try again later.");
-exports.apiRateLimit = (0, exports.createRateLimit)(15 * 60 * 1000, 100, "Too many API requests, please try again later.");
-exports.paymentRateLimit = (0, exports.createRateLimit)(5 * 60 * 1000, 3, "Too many payment attempts, please try again later.");
+// Specific rate limits for different endpoints
+exports.authRateLimit = (0, exports.createRateLimit)(15 * 60 * 1000, // 15 minutes
+5, // 5 attempts
+"Too many authentication attempts, please try again later.");
+exports.apiRateLimit = (0, exports.createRateLimit)(15 * 60 * 1000, // 15 minutes
+100, // 100 requests
+"Too many API requests, please try again later.");
+exports.paymentRateLimit = (0, exports.createRateLimit)(5 * 60 * 1000, // 5 minutes
+3, // 3 payment attempts
+"Too many payment attempts, please try again later.");
+// Security headers middleware
 exports.securityHeaders = (0, helmet_1.default)({
     contentSecurityPolicy: {
         directives: {
@@ -49,6 +69,7 @@ exports.securityHeaders = (0, helmet_1.default)({
         preload: true,
     },
 });
+// Input sanitization middleware
 const sanitizeInput = (req, res, next) => {
     const sanitizeObject = (obj) => {
         if (typeof obj !== "object" || obj === null) {
@@ -60,6 +81,7 @@ const sanitizeInput = (req, res, next) => {
         const sanitized = {};
         for (const [key, value] of Object.entries(obj)) {
             if (typeof value === "string") {
+                // Remove potentially dangerous characters
                 sanitized[key] = value
                     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
                     .replace(/javascript:/gi, "")
@@ -84,6 +106,7 @@ const sanitizeInput = (req, res, next) => {
     next();
 };
 exports.sanitizeInput = sanitizeInput;
+// Razorpay signature verification
 const verifyRazorpaySignature = (req, res, next) => {
     const { razorpay_signature, razorpay_payment_id, razorpay_order_id } = req.body;
     if (!razorpay_signature || !razorpay_payment_id || !razorpay_order_id) {
@@ -115,6 +138,7 @@ const verifyRazorpaySignature = (req, res, next) => {
                 error: "Invalid payment signature",
             });
         }
+        // Add verified payment data to request
         req.verifiedPayment = {
             orderId: razorpay_order_id,
             paymentId: razorpay_payment_id,
@@ -130,6 +154,7 @@ const verifyRazorpaySignature = (req, res, next) => {
     }
 };
 exports.verifyRazorpaySignature = verifyRazorpaySignature;
+// Input validation middleware
 const validateInput = (req, res, next) => {
     const errors = (0, express_validator_1.validationResult)(req);
     if (!errors.isEmpty()) {
@@ -141,6 +166,7 @@ const validateInput = (req, res, next) => {
     next();
 };
 exports.validateInput = validateInput;
+// Common validation rules
 exports.userValidationRules = [
     (0, express_validator_1.body)("name")
         .trim()
@@ -192,8 +218,10 @@ exports.productValidationRules = [
         .isLength({ min: 2, max: 50 })
         .withMessage("Category must be between 2 and 50 characters"),
 ];
+// Security logging middleware
 const securityLogger = (req, res, next) => {
     const startTime = Date.now();
+    // Log security-relevant events
     const logSecurityEvent = (event, details) => {
         console.log(`[SECURITY] ${event}:`, {
             timestamp: new Date().toISOString(),
@@ -204,15 +232,18 @@ const securityLogger = (req, res, next) => {
             details,
         });
     };
+    // Override res.json to log responses
     const originalJson = res.json;
     res.json = function (body) {
         const duration = Date.now() - startTime;
+        // Log failed authentication attempts
         if (req.url.includes("/auth/login") && res.statusCode === 401) {
             logSecurityEvent("FAILED_LOGIN_ATTEMPT", {
                 email: req.body?.email,
                 duration,
             });
         }
+        // Log payment failures
         if (req.url.includes("/payment") && res.statusCode >= 400) {
             logSecurityEvent("PAYMENT_FAILURE", {
                 orderId: req.body?.orderId,
@@ -220,6 +251,7 @@ const securityLogger = (req, res, next) => {
                 duration,
             });
         }
+        // Log admin actions
         if (req.url.includes("/admin") && req.user) {
             logSecurityEvent("ADMIN_ACTION", {
                 userId: req.user?._id,
@@ -232,6 +264,7 @@ const securityLogger = (req, res, next) => {
     next();
 };
 exports.securityLogger = securityLogger;
+// Request size limiter
 const requestSizeLimit = (limit = "10mb") => {
     return (req, res, next) => {
         const contentLength = parseInt(req.get("content-length") || "0");
@@ -246,6 +279,7 @@ const requestSizeLimit = (limit = "10mb") => {
     };
 };
 exports.requestSizeLimit = requestSizeLimit;
+// CORS configuration
 exports.corsOptions = {
     origin: (origin, callback) => {
         const allowedOrigins = [
@@ -254,6 +288,7 @@ exports.corsOptions = {
             "https://cpsstore.com",
             "https://www.cpsstore.com",
         ];
+        // Allow requests with no origin (mobile apps, Postman, etc.)
         if (!origin)
             return callback(null, true);
         if (allowedOrigins.includes(origin)) {
@@ -282,4 +317,3 @@ exports.default = {
     requestSizeLimit: exports.requestSizeLimit,
     corsOptions: exports.corsOptions,
 };
-//# sourceMappingURL=security.js.map

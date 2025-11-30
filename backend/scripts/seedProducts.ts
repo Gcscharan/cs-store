@@ -15,7 +15,7 @@ interface ProductData {
   stock: number;
   unit: string;
   margin: number;
-  imageUrl: string;
+  images: { full: string; thumb: string }[];
   tags: string[];
 }
 
@@ -29,6 +29,39 @@ const connectDB = async () => {
     console.error("❌ MongoDB connection error:", error);
     process.exit(1);
   }
+};
+
+// Generate Base64 placeholder images
+const generateBase64Image = (text: string, size: number = 300): { full: string; thumb: string } => {
+  const colors = ["FF6B6B", "4ECDC4", "45B7D1", "96CEB4", "FFEAA7", "DDA0DD", "98D8C8"];
+  const color = colors[Math.floor(Math.random() * colors.length)];
+  
+  // Full size image (300x300)
+  const fullSvg = `
+    <svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg">
+      <rect width="100%" height="100%" fill="#${color}"/>
+      <text x="50%" y="50%" font-family="Arial, sans-serif" font-size="16" font-weight="bold" 
+            text-anchor="middle" dominant-baseline="middle" fill="white">
+        ${text}
+      </text>
+    </svg>
+  `;
+  
+  // Thumbnail (220x220)
+  const thumbSvg = `
+    <svg width="220" height="220" xmlns="http://www.w3.org/2000/svg">
+      <rect width="100%" height="100%" fill="#${color}"/>
+      <text x="50%" y="50%" font-family="Arial, sans-serif" font-size="12" font-weight="bold" 
+            text-anchor="middle" dominant-baseline="middle" fill="white">
+        ${text}
+      </text>
+    </svg>
+  `;
+  
+  return {
+    full: `data:image/svg+xml;base64,${Buffer.from(fullSvg.trim()).toString('base64')}`,
+    thumb: `data:image/svg+xml;base64,${Buffer.from(thumbSvg.trim()).toString('base64')}`
+  };
 };
 
 const generateProducts = (): ProductData[] => {
@@ -170,11 +203,9 @@ const generateProducts = (): ProductData[] => {
       price,
       category: product.category,
       stock: Math.floor(Math.random() * 50) + 10, // 10-60 stock
-      unit: product.unit,
+      weight: Math.floor(Math.random() * 100) + 50, // 50-150g weight
       margin,
-      imageUrl: `https://via.placeholder.com/300x300/FF6B6B/FFFFFF?text=${encodeURIComponent(
-        product.name
-      )}`,
+      images: [generateBase64Image(product.name.substring(0, 10))], // Generate dual-resolution images
       tags: [product.category, "snacks", "sweets", "indian", "traditional"],
     });
   });

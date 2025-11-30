@@ -60,7 +60,7 @@ const OtpSchema = new mongoose_1.Schema({
     expiresAt: {
         type: Date,
         required: true,
-        default: () => new Date(Date.now() + 10 * 60 * 1000),
+        default: () => new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
     },
     isUsed: {
         type: Boolean,
@@ -74,7 +74,7 @@ const OtpSchema = new mongoose_1.Schema({
 }, {
     timestamps: true,
 });
+// Index for efficient queries
 OtpSchema.index({ phone: 1, type: 1, isUsed: 1 });
 OtpSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 exports.default = mongoose_1.default.model("Otp", OtpSchema);
-//# sourceMappingURL=Otp.js.map

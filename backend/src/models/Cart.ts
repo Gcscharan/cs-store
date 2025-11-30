@@ -4,7 +4,7 @@ export interface ICartItem {
   productId: mongoose.Types.ObjectId;
   name: string;
   price: number;
-  image: string;
+  image: string; // Store thumbnail for cart display
   quantity: number;
 }
 

@@ -1,77 +1,94 @@
-// SMS utility functions for OTP generation and sending
+// SMS utility functions for OTP generation and console logging
 
 // Generate 6-digit OTP
 export const generateOTP = (): string => {
   return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
-// Send SMS using Twilio
+// Main SMS sending function - simplified to console only
 export const sendSMS = async (
   phone: string,
   message: string
 ): Promise<boolean> => {
-  try {
-    const accountSid = process.env.TWILIO_ACCOUNT_SID;
-    const authToken = process.env.TWILIO_AUTH_TOKEN;
-    const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
-
-    const credsPresent = !!accountSid && !!authToken && !!twilioPhoneNumber;
-    if (!credsPresent) {
-      console.error(
-        "Twilio credentials missing: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, or TWILIO_PHONE_NUMBER not set"
-      );
-      console.error("SMS not sent. Ensure environment variables are configured.", {
-        TWILIO_ACCOUNT_SID_present: !!accountSid,
-        TWILIO_AUTH_TOKEN_present: !!authToken,
-        TWILIO_PHONE_NUMBER_present: !!twilioPhoneNumber,
-      });
-      // Do NOT claim success when creds are missing
-      return false;
-    }
-
-    // Import Twilio dynamically to avoid issues if not installed
-    const twilio = require("twilio");
-    const client = twilio(accountSid, authToken);
-
-    const formattedTo = `+91${phone.replace(/\D/g, "")}`; // normalize to E.164 for India
-
-    const result = await client.messages.create({
-      body: message,
-      from: twilioPhoneNumber,
-      to: formattedTo,
-    });
-
-    console.log(`📱 SMS sent to ${formattedTo}: ${message}`);
-    console.log(`📱 Twilio SID: ${result.sid}`);
-
-    return true;
-  } catch (error: any) {
-    // Capture common Twilio/NW errors
-    const details = {
-      name: error?.name,
-      code: error?.code,
-      status: error?.status,
-      message: error?.message,
-      stack: error?.stack?.split("\n").slice(0, 3).join(" | ") || undefined,
-    };
-    console.error("❌ SMS sending failed:", details);
-    // Do NOT return true on failure; surface it to caller
-    return false;
-  }
+  // Extract OTP from message for logging
+  const otpMatch = message.match(/(\d{6})/);
+  const otp = otpMatch ? otpMatch[1] : "N/A";
+  
+  console.log(`\n🔢 OTP Generated for ${phone}: ${otp}\n`);
+  console.log(`📱 Message: ${message}\n`);
+  
+  return true;
 };
 
-// Validate phone number format
+/**
+ * Validate phone number format
+ * Supports:
+ * - E.164 format: +919876543210, +11234567890
+ * - Indian 10-digit: 9876543210
+ * - International with country code: 919876543210, 11234567890
+ */
 export const validatePhoneNumber = (phone: string): boolean => {
-  // Basic Indian phone number validation
-  const phoneRegex = /^[6-9]\d{9}$/;
-  return phoneRegex.test(phone.replace(/\D/g, ""));
+  // Remove all non-digit characters except leading +
+  const cleaned = phone.trim();
+  
+  // Check if it's already in E.164 format (starts with +)
+  if (cleaned.startsWith("+")) {
+    // E.164 format: + followed by 1-15 digits
+    const e164Regex = /^\+[1-9]\d{1,14}$/;
+    return e164Regex.test(cleaned);
+  }
+  
+  // Extract digits only
+  const digits = cleaned.replace(/\D/g, "");
+  
+  // Accept 10-15 digits (supports international numbers without +)
+  // 10 digits = Indian numbers, 11-15 = international numbers
+  if (digits.length >= 10 && digits.length <= 15) {
+    // For 10-digit numbers, validate Indian format (starts with 6-9)
+    if (digits.length === 10) {
+      return /^[6-9]\d{9}$/.test(digits);
+    }
+    // For longer numbers, just check they're all digits
+    return /^\d{11,15}$/.test(digits);
+  }
+  
+  return false;
 };
 
-// Format phone number for SMS
+/**
+ * Format phone number to E.164 format for consistency
+ * E.164 format: +[country code][number] (max 15 digits after +)
+ */
 export const formatPhoneNumber = (phone: string): string => {
-  const cleaned = phone.replace(/\D/g, "");
-  if (cleaned.length === 10) {
-    return `+91${cleaned}`;
+  const cleaned = phone.trim();
+  
+  // If already in E.164 format, return as-is
+  if (cleaned.startsWith("+")) {
+    // Validate and return if valid E.164
+    if (/^\+[1-9]\d{1,14}$/.test(cleaned)) {
+      return cleaned;
+    }
+    // If invalid, try to fix it
+    const digits = cleaned.replace(/\D/g, "");
+    if (digits.length >= 10 && digits.length <= 15) {
+      return `+${digits}`;
+    }
+    return cleaned; // Return as-is if can't fix
   }
-  return phone;
+  
+  // Extract digits only
+  const digits = cleaned.replace(/\D/g, "");
+  
+  // For 10-digit Indian numbers, add +91
+  if (digits.length === 10 && /^[6-9]\d{9}$/.test(digits)) {
+    return `+91${digits}`;
+  }
+  
+  // For other numbers, just add +
+  if (digits.length >= 10 && digits.length <= 15) {
+    return `+${digits}`;
+  }
+  
+  // Return original if can't format
+  return cleaned;
 };

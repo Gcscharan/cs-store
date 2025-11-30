@@ -95,9 +95,26 @@ const ProductSchema = new mongoose_1.Schema({
     },
     images: [
         {
-            type: String,
-            required: [true, "At least one image is required"],
-        },
+            publicId: { type: String },
+            variants: {
+                micro: { type: String },
+                thumb: { type: String },
+                small: { type: String },
+                medium: { type: String },
+                large: { type: String },
+                original: { type: String }
+            },
+            formats: {
+                avif: { type: String },
+                webp: { type: String },
+                jpg: { type: String }
+            },
+            metadata: {
+                width: { type: Number },
+                height: { type: Number },
+                aspectRatio: { type: Number }
+            }
+        }
     ],
     sku: {
         type: String,
@@ -113,8 +130,8 @@ const ProductSchema = new mongoose_1.Schema({
 }, {
     timestamps: true,
 });
+// Index for better search performance
 ProductSchema.index({ name: "text", description: "text", tags: "text" });
 ProductSchema.index({ category: 1 });
 ProductSchema.index({ price: 1 });
 exports.Product = mongoose_1.default.model("Product", ProductSchema);
-//# sourceMappingURL=Product.js.map

@@ -17,10 +17,10 @@ const customerOrAdmin = requireRole(["customer", "admin"]);
 
 // Cart routes - customers and admins can manage carts (for debugging)
 router.get("/", authenticateToken, customerOrAdmin, getCart);
-router.post("/", authenticateToken, customerOrAdmin, addToCart);
-router.put("/", authenticateToken, customerOrAdmin, updateCartItem);
-router.delete("/:itemId", authenticateToken, customerOrAdmin, removeFromCart);
-router.delete("/", authenticateToken, customerOrAdmin, clearCart);
+router.post("/add", authenticateToken, customerOrAdmin, addToCart);
+router.put("/update", authenticateToken, customerOrAdmin, updateCartItem);
+router.delete("/remove", authenticateToken, customerOrAdmin, removeFromCart);
+router.delete("/clear", authenticateToken, customerOrAdmin, clearCart);
 
 // Checkout routes - customers and admins can create orders (for debugging)
 router.post("/checkout/create-order", authenticateToken, customerOrAdmin, createOrder);

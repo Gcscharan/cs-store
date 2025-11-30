@@ -11,11 +11,18 @@ import * as dotenv from "dotenv";
 
 dotenv.config();
 
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/cps-store";
+// CRITICAL: Only use MONGODB_URI from environment - no fallbacks
+const MONGODB_URI = process.env.MONGODB_URI;
+
+if (!MONGODB_URI) {
+  console.error("❌ CRITICAL: MONGODB_URI environment variable is not set!");
+  console.error("❌ Please set MONGODB_URI in your .env file and restart.");
+  process.exit(1);
+}
 
 async function analyzeDatabase() {
   try {
-    await mongoose.connect(MONGODB_URI);
+    await mongoose.connect(MONGODB_URI as string);
     console.log("✅ Connected to MongoDB Atlas\n");
 
     console.log("=" .repeat(70));
@@ -37,14 +44,14 @@ async function analyzeDatabase() {
     for (const { name, model } of collections) {
       const count = await model.countDocuments();
       const indexes = await model.collection.getIndexes();
-      const sampleDoc = await model.findOne();
+      const sampleDoc = await (model as any).findOne({});
 
       console.log(`\n📁 ${name} Collection:`);
       console.log(`   Documents: ${count}`);
       console.log(`   Indexes: ${Object.keys(indexes).length}`);
       console.log(`   Index Details:`);
       for (const [indexName, indexDef] of Object.entries(indexes)) {
-        console.log(`     - ${indexName}: ${JSON.stringify(indexDef.key)}`);
+        console.log(`     - ${indexName}: ${JSON.stringify((indexDef as any).key)}`);
       }
       
       if (sampleDoc) {

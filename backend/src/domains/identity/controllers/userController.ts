@@ -7,7 +7,6 @@ import Notification from "../../../models/Notification";
 import Otp from "../../../models/Otp";
 import mongoose from "mongoose";
 import { smartGeocode } from "../../../utils/geocoding";
-import redisClient from "../../../config/redis";
 import { verifyOtp } from "../../security/controllers/otpController";
 import * as jwt from "jsonwebtoken";
 import { PendingUser } from "../../../models/PendingUser";
@@ -93,6 +92,8 @@ export const markMobileAsVerified = async (
       );
       const refreshToken = jwt.sign({ userId: user._id }, JWT_REFRESH_SECRET, { expiresIn: "7d" });
 
+      const isProfileComplete = !!(user.name && user.phone);
+
       res.status(200).json({
         message: "Mobile number verified successfully",
         user: {
@@ -103,7 +104,7 @@ export const markMobileAsVerified = async (
           role: user.role,
           isAdmin: user.role === "admin",
           addresses: user.addresses,
-          isProfileComplete: (user as any).isProfileComplete || false,
+          isProfileComplete,
           mobileVerified: true,
         },
         accessToken,
@@ -162,6 +163,8 @@ export const markMobileAsVerified = async (
     );
     const refreshToken = jwt.sign({ userId: user._id }, JWT_REFRESH_SECRET, { expiresIn: "7d" });
 
+    const isProfileComplete = !!(user.name && user.phone);
+
     res.status(201).json({
       message: "Account created and mobile verified successfully",
       user: {
@@ -172,7 +175,7 @@ export const markMobileAsVerified = async (
         role: user.role,
         isAdmin: user.role === "admin",
         addresses: user.addresses,
-        isProfileComplete: (user as any).isProfileComplete || false,
+        isProfileComplete,
         mobileVerified: true,
       },
       accessToken,
@@ -758,41 +761,8 @@ export const deleteAccount = async (
     await session.commitTransaction();
     console.log('✅ Database transaction committed successfully');
 
-    // Step 8: External cleanup (Redis) - Outside transaction
-    console.log('🗑️ STEP 8: Performing external cleanup...');
-    
-    try {
-      // Clean up Redis cache entries that might contain user data
-      const userCachePatterns = [
-        `user:${userId}*`,           // User-specific cache
-        `cart:${userId}*`,           // Cart cache
-        `address:${userId}*`,        // Address cache
-        `orders:${userId}*`,         // Order cache
-        `profile:${userId}*`,        // Profile cache
-      ];
-
-      let totalRedisKeysDeleted = 0;
-      for (const pattern of userCachePatterns) {
-        const deletedCount = await redisClient.delPattern(pattern);
-        totalRedisKeysDeleted += deletedCount;
-        console.log(`🗑️ Redis cleanup: ${deletedCount} keys deleted for pattern: ${pattern}`);
-      }
-
-      // If user was a delivery partner, remove from delivery load tracking
-      if (user.role === 'delivery') {
-        const deliveryLoadKey = 'delivery_partner_load';
-        await redisClient.zRem(deliveryLoadKey, userId.toString());
-        console.log(`🗑️ Removed delivery partner from load tracking: ${userId}`);
-      }
-
-      console.log(`✅ Redis cleanup completed: ${totalRedisKeysDeleted} total keys deleted`);
-    } catch (redisError) {
-      console.warn('⚠️ Redis cleanup failed (non-critical):', redisError);
-      // Continue - Redis cleanup failure shouldn't fail the account deletion
-    }
-
-    // Step 9: Security - Invalidate current session token
-    console.log('🗑️ STEP 9: Token invalidation...');
+    // Step 8: Security - Invalidate current session token
+    console.log('🗑️ STEP 8: Token invalidation...');
     // Note: Token invalidation is handled by the client-side logout process
     // The token will naturally expire, and the user is deleted so no refresh possible
     console.log('✅ Token invalidation noted (handled by client logout)');
@@ -802,6 +772,7 @@ export const deleteAccount = async (
     res.status(200).json({
       success: true,
       message: "Account deleted successfully. All personal data has been removed.",
+      forceLogout: true,
       details: {
         cartsDeleted: cartDeleteResult.deletedCount,
         ordersAnonymized: orderAnonymizeResult.modifiedCount,
@@ -809,7 +780,6 @@ export const deleteAccount = async (
         otpsDeleted: otpDeleteResult.deletedCount,
         notificationsDeleted: notificationDeleteResult.deletedCount,
         userDeleted: true,
-        redisKeysDeleted: true,
       }
     });
 

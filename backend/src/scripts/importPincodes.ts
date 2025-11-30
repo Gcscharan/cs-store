@@ -6,14 +6,20 @@ import pincodeData from "../../data/pincodes_ap_ts.json";
 // Load environment variables
 dotenv.config();
 
-const MONGODB_URI =
-  process.env.MONGODB_URI || "mongodb://localhost:27017/cps-store";
+// CRITICAL: Only use MONGODB_URI from environment - no fallbacks
+const MONGODB_URI = process.env.MONGODB_URI;
+
+if (!MONGODB_URI) {
+  console.error("❌ CRITICAL: MONGODB_URI environment variable is not set!");
+  console.error("❌ Please set MONGODB_URI in your .env file and restart.");
+  process.exit(1);
+}
 
 async function importPincodes() {
   try {
-    // Connect to MongoDB
-    await mongoose.connect(MONGODB_URI);
-    console.log("✅ Connected to MongoDB");
+    // Connect to MongoDB Atlas
+    await mongoose.connect(MONGODB_URI as string);
+    console.log("✅ Connected to MongoDB Atlas");
 
     // Clear existing pincodes
     await Pincode.deleteMany({});

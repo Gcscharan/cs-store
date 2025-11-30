@@ -7,9 +7,17 @@ const mongoose_1 = __importDefault(require("mongoose"));
 const Product_1 = require("../models/Product");
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
+// CRITICAL: Only use MONGODB_URI from environment - no fallbacks
+const MONGODB_URI = process.env.MONGODB_URI;
+if (!MONGODB_URI) {
+    console.error("❌ CRITICAL: MONGODB_URI environment variable is not set!");
+    console.error("❌ Please set MONGODB_URI in your .env file and restart.");
+    process.exit(1);
+}
+// Connect to MongoDB
 const connectDB = async () => {
     try {
-        await mongoose_1.default.connect(process.env.MONGODB_URI || "mongodb://localhost:27017/cps-store");
+        await mongoose_1.default.connect(MONGODB_URI);
         console.log("✅ Connected to MongoDB");
     }
     catch (error) {
@@ -17,6 +25,7 @@ const connectDB = async () => {
         process.exit(1);
     }
 };
+// Products for each category with relevant images
 const categoryProducts = {
     chocolates: [
         {
@@ -333,4 +342,3 @@ const main = async () => {
     console.log("👋 Disconnected from MongoDB");
 };
 main().catch(console.error);
-//# sourceMappingURL=addProductsForAllCategories.js.map

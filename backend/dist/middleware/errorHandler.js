@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.createError = exports.errorHandler = void 0;
 const errorHandler = (error, req, res, next) => {
     let { statusCode = 500, message } = error;
+    // Handle specific error types
     if (error.name === "ValidationError") {
         statusCode = 400;
         message = "Validation Error";
@@ -20,11 +21,12 @@ const errorHandler = (error, req, res, next) => {
         statusCode = 400;
         message = "Authentication strategy not configured";
     }
+    // Log error in development
     if (process.env.NODE_ENV === "development") {
         console.error("Error:", error);
     }
     res.status(statusCode).json({
-        error: message,
+        message,
         ...(process.env.NODE_ENV === "development" && { stack: error.stack }),
     });
 };
@@ -36,4 +38,3 @@ const createError = (message, statusCode = 500) => {
     return error;
 };
 exports.createError = createError;
-//# sourceMappingURL=errorHandler.js.map
