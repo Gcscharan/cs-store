@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import { toast } from "react-hot-toast";
 import { Package, Mail, Lock, AlertCircle } from "lucide-react";
-import { setAuth } from "../store/slices/authSlice";
+import { setUser, setTokens } from "../store/slices/authSlice";
 
 const DeliveryLogin: React.FC = () => {
   const navigate = useNavigate();
@@ -59,12 +59,8 @@ const DeliveryLogin: React.FC = () => {
       }
 
       // Store auth data
-      dispatch(
-        setAuth({
-          user: data.user,
-          tokens: data.tokens,
-        })
-      );
+      dispatch(setUser(data.user));
+      dispatch(setTokens(data.tokens));
 
       toast.success("Login successful!");
       navigate("/delivery/dashboard");

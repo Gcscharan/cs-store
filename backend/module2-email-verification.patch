@@ -1,0 +1,29 @@
+--- a/src/domains/identity/controllers/userController.ts
++++ b/src/domains/identity/controllers/userController.ts
+@@ -216,6 +216,25 @@ export const updateUserProfile = async (
+     // Build update object with only provided fields
+     const updateData: any = {};
+     if (name !== undefined) updateData.name = name;
++    
++    // Handle email change with verification requirement
++    if (email !== undefined && email !== user.email) {
++      // Don't update email immediately - require verification
++      return res.json({
++        success: true,
++        message: "Email change requires verification",
++        emailChangePending: true,
++        pendingEmail: email,
++        user: {
++          id: user._id,
++          name: user.name,
++          email: user.email, // Still return old email
++          phone: user.phone,
++          role: user.role,
++        },
++      });
++    }
++    
+     if (phone !== undefined
++    if (家人的更新
++    if (phone !== undefined) updateData.phone = phone;
+     if if ( ID of undefined) updateData.email = email;

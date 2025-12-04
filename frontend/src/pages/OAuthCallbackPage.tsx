@@ -1,7 +1,7 @@
 import React, { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
-import { setAuth } from "../store/slices/authSlice";
+import { setUser, setTokens } from "../store/slices/authSlice";
 import { useToast } from "../components/AccessibleToast";
 import { useCleanUserSwitch } from "../hooks/useLogout";
 import { motion } from "framer-motion";
@@ -35,39 +35,42 @@ const OAuthCallbackPage: React.FC = () => {
       console.log('🔥 OAUTH CALLBACK: Aggressive cleanup BEFORE new login...');
       cleanUserSwitch();
       
-      // Small delay to ensure cleanup is complete
+      // Small delay to ensure cleanup is complete, then set auth and redirect
       setTimeout(() => {
         console.log('🔥 OAUTH CALLBACK: Setting new user auth after cleanup...');
-        dispatch(
-          setAuth({
-            user: {
-              id: userId,
-              email: email || "",
-              role: role || "customer",
-              isAdmin: isAdmin,
-              isProfileComplete: isProfileComplete,
-            } as any,
-            tokens: {
-              accessToken: token,
-              refreshToken: refreshToken,
-            },
-          })
-        );
-      }, 50);
-      success("Login Successful", "You have been logged in via Google.");
-      
-      // Check if profile is complete - if not, redirect to onboarding
-      if (!isProfileComplete) {
-        navigate("/onboarding/complete-profile");
-        return;
-      }
-      
-      // Redirect to admin routes if admin, otherwise home
-      if (isAdmin) {
-        navigate("/admin");
-      } else {
-        navigate("/");
-      }
+        dispatch(setUser({
+          id: userId,
+          email: email || "",
+          role: role || "customer",
+          isAdmin: isAdmin,
+          isProfileComplete: isProfileComplete,
+        } as any));
+        dispatch(setTokens({
+          accessToken: token,
+          refreshToken: refreshToken,
+        }));
+        
+        success("Login Successful", "You have been logged in via Google.");
+        
+        // Use window.location for more reliable redirect after OAuth
+        // This ensures the redirect happens even if React Router is in a transition state
+        setTimeout(() => {
+          // PRIORITY 1: Check for Admin Role FIRST - bypass all onboarding checks
+          if (isAdmin || role === "admin") {
+            window.location.href = "/admin";
+            return;
+          }
+          
+          // PRIORITY 2: For non-admin users, check if profile is complete
+          if (!isProfileComplete) {
+            window.location.href = "/onboarding/complete-profile";
+            return;
+          }
+          
+          // Default redirect for regular users with complete profiles - go to dashboard
+          window.location.href = "/dashboard";
+        }, 150); // Small delay to ensure auth state is saved
+      }, 100); // Increased delay slightly to ensure state is set
     } else {
       showError(
         "Authentication Failed",

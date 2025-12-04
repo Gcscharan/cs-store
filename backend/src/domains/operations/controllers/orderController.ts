@@ -199,7 +199,7 @@ export const placeOrderCOD = async (req: Request, res: Response) => {
     }
 
     // Enrich address with user's name and phone from saved addresses
-    let enrichedAddress = { ...address };
+    const enrichedAddress = { ...address };
     
     // Try to find matching address from user's saved addresses to get name and phone
     const savedAddress = user.addresses.find(

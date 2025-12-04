@@ -12,11 +12,8 @@ import {
   CheckCircle,
   XCircle,
   Eye,
-  DollarSign,
-  Calendar,
-  MapPin,
 } from "lucide-react";
-import { getProductPrimaryImage } from "../utils/productImageMapper";
+import { getProductImage } from "../utils/image";
 
 interface OrderItem {
   productId?: string | {
@@ -76,7 +73,7 @@ const OrdersPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedStatus, setSelectedStatus] = useState("");
-  const [socket, setSocket] = useState<Socket | null>(null);
+  const [_socket, _setSocket] = useState<Socket | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -119,7 +116,7 @@ const OrdersPage: React.FC = () => {
       console.log("[ORDERS] Socket disconnected");
     });
 
-    setSocket(newSocket);
+    _setSocket(newSocket);
 
     return () => {
       newSocket.disconnect();
@@ -377,14 +374,20 @@ const OrdersPage: React.FC = () => {
                       // Get image URL - check populated product first, then fallback to product name
                       let imageUrl = "/placeholder-product.png";
                       if (populatedProduct?.images && populatedProduct.images.length > 0) {
-                        imageUrl = populatedProduct.images[0];
+                        const firstImage = populatedProduct.images[0] as any;
+                        if (typeof firstImage === 'object' && firstImage !== null) {
+                          imageUrl = firstImage.thumb || firstImage.full;
+                        }
                       } else if (item.product?.images && item.product.images.length > 0) {
-                        imageUrl = item.product.images[0];
+                        const firstImage = item.product.images[0] as any;
+                        if (typeof firstImage === 'object' && firstImage !== null) {
+                          imageUrl = firstImage.thumb || firstImage.full;
+                        }
                       } else if (item.product?.imageUrl) {
                         imageUrl = item.product.imageUrl;
                       } else if (productName && productName !== "Product") {
                         // Use product image mapper as fallback
-                        imageUrl = getProductPrimaryImage(productName);
+                        imageUrl = getProductImage(populatedProduct || item.product);
                       }
                       
                       // Replace via.placeholder.com URLs with inline SVG

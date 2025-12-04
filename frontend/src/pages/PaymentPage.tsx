@@ -43,7 +43,7 @@ const PaymentPage: React.FC = () => {
   const location = useLocation();
   const { success, error: showError } = useToast();
   const { user } = useSelector((state: RootState) => state.auth);
-  const { items: cartItems } = useSelector((state: RootState) => state.cart);
+  const { items: _cartItems } = useSelector((state: RootState) => state.cart);
 
   const [paymentData, setPaymentData] = useState<PaymentData | null>(null);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);

@@ -107,10 +107,13 @@ const KeyboardNavigation: React.FC<KeyboardNavigationProps> = ({
     };
 
     const container = containerRef.current;
-    container.addEventListener("keydown", handleKeyDown);
-
+    if (container) {
+      container.addEventListener("keydown", handleKeyDown);
+    }
     return () => {
-      container.removeEventListener("keydown", handleKeyDown);
+      if (container) {
+        container.removeEventListener("keydown", handleKeyDown);
+      }
     };
   }, [focusedIndex, onKeyDown, trapFocus]);
 

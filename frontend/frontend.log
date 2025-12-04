@@ -1,0 +1,13 @@
+
+> cps-store-frontend@1.0.0 dev
+> vite
+
+
+  VITE v5.2.10  ready in 236 ms
+
+  ➜  Local:   http://localhost:3000/
+  ➜  Network: http://127.0.2.2:3000/
+  ➜  Network: http://127.0.2.3:3000/
+  ➜  Network: http://10.47.18.44:3000/
+  ➜  Network: http://172.16.0.2:3000/
+  ➜  press h + enter to show help

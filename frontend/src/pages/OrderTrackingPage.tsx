@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useParams } from "react-router-dom";
 import MapView from "../components/MapView";
 import DeliveryListItem from "../components/DeliveryListItem";
-import { useOrderUpdates } from "../hooks/useSocket";
+import { useOrderUpdates, useSocket } from "../hooks/useSocket";
 import toast from "react-hot-toast";
 
 const OrderTrackingPage = () => {
@@ -74,7 +74,7 @@ const OrderTrackingPage = () => {
   // Handle real-time status updates
   useEffect(() => {
     if (order && orderStatus && orderStatus !== order.orderStatus) {
-      setOrder((prev) => ({ ...prev, orderStatus }));
+      setOrder((prev: any) => ({ ...prev, orderStatus }));
       toast.success(`Order status updated: ${orderStatus}`);
     }
   }, [orderStatus, order]);
@@ -82,7 +82,7 @@ const OrderTrackingPage = () => {
   // Handle payment status updates
   useEffect(() => {
     if (order && paymentStatus && paymentStatus !== order.paymentStatus) {
-      setOrder((prev) => ({ ...prev, paymentStatus }));
+      setOrder((prev: any) => ({ ...prev, paymentStatus }));
       if (paymentStatus === "paid") {
         toast.success("Payment confirmed!");
       } else if (paymentStatus === "failed") {

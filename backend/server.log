@@ -1,0 +1,71 @@
+
+> cps-store-backend@1.0.0 start
+> node dist/index.js
+
+✅ Environment variables validated successfully
+
+========================================
+🔧 Environment Variables Check
+========================================
+🌍 NODE_ENV: development
+🚪 PORT: 5001
+🔗 MONGODB_URI present: ✅ Yes
+🔑 JWT_SECRET present: ✅ Yes
+🔑 JWT_REFRESH_SECRET present: ✅ Yes
+☁️ CLOUDINARY_CLOUD_NAME present: ✅ Yes
+📧 MOCK_OTP: true
+[ENV][SMS] FAST2SMS key loaded: true
+========================================
+
+Google OAuth credentials: { clientId: 'Present', clientSecret: 'Present' }
+🔑 Razorpay configured with key: Live Key
+App.ts loaded successfully
+Payment routes registered successfully
+Razorpay routes registered successfully
+OTP routes registered successfully
+Notification routes registered successfully
+Upload routes registered successfully
+
+🔗 Connecting to MongoDB Atlas...
+📍 MongoDB URI: mongodb+srv://charan:***@csstore.2mobf49.mongodb.net/cps-store?retryWrites=true&w=majority&appName=csstore
+🌍 Environment: development
+🔗 Mongoose connected to MongoDB Atlas
+✅ MongoDB Atlas connected successfully
+🗄️  Database: cps-store
+🏠 Host: ac-vjrq9op-shard-00-00.2mobf49.mongodb.net
+
+🔧 Bootstrapping dev admin user...
+✅ Dev admin user updated successfully
+📧 Email: gcs.charan@gmail.com
+📱 Phone: 9391795162
+🔑 Password: Gcs@2004
+👤 Role: admin
+🔐 isAdmin: true
+🎯 Dev admin bootstrap completed
+🚚 Initializing delivery partner load tracking...
+🚚 Delivery partner load service initialized (MongoDB-only mode)
+🔄 Found existing processes on port 5001, closing them gracefully...
+📤 Sent SIGTERM to process 98569
+✅ Port 5001 is now available
+🚀 Server running on port 5001
+🏥 Health check: http://localhost:5001/health
+🔌 Mongoose disconnected from MongoDB Atlas
+🔗 Mongoose connected to MongoDB Atlas
+🔌 Mongoose disconnected from MongoDB Atlas
+🔗 Mongoose connected to MongoDB Atlas
+🔌 Mongoose disconnected from MongoDB Atlas
+🔗 Mongoose connected to MongoDB Atlas
+🔌 Mongoose disconnected from MongoDB Atlas
+🔗 Mongoose connected to MongoDB Atlas
+🔌 Mongoose disconnected from MongoDB Atlas
+🔗 Mongoose connected to MongoDB Atlas
+🔌 Mongoose disconnected from MongoDB Atlas
+🔗 Mongoose connected to MongoDB Atlas
+🔌 Mongoose disconnected from MongoDB Atlas
+🔗 Mongoose connected to MongoDB Atlas
+🔌 Mongoose disconnected from MongoDB Atlas
+🔗 Mongoose connected to MongoDB Atlas
+
+🛑 SIGTERM received, closing MongoDB connection...
+SIGTERM received, shutting down gracefully
+Server closed

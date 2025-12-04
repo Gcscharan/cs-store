@@ -24,12 +24,12 @@ const Toast: React.FC<ToastProps> = ({
   action,
   onClose,
 }) => {
-  const [isVisible, setIsVisible] = useState(true);
+  const [_isVisible, _setIsVisible] = useState(true);
 
   useEffect(() => {
     if (duration > 0) {
       const timer = setTimeout(() => {
-        setIsVisible(false);
+        _setIsVisible(false);
         setTimeout(() => onClose(id), 300); // Wait for animation to complete
       }, duration);
 
@@ -38,7 +38,7 @@ const Toast: React.FC<ToastProps> = ({
   }, [duration, id, onClose]);
 
   const handleClose = () => {
-    setIsVisible(false);
+    _setIsVisible(false);
     setTimeout(() => onClose(id), 300);
   };
 

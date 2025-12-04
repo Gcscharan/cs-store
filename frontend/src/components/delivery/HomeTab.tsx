@@ -40,8 +40,8 @@ interface HomeTabProps {
   onOrderAction: (orderId: string, action: "accept" | "decline") => void;
 }
 
-const HomeTab: React.FC<HomeTabProps> = ({ onStatusUpdate, onOrderAction }) => {
-  const { user, tokens } = useSelector((state: RootState) => state.auth);
+const HomeTab: React.FC<HomeTabProps> = () => {
+  const { tokens } = useSelector((state: RootState) => state.auth);
   const [assignedOrders, setAssignedOrders] = useState<AssignedOrder[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

@@ -9,10 +9,6 @@ import {
   DollarSign,
   Users,
   MessageSquare,
-  Bell,
-  Star,
-  Gift,
-  Phone,
   FileText,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";

@@ -2,37 +2,7 @@ import express, { Application } from "express";
 import cors from "cors";
 import passport from "passport";
 
-// JWT Secret Validation - Startup Security Check
-function validateJwtSecrets() {
-  const jwtSecret = process.env.JWT_SECRET;
-  const jwtRefreshSecret = process.env.JWT_REFRESH_SECRET;
-  
-  if (!jwtSecret || jwtSecret.length < 32) {
-    const isDev = process.env.NODE_ENV !== 'production';
-    const errorMsg = `JWT_SECRET must be at least 32 characters long. Current length: ${jwtSecret?.length || 0}`;
-    if (isDev) {
-      console.warn(`[DEV WARNING] ${errorMsg} - Using weak secret in development`);
-    } else {
-      console.error(`[FATAL] ${errorMsg}`);
-      process.exit(1);
-    }
-  }
-  
-  if (!jwtRefreshSecret || jwtRefreshSecret.length < 32) {
-    const isDev = process.env.NODE_ENV !== 'production';
-    const errorMsg = `JWT_REFRESH_SECRET must be at least 32 characters long. Current length: ${jwtRefreshSecret?.length || 0}`;
-    if (isDev) {
-      console.warn(`[DEV WARNING] ${errorMsg} - Using weak secret in development`);
-    } else {
-      console.error(`[FATAL] ${errorMsg}`);
-      process.exit(1);
-    }
-  }
-}
-
-// Run validation immediately on startup
-validateJwtSecrets();
-
+// JWT Secret Validation moved to index.ts after dotenv.config()
 import compression from "compression";
 import { apiLimiter } from "./middleware/security";
 import { connectDB } from "./utils/database";
@@ -75,6 +45,10 @@ app.use(compression() as any);
 app.use('/api/', apiLimiter as any);
 app.use(passport.initialize());
 
+// body parsers BEFORE routes
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true }));
+
 // Health check route
 app.get("/health", (req, res) => {
   res.status(200).json({
@@ -109,10 +83,6 @@ app.use("/api/razorpay", razorpayRoutes);
 app.use("/api/otp", otpRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/uploads", uploadRoutes);
-
-// body parsers AFTER multer routes
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true }));
 
 console.log("Payment routes registered successfully");
 console.log("Razorpay routes registered successfully");

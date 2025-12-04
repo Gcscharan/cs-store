@@ -7,7 +7,6 @@ import {
   Moon,
   Sun,
   Shield,
-  MapPin,
   Clock,
   ChevronRight,
 } from "lucide-react";
@@ -176,22 +175,28 @@ const DeliverySettingsPage: React.FC = () => {
                       </div>
                       <button
                         onClick={() =>
-                          handleToggle(item.onChange!, item.value as boolean)
+                          item.type === 'toggle' && 'onChange' in item && 'value' in item
+                            ? handleToggle(item.onChange, item.value as boolean)
+                            : null
                         }
                         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                          item.value ? "bg-blue-500" : "bg-gray-300"
+                          item.type === 'toggle' && 'value' in item
+                            ? (item.value as boolean) ? "bg-blue-500" : "bg-gray-300"
+                            : "bg-gray-300"
                         }`}
                       >
                         <span
                           className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                            item.value ? "translate-x-6" : "translate-x-1"
+                            item.type === 'toggle' && 'value' in item
+                              ? (item.value as boolean) ? "translate-x-6" : "translate-x-1"
+                              : "translate-x-1"
                           }`}
                         />
                       </button>
                     </div>
                   ) : (
                     <button
-                      onClick={item.action}
+                      onClick={item.type === 'navigation' && 'action' in item ? item.action : undefined}
                       className="w-full flex items-center justify-between group hover:bg-gray-50 p-2 -m-2 rounded-lg transition-colors"
                     >
                       <div className="flex-1 text-left">

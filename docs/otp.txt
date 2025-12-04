@@ -1,0 +1,309 @@
+================================================================================
+                              OTP SYSTEM
+================================================================================
+
+WHAT THIS DOES:
+---------------
+This module manages One-Time Password (OTP) generation, delivery, and verification for:
+- Mobile/email verification during signup
+- OTP-based login (passwordless authentication)
+- Payment verification (card transaction security)
+- Multi-channel delivery (SMS via Twilio/Fast2SMS, Email via Gmail SMTP)
+
+FOLDER PATHS INVOLVED:
+----------------------
+Backend:
+- backend/src/domains/security/controllers/otpController.ts
+- backend/src/domains/security/routes/otpRoutes.ts
+- backend/src/models/Otp.ts
+- backend/src/utils/sms.ts
+- backend/src/utils/sendEmailOTP.ts
+- backend/src/utils/sendEmailSMTP.ts
+
+Frontend:
+- frontend/src/components/OTPVerification.tsx
+- frontend/src/components/RealtimeOTPVerification.tsx
+- frontend/src/contexts/OTPContext.tsx
+- frontend/src/pages/auth/OtpLoginPage.tsx
+
+KEY FILES & THEIR CONTENTS:
+---------------------------
+
+1. otpController.ts
+   - generateVerificationOTP: Creates OTP for phone/email verification
+   - generatePaymentOTP: Creates OTP for payment authorization
+   - verifyPaymentOTP: Validates payment OTP
+   - resendPaymentOTP: Regenerates and sends new payment OTP
+   - verifyOtp: Helper function for OTP validation
+
+2. Otp Model (Otp.ts)
+   Schema fields:
+   - _id: ObjectId
+   - phone: String (recipient phone number)
+   - otp: String (6-digit code)
+   - type: Enum ["payment", "login", "verification"]
+   - orderId: ObjectId (for payment OTPs)
+   - paymentId: String (for payment OTPs)
+   - expiresAt: Date (TTL: 10 minutes)
+   - isUsed: Boolean (prevents reuse)
+   - attempts: Number (max 3)
+   - createdAt, updatedAt: Timestamps
+   
+   Indexes:
+   - { phone, type, isUsed } for efficient queries
+   - { expiresAt } with TTL for auto-deletion
+
+3. SMS Utils (sms.ts)
+   - generateOTP(): Creates random 6-digit code
+   - validatePhoneNumber(phone): Validates phone format
+   - sendSMS(phone, message): Sends SMS via Twilio or Fast2SMS
+
+4. Email Utils (sendEmailOTP.ts, sendEmailSMTP.ts)
+   - sendEmailOTP(email, otp): Sends HTML OTP email
+   - Uses Gmail SMTP with OAuth2
+   - Professional email template with branding
+
+5. OTP Routes (otpRoutes.ts)
+   - POST /api/otp/verification/generate - Generate verification OTP
+   - POST /api/otp/payment/generate - Generate payment OTP
+   - POST /api/otp/payment/verify - Verify payment OTP
+   - POST /api/otp/payment/resend - Resend payment OTP
+   - POST /api/otp/debug/generate - Debug endpoint (unprotected)
+
+REQUEST/RESPONSE EXAMPLES:
+--------------------------
+
+1. GENERATE VERIFICATION OTP
+   Request:
+   POST /api/otp/verification/generate
+   Headers: { Authorization: "Bearer <accessToken>" }
+   {
+     "phone": "9876543210"
+   }
+   
+   Response (200):
+   {
+     "message": "Verification OTP sent successfully",
+     "expiresIn": 600
+   }
+   
+   Note: OTP sent via SMS to the provided phone number
+
+2. GENERATE PAYMENT OTP
+   Request:
+   POST /api/otp/payment/generate
+   Headers: { Authorization: "Bearer <accessToken>" }
+   {
+     "orderId": "order_abc123",
+     "cardNumber": "4111111111111111",
+     "cardHolderName": "John Doe",
+     "expiryDate": "12/25",
+     "cvv": "123"
+   }
+   
+   Response (200):
+   {
+     "message": "OTP sent successfully (SMS)",
+     "paymentId": "pay_1234567890_abc",
+     "expiresIn": 600,
+     "realTimeDelivered": false
+   }
+   
+   Note: Card details validated before OTP generation
+
+3. VERIFY PAYMENT OTP
+   Request:
+   POST /api/otp/payment/verify
+   Headers: { Authorization: "Bearer <accessToken>" }
+   {
+     "paymentId": "pay_1234567890_abc",
+     "otp": "123456"
+   }
+   
+   Response (200):
+   {
+     "message": "OTP verified successfully",
+     "paymentId": "pay_1234567890_abc"
+   }
+   
+   Error Response (400):
+   {
+     "message": "Invalid OTP. Please try again."
+   }
+   OR
+   {
+     "message": "Maximum OTP attempts exceeded. Please generate a new OTP."
+   }
+
+4. RESEND PAYMENT OTP
+   Request:
+   POST /api/otp/payment/resend
+   Headers: { Authorization: "Bearer <accessToken>" }
+   {
+     "paymentId": "pay_1234567890_abc"
+   }
+   
+   Response (200):
+   {
+     "message": "OTP resent successfully",
+     "expiresIn": 600
+   }
+
+FRONTEND INTERACTION:
+---------------------
+1. OTPVerification Component
+   - 6-digit OTP input with auto-focus
+   - Real-time validation
+   - Countdown timer showing remaining time
+   - Resend functionality with cooldown
+
+2. RealtimeOTPVerification Component
+   - Enhanced version with Socket.io integration
+   - Real-time OTP delivery notification
+   - Auto-fill when OTP arrives
+   - Better UX for payment flows
+
+3. OTP Context (OTPContext.tsx)
+   - Global state for OTP modal
+   - Manages OTP flow across components
+   - Handles success/error callbacks
+
+4. OTP Login Page
+   - Dedicated page for OTP-based authentication
+   - Phone/email input
+   - OTP verification
+   - Auto-redirect on success
+
+IMPORTANT MODELS:
+-----------------
+
+OTP Schema:
+- Type-specific: "verification", "login", "payment"
+- TTL-based expiration (10 minutes)
+- Attempt limiting (max 3 tries)
+- One-time use enforcement (isUsed flag)
+- Auto-cleanup via MongoDB TTL index
+
+OTP Types:
+1. Verification OTP
+   - Used during signup
+   - Validates phone/email ownership
+   - No orderId/paymentId
+
+2. Login OTP
+   - Passwordless authentication
+   - Sent to registered phone/email
+   - Creates session on verification
+
+3. Payment OTP
+   - Card transaction verification
+   - Linked to specific order
+   - Includes paymentId for tracking
+
+IMPORTANT NOTES:
+----------------
+
+1. OTP Generation:
+   - 6-digit random code
+   - Cryptographically secure (Math.random with seed)
+   - Format: 100000 - 999999
+
+2. Expiration:
+   - All OTPs expire after 10 minutes
+   - MongoDB TTL index auto-deletes expired records
+   - Frontend shows countdown timer
+
+3. Attempt Limiting:
+   - Maximum 3 verification attempts
+   - Counter increments on wrong OTP
+   - Must request new OTP after 3 failures
+
+4. One-Time Use:
+   - OTP marked as used after successful verification
+   - Cannot be reused even within expiry time
+   - Prevents replay attacks
+
+5. SMS Delivery:
+   - Primary: Twilio (international support)
+   - Fallback: Fast2SMS (India-specific)
+   - Environment variables control provider selection
+   - Logs delivery status for debugging
+
+6. Email Delivery:
+   - Gmail SMTP with OAuth2 authentication
+   - HTML template with branding
+   - Fallback to SMS if email fails
+   - Configurable SMTP settings
+
+7. Security Considerations:
+   - OTPs never logged in production
+   - Sensitive operations require re-authentication
+   - Rate limiting prevents abuse
+   - Phone validation before sending
+
+8. Error Handling:
+   - 400: Invalid input or expired OTP
+   - 401: Authentication required
+   - 403: Maximum attempts exceeded
+   - 404: OTP record not found
+   - 500: SMS/email delivery failure
+
+9. SMS Provider Configuration:
+   Fast2SMS:
+   - Env: FAST2SMS_API_KEY
+   - India-only service
+   - Template-based messaging
+
+   Twilio:
+   - Env: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER
+   - International support
+   - More reliable but costlier
+
+10. Real-time Delivery (Optional):
+    - Socket.io integration for instant OTP delivery
+    - Eliminates SMS delays
+    - Falls back to SMS if user offline
+    - Currently disabled (realTimeDelivered = false)
+
+11. Payment OTP Flow:
+    Step 1: User enters card details
+    Step 2: Card validated (Luhn algorithm, expiry, CVV)
+    Step 3: OTP generated and sent
+    Step 4: User enters OTP
+    Step 5: OTP verified
+    Step 6: Payment processed
+
+12. Verification OTP Flow:
+    Step 1: User signs up with phone
+    Step 2: PendingUser created
+    Step 3: Verification OTP sent
+    Step 4: User enters OTP
+    Step 5: PendingUser → User conversion
+    Step 6: Auto-login with tokens
+
+13. Login OTP Flow:
+    Step 1: User enters phone/email
+    Step 2: System checks if account exists
+    Step 3: Login OTP generated and sent
+    Step 4: User enters OTP
+    Step 5: Session created, tokens issued
+
+14. Resend Logic:
+    - Same OTP record reused
+    - New code generated
+    - Attempts counter reset
+    - Expiry time extended
+    - No limit on resends (but rate-limited)
+
+15. Testing:
+    - Debug endpoint available: /api/otp/debug/generate
+    - Bypasses authentication for testing
+    - Only enabled in development
+    - SMS logs show OTP in development mode
+
+RELATED DOCUMENTATION:
+----------------------
+- See auth.txt for authentication flows
+- See payments.txt for payment verification
+- See notifications.txt for SMS/email delivery
+- See utilities.txt for SMS/email utils

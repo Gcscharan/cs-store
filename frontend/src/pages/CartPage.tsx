@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "../store";
@@ -18,6 +18,7 @@ import {
   formatDeliveryFee,
 } from "../utils/deliveryFeeCalculator";
 import { calculatePriceBreakdown, formatPrice } from "../utils/priceCalculator";
+import { getProductImage, handleImageError } from "../utils/image";
 import ConfirmationDialog from "../components/ConfirmationDialog";
 
 const CartPage = () => {
@@ -290,9 +291,10 @@ const CartPage = () => {
                       {/* Product Image */}
                       <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 border border-gray-200">
                         <img
-                          src={item.image || "/placeholder-product.jpg"}
+                          src={getProductImage(item)}
                           alt={item.name}
                           className="w-full h-full object-cover"
+                          onError={(e) => handleImageError(e)}
                         />
                       </div>
 

@@ -8,10 +8,10 @@ import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "../store";
 import { addToCart, setCart } from "../store/slices/cartSlice";
 import { useToast } from "../components/AccessibleToast";
-import { getProductPrimaryImage } from "../utils/productImageMapper";
 import { useOtpModal } from "../contexts/OtpModalContext";
 import { useTokenRefresh } from "../hooks/useTokenRefresh";
 import { getGradientPlaceholder } from '../utils/mockImages';
+import OptimizedImage from "../components/OptimizedImage";
 
 const HomePage = () => {
   const navigate = useNavigate();
@@ -24,6 +24,46 @@ const HomePage = () => {
     user: auth.user,
     hasTokens: !!(auth.tokens.accessToken && auth.tokens.refreshToken),
   });
+
+  // Fetch products from API
+  const {
+    data: productsData,
+    isLoading,
+    error,
+    refetch,
+  } = useGetProductsQuery({
+    limit: 100, // Get all products
+  });
+
+  // Debug logging for products data
+  useEffect(() => {
+    console.log("[HomePage] productsData loaded:", productsData?.products?.length, "products");
+    if (productsData?.products?.length > 0) {
+      const firstProduct = productsData.products[0];
+      console.log("[HomePage] first product sample:", firstProduct);
+      console.log("[HomePage] first product images structure:", firstProduct.images);
+      if (firstProduct.images && firstProduct.images.length > 0) {
+        const firstImage = firstProduct.images[0];
+        console.log("[HomePage] first image object:", firstImage);
+        console.log("[HomePage] first image keys:", Object.keys(firstImage || {}));
+        console.log("[HomePage] has variants:", 'variants' in firstImage);
+        console.log("[HomePage] has formats:", 'formats' in firstImage);
+        console.log("[HomePage] has metadata:", 'metadata' in firstImage);
+        if (firstImage.variants) {
+          console.log("[HomePage] variants keys:", Object.keys(firstImage.variants));
+          console.log("[HomePage] variants.small:", firstImage.variants.small);
+        }
+        if (firstImage.formats) {
+          console.log("[HomePage] formats keys:", Object.keys(firstImage.formats));
+          console.log("[HomePage] formats.avif:", firstImage.formats.avif);
+        }
+        if (firstImage.metadata) {
+          console.log("[HomePage] metadata keys:", Object.keys(firstImage.metadata));
+          console.log("[HomePage] metadata.aspectRatio:", firstImage.metadata.aspectRatio);
+        }
+      }
+    }
+  }, [productsData]);
   const [addToCartMutation] = useAddToCartMutation();
   const { success, error: showError } = useToast();
   const { showOtpModal } = useOtpModal();
@@ -64,28 +104,23 @@ const HomePage = () => {
 
   // Check for login query parameter and show login modal
   useEffect(() => {
+    // Don't show modal if user is already authenticated
+    if (auth.isAuthenticated) {
+      return;
+    }
+
     const urlParams = new URLSearchParams(window.location.search);
     const showLogin = urlParams.get("showLogin");
 
     if (showLogin === "true") {
-      // Show the login modal
+      // Show the login modal only if user is not authenticated
       showOtpModal("/account/profile");
 
       // Clean up the URL by removing the query parameter
       const newUrl = window.location.pathname;
       window.history.replaceState({}, "", newUrl);
     }
-  }, [showOtpModal]);
-
-  // Fetch products from API
-  const {
-    data: productsData,
-    isLoading,
-    error,
-    refetch,
-  } = useGetProductsQuery({
-    limit: 100, // Get all products
-  });
+  }, [showOtpModal, auth.isAuthenticated]);
 
   // Top Selling Products
   const topSellingProducts = useMemo(() => {
@@ -97,10 +132,7 @@ const HomePage = () => {
       _id: product._id || product.id,
       id: product._id || product.id,
       name: product.name,
-      image:
-        product.image ||
-        product.images?.[0] ||
-        "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZTVlN2ViIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGRvbWluYW50LWJhc2VsaW5lPSJtaWRkbGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM5Y2EzYWYiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNiI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+",
+      image: product.images?.[0]?.variants?.small || product.images?.[0]?.variants?.thumb || product.images?.[0]?.thumb || product.images?.[0]?.full || '/placeholder-product.svg',
       category: product.category,
     }));
   }, [productsData?.products]);
@@ -114,10 +146,7 @@ const HomePage = () => {
     return shuffled.slice(0, 6).map((product: any) => ({
       id: product._id || product.id,
       name: product.name,
-      image:
-        product.image ||
-        product.images?.[0] ||
-        "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZTVlN2ViIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGRvbWluYW50LWJhc2VsaW5lPSJtaWRkbGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM5Y2EzYWYiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNiI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+",
+      image: product.images?.[0]?.variants?.small || product.images?.[0]?.variants?.thumb || product.images?.[0]?.thumb || product.images?.[0]?.full || '/placeholder-product.svg',
       category: product.category,
       price: product.price,
       mrp: product.mrp || product.price * 1.2, // Add 20% markup for MRP if not available
@@ -189,9 +218,7 @@ const HomePage = () => {
           name: product.name,
           price: product.price,
           quantity: 1,
-          image:
-            product.images?.[0] ||
-            getProductPrimaryImage(product.name, product.category),
+          image: product.images?.[0]?.variants?.small || product.images?.[0]?.variants?.thumb || product.images?.[0]?.thumb || product.images?.[0]?.full || '/placeholder-product.svg',
         })
       );
 
@@ -466,9 +493,6 @@ const HomePage = () => {
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
               {featuredProducts.map((product: any) => {
-                const imageUrl =
-                  product.images?.[0] ||
-                  getProductPrimaryImage(product.name, product.category);
                 return (
                   <motion.div
                     key={product._id || product.id}
@@ -481,10 +505,22 @@ const HomePage = () => {
                     }
                   >
                     <div className="relative h-48 overflow-hidden">
-                      <img
-                        src={imageUrl}
+                      <OptimizedImage
+                        image={product.images?.[0] || {
+                          variants: {
+                            micro: '/placeholder-product.svg',
+                            thumb: '/placeholder-product.svg',
+                            small: '/placeholder-product.svg',
+                            medium: '/placeholder-product.svg',
+                            large: '/placeholder-product.svg',
+                            original: '/placeholder-product.svg'
+                          }
+                        }}
+                        size="small"
                         alt={product.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        className="w-full h-full group-hover:scale-105 transition-transform duration-300"
+                        productId={product._id || product.id}
+                        debug={false}
                       />
                       {product.discount > 0 && (
                         <div className="absolute top-2 left-2 bg-red-500 text-white px-2 py-1 rounded-full text-xs font-semibold">
@@ -576,13 +612,22 @@ const HomePage = () => {
                   onClick={() => navigate(`/product/${product.id}`)}
                 >
                   <div className="relative h-56 overflow-hidden">
-                    <img
-                      src={
-                        product.image ||
-                        "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMjAwIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZTVlN2ViIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGRvbWluYW50LWJhc2VsaW5lPSJtaWRkbGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM5Y2EzYWYiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNiI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+"
-                      }
+                    <OptimizedImage
+                      image={product.images?.[0] || {
+                        variants: {
+                          micro: '/placeholder-product.svg',
+                          thumb: '/placeholder-product.svg',
+                          small: '/placeholder-product.svg',
+                          medium: '/placeholder-product.svg',
+                          large: '/placeholder-product.svg',
+                          original: '/placeholder-product.svg'
+                        }
+                      }}
+                      size="small"
                       alt={product.name}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full"
+                      productId={product.id}
+                      debug={false}
                     />
                     {product.discount > 0 && (
                       <span className="absolute top-3 left-3 bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full">

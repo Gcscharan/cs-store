@@ -33,6 +33,9 @@ const EditProfilePage = () => {
     phone: "",
   });
 
+  // Phone validation error state
+  const [phoneError, setPhoneError] = useState("");
+
   // Update profile data when MongoDB data loads
   useEffect(() => {
     if (fetchedProfile) {
@@ -56,6 +59,11 @@ const EditProfilePage = () => {
       ...prev,
       [field]: value
     }));
+    
+    // Clear phone error when phone field changes
+    if (field === 'phone') {
+      setPhoneError("");
+    }
   };
 
   const handleProfileUpdate = async () => {
@@ -67,6 +75,18 @@ const EditProfilePage = () => {
     if (!profileData.email.trim()) {
       toast.error("Email is required");
       return;
+    }
+
+    // Check phone validation before submitting
+    if (profileData.phone) {
+      // Support both E.164 format and local 10-digit numbers
+      const phoneRegex = /^\+?[1-9]\d{1,14}$|^[6-9]\d{9}$/;
+      if (!phoneRegex.test(profileData.phone.replace(/\s/g, ''))) {
+        setPhoneError("Invalid phone number format");
+        return;
+      }
+    } else {
+      setPhoneError(""); // Clear error if phone is empty
     }
 
     try {
@@ -185,9 +205,16 @@ const EditProfilePage = () => {
                   type="tel"
                   value={profileData.phone}
                   onChange={(e) => handleInputChange("phone", e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent transition-all ${
+                    phoneError 
+                      ? "border-red-500 focus:ring-red-500" 
+                      : "border-gray-300 focus:ring-blue-500"
+                  }`}
                   placeholder="Enter your phone number"
                 />
+                {phoneError && (
+                  <p className="mt-1 text-sm text-red-600">{phoneError}</p>
+                )}
               </div>
             </div>
 

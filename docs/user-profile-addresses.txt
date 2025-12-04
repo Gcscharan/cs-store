@@ -1,0 +1,460 @@
+================================================================================
+                     USER PROFILE & ADDRESS MANAGEMENT
+================================================================================
+
+WHAT THIS DOES:
+---------------
+This module manages user profiles and delivery addresses including:
+- User profile CRUD operations (get, update)
+- Address management (add, update, delete, set default)
+- Mobile number verification
+- Account deletion with cascading cleanup
+- Notification preferences (granular Flipkart-style)
+- Auto-geocoding for addresses (Google Maps + OpenStreetMap fallback)
+- Location services (reverse geocoding)
+
+FOLDER PATHS INVOLVED:
+----------------------
+Backend:
+- backend/src/domains/identity/controllers/userController.ts
+- backend/src/domains/identity/routes/user.ts
+- backend/src/controllers/locationController.ts
+- backend/src/routes/locationRoutes.ts
+- backend/src/models/User.ts (Address schema)
+- backend/src/utils/geocoding.ts
+- backend/src/utils/locationSmoothing.ts
+
+Frontend:
+- frontend/src/pages/ProfilePage.tsx
+- frontend/src/pages/AddressesPage.tsx
+- frontend/src/components/ChooseLocation.tsx
+- frontend/src/components/MapView.tsx
+- frontend/src/utils/addressUtils.ts
+- frontend/src/store/authSlice.ts
+
+KEY FILES & THEIR CONTENTS:
+---------------------------
+
+1. userController.ts
+   - getUserProfile: Get user profile data
+   - updateUserProfile: Update user name/email/phone
+   - markMobileAsVerified: Verify mobile number via OTP
+   - getUserAddresses: Get all user addresses
+   - addUserAddress: Add new address with auto-geocoding
+   - updateUserAddress: Update existing address with re-geocoding
+   - deleteUserAddress: Delete address (auto-reassigns default)
+   - setDefaultAddress: Set an address as default
+   - deleteAccount: Comprehensive account deletion with cascade
+   - getNotificationPreferences: Get user notification settings
+   - updateNotificationPreferences: Update notification settings
+
+2. Address Schema (embedded in User.ts)
+   Fields:
+   - _id: ObjectId
+   - name: String (recipient name)
+   - label: String (e.g., "Home", "Work", "Other")
+   - pincode: String (postal code)
+   - city: String
+   - state: String
+   - addressLine: String (full street address)
+   - phone: String (delivery contact)
+   - lat: Number (latitude coordinate)
+   - lng: Number (longitude coordinate)
+   - isDefault: Boolean
+   - isGeocoded: Boolean (whether coords were auto-obtained)
+   - coordsSource: Enum ['manual', 'geocoded', 'pincode', 'unresolved']
+
+3. locationController.ts
+   - reverseGeocodeController: Convert lat/lng to address
+   - getCurrentLocationController: Test endpoint for location
+
+4. geocoding.ts (Utils)
+   - smartGeocode: Intelligently geocode address with fallbacks
+   - geocodeByPincode: Fallback geocoding using only pincode
+   - Uses Google Maps Geocoding API with OpenStreetMap fallback
+
+5. User Routes (user.ts)
+   - GET /api/user/profile - Get profile
+   - PUT /api/user/profile - Update profile
+   - POST /api/user/verify-mobile - Verify mobile with OTP
+   - GET /api/user/addresses - Get all addresses
+   - POST /api/user/addresses - Add new address
+   - PUT /api/user/addresses/:addressId - Update address
+   - DELETE /api/user/addresses/:addressId - Delete address
+   - PUT /api/user/addresses/:addressId/default - Set default
+   - DELETE /api/user/account - Delete account
+   - GET /api/user/notification-preferences - Get preferences
+   - PUT /api/user/notification-preferences - Update preferences
+
+6. Location Routes (locationRoutes.ts)
+   - GET /api/location/reverse-geocode?lat=&lng= - Reverse geocode
+   - GET /api/location/current - Test endpoint
+
+REQUEST/RESPONSE EXAMPLES:
+--------------------------
+
+1. GET USER PROFILE
+   Request:
+   GET /api/user/profile
+   Headers: { Authorization: "Bearer <accessToken>" }
+   
+   Response (200):
+   {
+     "id": "userId123",
+     "name": "John Doe",
+     "email": "john@example.com",
+     "phone": "9876543210",
+     "role": "customer",
+     "isAdmin": false,
+     "createdAt": "2024-01-01T00:00:00.000Z",
+     "updatedAt": "2024-01-01T00:00:00.000Z"
+   }
+
+2. UPDATE USER PROFILE
+   Request:
+   PUT /api/user/profile
+   Headers: { Authorization: "Bearer <accessToken>" }
+   {
+     "name": "John Updated",
+     "phone": "9876543211"
+   }
+   
+   Response (200):
+   {
+     "success": true,
+     "message": "Profile updated successfully",
+     "user": {
+       "id": "userId123",
+       "name": "John Updated",
+       "email": "john@example.com",
+       "phone": "9876543211",
+       "role": "customer"
+     }
+   }
+
+3. VERIFY MOBILE (Pending User Flow)
+   Request:
+   POST /api/user/verify-mobile
+   {
+     "phone": "9876543210",
+     "otp": "123456",
+     "pendingUserId": "pendingId123"
+   }
+   
+   Response (201):
+   {
+     "message": "Account created and mobile verified successfully",
+     "user": {...},
+     "accessToken": "eyJhbGc...",
+     "refreshToken": "eyJhbGc..."
+   }
+
+4. GET ALL ADDRESSES
+   Request:
+   GET /api/user/addresses
+   Headers: { Authorization: "Bearer <accessToken>" }
+   
+   Response (200):
+   {
+     "success": true,
+     "addresses": [
+       {
+         "_id": "addr123",
+         "id": "addr123",
+         "name": "John Doe",
+         "label": "Home",
+         "pincode": "500001",
+         "city": "Hyderabad",
+         "state": "Telangana",
+         "addressLine": "123 Main St, Banjara Hills",
+         "phone": "9876543210",
+         "lat": 17.385,
+         "lng": 78.486,
+         "isDefault": true,
+         "isGeocoded": true,
+         "coordsSource": "geocoded"
+       }
+     ],
+     "defaultAddressId": "addr123"
+   }
+
+5. ADD NEW ADDRESS (with auto-geocoding)
+   Request:
+   POST /api/user/addresses
+   Headers: { Authorization: "Bearer <accessToken>" }
+   {
+     "name": "John Doe",
+     "label": "Office",
+     "pincode": "500032",
+     "city": "Hyderabad",
+     "state": "Telangana",
+     "addressLine": "456 Tech Park, HITEC City",
+     "phone": "9876543210",
+     "isDefault": false
+   }
+   
+   Response (201):
+   {
+     "success": true,
+     "message": "Address added successfully",
+     "address": {
+       "_id": "addr456",
+       "id": "addr456",
+       "name": "John Doe",
+       "label": "Office",
+       "pincode": "500032",
+       "city": "Hyderabad",
+       "state": "Telangana",
+       "addressLine": "456 Tech Park, HITEC City",
+       "phone": "9876543210",
+       "lat": 17.443,
+       "lng": 78.375,
+       "isDefault": false,
+       "isGeocoded": true,
+       "coordsSource": "geocoded"
+     }
+   }
+   
+   Note: lat/lng automatically geocoded from address
+
+6. UPDATE ADDRESS
+   Request:
+   PUT /api/user/addresses/addr456
+   Headers: { Authorization: "Bearer <accessToken>" }
+   {
+     "addressLine": "789 New Tech Park, HITEC City",
+     "isDefault": true
+   }
+   
+   Response (200):
+   {
+     "success": true,
+     "message": "Address updated successfully",
+     "address": {...}
+   }
+   
+   Note: If address components changed, auto re-geocodes
+
+7. DELETE ADDRESS
+   Request:
+   DELETE /api/user/addresses/addr456
+   Headers: { Authorization: "Bearer <accessToken>" }
+   
+   Response (200):
+   {
+     "success": true,
+     "message": "Address deleted successfully",
+     "defaultUpdated": false
+   }
+   
+   Note: If deleted address was default, auto-assigns next as default
+
+8. SET DEFAULT ADDRESS
+   Request:
+   PUT /api/user/addresses/addr789/default
+   Headers: { Authorization: "Bearer <accessToken>" }
+   
+   Response (200):
+   {
+     "success": true,
+     "message": "Default address updated successfully",
+     "address": {...}
+   }
+
+9. REVERSE GEOCODE (Get address from coordinates)
+   Request:
+   GET /api/location/reverse-geocode?lat=17.385&lng=78.486
+   
+   Response (200):
+   {
+     "success": true,
+     "data": {
+       "pincode": "500001",
+       "city": "Hyderabad",
+       "state": "Telangana",
+       "address": "123, Main Road, Banjara Hills, Hyderabad, Telangana, 500001",
+       "lat": 17.385,
+       "lng": 78.486
+     }
+   }
+
+10. DELETE ACCOUNT (Cascading deletion)
+    Request:
+    DELETE /api/user/account
+    Headers: { Authorization: "Bearer <accessToken>" }
+    
+    Response (200):
+    {
+      "success": true,
+      "message": "Account deleted successfully. All personal data has been removed.",
+      "forceLogout": true,
+      "details": {
+        "cartsDeleted": 1,
+        "ordersAnonymized": 5,
+        "paymentsDeleted": 3,
+        "otpsDeleted": 2,
+        "notificationsDeleted": 10,
+        "userDeleted": true,
+        "redisKeysDeleted": true
+      }
+    }
+
+FRONTEND INTERACTION:
+---------------------
+1. Profile Page
+   - Displays user information
+   - Edit profile form (name, phone, email)
+   - Mobile verification status
+   - Account deletion button
+
+2. Addresses Page
+   - List all saved addresses
+   - Add/Edit/Delete operations
+   - Set default address
+   - Visual indicator for default address
+
+3. Choose Location Component
+   - Interactive map (Google Maps)
+   - Pin drag to select location
+   - Auto-fills address via reverse geocoding
+   - Manual address input option
+
+4. Map View Component
+   - Shows delivery location on map
+   - Used in order tracking
+   - Shows delivery partner location (real-time)
+
+5. Address Utils
+   - formatAddress: Formats address for display
+   - validatePincode: Checks pincode validity
+   - getDefaultAddress: Gets user's default address
+
+IMPORTANT MODELS & RELATIONSHIPS:
+----------------------------------
+
+User → Addresses (Embedded Array):
+- One user can have multiple addresses
+- One default address per user
+- Addresses stored as embedded documents
+
+Address Geocoding Flow:
+1. User enters address details
+2. smartGeocode attempts full address geocoding (Google Maps)
+3. If fails, fallback to geocodeByPincode (pincode centroid)
+4. If both fail, reject address addition
+5. Store coordsSource to indicate geocoding method
+
+coordsSource Values:
+- 'manual': User manually provided coordinates
+- 'geocoded': Successfully geocoded from full address
+- 'pincode': Fallback to pincode centroid
+- 'unresolved': Coordinates not yet determined
+
+IMPORTANT NOTES:
+----------------
+
+1. Auto-Geocoding:
+   - All new addresses auto-geocoded
+   - Uses smartGeocode with fallback chain
+   - Primary: Google Maps Geocoding API
+   - Fallback: Pincode-based centroid
+   - Ensures delivery fee accuracy
+
+2. Geocoding Accuracy:
+   - Full address geocoding: Most accurate (±10m)
+   - Pincode centroid: Less accurate (±2km)
+   - coordsSource field tracks accuracy level
+
+3. Address Validation:
+   - Required fields: label, pincode, city, state, addressLine
+   - Optional: name, phone
+   - Pincode must be valid and serviceable
+   - Geocoding must succeed to save address
+
+4. Default Address Logic:
+   - Only one default address allowed
+   - Setting new default removes old default
+   - Deleting default auto-assigns next address
+   - If no addresses remain, no default
+
+5. Mobile Verification:
+   - Two flows: authenticated users and pending users
+   - Authenticated: Verify after login
+   - Pending: Verify during signup (converts PendingUser to User)
+   - Issues JWT tokens on successful verification
+
+6. Account Deletion (GDPR Compliance):
+   - Cascading deletion across all collections
+   - Orders anonymized (not deleted - business records)
+   - User personal data completely removed
+   - Redis cache entries cleaned up
+   - Transaction-based for data integrity
+   - Returns detailed deletion summary
+
+7. Cascade Deletion Order:
+   Step 1: Verify user exists
+   Step 2: Delete Cart data
+   Step 3: Anonymize Orders (preserve business records)
+   Step 4: Delete Payment records
+   Step 5: Delete OTP records
+   Step 6: Delete Notifications
+   Step 7: Delete User document
+   Step 8: Clean Redis cache
+   Step 9: Token invalidation noted
+
+8. Orders Anonymization (Not Deletion):
+   - userId set to null
+   - address.name → "DELETED_USER"
+   - address.phone → "DELETED_USER"
+   - Other order data preserved for analytics
+   - GDPR compliant while preserving business data
+
+9. Notification Preferences:
+   - Granular per-channel, per-category control
+   - Channels: WhatsApp, Email, SMS, Push, Desktop, In-app
+   - Categories: Orders, Reminders, Offers, etc.
+   - Subcategories for Reminders
+   - Default preferences provided if not set
+
+10. Reverse Geocoding:
+    - Uses OpenStreetMap Nominatim API
+    - Free and no API key required
+    - Extracts: pincode, city, state, formatted address
+    - Used in map-based address selection
+
+11. Location Services:
+    - Frontend requests browser geolocation
+    - Sends lat/lng to backend for reverse geocoding
+    - Backend returns formatted address
+    - User can edit before saving
+
+12. Address Editing & Re-Geocoding:
+    - If address components change, automatic re-geocoding
+    - Detects changes to: addressLine, city, state, pincode
+    - Updates lat/lng and coordsSource
+    - Ensures delivery fee remains accurate
+
+13. Error Handling:
+    - 400: Invalid address or geocoding failed
+    - 401: Authentication required
+    - 404: User or address not found
+    - 500: Server or geocoding service errors
+
+14. Redis Cleanup Patterns:
+    - user:${userId}* - User cache
+    - cart:${userId}* - Cart cache
+    - address:${userId}* - Address cache
+    - orders:${userId}* - Order cache
+    - profile:${userId}* - Profile cache
+
+15. Delivery Partner Cleanup:
+    - If user role is 'delivery', removed from load tracking
+    - delivery_partner_load Redis sorted set updated
+
+RELATED DOCUMENTATION:
+----------------------
+- See auth.txt for user authentication
+- See otp.txt for mobile verification
+- See orders.txt for address usage in orders
+- See delivery-fee.txt for geocoding impact on fees
+- See redis.txt for cache management

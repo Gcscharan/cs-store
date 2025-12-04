@@ -1,9 +1,5 @@
 import { useState, useCallback } from "react";
-import {
-  validatePincode,
-  getPincodeErrorMessage,
-  validatePincodeAsync,
-} from "../utils/pincodeValidation";
+import { validatePincode as validatePincodeApi, PincodeData } from "../utils/pincodeValidation";
 
 interface PincodeValidationState {
   isValid: boolean;
@@ -19,18 +15,44 @@ export const usePincodeValidation = () => {
       isValidating: false,
     });
 
-  const validatePincodeSync = useCallback((pincode: string): boolean => {
-    const isValid = validatePincode(pincode);
-    const errorMessage = isValid ? "" : getPincodeErrorMessage(pincode);
+  const buildValidationResult = (result: PincodeData | null, pincode: string) => {
+    // If not a full 6-digit pincode yet, treat as not validated
+    if (!pincode || pincode.length !== 6) {
+      return { isValid: false, errorMessage: "" };
+    }
 
-    setValidationState({
-      isValid,
-      errorMessage,
-      isValidating: false,
-    });
+    if (!result) {
+      return {
+        isValid: false,
+        errorMessage: "Invalid pincode. Please enter a valid 6-digit pincode.",
+      };
+    }
 
-    return isValid;
-  }, []);
+    if (!result.isDeliverable) {
+      return {
+        isValid: false,
+        errorMessage: "Delivery is not available to this pincode.",
+      };
+    }
+
+    return { isValid: true, errorMessage: "" };
+  };
+
+  const validatePincodeSync = useCallback(
+    async (pincode: string): Promise<boolean> => {
+      const result = await validatePincodeApi(pincode);
+      const { isValid, errorMessage } = buildValidationResult(result, pincode);
+
+      setValidationState({
+        isValid,
+        errorMessage,
+        isValidating: false,
+      });
+
+      return isValid;
+    },
+    []
+  );
 
   const validatePincodeAsync = useCallback(
     async (pincode: string): Promise<boolean> => {
@@ -41,8 +63,8 @@ export const usePincodeValidation = () => {
       }));
 
       try {
-        const isValid = await validatePincodeAsync(pincode);
-        const errorMessage = isValid ? "" : getPincodeErrorMessage(pincode);
+        const result = await validatePincodeApi(pincode);
+        const { isValid, errorMessage } = buildValidationResult(result, pincode);
 
         setValidationState({
           isValid,
@@ -54,17 +76,14 @@ export const usePincodeValidation = () => {
       } catch (error) {
         console.error("Pincode validation error:", error);
 
-        // Fallback to sync validation
-        const isValid = validatePincode(pincode);
-        const errorMessage = isValid ? "" : getPincodeErrorMessage(pincode);
-
         setValidationState({
-          isValid,
-          errorMessage,
+          isValid: false,
+          errorMessage:
+            "Unable to validate pincode at the moment. Please try again.",
           isValidating: false,
         });
 
-        return isValid;
+        return false;
       }
     },
     []

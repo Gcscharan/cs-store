@@ -1,0 +1,19 @@
+=== STEP 1: DATABASE BACKUP ===
+Creating local MongoDB backup...
+2025-11-27T18:26:23.737+0530	writing cps-store.orders to archive 'backups/mongo-backup-2025-11-27-18:26:23.gz'
+2025-11-27T18:26:23.738+0530	writing cps-store.users to archive 'backups/mongo-backup-2025-11-27-18:26:23.gz'
+2025-11-27T18:26:23.738+0530	writing cps-store.pincodes to archive 'backups/mongo-backup-2025-11-27-18:26:23.gz'
+2025-11-27T18:26:23.779+0530	done dumping cps-store.users (15 documents)
+2025-11-27T18:26:23.780+0530	writing cps-store.carts to archive 'backups/mongo-backup-2025-11-27-18:26:23.gz'
+2025-11-27T18:26:23.780+0530	done dumping cps-store.pincodes (161 documents)
+2025-11-27T18:26:23.781+0530	writing cps-store.deliveryboys to archive 'backups/mongo-backup-2025-11-27-18:26:23.gz'
+2025-11-27T18:26:23.781+0530	done dumping cps-store.orders (12 documents)
+2025-11-27T18:26:23.782+0530	writing cps-store.payments to archive 'backups/mongo-backup-2025-11-27-18:26:23.gz'
+2025-11-27T18:26:23.786+0530	done dumping cps-store.carts (4 documents)
+2025-11-27T18:26:23.788+0530	writing cps-store.otps to archive 'backups/mongo-backup-2025-11-27-18:26:23.gz'
+2025-11-27T18:26:23.792+0530	done dumping cps-store.payments (0 documents)
+2025-11-27T18:26:23.794+0530	done dumping cps-store.deliveryboys (1 document)
+2025-11-27T18:26:23.797+0530	done dumping cps-store.otps (0 documents)
+2025-11-27T18:26:23.812+0530	writing cps-store.products to archive 'backups/mongo-backup-2025-11-27-18:26:23.gz'
+2025-11-27T18:26:23.822+0530	done dumping cps-store.products (64 documents)
+Backup created: backups/mongo-backup-2025-11-27-18:26:23.gz

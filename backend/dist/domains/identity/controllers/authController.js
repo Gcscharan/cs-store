@@ -48,7 +48,9 @@ const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || "your-refresh-secret";
 const signup = async (req, res) => {
     try {
-        const { name, email, phone, password, addresses } = req.body;
+        // FIX: accept both name and fullName from the frontend safely
+        const { fullName, name: rawName, email, phone, password, addresses } = req.body;
+        const name = rawName || fullName;
         // Validate required fields for email/password registration
         if (!name || !email || !phone || !password) {
             res.status(400).json({
@@ -100,8 +102,12 @@ const signup = async (req, res) => {
             addresses: addresses || [],
             role: "customer",
         });
-        // Return success response
-        res.status(201).json({
+        // Generate JWT tokens (same as login flow)
+        const accessToken = jwt.sign({ userId: user._id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: "24h" });
+        const refreshToken = jwt.sign({ userId: user._id }, JWT_REFRESH_SECRET, {
+            expiresIn: "7d",
+        });
+        return res.status(201).json({
             message: "User created successfully",
             user: {
                 id: user._id,
@@ -110,8 +116,9 @@ const signup = async (req, res) => {
                 phone: user.phone,
                 role: user.role,
             },
+            accessToken,
+            refreshToken,
         });
-        return;
     }
     catch (error) {
         console.error("Signup error:", error);
@@ -417,44 +424,69 @@ const sendAuthOTP = async (req, res) => {
                 message: "Invalid phone or email format",
             });
         }
-        // Find user by phone or email
-        const user = await User_1.User.findOne({
-            $or: [{ phone: userInput }, { email: userInput }],
-        });
-        if (!user) {
-            return res.status(404).json({
-                error: "Account not found. Please sign up first.",
-                action: "signup_required",
-                email: isEmail ? userInput : undefined,
+        // Check mode: signup or login (default login)
+        const isSignup = String(req.query.mode || "") === "signup";
+        // In signup mode, we don't need to find an existing user
+        let user;
+        if (!isSignup) {
+            // Find user by phone or email (if exists)
+            user = await User_1.User.findOne({
+                $or: [{ phone: userInput }, { email: userInput }],
             });
+            // In login mode, user must exist
+            if (!user) {
+                return res.status(404).json({
+                    error: "Account not found. Please sign up first.",
+                    action: "signup_required",
+                    email: isEmail ? userInput : undefined,
+                });
+            }
+        }
+        // Determine where to send OTP:
+        // - signup: use the raw input (new number/email)
+        // - login: use the user's stored contact (prefer DB value)
+        let targetPhone;
+        let targetEmail;
+        if (isPhone) {
+            targetPhone = isSignup ? userInput : (user?.phone || userInput);
+        }
+        else if (isEmail) {
+            targetEmail = isSignup ? userInput : (user?.email || userInput);
         }
         // Generate 6-digit OTP
         const otp = (0, sms_1.generateOTP)();
-        // Create OTP record
-        const otpRecord = new Otp_1.default({
-            phone: user.phone,
+        // Create OTP record. Always include phone field (required by model) and optionally email.
+        const otpPayload = {
+            phone: targetPhone || user?.phone || userInput, // Always provide phone
             otp,
-            type: "login",
+            type: isSignup ? "signup" : "login",
             expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
-        });
+            isUsed: false,
+            attempts: 0,
+        };
+        // Include email field if it's an email-based OTP
+        if (targetEmail)
+            otpPayload.email = String(targetEmail);
+        const otpRecord = new Otp_1.default(otpPayload);
         await otpRecord.save();
         // Send OTP based on input type
-        if (isPhone) {
+        if (targetPhone) {
             // Send OTP via SMS
-            const message = `Your CS Store login OTP is ${otp}. Valid for 10 minutes. Do not share this OTP with anyone.`;
-            await (0, sms_1.sendSMS)(userInput, message);
+            const message = `Your CS Store ${isSignup ? "signup" : "login"} OTP is ${otp}. Valid for 10 minutes. Do not share this OTP with anyone.`;
+            await (0, sms_1.sendSMS)(targetPhone, message);
         }
-        else if (isEmail) {
-            // Send OTP via Email using Gmail SMTP
-            await (0, sendEmailOTP_1.sendEmailOTP)(userInput, otp);
+        else if (targetEmail) {
+            // Send OTP via Email using Gmail SMTP or fallback
+            await (0, sendEmailOTP_1.sendEmailOTP)(targetEmail, otp);
         }
         res.json({
             message: "OTP sent successfully",
             expiresIn: 600, // 10 minutes in seconds
-            sentTo: isPhone ? "phone" : "email",
+            sentTo: targetPhone ? "phone" : "email",
         });
     }
     catch (error) {
+        console.error("sendAuthOTP error:", error);
         res.status(500).json({
             message: "Failed to send OTP",
             details: process.env.NODE_ENV === "development" ? error.message : undefined
@@ -473,14 +505,52 @@ const verifyAuthOTP = async (req, res) => {
         if (!phone && !email) {
             return res.status(400).json({ error: "Phone or email is required" });
         }
-        // Find user by phone or email
+        // Determine mode
+        const isSignup = String(req.query.mode || "") === "signup";
+        // In signup mode we verify OTP against the contact (phone/email) regardless of existing user.
+        if (isSignup) {
+            // Find OTP record by phone or email
+            const otpRecord = await Otp_1.default.findOne({
+                ...(phone ? { phone } : {}),
+                ...(email ? { email } : {}),
+                type: "signup",
+                isUsed: false,
+                expiresAt: { $gt: new Date() },
+            }).sort({ createdAt: -1 });
+            if (!otpRecord) {
+                return res.status(400).json({ error: "Invalid or expired OTP" });
+            }
+            // Check attempts
+            if (otpRecord.attempts >= 3) {
+                return res.status(400).json({
+                    error: "Maximum OTP attempts exceeded. Please request a new OTP.",
+                });
+            }
+            // Verify OTP
+            if (otpRecord.otp !== otp) {
+                otpRecord.attempts += 1;
+                await otpRecord.save();
+                return res.status(400).json({
+                    error: `Invalid OTP. ${3 - otpRecord.attempts} attempts remaining.`,
+                });
+            }
+            // Mark OTP as used
+            otpRecord.isUsed = true;
+            await otpRecord.save();
+            // For signup, we simply confirm verification (frontend will continue signup)
+            return res.json({
+                message: "OTP verified",
+                verified: true,
+            });
+        }
+        // LOGIN MODE: existing behavior - find user and log them in
         const user = await User_1.User.findOne({
             $or: [{ phone }, { email }],
         });
         if (!user) {
             return res.status(404).json({ error: "User not found" });
         }
-        // Find OTP record
+        // Find OTP record matching user's phone/email
         const otpRecord = await Otp_1.default.findOne({
             phone: user.phone,
             type: "login",

@@ -190,7 +190,7 @@ const getProducts = async (req, res) => {
             filter.tags = { $in: tagArray };
         }
         // Build sort
-        let sort = { createdAt: -1 }; // default sort
+        const sort = { createdAt: -1 }; // default sort
         if (sortBy) {
             sort[sortBy] = sortOrder === "asc" ? 1 : -1;
         }

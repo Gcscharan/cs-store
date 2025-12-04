@@ -1,0 +1,403 @@
+================================================================================
+                         PRODUCTS & CATALOG MANAGEMENT
+================================================================================
+
+WHAT THIS DOES:
+---------------
+This module manages the product catalog including:
+- Product CRUD operations (Create, Read, Update, Delete)
+- Product search and filtering (category, price range, search query)
+- Pagination and sorting
+- Redis caching for performance (Cache-Aside pattern)
+- Image uploads via Cloudinary
+- Stock management
+- New product notifications
+
+FOLDER PATHS INVOLVED:
+----------------------
+Backend:
+- backend/src/domains/catalog/controllers/productController.ts
+- backend/src/domains/catalog/routes/products.ts
+- backend/src/models/Product.ts
+- backend/src/middleware/cache.ts
+- backend/src/config/cloudinary.ts
+
+Frontend:
+- frontend/src/pages/ProductsPage.tsx
+- frontend/src/pages/ProductDetailPage.tsx
+- frontend/src/pages/admin/ProductsPage.tsx
+- frontend/src/components/ProductCard.tsx
+- frontend/src/components/ProductFilters.tsx
+- frontend/src/components/ProductForm.tsx
+
+KEY FILES & THEIR CONTENTS:
+---------------------------
+
+1. productController.ts
+   - getProducts: Get all products with filters, search, pagination
+   - getProductById: Get single product by ID
+   - createProduct: Admin creates new product with image upload
+   - updateProduct: Admin updates product details
+   - deleteProduct: Admin deletes product
+   - Cache-Aside pattern for all read operations
+
+2. Product Model (Product.ts)
+   Schema fields:
+   - _id: ObjectId
+   - name: String (required, max 200 chars)
+   - description: String (required, max 1000 chars)
+   - category: Enum (chocolates, biscuits, groceries, etc.)
+   - price: Number (required, min 0)
+   - mrp: Number (optional, original price)
+   - stock: Number (required, min 0, default 0)
+   - weight: Number (required, in grams)
+   - images: String[] (Cloudinary URLs, at least 1 required)
+   - sku: String (unique, optional)
+   - tags: String[] (for search)
+   - createdAt, updatedAt: Timestamps
+   
+   Indexes:
+   - Text index on: name, description, tags (for search)
+   - Index on: category, price (for filtering)
+
+3. Product Routes (products.ts)
+   - GET /api/products - Get all products (with filters)
+   - GET /api/products/:id - Get product by ID
+   - POST /api/products - Create product (admin only)
+   - PUT /api/products/:id - Update product (admin only)
+   - DELETE /api/products/:id - Delete product (admin only)
+
+4. Cache Middleware (cache.ts)
+   - invalidateCache.products(): Clears all product caches
+   - invalidateCache.product(id): Clears specific product cache
+   - Automatic cache invalidation on create/update/delete
+
+5. Cloudinary Config (cloudinary.ts)
+   - Product images stored in "cps-store/products" folder
+   - Auto transformations: 800x600 limit, auto quality, auto format
+   - Optimized for web delivery
+
+PRODUCT CATEGORIES:
+-------------------
+- chocolates
+- biscuits
+- ladoos
+- cakes
+- hot_snacks
+- groceries
+- vegetables
+- fruits
+- dairy
+- meat
+- beverages
+- snacks
+- household
+- personal_care
+- medicines
+- electronics
+- clothing
+- other
+
+REQUEST/RESPONSE EXAMPLES:
+--------------------------
+
+1. GET ALL PRODUCTS (with filters)
+   Request:
+   GET /api/products?page=1&limit=20&category=groceries&minPrice=50&maxPrice=500&search=rice&sortBy=price&sortOrder=asc
+   
+   Response (200):
+   {
+     "products": [
+       {
+         "_id": "prod123",
+         "name": "Basmati Rice",
+         "description": "Premium quality basmati rice",
+         "category": "groceries",
+         "price": 250,
+         "mrp": 300,
+         "stock": 50,
+         "weight": 1000,
+         "images": ["https://cloudinary.com/..."],
+         "sku": "RICE001",
+         "tags": ["rice", "basmati", "premium"],
+         "createdAt": "2024-01-01T00:00:00.000Z",
+         "updatedAt": "2024-01-01T00:00:00.000Z"
+       }
+     ],
+     "pagination": {
+       "page": 1,
+       "limit": 20,
+       "total": 45,
+       "pages": 3
+     }
+   }
+   
+   Query Parameters:
+   - page: Page number (default: 1)
+   - limit: Items per page (default: 20)
+   - category: Filter by category
+   - minPrice: Minimum price filter
+   - maxPrice: Maximum price filter
+   - search: Text search (searches name, description, tags)
+   - sortBy: Sort field (default: createdAt)
+   - sortOrder: asc or desc (default: desc)
+
+2. GET PRODUCT BY ID
+   Request:
+   GET /api/products/prod123
+   
+   Response (200):
+   {
+     "_id": "prod123",
+     "name": "Basmati Rice",
+     "description": "Premium quality basmati rice from Himalayas",
+     "category": "groceries",
+     "price": 250,
+     "mrp": 300,
+     "stock": 50,
+     "weight": 1000,
+     "images": [
+       "https://cloudinary.com/image1.jpg",
+       "https://cloudinary.com/image2.jpg"
+     ],
+     "sku": "RICE001",
+     "tags": ["rice", "basmati", "premium", "organic"],
+     "createdAt": "2024-01-01T00:00:00.000Z",
+     "updatedAt": "2024-01-01T00:00:00.000Z"
+   }
+
+3. CREATE PRODUCT (Admin only)
+   Request:
+   POST /api/products
+   Headers: { Authorization: "Bearer <adminToken>" }
+   {
+     "name": "Organic Wheat Flour",
+     "description": "100% organic stone ground wheat flour",
+     "category": "groceries",
+     "price": 180,
+     "mrp": 200,
+     "stock": 100,
+     "weight": 1000,
+     "images": ["data:image/jpeg;base64,..."], // Base64 or URLs
+     "sku": "FLOUR001",
+     "tags": ["flour", "wheat", "organic", "stone-ground"]
+   }
+   
+   Response (201):
+   {
+     "message": "Product created successfully",
+     "product": {
+       "_id": "prod456",
+       "name": "Organic Wheat Flour",
+       ...
+     }
+   }
+   
+   Note: Images uploaded to Cloudinary automatically
+
+4. UPDATE PRODUCT (Admin only)
+   Request:
+   PUT /api/products/prod456
+   Headers: { Authorization: "Bearer <adminToken>" }
+   {
+     "price": 190,
+     "stock": 80
+   }
+   
+   Response (200):
+   {
+     "message": "Product updated successfully",
+     "product": {...}
+   }
+
+5. DELETE PRODUCT (Admin only)
+   Request:
+   DELETE /api/products/prod456
+   Headers: { Authorization: "Bearer <adminToken>" }
+   
+   Response (200):
+   {
+     "message": "Product deleted successfully"
+   }
+
+FRONTEND INTERACTION:
+---------------------
+1. Products Page (Customer View)
+   - Grid/list view of products
+   - Category filters
+   - Price range slider
+   - Search bar
+   - Sort options (price, name, newest)
+   - Pagination controls
+   - Add to cart buttons
+
+2. Product Detail Page
+   - Image gallery with zoom
+   - Product name, description, price
+   - Stock availability indicator
+   - Quantity selector
+   - Add to cart / Buy now buttons
+   - Related products suggestions
+
+3. Admin Products Page
+   - Product management table
+   - Add new product button
+   - Edit/Delete actions per product
+   - Bulk operations (optional)
+   - Stock level indicators
+   - Image upload interface
+
+4. Product Form (Admin)
+   - Multi-step or tabbed form
+   - Basic info: name, description, category
+   - Pricing: price, MRP
+   - Inventory: stock, weight, SKU
+   - Images: drag-drop upload, multiple images
+   - Tags: comma-separated or chips input
+   - Validation on all fields
+
+5. Product Card Component
+   - Product image thumbnail
+   - Name, price, MRP (with discount %)
+   - Stock badge (in stock, low stock, out of stock)
+   - Quick add to cart button
+   - Click navigates to detail page
+
+REDIS CACHING STRATEGY:
+-----------------------
+
+Cache Keys:
+- products:list:{page}:{limit}:{category}:{minPrice}:{maxPrice}:{search}:{sortBy}:{sortOrder}
+- product:{productId}
+
+Cache TTL:
+- 1 hour (3600 seconds) for all product caches
+
+Cache Invalidation:
+- On product create: Invalidate all products list caches
+- On product update: Invalidate specific product + all lists
+- On product delete: Invalidate specific product + all lists
+
+Cache Pattern (Cache-Aside):
+1. Request arrives
+2. Check Redis for cache key
+3. If HIT: Return cached data (fast)
+4. If MISS: Query MongoDB
+5. Store result in Redis with TTL
+6. Return data
+
+Performance Impact:
+- Cache hit: <5ms response time
+- Cache miss: 50-100ms (MongoDB query)
+- 80-90% cache hit rate expected
+
+IMPORTANT MODELS:
+-----------------
+
+Product Schema:
+- Validations: name required, price >= 0, stock >= 0
+- Unique constraint: SKU (if provided)
+- Text search enabled on name, description, tags
+- Images stored as Cloudinary URLs
+- Weight in grams for delivery fee calculation
+
+Product Categories:
+- Enum validation ensures valid categories
+- Frontend filters match backend categories
+- Easy to extend with new categories
+
+MRP vs Price:
+- MRP: Maximum Retail Price (original price)
+- Price: Current selling price
+- Discount calculated: ((MRP - Price) / MRP) * 100%
+- If no MRP, price is shown without discount
+
+IMPORTANT NOTES:
+----------------
+
+1. Image Upload Flow:
+   - Frontend: User selects images
+   - Convert to base64 or use file upload
+   - Send to backend in product payload
+   - Backend: Detects base64 images
+   - Uploads to Cloudinary with transformations
+   - Stores Cloudinary URLs in database
+   - Returns product with image URLs
+
+2. Cloudinary Transformations:
+   - Width/Height limit: 800x600 (maintains aspect ratio)
+   - Quality: Auto (intelligent compression)
+   - Format: Auto (WebP for modern browsers, JPEG fallback)
+   - Folder: "cps-store/products" for organization
+
+3. Text Search:
+   - MongoDB text indexes on name, description, tags
+   - Case-insensitive
+   - Supports partial matches
+   - Relevance scoring built-in
+   - Use $text query operator
+
+4. Stock Management:
+   - Stock decremented on order confirmation
+   - Low stock threshold: 10 units (frontend badge)
+   - Out of stock: 0 units (disabled add to cart)
+   - Admin receives low stock alerts
+
+5. Product Deletion:
+   - Soft delete option (archive) could be implemented
+   - Currently hard delete from database
+   - Consider order history before deleting
+   - Admin confirmation required
+
+6. Cache Invalidation Strategy:
+   - Aggressive invalidation ensures data freshness
+   - List caches cleared on any product change
+   - Specific product cache cleared on update/delete
+   - Acceptable trade-off: consistency over performance
+
+7. Performance Optimization:
+   - Redis cache reduces MongoDB load
+   - Text indexes speed up search queries
+   - Category/price indexes optimize filters
+   - Pagination prevents large result sets
+   - Cloudinary CDN for fast image delivery
+
+8. New Product Notifications:
+   - On product create, notification sent to all users
+   - Users can opt-in/out via notification preferences
+   - Notification includes: product name, price, category
+   - Links to product detail page
+
+9. Error Handling:
+   - 400: Invalid product data or filters
+   - 401: Authentication required (admin endpoints)
+   - 403: Admin role required
+   - 404: Product not found
+   - 500: Server or Cloudinary upload errors
+
+10. Validation Rules:
+    - Name: 1-200 characters
+    - Description: 1-1000 characters
+    - Price: >= 0
+    - Stock: >= 0, integer
+    - Weight: > 0 (grams)
+    - Images: At least 1 required
+    - Category: Must be valid enum value
+
+11. Fallback Products:
+    - Frontend uses fallback product IDs (fallback-1, fallback-2)
+    - Backend returns 404 for fallback IDs
+    - Frontend displays static fallback content
+    - Prevents errors when products not loaded
+
+12. Admin Permissions:
+    - Only users with role="admin" can create/update/delete
+    - Enforced by authenticateToken + role check
+    - Customer users can only read products
+
+RELATED DOCUMENTATION:
+----------------------
+- See cart-orders.txt for product ordering
+- See middleware.txt for caching details
+- See redis.txt for cache implementation
+- See cloudinary.txt for image upload

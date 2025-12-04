@@ -15,17 +15,16 @@ import BottomNav from "./BottomNav";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "../store";
-import { setUser } from "../store/slices/authSlice";
 import { useLogout } from "../hooks/useLogout";
+import { logout } from "../store/slices/authSlice";
 import { useOtpModal } from "../contexts/OtpModalContext";
 import { getDisplayName } from "../utils/nameUtils";
-import { useSearchProductsQuery, useGetAddressesQuery, useSetDefaultAddressMutation, useGetProfileQuery } from "../store/api";
+import { useGetSearchSuggestionsQuery, useGetAddressesQuery, useSetDefaultAddressMutation, useGetProfileQuery } from "../store/api";
 import SearchSuggestions from "./SearchSuggestions";
 import ChooseLocation from "./ChooseLocation";
 import CartConfirmationBar from "./CartConfirmationBar";
 import GlobalCartConfirmationBar from "./GlobalCartConfirmationBar";
 import { CartFeedbackProvider } from "../contexts/CartFeedbackContext";
-import { motion } from "framer-motion";
 
 interface LayoutProps {
   children: ReactNode;
@@ -181,14 +180,15 @@ const Layout: React.FC<LayoutProps> = ({
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Fetch search suggestions
-  const { data: searchResults, isLoading: isLoadingSuggestions } =
-    useSearchProductsQuery(debouncedSearchQuery, {
-      skip: !debouncedSearchQuery || debouncedSearchQuery.length < 1,
-    });
+  // --------------------------------------
+// 📌 FIX: Use the correct suggestions API
+// --------------------------------------
+const { data: suggestionList, isLoading: loadingSuggestions } = useGetSearchSuggestionsQuery(
+  { q: debouncedSearchQuery },
+  { skip: debouncedSearchQuery.trim().length === 0 }
+);
 
-  // Get up to 8 suggestions
-  const suggestions = searchResults?.products?.slice(0, 8) || [];
+const suggestions = suggestionList || [];
 
   // Global functions for search bar management
   useEffect(() => {
@@ -311,12 +311,46 @@ const Layout: React.FC<LayoutProps> = ({
   };
 
   const handleLogout = async () => {
-    console.log("🔴 Logout clicked");
+  try {
+    console.log("[Logout] dispatching logout, currentPath:", window.location.pathname);
     setShowProfileDropdown(false);
 
-    // Use the new comprehensive logout function (now async)
-    await performLogout();
-  };
+    // Dispatch logout to clear redux state
+    dispatch(logout());
+
+    // Extra cleanup: ensure all auth keys removed
+    try {
+      localStorage.removeItem("auth");
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
+      localStorage.removeItem("user");
+      localStorage.removeItem("isLoggingOut"); // Clear logout flag too
+    } catch (e) {
+      console.warn("logout: failed to clean localStorage", e);
+    }
+
+    // Use router navigation (replace so user can't go back to protected pages)
+    try {
+      console.log("[Logout] attempting SPA navigate to /");
+      navigate("/", { replace: true });
+      // small delay to ensure navigate takes effect in older browsers
+      setTimeout(() => {
+        if (window.location.pathname !== "/") {
+          // fallback to hard redirect (safe)
+          console.log("[Logout] SPA navigate failed, using fallback");
+          window.location.assign("/");
+        }
+      }, 120);
+    } catch (navErr) {
+      console.warn("SPA navigate failed, falling back to location.assign", navErr);
+      window.location.assign("/");
+    }
+  } catch (err) {
+    console.error("Logout failed:", err);
+    // still try to force redirect to home
+    window.location.assign("/");
+  }
+};
 
   const handleMoreDropdownToggle = () => {
     setShowMoreDropdown(!showMoreDropdown);
@@ -344,56 +378,6 @@ const Layout: React.FC<LayoutProps> = ({
       console.error("Error updating default address:", error);
       showError("Failed to update location. Please try again.");
     }
-  };
-
-  const handleAddNewAddress = () => {
-    setShowLocationModal(false);
-    navigate("/addresses");
-  };
-
-  // Get address details based on selected address
-  const getAddressDetails = (addressLabel: string) => {
-    // Try to get from stored addresses first
-    const storedAddresses = localStorage.getItem("addresses");
-    if (storedAddresses) {
-      try {
-        const addresses = JSON.parse(storedAddresses);
-        const address = addresses.find(
-          (addr: any) => addr.label === addressLabel
-        );
-        if (address) {
-          return {
-            city: address.city,
-            state: address.state,
-            pincode: address.pincode,
-          };
-        }
-      } catch (error) {
-        console.error("Error parsing addresses for getAddressDetails:", error);
-      }
-    }
-
-    // Fallback to hardcoded mapping
-    const addressMap: {
-      [key: string]: { city: string; state: string; pincode: string };
-    } = {
-      Home: { city: "Hyderabad", state: "Telangana", pincode: "500001" },
-      Office: { city: "Hyderabad", state: "Telangana", pincode: "500032" },
-      Other: { city: "Hyderabad", state: "Telangana", pincode: "500045" },
-    };
-    return (
-      addressMap[addressLabel] || {
-        city: "Hyderabad",
-        state: "Telangana",
-        pincode: "500001",
-      }
-    );
-  };
-
-  // Handle manage addresses click
-  const handleManageAddresses = () => {
-    setShowLocationModal(false);
-    navigate("/addresses");
   };
 
   const handleMoreOptionClick = (action: () => void) => {
@@ -611,7 +595,7 @@ const Layout: React.FC<LayoutProps> = ({
                             setShowSearchSuggestions(false);
                             setSearchQuery("");
                           }}
-                          isLoading={isLoadingSuggestions}
+                          isLoading={loadingSuggestions}
                         />
                       )}
                     </div>
@@ -900,7 +884,7 @@ const Layout: React.FC<LayoutProps> = ({
                                 </div>
                                 <button
                                   onClick={() => {
-                                    handleLoginOptionClick(() => {});
+                                    setShowLoginDropdown(false);
                                     showOtpModal("/account/profile");
                                   }}
                                   className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200 mb-2"
@@ -911,7 +895,7 @@ const Layout: React.FC<LayoutProps> = ({
                                 <div className="space-y-1">
                                   <button
                                     onClick={() => {
-                                      handleLoginOptionClick(() => {});
+                                      setShowLoginDropdown(false);
                                       showOtpModal("/account/profile");
                                     }}
                                     className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-200 rounded"
@@ -920,7 +904,7 @@ const Layout: React.FC<LayoutProps> = ({
                                   </button>
                                   <button
                                     onClick={() => {
-                                      handleLoginOptionClick(() => {});
+                                      setShowLoginDropdown(false);
                                       showOtpModal("/account/orders");
                                     }}
                                     className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-200 rounded"
@@ -929,7 +913,7 @@ const Layout: React.FC<LayoutProps> = ({
                                   </button>
                                   <button
                                     onClick={() => {
-                                      handleLoginOptionClick(() => {});
+                                      setShowLoginDropdown(false);
                                       showOtpModal("/account/gift-cards");
                                     }}
                                     className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-200 rounded"
@@ -938,7 +922,7 @@ const Layout: React.FC<LayoutProps> = ({
                                   </button>
                                   <button
                                     onClick={() => {
-                                      handleLoginOptionClick(() => {});
+                                      setShowLoginDropdown(false);
                                       showOtpModal("/account/rewards");
                                     }}
                                     className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-200 rounded"

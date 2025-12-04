@@ -15,6 +15,25 @@ router.get("/analytics", auth_1.authenticateToken, (0, auth_1.requireRole)(["adm
 router.get("/dashboard-stats", auth_1.authenticateToken, (0, auth_1.requireRole)(["admin"]), adminController_1.getDashboardStats);
 router.get("/profile", auth_1.authenticateToken, (0, auth_1.requireRole)(["admin"]), adminController_1.getAdminProfile);
 router.get("/users", auth_1.authenticateToken, (0, auth_1.requireRole)(["admin"]), adminController_1.getUsers);
+router.delete("/users/:id", auth_1.authenticateToken, (0, auth_1.requireRole)(["admin"]), async (req, res) => {
+    try {
+        const User = require("../models/User").User;
+        const { id } = req.params;
+        // Find and delete the user
+        const deletedUser = await User.findByIdAndDelete(id);
+        if (!deletedUser) {
+            return res.status(404).json({ error: "User not found" });
+        }
+        res.json({
+            message: "User deleted successfully",
+            user: deletedUser
+        });
+    }
+    catch (error) {
+        console.error("Error deleting user:", error);
+        res.status(500).json({ error: "Failed to delete user" });
+    }
+});
 router.put("/users/:id/make-delivery", auth_1.authenticateToken, (0, auth_1.requireRole)(["admin"]), adminController_1.makeDeliveryBoy);
 router.get("/products", auth_1.authenticateToken, (0, auth_1.requireRole)(["admin"]), adminController_1.getAdminProducts);
 router.put("/products/:id", auth_1.authenticateToken, (0, auth_1.requireRole)(["admin"]), adminController_1.updateProduct);

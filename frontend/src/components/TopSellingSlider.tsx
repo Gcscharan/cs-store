@@ -2,11 +2,12 @@ import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import OptimizedImage from "./OptimizedImage";
 
 interface TopSellingProduct {
   id: string | number;
   name: string;
-  image: string;
+  image: string; // API returns thumbnail as single string for top selling products
   category: string;
 }
 
@@ -264,15 +265,26 @@ const TopSellingSlider: React.FC<TopSellingSliderProps> = ({
             >
               {/* Product Image */}
               <div className="relative h-28 sm:h-32 overflow-hidden">
-                <motion.img
-                  src={product.image}
-                  alt={product.name}
-                  className="w-full h-full object-cover"
-                  loading="lazy"
-                  whileHover={{
-                    scale: 1.15,
-                    transition: { duration: 0.4, ease: "easeOut" },
+                <OptimizedImage
+                  image={{
+                    variants: {
+                      micro: product.image,
+                      thumb: product.image,
+                      small: product.image,
+                      medium: product.image,
+                      large: product.image,
+                      original: product.image
+                    }
                   }}
+                  size="thumb"
+                  alt={product.name}
+                  className="w-full h-full"
+                  productId={product.id?.toString()}
+                  debug={false}
+                />
+                <motion.div
+                  className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-10 transition-all duration-300"
+                  whileHover={{ scale: 1.15 }}
                   transition={{ duration: 0.3 }}
                 />
                 <motion.div

@@ -7,8 +7,6 @@ import {
   Wallet,
   TrendingUp,
   Search,
-  Filter,
-  Download,
   Eye,
   CheckCircle,
   XCircle,

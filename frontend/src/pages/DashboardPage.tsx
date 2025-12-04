@@ -2,15 +2,16 @@ import { motion } from "framer-motion";
 import { useState, useMemo, useEffect } from "react";
 import { Star } from "lucide-react";
 import { useNavigate, Link } from "react-router-dom";
-import { useGetProductsQuery, useAddToCartMutation } from "../store/api";
+import { useGetProductsQuery } from "../store/api";
+import { useAddToCartMutation } from "../store/api";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "../store";
 import { addToCart, setCart } from "../store/slices/cartSlice";
 import { useToast } from "../components/AccessibleToast";
-import { getProductPrimaryImage } from "../utils/productImageMapper";
-import { useOtpModal } from "../contexts/OtpModalContext";
-import { useTokenRefresh } from "../hooks/useTokenRefresh";
+import { getProductImage, handleImageError } from "../utils/image";
+import SkeletonCard from "../components/SkeletonCard";
 import { useCartFeedback } from "../contexts/CartFeedbackContext";
+import { useTokenRefresh } from "../hooks/useTokenRefresh";
 
 const DashboardPage = () => {
   const navigate = useNavigate();
@@ -26,7 +27,6 @@ const DashboardPage = () => {
   });
   const [addToCartMutation] = useAddToCartMutation();
   const { success, error: showError } = useToast();
-  const { showOtpModal } = useOtpModal();
   const { refreshToken } = useTokenRefresh();
   
   // Cart feedback
@@ -175,9 +175,7 @@ const DashboardPage = () => {
           name: product.name,
           price: product.price,
           quantity: 1,
-          image:
-            product.images?.[0] ||
-            getProductPrimaryImage(product.name, product.category),
+          image: getProductImage(product),
         })
       );
 
@@ -198,7 +196,7 @@ const DashboardPage = () => {
       }
 
       // Trigger global cart confirmation bar
-      const productImage = product.images?.[0] || getProductPrimaryImage(product.name, product.category);
+      const productImage = getProductImage(product);
       const updatedCartCount = result && "data" in result && result.data ? result.data.cart.itemCount : 1;
       const updatedCartTotal = result && "data" in result && result.data ? result.data.cart.total : product.price;
       triggerGlobalConfirmation(product.name, productImage, updatedCartCount, updatedCartTotal);
@@ -316,7 +314,13 @@ const DashboardPage = () => {
           </div>
 
           {/* Products Grid */}
-          {allProducts.length > 0 ? (
+          {isLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+              {Array.from({ length: 8 }).map((_, index) => (
+                <SkeletonCard key={index} />
+              ))}
+            </div>
+          ) : allProducts.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
               {allProducts.map((product: any) => (
                 <motion.div
@@ -331,16 +335,14 @@ const DashboardPage = () => {
                 >
                   <div className="relative h-48 overflow-hidden">
                     <img
-                      src={
-                        product.images?.[0] ||
-                        getProductPrimaryImage(product.name, product.category)
-                      }
+                      src={getProductImage(product)}
                       alt={product.name}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      onError={(e) => handleImageError(e)}
                     />
-                    {product.discount > 0 && (
+                    {product.mrp && product.mrp > product.price && (
                       <div className="absolute top-2 left-2 bg-red-500 text-white px-2 py-1 rounded-full text-xs font-semibold">
-                        {product.discount}% OFF
+                        {Math.round(((product.mrp - product.price) / product.mrp) * 100)}% OFF
                       </div>
                     )}
                     <div className="absolute inset-0 bg-black bg-opacity-10 group-hover:bg-opacity-0 transition-opacity duration-300"></div>

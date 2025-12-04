@@ -3,11 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "../store";
 import { logout } from "../store/slices/authSlice";
-import DeliveryBottomNav from "../components/DeliveryBottomNav";
-import HomeTab from "../components/delivery/HomeTab";
-import EarningsTab from "../components/delivery/EarningsTab";
-import NotificationsTab from "../components/delivery/NotificationsTab";
-import MoreTab from "../components/delivery/MoreTab";
 import {
   Truck,
   Package,
@@ -15,11 +10,11 @@ import {
   Clock,
   CheckCircle,
   XCircle,
-  LogOut,
+  AlertCircle,
   User,
+  LogOut,
   Phone,
   Calendar,
-  AlertCircle,
 } from "lucide-react";
 
 interface Order {
@@ -69,7 +64,7 @@ const DeliveryDashboard: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState("home");
+  const [_activeTab, _setActiveTab] = useState("home");
 
   // Check authentication and role
   useEffect(() => {
@@ -206,57 +201,6 @@ const DeliveryDashboard: React.FC = () => {
   const handleLogout = () => {
     dispatch(logout());
     navigate("/login");
-  };
-
-  const handleStatusUpdate = async (isOnline: boolean) => {
-    try {
-      if (!tokens?.accessToken) {
-        throw new Error("No authentication token available");
-      }
-
-      const response = await fetch("/api/delivery/update-status", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${tokens.accessToken}`,
-        },
-        body: JSON.stringify({ isOnline }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to update status");
-      }
-
-      console.log(`Status updated to ${isOnline ? "online" : "offline"}`);
-    } catch (err) {
-      console.error("Error updating status:", err);
-    }
-  };
-
-  const handleOrderAction = async (orderId: string, action: "accept" | "decline") => {
-    try {
-      if (!tokens?.accessToken) {
-        throw new Error("No authentication token available");
-      }
-
-      const response = await fetch(`/api/delivery/orders/${orderId}/${action}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${tokens.accessToken}`,
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || `Failed to ${action} order`);
-      }
-
-      console.log(`Order ${action}ed successfully`);
-    } catch (err) {
-      console.error(`Error ${action}ing order:`, err);
-    }
   };
 
   const getStatusColor = (status: string) => {

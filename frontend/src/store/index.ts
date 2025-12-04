@@ -10,6 +10,7 @@ const rootReducer = combineReducers({
   cart: cartReducer,
   ui: uiReducer,
   api: api.reducer,
+  // Note: productsApi reducer will be handled by the main API reducer
 });
 
 // Enhanced root reducer that can reset entire state
@@ -34,7 +35,9 @@ const enhancedRootReducer = (state: any, action: any) => {
 export const store = configureStore({
   reducer: enhancedRootReducer,
   middleware: (getDefaultMiddleware) =>
-    getDefaultMiddleware().concat(api.middleware),
+    getDefaultMiddleware({
+      serializableCheck: false, // Disable serializableCheck to avoid type conflicts
+    }).concat(api.middleware), // Only use main API middleware
 });
 
 // Note: Auth state is already loaded in authSlice.ts during initialization

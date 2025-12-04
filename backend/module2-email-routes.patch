@@ -1,0 +1,19 @@
+--- a/src/domains/identity/routes/user.ts
++++ b/src/domains/identity/routes/user.ts
+@@ -15,6 +15,7 @@ import {
+   getNotificationPreferences,
+   updateNotificationPreferences,
+   markMobileAsVerified,
++  requestEmailChange,
++  verifyEmailChange,
+ } from "../controllers/userController";
+ 
+ const router = express.Router();
+@@ -42,3 +43,8 @@ router.delete("/delete-account", authenticateToken, deleteAccount);
+ 
+ // Account deletion route - CRITICAL: Requires authentication
+ router.delete("/delete-account", authenticateToken, deleteAccount);
++
++// Email verification routes
++router.post("/request-email-change", authenticateToken, requestEmailChange);
++router.post("/verify-email-change", authenticateToken, verifyEmailChange);

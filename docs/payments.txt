@@ -1,0 +1,501 @@
+================================================================================
+                      PAYMENTS & RAZORPAY INTEGRATION
+================================================================================
+
+WHAT THIS DOES:
+---------------
+Manages payment processing including:
+- Razorpay payment gateway integration
+- Order payment creation and verification
+- Payment logging and audit trail
+- Webhook handling for payment status updates
+- Refund processing
+- UPI payment support
+- Payment status tracking
+
+FOLDER PATHS INVOLVED:
+----------------------
+Backend:
+- backend/src/domains/finance/controllers/paymentController.ts
+- backend/src/domains/finance/controllers/razorpayController.ts
+- backend/src/domains/finance/controllers/webhookController.ts
+- backend/src/domains/finance/controllers/upiController.ts
+- backend/src/models/Payment.ts
+- backend/src/models/Order.ts
+- backend/src/domains/finance/routes/paymentRoutes.ts
+- backend/src/domains/finance/routes/razorpay.ts
+- backend/src/domains/finance/routes/webhooks.ts
+
+Frontend:
+- frontend/src/pages/PaymentPage.tsx
+- frontend/src/components/RazorpayCheckout.tsx
+- frontend/src/components/PaymentLogs.tsx
+- frontend/src/utils/paymentUtils.ts
+
+PAYMENT MODEL (Payment.ts):
+----------------------------
+- _id: ObjectId
+- userId: ObjectId
+- orderId: ObjectId
+- amount: Number (payment amount)
+- currency: String (default: "INR")
+- status: Enum ["pending", "success", "failed", "refunded"]
+- paymentMethod: Enum ["card", "upi", "netbanking", "wallet", "cod"]
+- razorpayOrderId: String (Razorpay order ID)
+- razorpayPaymentId: String (Razorpay payment ID)
+- razorpaySignature: String (webhook signature)
+- transactionId: String (bank/gateway transaction ID)
+- errorCode: String (failure reason code)
+- errorDescription: String (failure reason text)
+- refundId: String (refund transaction ID)
+- refundedAmount: Number
+- metadata: Object (additional payment info)
+- createdAt, updatedAt: Timestamps
+
+RAZORPAY CONFIGURATION:
+-----------------------
+Environment variables:
+- RAZORPAY_KEY_ID: Public API key (rzp_test_xxx or rzp_live_xxx)
+- RAZORPAY_KEY_SECRET: Secret API key
+- RAZORPAY_WEBHOOK_SECRET: Webhook signature secret
+
+Razorpay SDK initialized in controllers:
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID,
+  key_secret: process.env.RAZORPAY_KEY_SECRET
+});
+
+PAYMENT FLOW:
+-------------
+
+1. ORDER CREATION
+   - User completes checkout
+   - Backend creates Order with status "pending"
+   - Backend creates Razorpay order via API
+   - Returns razorpayOrderId to frontend
+
+2. RAZORPAY CHECKOUT
+   - Frontend opens Razorpay checkout modal
+   - User enters payment details
+   - Razorpay processes payment
+   - Returns payment ID and signature
+
+3. PAYMENT VERIFICATION
+   - Frontend sends payment details to backend
+   - Backend verifies signature using crypto.createHmac
+   - Updates Order status to "confirmed"
+   - Creates Payment record with status "success"
+
+4. WEBHOOK CONFIRMATION
+   - Razorpay sends webhook to backend
+   - Backend verifies webhook signature
+   - Updates payment status if needed
+   - Triggers order fulfillment
+
+5. ORDER FULFILLMENT
+   - Payment confirmed
+   - Order assigned to delivery partner
+   - Customer notified
+
+ENDPOINTS:
+----------
+
+Razorpay:
+POST /api/razorpay/create-order - Create Razorpay order
+POST /api/razorpay/verify-payment - Verify payment signature
+POST /api/razorpay/refund - Process refund
+
+Payment Logging:
+GET /api/payments - Get all payments (admin)
+GET /api/payments/:id - Get specific payment
+GET /api/payments/order/:orderId - Get payments for order
+GET /api/payments/user/:userId - Get user's payments
+POST /api/payments/log - Log payment attempt
+
+Webhooks:
+POST /api/webhooks/razorpay - Razorpay payment webhook
+POST /api/webhooks/payment-status - Payment status webhook
+
+UPI:
+POST /api/upi/initiate - Initiate UPI payment
+POST /api/upi/verify - Verify UPI payment status
+
+REQUEST/RESPONSE EXAMPLES:
+--------------------------
+
+1. CREATE RAZORPAY ORDER
+   POST /api/razorpay/create-order
+   Headers: { Authorization: "Bearer <token>" }
+   {
+     "amount": 500,
+     "currency": "INR",
+     "orderId": "order123"
+   }
+   
+   Response:
+   {
+     "success": true,
+     "razorpayOrderId": "order_ABC123XYZ",
+     "amount": 50000, // Amount in paise (500 * 100)
+     "currency": "INR",
+     "key": "rzp_test_..."
+   }
+
+2. VERIFY PAYMENT
+   POST /api/razorpay/verify-payment
+   Headers: { Authorization: "Bearer <token>" }
+   {
+     "orderId": "order123",
+     "razorpayOrderId": "order_ABC123XYZ",
+     "razorpayPaymentId": "pay_DEF456UVW",
+     "razorpaySignature": "abc123...xyz789"
+   }
+   
+   Response:
+   {
+     "success": true,
+     "message": "Payment verified successfully",
+     "order": {
+       "_id": "order123",
+       "paymentStatus": "paid",
+       "orderStatus": "confirmed",
+       ...
+     }
+   }
+
+3. RAZORPAY WEBHOOK
+   POST /api/webhooks/razorpay
+   Headers: { 
+     "x-razorpay-signature": "webhook_signature_here"
+   }
+   Body: (Razorpay webhook payload)
+   {
+     "event": "payment.captured",
+     "payload": {
+       "payment": {
+         "entity": {
+           "id": "pay_DEF456UVW",
+           "order_id": "order_ABC123XYZ",
+           "amount": 50000,
+           "status": "captured",
+           ...
+         }
+       }
+     }
+   }
+   
+   Response:
+   {
+     "status": "ok"
+   }
+
+4. INITIATE REFUND
+   POST /api/razorpay/refund
+   Headers: { Authorization: "Bearer <adminToken>" }
+   {
+     "paymentId": "pay_DEF456UVW",
+     "amount": 50000, // Full or partial refund (paise)
+     "reason": "Customer request"
+   }
+   
+   Response:
+   {
+     "success": true,
+     "refundId": "rfnd_GHI789RST",
+     "amount": 50000,
+     "status": "processed"
+   }
+
+5. GET PAYMENT LOGS
+   GET /api/payments/order/order123
+   Headers: { Authorization: "Bearer <token>" }
+   
+   Response:
+   {
+     "payments": [
+       {
+         "_id": "payment123",
+         "amount": 500,
+         "status": "success",
+         "paymentMethod": "card",
+         "razorpayPaymentId": "pay_DEF456UVW",
+         "createdAt": "2024-01-01T10:00:00.000Z"
+       },
+       {
+         "_id": "payment124",
+         "amount": 500,
+         "status": "failed",
+         "errorCode": "BAD_REQUEST_ERROR",
+         "errorDescription": "Card expired",
+         "createdAt": "2024-01-01T09:55:00.000Z"
+       }
+     ]
+   }
+
+FRONTEND INTEGRATION:
+---------------------
+
+1. Razorpay Checkout Component:
+   ```typescript
+   const options = {
+     key: razorpayKey,
+     amount: amount * 100, // Convert to paise
+     currency: "INR",
+     name: "CS Store",
+     description: "Order Payment",
+     order_id: razorpayOrderId,
+     handler: async (response) => {
+       // Payment successful
+       await verifyPayment(response);
+     },
+     prefill: {
+       name: user.name,
+       email: user.email,
+       contact: user.phone
+     },
+     theme: {
+       color: "#3399cc"
+     }
+   };
+   
+   const rzp = new window.Razorpay(options);
+   rzp.open();
+   ```
+
+2. Payment Verification:
+   - Frontend receives payment response from Razorpay
+   - Sends to backend for signature verification
+   - Backend validates using HMAC-SHA256
+   - Updates order and payment status
+   - Redirects user to success/failure page
+
+3. Payment Status Tracking:
+   - Real-time status updates via polling or WebSocket
+   - Shows: pending, processing, success, failed
+   - Retry option for failed payments
+   - Refund status tracking
+
+SIGNATURE VERIFICATION:
+-----------------------
+
+Backend verification logic:
+```typescript
+const crypto = require('crypto');
+
+const generateSignature = (orderId, paymentId) => {
+  const text = `${orderId}|${paymentId}`;
+  return crypto
+    .createHmac('sha256', RAZORPAY_KEY_SECRET)
+    .update(text)
+    .digest('hex');
+};
+
+const verifySignature = (orderId, paymentId, signature) => {
+  const expectedSignature = generateSignature(orderId, paymentId);
+  return expectedSignature === signature;
+};
+```
+
+Webhook verification:
+```typescript
+const verifyWebhookSignature = (payload, signature) => {
+  const expectedSignature = crypto
+    .createHmac('sha256', RAZORPAY_WEBHOOK_SECRET)
+    .update(JSON.stringify(payload))
+    .digest('hex');
+  return expectedSignature === signature;
+};
+```
+
+WEBHOOK EVENTS:
+---------------
+
+Razorpay sends webhooks for:
+- payment.authorized - Payment authorized by bank
+- payment.captured - Payment captured successfully
+- payment.failed - Payment failed
+- refund.created - Refund initiated
+- refund.processed - Refund completed
+
+Backend handles these events:
+1. Verify webhook signature
+2. Extract event type and payload
+3. Update Order and Payment status
+4. Send notifications to user
+5. Trigger order fulfillment if needed
+
+PAYMENT LOGGING:
+----------------
+
+Every payment attempt logged:
+- Successful payments
+- Failed payments with error details
+- Refunds with reason
+- Payment method used
+- Timestamp and user info
+
+Useful for:
+- Debugging payment issues
+- Financial reconciliation
+- User support
+- Fraud detection
+- Analytics
+
+REFUND PROCESSING:
+------------------
+
+Refund flow:
+1. Admin initiates refund
+2. Backend calls Razorpay refund API
+3. Razorpay processes refund
+4. Webhook confirms refund
+5. Payment status updated to "refunded"
+6. User notified via email/SMS
+
+Refund types:
+- Full refund: 100% of amount
+- Partial refund: Specified amount
+- Automatic: On order cancellation (before shipment)
+- Manual: Admin-initiated
+
+Refund timing:
+- Instant: UPI, wallets (immediate)
+- Card: 5-7 business days
+- Net banking: 5-7 business days
+
+IMPORTANT FEATURES:
+-------------------
+
+1. Payment Security:
+   - All transactions via HTTPS
+   - PCI DSS compliant (Razorpay)
+   - No card details stored on server
+   - Signature verification for all requests
+   - Webhook signature validation
+
+2. Multi-method Support:
+   - Credit/Debit cards
+   - UPI (PhonePe, GooglePay, Paytm)
+   - Net banking
+   - Wallets (Paytm, Mobikwik, etc.)
+   - COD (Cash on Delivery)
+
+3. Retry Mechanism:
+   - Failed payments can be retried
+   - Same order, new payment attempt
+   - Previous failures logged
+   - User can try different method
+
+4. Payment Reconciliation:
+   - Daily payment reports
+   - Match Razorpay settlements with orders
+   - Identify discrepancies
+   - Export to accounting software
+
+5. Fraud Prevention:
+   - Razorpay's built-in fraud detection
+   - Velocity checks (multiple attempts)
+   - Geographic validation
+   - Device fingerprinting
+
+6. COD Support:
+   - Cash on Delivery option
+   - Payment marked "pending" until delivery
+   - Delivery partner collects cash
+   - Marks as "paid" in app
+   - Payment reconciliation with partner
+
+7. Test Mode:
+   - Razorpay test keys for development
+   - Test cards provided by Razorpay
+   - No real money transacted
+   - Switch to live keys for production
+
+8. Currency Support:
+   - Primary: INR (Indian Rupees)
+   - Razorpay supports 100+ currencies
+   - Easy to add multi-currency
+
+9. Payment Analytics:
+   - Success rate tracking
+   - Failure reason analysis
+   - Popular payment methods
+   - Average transaction value
+   - Revenue trends
+
+10. Compliance:
+    - PCI DSS Level 1 (via Razorpay)
+    - RBI guidelines compliant
+    - Tax invoice generation
+    - GST calculation and reporting
+
+IMPORTANT NOTES:
+----------------
+
+1. Amount Conversion:
+   - Razorpay uses paise (1 INR = 100 paise)
+   - Always multiply by 100 before sending
+   - Divide by 100 when displaying
+
+2. Order ID Format:
+   - Must be unique
+   - Max 40 characters
+   - Alphanumeric and underscores
+   - Example: order_ABC123_1641234567
+
+3. Signature Verification:
+   - CRITICAL for security
+   - Never skip verification
+   - Use HMAC-SHA256
+   - Compare signatures in constant time
+
+4. Webhook Reliability:
+   - Webhooks may be delayed
+   - Can arrive multiple times (idempotency)
+   - May arrive out of order
+   - Always check current status
+
+5. Idempotency:
+   - Same webhook may arrive multiple times
+   - Check if already processed
+   - Use razorpayPaymentId as unique key
+   - Prevent duplicate order fulfillment
+
+6. Error Handling:
+   - Always handle Razorpay errors
+   - Log error codes and descriptions
+   - Show user-friendly messages
+   - Provide retry options
+
+7. Testing:
+   - Use Razorpay test mode
+   - Test cards: 4111 1111 1111 1111
+   - CVV: any 3 digits
+   - Expiry: any future date
+   - 3D Secure OTP: any 6 digits
+
+8. Production Checklist:
+   - Replace test keys with live keys
+   - Enable webhook URL in Razorpay dashboard
+   - Add webhook secret
+   - Test with real small amount
+   - Monitor first few transactions
+
+9. Refund Limitations:
+   - Can't refund more than captured amount
+   - Refunds can take 5-7 days for cards
+   - Partial refunds allowed
+   - Multiple partial refunds possible
+
+10. Payment Logs Retention:
+    - Keep logs for at least 7 years (compliance)
+    - Regular backups
+    - Export for accounting
+    - Audit trail for disputes
+
+RELATED DOCUMENTATION:
+----------------------
+- See cart-orders.txt for order flow
+- See otp.txt for payment OTP
+- See notifications.txt for payment alerts
+- Razorpay Docs: https://razorpay.com/docs/

@@ -17,6 +17,11 @@ export const useLogout = () => {
   const performLogout = async () => {
     console.log('🚪 LOGOUT: Starting AGGRESSIVE logout process...');
     
+    // Set logout flag to prevent AuthRouter from interfering
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('isLoggingOut', 'true');
+    }
+    
     // Step 0: Debug audit BEFORE cleanup
     console.log('🔍 PRE-LOGOUT AUDIT:');
     auditLocalStorage();
@@ -90,6 +95,7 @@ export const useLogout = () => {
       'autofillAddress',   // Location autofill data
       'selectedAddress',   // Currently selected address
       'defaultAddress',    // Default address data
+      'isLoggingOut',      // Logout flag
     ];
     
     keysToRemove.forEach(key => {

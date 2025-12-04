@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Loader } from "@googlemaps/js-api-loader";
 
+// Google Maps can load at runtime; relax types for build-time safety
+declare const google: any;
+
 interface MapViewProps {
   center: { lat: number; lng: number };
   zoom?: number;
@@ -29,9 +32,9 @@ const MapView = ({
   className = "",
 }: MapViewProps) => {
   const mapRef = useRef<HTMLDivElement>(null);
-  const [map, setMap] = useState<google.maps.Map | null>(null);
-  const [mapMarkers, setMapMarkers] = useState<google.maps.Marker[]>([]);
-  const [mapPolylines, setMapPolylines] = useState<google.maps.Polyline[]>([]);
+  const [map, setMap] = useState<any | null>(null);
+  const [mapMarkers, setMapMarkers] = useState<any[]>([]);
+  const [mapPolylines, setMapPolylines] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 

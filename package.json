@@ -1,0 +1,62 @@
+{
+  "name": "cps-store",
+  "version": "1.0.0",
+  "description": "CS Store - Complete E-commerce Platform",
+  "scripts": {
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && ts-node-dev --respawn --transpile-only src/server.ts",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build": "npm run build:backend && npm run build:frontend",
+    "build:backend": "cd backend && npm run build",
+    "build:frontend": "cd frontend && npm run build",
+    "test": "npm run test:all",
+    "test:all": "npm run test:backend && npm run test:frontend",
+    "test:backend": "cd backend && npm run test:all",
+    "test:frontend": "cd frontend && npm run test:e2e:ci",
+    "test:ci": "npm run test:backend:ci && npm run test:frontend:ci",
+    "test:backend:ci": "cd backend && npm run test:ci",
+    "test:frontend:ci": "cd frontend && npm run test:e2e:ci",
+    "test:unit": "cd backend && npm run test:unit",
+    "test:integration": "cd backend && npm run test:integration",
+    "test:e2e": "cd frontend && npm run test:e2e",
+    "test:e2e:local": "cd frontend && npm run test:e2e:headed",
+    "test:coverage": "npm run test:coverage:backend && npm run test:coverage:frontend",
+    "test:coverage:backend": "cd backend && npm run test:coverage",
+    "test:coverage:frontend": "cd frontend && npm run test:e2e -- --coverage",
+    "lint": "npm run lint:backend && npm run lint:frontend",
+    "lint:backend": "cd backend && npm run lint",
+    "lint:frontend": "cd frontend && npm run lint",
+    "lint:fix": "npm run lint:fix:backend && npm run lint:fix:frontend",
+    "lint:fix:backend": "cd backend && npm run lint",
+    "lint:fix:frontend": "cd frontend && npm run lint",
+    "clean": "npm run clean:backend && npm run clean:frontend",
+    "clean:backend": "cd backend && rm -rf dist coverage node_modules",
+    "clean:frontend": "cd frontend && rm -rf dist coverage test-results node_modules",
+    "seed": "cd backend && npm run test:seed",
+    "reset": "cd backend && npm run test:reset",
+    "start": "npm run start:backend & npm run start:frontend",
+    "start:backend": "cd backend && npm start",
+    "start:frontend": "cd frontend && npm run preview",
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "ts-node-dev": "^2.0.0"
+  },
+  "workspaces": ["backend", "frontend"],
+  "keywords": ["ecommerce", "react", "nodejs", "typescript", "playwright", "jest"],
+  "author": "CS Store Team",
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/cps-store.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-org/cps-store/issues"
+  },
+  "homepage": "https://github.com/your-org/cps-store#readme"
+}

@@ -20,8 +20,8 @@ const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
   onPaymentConfirmed,
 }) => {
   const [isPaymentConfirmed, setIsPaymentConfirmed] = React.useState(false);
-  const [isUpdatingPayment, setIsUpdatingPayment] = React.useState(false);
-  const [isCheckingPayment, setIsCheckingPayment] = React.useState(false);
+  const [_isUpdatingPayment, _setIsUpdatingPayment] = React.useState(false);
+  const [_isCheckingPayment, _setIsCheckingPayment] = React.useState(false);
 
   // Handle ESC key to close modal
   React.useEffect(() => {
@@ -53,7 +53,7 @@ const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
       return;
     }
 
-    setIsUpdatingPayment(true);
+    _setIsUpdatingPayment(true);
     
     try {
       const authStr = localStorage.getItem("auth");
@@ -91,7 +91,7 @@ const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
       toast.error(error.message || "Failed to confirm payment");
       setIsPaymentConfirmed(false);
     } finally {
-      setIsUpdatingPayment(false);
+      _setIsUpdatingPayment(false);
     }
   }, [orderId, onPaymentConfirmed]);
 
@@ -101,7 +101,7 @@ const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
 
     const checkPaymentStatus = async () => {
       try {
-        setIsCheckingPayment(true);
+        _setIsCheckingPayment(true);
         
         const authStr = localStorage.getItem("auth");
         const accessToken = authStr ? JSON.parse(authStr)?.tokens?.accessToken : null;
@@ -126,7 +126,7 @@ const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
       } catch (error) {
         console.error("Payment status check error:", error);
       } finally {
-        setIsCheckingPayment(false);
+        _setIsCheckingPayment(false);
       }
     };
 

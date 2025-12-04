@@ -1,0 +1,565 @@
+================================================================================
+                        INFRASTRUCTURE & UTILITIES
+================================================================================
+
+WHAT THIS DOES:
+---------------
+Core infrastructure components supporting the application:
+- Authentication middleware (JWT verification)
+- Error handling middleware
+- Security middleware (rate limiting, CORS, headers)
+- Caching middleware (Redis)
+- Redis configuration and utilities
+- Notification system (email, SMS, in-app)
+- Cloudinary image upload
+- Utility functions (SMS, email, validation, geocoding)
+- Database connection and configuration
+
+FOLDER PATHS INVOLVED:
+----------------------
+Backend:
+- backend/src/middleware/ (auth, cache, security, errorHandler)
+- backend/src/config/ (redis, cloudinary, oauth)
+- backend/src/domains/communication/ (notifications)
+- backend/src/utils/ (sms, email, geocoding, validation)
+- backend/src/app.ts (main Express app configuration)
+- backend/src/index.ts (server entrypoint)
+
+================================================================================
+                          1. AUTHENTICATION MIDDLEWARE
+================================================================================
+
+File: backend/src/middleware/auth.ts
+
+Purpose: Verify JWT tokens and attach user info to requests
+
+Key Function: authenticateToken(req, res, next)
+
+Flow:
+1. Extract token from Authorization header (Bearer <token>)
+2. Verify token using JWT_SECRET
+3. Check Redis blacklist for revoked tokens
+4. Fetch user from database
+5. Attach user to req.user
+6. Call next() if valid, return 401 if invalid
+
+Usage:
+- Protect routes requiring authentication
+- Role-based access control
+- Token blacklisting on logout
+
+Example:
+router.get('/profile', authenticateToken, getUserProfile);
+
+Token Blacklist (Redis):
+- blacklist:access:<token> - Blacklisted access tokens (24h TTL)
+- blacklist:refresh:<token> - Blacklisted refresh tokens (7d TTL)
+
+================================================================================
+                          2. ERROR HANDLING MIDDLEWARE
+================================================================================
+
+File: backend/src/middleware/errorHandler.ts
+
+Purpose: Centralized error handling for all routes
+
+Features:
+- Catches all unhandled errors
+- Formats consistent error responses
+- Logs errors for debugging
+- Hides sensitive info in production
+- HTTP status code mapping
+
+Error Response Format:
+{
+  "error": "User-friendly error message",
+  "code": "ERROR_CODE",
+  "details": {...} // Only in development
+}
+
+Custom Error Creator:
+createError(message, statusCode, code)
+
+Usage:
+app.use(errorHandler);
+
+================================================================================
+                          3. SECURITY MIDDLEWARE
+================================================================================
+
+File: backend/src/middleware/security.ts
+
+Components:
+1. Helmet: Sets security HTTP headers
+2. CORS: Cross-Origin Resource Sharing
+3. Rate Limiting: Prevents abuse
+4. Body Parser Limits: Prevents large payloads
+
+Helmet Headers:
+- X-Content-Type-Options: nosniff
+- X-Frame-Options: DENY
+- X-XSS-Protection: 1; mode=block
+- Strict-Transport-Security: HTTPS only
+
+CORS Configuration:
+- origin: Frontend URL (from env)
+- credentials: true (cookies/auth)
+- methods: GET, POST, PUT, DELETE, PATCH
+
+Rate Limiting:
+- General: 100 requests per 15 minutes per IP
+- Auth routes: 5 requests per 15 minutes per IP
+- OTP routes: 3 requests per 10 minutes per IP
+
+================================================================================
+                          4. CACHING MIDDLEWARE (Redis)
+================================================================================
+
+File: backend/src/middleware/cache.ts
+
+Purpose: Cache-Aside pattern for read operations
+
+Key Functions:
+- checkCache(key): Get cached data
+- setCache(key, data, ttl): Store data in cache
+- invalidateCache.products(): Clear product caches
+- invalidateCache.product(id): Clear specific product
+
+Cache Strategy:
+1. Read request arrives
+2. Check Redis cache
+3. If HIT: Return cached data (fast)
+4. If MISS: Query database, cache result, return
+
+Cache Keys:
+- products:list:{filters} - Product list cache
+- product:{id} - Single product cache
+- user:{id} - User profile cache
+- cart:{userId} - Cart cache
+
+Cache Invalidation:
+- On data mutation (create, update, delete)
+- TTL-based expiration (1 hour default)
+- Manual flush (admin action)
+
+================================================================================
+                          5. REDIS CONFIGURATION
+================================================================================
+
+File: backend/src/config/redis.ts
+
+Redis Client Features:
+- Connection pooling
+- Auto-reconnect on failure
+- Error handling and logging
+- Helper methods for common operations
+
+Key Methods:
+- get(key): Get value
+- set(key, value, ttl): Set value with expiry
+- del(key): Delete key
+- delPattern(pattern): Delete keys matching pattern
+- exists(key): Check if key exists
+- generateProductsListKey(query): Generate cache key
+- generateProductKey(id): Generate product cache key
+
+Redis Data Structures Used:
+- Strings: Simple key-value (cache)
+- Sorted Sets: Delivery partner load tracking
+- TTL: Auto-expiration of keys
+
+Environment Variables:
+- REDIS_HOST: Redis server host
+- REDIS_PORT: Redis server port (default: 6379)
+- REDIS_PASSWORD: Authentication (optional)
+
+================================================================================
+                          6. NOTIFICATION SYSTEM
+================================================================================
+
+Files:
+- backend/src/domains/communication/services/notificationService.ts
+- backend/src/domains/communication/controllers/notificationController.ts
+
+Notification Channels:
+1. In-app notifications (database + WebSocket)
+2. Email (Gmail SMTP)
+3. SMS (Twilio / Fast2SMS)
+4. Push notifications (future)
+
+Notification Types:
+- ORDER_PLACED: Order confirmation
+- ORDER_CONFIRMED: Admin confirmed order
+- ORDER_ASSIGNED: Delivery partner assigned
+- ORDER_PICKED_UP: Out for delivery
+- ORDER_DELIVERED: Delivery completed
+- ORDER_CANCELLED: Order cancellation
+- PAYMENT_SUCCESS: Payment confirmed
+- PAYMENT_FAILED: Payment failed
+- NEW_PRODUCT_ALERT: New product added
+- LOW_STOCK_ALERT: Stock running low (admin)
+
+Key Functions:
+- createNotification(userId, type, data): Create in-app notification
+- sendEmail(to, subject, body): Send email
+- sendSMS(phone, message): Send SMS
+- dispatchToAllUsers(type, data): Broadcast notification
+
+In-app Notification Model:
+- userId: Recipient
+- type: Notification type
+- title: Short title
+- message: Notification body
+- data: Additional metadata
+- isRead: Read status
+- createdAt: Timestamp
+
+User Notification Preferences:
+- Granular control per channel and category
+- Opt-in/opt-out for each notification type
+- Stored in User.notificationPreferences
+
+================================================================================
+                          7. EMAIL SERVICE
+================================================================================
+
+Files:
+- backend/src/utils/sendEmailOTP.ts
+- backend/src/utils/sendEmailSMTP.ts
+- backend/src/domains/communication/services/mailService.ts
+
+Email Provider: Gmail SMTP with OAuth2
+
+Configuration (Environment):
+- GMAIL_USER: Gmail account
+- GMAIL_CLIENT_ID: OAuth2 client ID
+- GMAIL_CLIENT_SECRET: OAuth2 client secret
+- GMAIL_REFRESH_TOKEN: OAuth2 refresh token
+
+Email Types:
+1. OTP Emails: Verification codes
+2. Order Emails: Confirmations, updates
+3. Marketing Emails: Offers, new products
+4. Transactional Emails: Password resets, receipts
+
+Email Template:
+- HTML templates with branding
+- Responsive design (mobile-friendly)
+- Plain text fallback
+- Inline CSS for email clients
+
+Example Usage:
+sendEmailOTP(email, otp)
+sendOrderConfirmation(email, order)
+
+================================================================================
+                          8. SMS SERVICE
+================================================================================
+
+File: backend/src/utils/sms.ts
+
+SMS Providers:
+1. Twilio (primary, international)
+2. Fast2SMS (fallback, India only)
+
+Configuration:
+Twilio:
+- TWILIO_ACCOUNT_SID
+- TWILIO_AUTH_TOKEN
+- TWILIO_PHONE_NUMBER
+
+Fast2SMS:
+- FAST2SMS_API_KEY
+
+Key Functions:
+- generateOTP(): Generate 6-digit OTP
+- validatePhoneNumber(phone): Validate phone format
+- sendSMS(phone, message): Send SMS
+
+Phone Number Validation:
+- Indian mobile: /^[6-9]\d{9}$/
+- International: E.164 format
+
+SMS Use Cases:
+- OTP for login/signup
+- Order status updates
+- Delivery notifications
+- Account security alerts
+
+Fallback Logic:
+1. Try Twilio
+2. If fails, try Fast2SMS
+3. If both fail, log error and notify admin
+
+================================================================================
+                          9. CLOUDINARY IMAGE UPLOAD
+================================================================================
+
+File: backend/src/config/cloudinary.ts
+
+Cloudinary Configuration:
+- CLOUDINARY_CLOUD_NAME
+- CLOUDINARY_API_KEY
+- CLOUDINARY_API_SECRET
+
+Folders:
+- cps-store/products - Product images
+- cps-store/delivery - Delivery proofs
+- cps-store/users - Profile pictures
+
+Upload Transformations:
+- Resize: 800x600 (limit, maintains aspect ratio)
+- Quality: Auto (intelligent compression)
+- Format: Auto (WebP for modern browsers)
+- Crop: Fit
+
+Upload Methods:
+1. Base64: Frontend converts image to base64
+2. File Upload: Direct file upload
+3. URL: Upload from external URL
+
+Example Usage:
+```typescript
+const result = await cloudinary.uploader.upload(base64Image, {
+  folder: "cps-store/products",
+  transformation: [
+    { width: 800, height: 600, crop: "limit" },
+    { quality: "auto" },
+    { format: "auto" }
+  ]
+});
+
+const imageUrl = result.secure_url;
+```
+
+Benefits:
+- CDN delivery (fast loading)
+- Automatic optimization
+- Responsive images
+- Backup and redundancy
+
+================================================================================
+                          10. GEOCODING UTILITIES
+================================================================================
+
+Files:
+- backend/src/utils/geocoding.ts
+- backend/src/utils/locationSmoothing.ts
+
+Geocoding Services:
+1. Google Maps Geocoding API (primary)
+2. OpenStreetMap Nominatim (free fallback)
+
+Key Functions:
+- smartGeocode(address, city, state, pincode): Full address geocoding
+- geocodeByPincode(pincode): Pincode centroid fallback
+- reverseGeocode(lat, lng): Get address from coordinates
+- calculateDistance(lat1, lng1, lat2, lng2): Haversine distance
+
+smartGeocode Flow:
+1. Try Google Maps with full address
+2. If fails, try OpenStreetMap
+3. If fails, fallback to pincode centroid
+4. Return { lat, lng } or null
+
+Location Smoothing:
+- Removes GPS jitter
+- Smooths delivery partner location updates
+- Exponential smoothing algorithm
+- Improves map tracking accuracy
+
+Distance Calculation (Haversine):
+- Great-circle distance between two coordinates
+- Returns distance in kilometers
+- Used for delivery fee and partner assignment
+
+================================================================================
+                          11. VALIDATION UTILITIES
+================================================================================
+
+File: backend/src/utils/cardValidation.ts
+
+Card Validation:
+- Luhn algorithm for card number
+- Expiry date validation
+- CVV format check
+- Card holder name validation
+
+Validation Functions:
+- validateCard(cardNumber, expiry, cvv, name)
+- validateCardNumber(number): Luhn check
+- validateExpiry(expiry): MM/YY format, not expired
+- validateCVV(cvv): 3-4 digits
+
+Other Validations:
+- Email: Regex pattern
+- Phone: Format and length
+- Pincode: Exists in database
+- Password: Minimum length, complexity
+
+================================================================================
+                          12. DATABASE CONNECTION
+================================================================================
+
+File: backend/src/utils/database.ts
+
+MongoDB Connection:
+- Mongoose ORM
+- Connection pooling
+- Auto-reconnect
+- Error handling
+
+Connection String:
+mongodb://username:password@host:port/database?options
+
+Environment Variables:
+- MONGODB_URI: Full connection string
+- DB_NAME: Database name
+
+Connection Options:
+- useNewUrlParser: true
+- useUnifiedTopology: true
+- autoIndex: true (development only)
+- poolSize: 10 (connection pool)
+
+Health Check:
+- Ping database every 30 seconds
+- Log connection status
+- Retry on failure
+
+================================================================================
+                          13. LOGGING
+================================================================================
+
+File: backend/src/utils/logger.ts
+
+Logging Levels:
+- ERROR: Critical errors
+- WARN: Warnings
+- INFO: General info
+- DEBUG: Debug info (development only)
+
+Log Destinations:
+- Console (development)
+- File (production)
+- External service (e.g., Sentry)
+
+Log Format:
+[timestamp] [level] [module] message
+
+Example:
+logger.info('User logged in', { userId: '123', ip: '...' });
+
+================================================================================
+                          14. SOCKET.IO SERVICE
+================================================================================
+
+File: backend/src/services/socketService.ts
+
+Real-time Features:
+- Order status updates
+- Delivery location tracking
+- Notifications
+- Chat (future)
+
+Socket Events:
+- connection: Client connects
+- disconnect: Client disconnects
+- order:update: Order status changed
+- location:update: Delivery partner location
+- notification: New notification
+
+Rooms:
+- user:<userId> - User-specific events
+- order:<orderId> - Order-specific events
+- delivery:<deliveryBoyId> - Delivery partner events
+
+Usage:
+socketService.sendOrderUpdate(orderId, data)
+socketService.sendNotification(userId, notification)
+
+================================================================================
+                          IMPORTANT CONFIGURATION FILES
+================================================================================
+
+1. app.ts:
+   - Express app configuration
+   - Middleware registration order:
+     a. Body parser (JSON, URL-encoded)
+     b. CORS
+     c. Security (Helmet)
+     d. Rate limiting
+     e. Auth middleware
+     f. Routes
+     g. Error handler
+
+2. index.ts:
+   - Server entrypoint
+   - Database connection
+   - Redis connection
+   - Socket.io initialization
+   - Server startup
+   - Graceful shutdown handling
+
+3. .env (Environment Variables):
+   - Database: MONGODB_URI
+   - Redis: REDIS_HOST, REDIS_PORT
+   - JWT: JWT_SECRET, JWT_REFRESH_SECRET
+   - Razorpay: RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET
+   - Cloudinary: CLOUDINARY_*
+   - Email: GMAIL_*
+   - SMS: TWILIO_*, FAST2SMS_API_KEY
+   - Google Maps: GOOGLE_MAPS_API_KEY
+
+================================================================================
+                          IMPORTANT NOTES
+================================================================================
+
+1. Middleware Order Matters:
+   - Body parser before routes
+   - Auth middleware after routes that need it
+   - Error handler MUST be last
+
+2. Redis Fallback:
+   - App works without Redis (degrades gracefully)
+   - Caching disabled if Redis unavailable
+   - Logs warning but doesn't crash
+
+3. Rate Limiting:
+   - Per IP address
+   - Sliding window algorithm
+   - Redis-backed for distributed systems
+   - Whitelist option for admins
+
+4. Security Best Practices:
+   - Never log sensitive data (passwords, tokens)
+   - Always validate and sanitize input
+   - Use prepared statements (Mongoose handles this)
+   - HTTPS in production
+   - Secure cookies (httpOnly, secure, sameSite)
+
+5. Error Handling:
+   - Always handle promise rejections
+   - Use try-catch in async functions
+   - Log errors with context
+   - Return user-friendly messages
+
+6. Performance:
+   - Database indexes on frequently queried fields
+   - Redis cache for read-heavy operations
+   - Pagination for large result sets
+   - Cloudinary CDN for images
+   - Connection pooling for DB and Redis
+
+7. Monitoring:
+   - Log important events
+   - Track API response times
+   - Monitor Redis and MongoDB health
+   - Alert on errors (e.g., via Sentry)
+
+RELATED DOCUMENTATION:
+----------------------
+- See auth.txt for authentication details
+- See redis.txt for caching strategy
+- See otp.txt for OTP delivery
+- See payments.txt for Razorpay integration

@@ -364,8 +364,8 @@ const AdminOrdersPage: React.FC = () => {
   const filteredOrders = orders.filter((order) => {
     const matchesSearch =
       order.orderNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.userId.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.userId.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (order.userId?.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (order.userId?.email || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       order._id.toLowerCase().includes(searchQuery.toLowerCase());
     const status = order.status || order.orderStatus || "";
     const matchesStatus = !selectedStatus || status.toLowerCase() === selectedStatus.toLowerCase();
@@ -696,10 +696,10 @@ const AdminOrdersPage: React.FC = () => {
                           </div>
                           <div className="ml-3">
                             <div className="text-sm font-medium text-gray-900">
-                              {order.userId.name}
+                              {order.userId?.name || 'Unknown User'}
                             </div>
                             <div className="text-sm text-gray-500">
-                              {order.userId.email}
+                              {order.userId?.email || 'No email'}
                             </div>
                           </div>
                         </div>
@@ -750,7 +750,7 @@ const AdminOrdersPage: React.FC = () => {
                                     {order.deliveryBoyId.name}
                                   </p>
                                   <p className="text-xs text-gray-500 mb-2">
-                                    {order.deliveryBoyId.phone}
+                                    {order.deliveryBoyId.phone || 'No phone'}
                                   </p>
                                 </>
                               ) : (
@@ -977,8 +977,8 @@ const AdminOrdersPage: React.FC = () => {
                         <div className="ml-3 flex-1">
                           <div className="flex items-center justify-between">
                             <div>
-                              <p className="text-sm font-medium text-gray-900">{user.name}</p>
-                              <p className="text-xs text-gray-500">{user.phone}</p>
+                              <p className="text-sm font-medium text-gray-900">{user.name || 'Unknown Name'}</p>
+                              <p className="text-xs text-gray-500">{user.phone || 'No Phone'}</p>
                             </div>
                             <div className="text-right">
                               {deliveryBoy?.vehicleType && (

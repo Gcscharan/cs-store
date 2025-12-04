@@ -177,6 +177,11 @@ export interface IUser extends Document {
   preferredLanguage?: string;
   isProfileComplete?: boolean;
   mobileVerified?: boolean;
+  // Email change verification fields
+  pendingEmail?: string;
+  pendingEmailToken?: string;
+  pendingEmailExpiresAt?: Date;
+  lastEmailChangeRequestAt?: Date;
   createdAt: Date;
   updatedAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
@@ -256,8 +261,8 @@ const UserSchema = new Schema<IUser>(
       required: false, // Make phone optional by default
       default: "",
       match: [
-        /^[0-9]{10,15}$/,
-        "Please enter a valid phone number (10-15 digits)",
+        /^[6-9]\d{9}$/,
+        "Please enter a valid Indian phone number (10 digits starting with 6-9)",
       ],
     },
     passwordHash: {
@@ -298,6 +303,23 @@ const UserSchema = new Schema<IUser>(
     notificationPreferences: {
       type: Schema.Types.Mixed,
       default: {},
+    },
+    // Email change verification fields
+    pendingEmail: {
+      type: String,
+      default: null,
+    },
+    pendingEmailToken: {
+      type: String,
+      default: null,
+    },
+    pendingEmailExpiresAt: {
+      type: Date,
+      default: null,
+    },
+    lastEmailChangeRequestAt: {
+      type: Date,
+      default: null,
     },
   },
   {

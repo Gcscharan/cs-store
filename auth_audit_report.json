@@ -1,0 +1,86 @@
+{
+  "summary": { "overall_status": "partial", "short_reason": "Auth system has core functionality but missing critical security features like proper rate limiting, CSRF protection, and secure token storage" },
+  "files": [
+    { "path": "/Users/gannavarapuchiranjeevisatyacharan/Desktop/Dream/backend/src/domains/identity/controllers/authController.ts", "type": "controller", "lines": "1-730", "snippet": "const JWT_SECRET = process.env.JWT_SECRET || \"your-secret-key\";\nconst saltRounds = 12;\nconst passwordHash = await bcrypt.hash(password, saltRounds);", "notes": "Core auth logic with signup, login, OTP, OAuth, refresh token, logout functionality" },
+    { "path": "/Users/gannavarapuchiranjeevisatyacharan/Desktop/Dream/backend/src/middleware/auth.ts", "type": "middleware", "lines": "13-69", "snippet": "const decoded = jwt.verify(token, process.env.JWT_SECRET || \"your-secret-key\") as any;\nconst user = await User.findById(decoded.userId).select(\"-passwordHash\");", "notes": "JWT token verification middleware with Redis blacklisting support" },
+    { "path": "/Users/gannavarapuchiranjeevisatyacharan/Desktop/Dream/backend/src/domains/identity/routes/auth.ts", "type": "route", "lines": "40-56", "snippet": "router.post(\"/signup\", signup);\nrouter.post(\"/login\", login);\nrouter.post(\"/send-otp\", sendAuthOTP);\nrouter.post(\"/verify-otp\", verifyAuthOTP);", "notes": "Auth routes including OAuth endpoints" },
+    { "path": "/Users/gannavarapuchiranjeevisatyacharan/Desktop/Dream/backend/src/models/User.ts", "type": "model", "lines": "164-183", "snippet": "export interface IUser extends Document {\n  passwordHash?: string;\n  oauthProviders?: IOAuthProvider[];\n  role: \"customer\" | \"admin\" | \"delivery\";\n  comparePassword(candidatePassword: string): Promise<boolean>;", "notes": "User model with bcrypt password hashing and OAuth support" },
+    { "path": "/Users/gannavarapuchiranjeevisatyacharan/Desktop/Dream/frontend/src/store/slices/authSlice.ts", "type": "frontend", "lines": "98-125", "snippet": "const loadAuthFromStorage = (): AuthState => {\n  const storedAuth = localStorage.getItem(\"auth\");\n  if (storedAuth && !isTokenExpired(parsed.tokens.accessToken)) {", "notes": "Redux auth slice with localStorage persistence and token validation" },
+    { "path": "/Users/gannavarapuchiranjeevisatyacharan/Desktop/Dream/frontend/src/hooks/useTokenRefresh.ts", "type": "frontend", "lines": "3-16", "snippet": "async function refreshToken() {\n  const res = await api.post(\"/api/auth/refresh\");\n  if (res.data?.accessToken) {\n    localStorage.setItem(\"accessToken\", res.data.accessToken);", "notes": "Token refresh hook with localStorage storage" },
+    { "path": "/Users/gannavarapuchiranjeevisatyacharan/Desktop/Dream/backend/src/middleware/security.ts", "type": "middleware", "lines": "12-17", "snippet": "export const apiLimiter = rateLimit({\n  windowMs: 60 * 1000, // 1 minute\n  max: 120,\n  standardHeaders: true,", "notes": "Global rate limiting with auth-specific limits" },
+    { "path": "/Users/gannavarapuchiranjeevisatyacharan/Desktop/Dream/backend/src/app.ts", "type": "other", "lines": "36-41", "snippet": "app.use(cors({\n  origin: [\"http://localhost:3000\", \"http://127.0.0.1:3000\"],\n  credentials: true,\n}));", "notes": "CORS configuration with credentials support" }
+  ],
+  "routes": [
+    { "method": "POST", "path": "/api/auth/signup", "handler_file": "/Users/gannavarapuchiranjeevisatyacharan/Desktop/Dream/backend/src/domains/identity/controllers/authController.ts", "auth_required": false, "roles_required": [] },
+    { "method": "POST", "path": "/api/auth/login", "handler_file": "/Users/gannavarapuchiranjeevisatyacharan/Desktop/Dream/backend/src/domains/identity/controllers/authController.ts", "auth_required": false, "roles_required": [] },
+    { "method": "POST", "path": "/api/auth/refresh", "handler_file": "/Users/gannavarapuchiranjeevisatyacharan/Desktop/Dream/backend/src/domains/identity/controllers/authController.ts", "auth_required": false, "roles_required": [] },
+    { "method": "POST", "path": "/api/auth/logout", "handler_file": "/Users/gannavarapuchiranjeevisatyacharan/Desktop/Dream/backend/src/domains/identity/controllers/authController.ts", "auth_required": true, "roles_required": [] },
+    { "method": "POST", "path": "/api/auth/send-otp", "handler_file": "/Users/gannavarapuchiranjeevisatyacharan/Desktop/Dream/backend/src/domains/identity/controllers/authController.ts", "auth_required": false, "roles_required": [] },
+    { "method": "POST", "path": "/api/auth/verify-otp", "handler_file": "/Users/gannavarapuchiranjeevisatyacharan/Desktop/Dream/backend/src/domains/identity/controllers/authController.ts", "auth_required": false, "roles_required": [] },
+    { "method": "GET", "path": "/api/auth/google", "handler_file": "/Users/gannavarapuchiranjeevisatyacharan/Desktop/Dream/backend/src/domains/identity/controllers/authController.ts", "auth_required": false, "roles_required": [] },
+    { "method": "GET", "path": "/api/auth/me", "handler_file": "/Users/gannavarapuchiranjeevisatyacharan/Desktop/Dream/backend/src/domains/identity/controllers/authController.ts", "auth_required": true, "roles_required": [] }
+  ],
+  "flows": {
+    "login_password": { "description": "Email/phone + password authentication", "sequence": ["frontend -> POST /auth/login -> validate credentials -> bcrypt compare -> issue JWT tokens"], "where_to_check": ["authController.ts:101-157", "LoginForm.tsx"] },
+    "signup": { "description": "User registration with email/phone/password", "sequence": ["frontend -> POST /auth/signup -> validate input -> bcrypt hash -> create user -> return success"], "where_to_check": ["authController.ts:16-99"] },
+    "otp_flow": { "description": "OTP-based authentication via SMS/Email", "sequence": ["frontend -> POST /auth/send-otp -> generate OTP -> send via SMS/Email -> POST /auth/verify-otp -> verify OTP -> issue tokens"], "where_to_check": ["authController.ts:444-612"] },
+    "refresh_token": { "description": "JWT refresh token rotation", "sequence": ["frontend -> POST /auth/refresh -> verify refresh token -> check Redis blacklist -> generate new access token"], "where_to_check": ["authController.ts:223-277", "useTokenRefresh.ts"] },
+    "logout": { "description": "Token revocation and cleanup", "sequence": ["frontend -> POST /auth/logout -> blacklist tokens in Redis -> clear localStorage"], "where_to_check": ["authController.ts:279-337", "authSlice.ts:174-199"] },
+    "oauth": { "description": "Google OAuth integration", "sequence": ["frontend -> GET /auth/google -> OAuth flow -> callback -> token issuance"], "where_to_check": ["authController.ts:159-221", "authController.ts:340-386"] }
+  },
+  "token_policy": {
+    "access_token": { "signing_algo": "HS256", "expiry": "24h", "claims": ["userId", "email", "role"], "storage_frontend": "localStorage" },
+    "refresh_token": { "expiry": "7d", "storage_backend": "Redis blacklist", "rotation": true }
+  },
+  "security_checks": {
+    "password_hashing": { "algorithm": "bcrypt", "salt_rounds": 12, "where": ["authController.ts:69-70", "User.ts:308-313"] },
+    "token_verification": { "uses_aud_iss_checks": false, "revocation_supported": true },
+    "csrf": { "present": false, "where": "No CSRF middleware found" },
+    "cors": { "origins": ["http://localhost:3000", "http://127.0.0.1:3000"], "credentials": true, "issues": "Limited to localhost only" },
+    "rate_limiting": { "login_rate_limit": "5 attempts per 15 minutes", "endpoints_protected": ["/api/auth/"] },
+    "bruteforce_protection": { "present": true, "where": ["security.ts:48-52"] },
+    "secure_cookies": { "httpOnly": false, "secure": false, "sameSite": "unknown" }
+  },
+  "operational_checks": {
+    "audit_logs": { "present": true, "where": ["security.ts:275-329"] },
+    "monitoring_alerts": { "present": false, "where": "No monitoring system found" },
+    "email_sms_providers": { "email": "Gmail SMTP", "sms": "Fast2SMS", "templates_paths": ["sendEmailOTP.ts", "sms.ts"] }
+  },
+  "tests": {
+    "unit_tests": { "paths": [], "coverage": "unknown", "passing": false },
+    "integration_tests": { "paths": ["/Users/gannavarapuchiranjeevisatyacharan/Desktop/Dream/backend/src/domains/identity/__tests__/auth.integration.test.ts"], "coverage": "partial", "passing": false }
+  },
+  "bugs_and_issues": [
+    { "id": "ISS-1", "title": "Insecure token storage", "severity": "critical", "description": "JWT tokens stored in localStorage, vulnerable to XSS attacks", "where": ["authSlice.ts:42", "useTokenRefresh.ts:8"], "repro_steps": ["1. Login to application", "2. Open browser dev tools", "3. Check localStorage for auth tokens"], "suggested_fix": "Use httpOnly cookies with secure flag", "quick_patch": null },
+    { "id": "ISS-2", "title": "Missing CSRF protection", "severity": "critical", "description": "No CSRF middleware for state-changing requests", "where": ["app.ts"], "repro_steps": ["1. Login to get token", "2. Make cross-origin POST request with token", "3. Request succeeds without CSRF token"], "suggested_fix": "Implement CSRF middleware with double-submit cookie pattern", "quick_patch": null },
+    { "id": "ISS-3", "title": "Weak JWT secrets in dev", "severity": "major", "description": "Default JWT secrets used when environment variables not set", "where": ["authController.ts:12-14", "auth.ts:39"], "repro_steps": ["1. Start server without JWT_SECRET env var", "2. Login and inspect token", "3. Token signed with weak secret"], "suggested_fix": "Fail startup if JWT secrets not configured", "quick_patch": "--- a/backend/src/domains/identity/controllers/authController.ts\n+++ b/backend/src/domains/identity/controllers/authController.ts\n@@ -11,8 +11,12 @@\n import { sendEmailOTP } from \"../../../utils/sendEmailOTP\";\n \n+if (!process.env.JWT_SECRET || !process.env.JWT_REFRESH_SECRET) {\n+  throw new Error('JWT_SECRET and JWT_REFRESH_SECRET must be set in environment variables');\n+}\n+\n const JWT_SECRET = process.env.JWT_SECRET;\n-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || \"your-refresh-secret\";\n+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;" },
+    { "id": "ISS-4", "title": "No token expiration validation on frontend", "severity": "major", "description": "Frontend may use expired tokens before refresh attempt", "where": ["authSlice.ts:25-35"], "repro_steps": ["1. Let token expire", "2. Make API request", "3. Request fails with 401"], "suggested_fix": "Implement proactive token refresh before expiration", "quick_patch": null },
+    { "id": "ISS-5", "title": "CORS limited to localhost", "severity": "minor", "description": "Production CORS origins not configured", "where": ["app.ts:37-40"], "repro_steps": ["1. Deploy to production", "2. Try to access from production domain", "3. CORS errors occur"], "suggested_fix": "Add production domains to CORS origins", "quick_patch": "--- a/backend/src/app.ts\n+++ b/backend/src/app.ts\n@@ -37,7 +37,10 @@\n // Middleware\n app.use(\n   cors({\n-    origin: [\"http://localhost:3000\", \"http://127.0.0.1:3000\"],\n+    origin: [\n+      \"http://localhost:3000\", \"http://127.0.0.1:3000\",\n+      process.env.FRONTEND_URL || \"http://localhost:3000\"\n+    ],\n     credentials: true,\n   })\n );" }
+  ],
+  "priority_fixes": {
+    "critical": [ { "issue_id": "ISS-1", "effort_estimate_hours": 8 }, { "issue_id": "ISS-2", "effort_estimate_hours": 6 }, { "issue_id": "ISS-3", "effort_estimate_hours": 2 } ],
+    "high": [ { "issue_id": "ISS-4", "effort_estimate_hours": 4 } ],
+    "medium": [ { "issue_id": "ISS-5", "effort_estimate_hours": 1 } ],
+    "low": []
+  },
+  "api_examples": {
+    "curl_login": "curl -X POST http://localhost:5001/api/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"user@example.com\",\"password\":\"password123\"}'",
+    "curl_signup": "curl -X POST http://localhost:5001/api/auth/signup -H \"Content-Type: application/json\" -d '{\"name\":\"John Doe\",\"email\":\"john@example.com\",\"phone\":\"9876543210\",\"password\":\"password123\"}'",
+    "curl_refresh": "curl -X POST http://localhost:5001/api/auth/refresh -H \"Content-Type: application/json\" -d '{\"refreshToken\":\"<refresh_token_from_login>\"}'",
+    "how_to_get_admin_token": "1. Create admin user via database or signup with admin role\\n2. Login with admin credentials\\n3. Copy accessToken from response\\n4. Use in Authorization header: Bearer <token>"
+  },
+  "deliverables": {
+    "recommended_changes": [ 
+      { "file": "/Users/gannavarapuchiranjeevisatyacharan/Desktop/Dream/backend/src/domains/identity/controllers/authController.ts", "replacement_diff": "--- a/backend/src/domains/identity/controllers/authController.ts\n+++ b/backend/src/domains/identity/controllers/authController.ts\n@@ -11,8 +11,12 @@\n import { sendEmailOTP } from \"../../../utils/sendEmailOTP\";\n \n+if (!process.env.JWT_SECRET || !process.env.JWT_REFRESH_SECRET) {\n+  throw new Error('JWT_SECRET and JWT_REFRESH_SECRET must be set in environment variables');\n+}\n+\n const JWT_SECRET = process.env.JWT_SECRET;\n-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || \"your-refresh-secret\";\n+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;" },
+      { "file": "/Users/gannavarapuchiranjeevisatyacharan/Desktop/Dream/backend/src/app.ts", "replacement_diff": "--- a/backend/src/app.ts\n+++ b/backend/src/app.ts\n@@ -37,7 +37,10 @@\n // Middleware\n app.use(\n   cors({\n-    origin: [\"http://localhost:3000\", \"http://127.0.0.1:3000\"],\n+    origin: [\n+      \"http://localhost:3000\", \"http://127.0.0.1:3000\",\n+      process.env.FRONTEND_URL || \"http://localhost:3000\"\n+    ],\n     credentials: true,\n   })\n );" }
+    ],
+    "safety_notes": "Critical security vulnerabilities exist. Do NOT deploy to production without fixing XSS (localStorage tokens) and CSRF protection. Implement secure httpOnly cookies and CSRF middleware before any production deployment.",
+    "priority_todo_list": [
+      "1. Implement secure httpOnly cookie-based token storage to prevent XSS attacks",
+      "2. Add CSRF protection middleware for all state-changing requests", 
+      "3. Configure production CORS origins and security headers",
+      "4. Add comprehensive authentication testing suite",
+      "5. Implement proper monitoring and alerting for auth events"
+    ]
+  }
+}

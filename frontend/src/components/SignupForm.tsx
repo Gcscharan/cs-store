@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useDispatch } from "react-redux";
+import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { setAuth } from "../store/slices/authSlice";
-import OtpVerificationModal from "./OtpVerificationModal";
-import OtpLoginModal from "./OtpLoginModal";
+import { setUser, setTokens } from "../store/slices/authSlice";
 
 interface SignupFormData {
   name: string;
@@ -24,6 +23,7 @@ interface SignupFormProps {
 
 const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const [formData, setFormData] = useState<SignupFormData>({
     name: "",
     email: "",
@@ -34,15 +34,22 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
-  const [showVerificationModal, setShowVerificationModal] = useState(false);
-  const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginInfo, setLoginInfo] = useState<string | null>(null);
+
+  // OTP states (minimal / focused)
+  const [phoneOtpSent, setPhoneOtpSent] = useState(false);
+  const [phoneOtp, setPhoneOtp] = useState("");
+  const [isOtpLoading, setIsOtpLoading] = useState(false);
+  const [otpError, setOtpError] = useState("");
+  const [phoneOtpVerified, setPhoneOtpVerified] = useState(false);
+  const [otpTimer, setOtpTimer] = useState(30);
+  const [canResendOtp, setCanResendOtp] = useState(false);
 
   // Helper function to detect if input is phone or email
   const detectInputType = (input: string): "phone" | "email" => {
     const phoneRegex = /^[0-9]{10,12}$/;
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    
+
     if (phoneRegex.test(input)) return "phone";
     if (emailRegex.test(input)) return "email";
     return "email"; // Default to email if unclear
@@ -52,14 +59,14 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
   useEffect(() => {
     if (prefilledCredentials?.emailOrPhone) {
       console.log("🔄 SIGNUP FORM: Pre-filling credentials:", prefilledCredentials.emailOrPhone);
-      
+
       const inputType = detectInputType(prefilledCredentials.emailOrPhone);
-      
+
       setFormData(prev => ({
         ...prev,
         [inputType]: prefilledCredentials.emailOrPhone || ""
       }));
-      
+
       console.log(`✅ SIGNUP FORM: Pre-filled ${inputType} field with:`, prefilledCredentials.emailOrPhone);
     }
   }, [prefilledCredentials]);
@@ -75,6 +82,13 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
     if (name === "phone") {
       // Format phone number as user types (limit to 10 digits)
       const phoneDigits = value.replace(/\D/g, "").slice(0, 10);
+
+      // If phone changed, reset OTP states (so UI matches your requirement)
+      setPhoneOtpSent(false);
+      setPhoneOtp("");
+      setPhoneOtpVerified(false);
+      setOtpError("");
+
       setFormData((prev) => ({ ...prev, [name]: phoneDigits }));
 
       // Clear phone error when user starts typing
@@ -106,87 +120,185 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
     return Object.keys(newErrors).length === 0;
   };
 
+  // ---------------------------
+  // OTP: Send & Verify handlers
+  // ---------------------------
+
+  const handleSendPhoneOtp = async () => {
+    // Basic guard: valid phone
+    if (!formData.phone || !isValidPhoneNumber(formData.phone)) {
+      setOtpError("Please enter a valid 10-digit mobile number");
+      return;
+    }
+
+    try {
+      setIsOtpLoading(true);
+      setOtpError("");
+
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/auth/send-otp?mode=signup`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone: formData.phone.replace(/\D/g, "") }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        // Show backend error message if present
+        throw new Error(data.error || data.message || "Failed to send OTP");
+      }
+
+      // Mark OTP as sent — display OTP input UI
+      setPhoneOtpSent(true);
+      setOtpError("");
+      setOtpTimer(30);
+      setCanResendOtp(false);
+
+      const interval = setInterval(() => {
+        setOtpTimer((prev) => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            setCanResendOtp(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } catch (err) {
+      setOtpError(err instanceof Error ? err.message : "Failed to send OTP");
+      setPhoneOtpSent(false);
+    } finally {
+      setIsOtpLoading(false);
+    }
+  };
+
+  const handleVerifyPhoneOtp = async () => {
+    // guard
+    if (!phoneOtp || phoneOtp.length !== 6) {
+      setOtpError("Please enter a valid 6-digit OTP");
+      return;
+    }
+
+    try {
+      setIsOtpLoading(true);
+      setOtpError("");
+
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/auth/verify-otp?mode=signup`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            otp: phoneOtp,
+            phone: formData.phone.replace(/\D/g, ""),
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        // verification failed
+        throw new Error(data.error || data.message || "OTP verification failed");
+      }
+
+      // success
+      setPhoneOtpVerified(true);
+      setOtpError("");
+    } catch (err) {
+      setPhoneOtpVerified(false);
+      setOtpError(err instanceof Error ? err.message : "OTP verification failed");
+    } finally {
+      setIsOtpLoading(false);
+    }
+  };
+
+  // ---------------------------
+  // Signup submit
+  // ---------------------------
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!validateForm()) return;
 
+    // If a phone is provided, require OTP verification
+    if (formData.phone && !phoneOtpVerified) {
+      setOtpError("Please verify your mobile number with OTP first");
+      return;
+    }
+
     setIsLoading(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/auth/signup`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: formData.name,
-          email: formData.email,
-          phone: formData.phone,
-          password: formData.password,
-        }),
-      });
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/auth/signup?t=${Date.now()}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: formData.name,
+            email: formData.email,
+            phone: formData.phone,
+            password: formData.password,
+          }),
+        }
+      );
 
       const data = await response.json();
 
       if (response.ok) {
-        dispatch(
-          setAuth({
-            user: data.user,
-            tokens: {
-              accessToken: data.accessToken,
-              refreshToken: data.refreshToken,
-            },
-          })
-        );
+        // CASE A: Backend returned tokens (auto-login)
+        const accessToken = data.accessToken || data.token || null;
+        const refreshToken = data.refreshToken || data.refresh_token || null;
 
-        // Persist tokens for components that read from localStorage
-        localStorage.setItem("accessToken", data.accessToken);
-        localStorage.setItem("refreshToken", data.refreshToken);
+        if (accessToken) {
+          dispatch(setUser(data.user));
+          dispatch(setTokens({
+            accessToken,
+            refreshToken,
+          }));
 
-        // Immediately trigger OTP generation for mobile verification
-        try {
-          await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/otp/verification/generate`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${data.accessToken}`,
-            },
-            body: JSON.stringify({ phone: formData.phone }),
-          });
-        } catch (otpErr) {
-          console.warn("OTP generation failed:", otpErr);
+          localStorage.setItem("accessToken", accessToken);
+          if (refreshToken) localStorage.setItem("refreshToken", refreshToken);
+
+          // TRY OTP generation (no modal) — best-effort
+          try {
+            await fetch(
+              `${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/otp/verification/generate`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${accessToken}`,
+                },
+                body: JSON.stringify({ phone: formData.phone }),
+              }
+            );
+          } catch (_) {}
+
+          setErrors({});
+          setLoginInfo("Signup successful! Your account has been created.");
+
+          // Redirect to dashboard after successful signup
+          setTimeout(() => {
+            navigate("/dashboard");
+          }, 1500);
+        } else {
+          // CASE B: Signup succeeded but NO tokens returned
+          setErrors({});
+          setLoginInfo("Account created successfully. Please log in to continue.");
         }
-
-        // Show OTP verification modal and hide signup form
-        setShowVerificationModal(true);
       } else {
-        // Handle specific error messages
-        const errorMessage = data.error || "Signup failed";
+        // ERROR HANDLING
+        const errorMessage = data.error || data.message || "Signup failed";
 
-        // Check if it's an email or phone conflict
         if (errorMessage.toLowerCase().includes("email") && errorMessage.toLowerCase().includes("exists")) {
           setErrors({ email: "An account with this email already exists" });
         } else if (errorMessage.toLowerCase().includes("phone") && errorMessage.toLowerCase().includes("exists")) {
-          // Phone already registered -> automatically send login OTP and open login modal
           setErrors({ phone: "An account with this phone number already exists" });
-
-          try {
-            const sendResp = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/auth/send-otp`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ phone: formData.phone }),
-            });
-            const sendData = await sendResp.json();
-            if (sendResp.ok) {
-              setLoginInfo("Account exists with this number. OTP sent to your mobile to log in.");
-              setShowLoginModal(true);
-            } else {
-              // Keep the original error and add context
-              setErrors({ phone: sendData.error || "Phone already registered. Please log in with OTP." });
-            }
-          } catch (sendErr) {
-            console.warn("Failed to send login OTP:", sendErr);
-          }
         } else {
           setErrors({ general: errorMessage });
         }
@@ -199,143 +311,211 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
   };
 
   return (
-    <>
-      <OtpVerificationModal
-        isOpen={showVerificationModal}
-        onClose={() => setShowVerificationModal(false)}
-        onVerified={() => setShowVerificationModal(false)}
-      />
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="max-w-md mx-auto bg-white p-6 rounded-lg shadow-md"
+    >
+      <h2 className="text-2xl font-bold text-center mb-6">Create Account</h2>
 
-      <OtpLoginModal
-        isOpen={showLoginModal}
-        onClose={() => setShowLoginModal(false)}
-        redirectTo="/"
-      />
+      {loginInfo && (
+        <p className="text-blue-600 text-sm mb-3">{loginInfo}</p>
+      )}
 
-      {!showVerificationModal && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="max-w-md mx-auto bg-white p-6 rounded-lg shadow-md"
-        >
-          <h2 className="text-2xl font-bold text-center mb-6">Create Account</h2>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Name */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">
+            Name
+          </label>
+          <input
+            type="text"
+            name="name"
+            value={formData.name}
+            onChange={handleInputChange}
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Enter your name"
+          />
+          {errors.name && (
+            <p className="text-red-500 text-sm mt-1">{errors.name}</p>
+          )}
+        </div>
 
-          {loginInfo && (
-            <p className="text-blue-600 text-sm mb-3">{loginInfo}</p>
+        {/* Email */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">
+            Email
+          </label>
+          <input
+            type="email"
+            name="email"
+            value={formData.email}
+            onChange={handleInputChange}
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Enter your email"
+          />
+          {errors.email && (
+            <p className="text-red-500 text-sm mt-1">{errors.email}</p>
+          )}
+        </div>
+
+        {/* Phone + Verify button (inline) */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">
+            Mobile Number
+          </label>
+
+          <div className="flex gap-2 mt-1 items-center">
+            <input
+              type="tel"
+              name="phone"
+              value={formData.phone}
+              onChange={handleInputChange}
+              className={`flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                errors.phone
+                  ? "border-red-500 focus:ring-red-500"
+                  : "border-gray-300 focus:ring-blue-500"
+              }`}
+              placeholder="Enter your 10-digit mobile number"
+              maxLength={10}
+            />
+
+            {/* Verify / Verified indicator button */}
+            {phoneOtpVerified ? (
+              <div
+                aria-live="polite"
+                className="inline-flex items-center px-3 py-2 bg-green-50 border border-green-200 text-green-700 rounded-md text-sm"
+              >
+                ✓ Verified
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSendPhoneOtp}
+                disabled={!formData.phone || formData.phone.length !== 10 || isOtpLoading}
+                className="inline-flex items-center px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium rounded-md text-sm transition-colors"
+              >
+                {isOtpLoading && !phoneOtpSent ? "Sending..." : "Verify"}
+              </button>
+            )}
+          </div>
+
+          {errors.phone && (
+            <p className="text-red-500 text-sm mt-1">{errors.phone}</p>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Name */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Name
-              </label>
+          {/* OTP input + Submit button (appears only after OTP is sent and not yet verified) */}
+          {phoneOtpSent && !phoneOtpVerified && (
+            <div className="flex gap-2 mt-3 items-center">
               <input
                 type="text"
-                name="name"
-                value={formData.name}
-                onChange={handleInputChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter your name"
+                inputMode="numeric"
+                value={phoneOtp}
+                onChange={(e) =>
+                  setPhoneOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
+                }
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter 6-digit OTP"
+                maxLength={6}
               />
-              {errors.name && (
-                <p className="text-red-500 text-sm mt-1">{errors.name}</p>
-              )}
-            </div>
 
-            {/* Email */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Email
-              </label>
-              <input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter your email"
-              />
-              {errors.email && (
-                <p className="text-red-500 text-sm mt-1">{errors.email}</p>
-              )}
+              <button
+                type="button"
+                onClick={handleVerifyPhoneOtp}
+                disabled={phoneOtp.length !== 6 || isOtpLoading}
+                className="px-3 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-medium rounded-md transition-colors"
+              >
+                {isOtpLoading ? "Submitting..." : "Submit"}
+              </button>
             </div>
+          )}
 
-            {/* Phone */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Mobile Number
-              </label>
-              <input
-                type="tel"
-                name="phone"
-                value={formData.phone}
-                onChange={handleInputChange}
-                className={`mt-1 block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
-                  errors.phone
-                    ? "border-red-500 focus:ring-red-500"
-                    : "border-gray-300 focus:ring-blue-500"
+          {/* RESEND BUTTON BETWEEN OTP AND PASSWORD */}
+          {phoneOtpSent && !phoneOtpVerified && (
+            <div className="mt-2 flex items-center justify-between">
+              <button
+                type="button"
+                disabled={!canResendOtp}
+                onClick={handleSendPhoneOtp}
+                className={`text-sm font-medium transition-colors ${
+                  canResendOtp
+                    ? "text-blue-600 hover:text-blue-700 cursor-pointer"
+                    : "text-gray-400 cursor-not-allowed"
                 }`}
-                placeholder="Enter your 10-digit mobile number"
-                maxLength={10}
-              />
-              {errors.phone && (
-                <p className="text-red-500 text-sm mt-1">{errors.phone}</p>
-              )}
+                style={{ background: 'none', border: 'none', padding: 0 }}
+              >
+                Resend OTP
+              </button>
+              <span className="text-sm text-gray-500">
+                {canResendOtp ? "" : `Resend in ${otpTimer}s`}
+              </span>
             </div>
+          )}
 
-            {/* Password */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Password
-              </label>
-              <input
-                type="password"
-                name="password"
-                value={formData.password}
-                onChange={handleInputChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter your password"
-              />
-              {errors.password && (
-                <p className="text-red-500 text-sm mt-1">{errors.password}</p>
-              )}
+          {/* OTP verification success/failure messages */}
+          {phoneOtpVerified && (
+            <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-md">
+              <p className="text-green-700 text-sm font-medium">
+                ✓ Mobile number verified successfully
+              </p>
             </div>
+          )}
 
-            {/* Confirm Password */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Confirm Password
-              </label>
-              <input
-                type="password"
-                name="confirmPassword"
-                value={formData.confirmPassword}
-                onChange={handleInputChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Confirm your password"
-              />
-              {errors.confirmPassword && (
-                <p className="text-red-500 text-sm mt-1">{errors.confirmPassword}</p>
-              )}
-            </div>
+          {otpError && !phoneOtpVerified && (
+            <p className="text-red-500 text-sm mt-2">{otpError}</p>
+          )}
+        </div>
 
-            {/* General Error */}
-            {errors.general && (
-              <p className="text-red-500 text-sm mt-1">{errors.general}</p>
-            )}
+        {/* Password */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">
+            Password
+          </label>
+          <input
+            type="password"
+            name="password"
+            value={formData.password}
+            onChange={handleInputChange}
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Enter your password"
+          />
+          {errors.password && (
+            <p className="text-red-500 text-sm mt-1">{errors.password}</p>
+          )}
+        </div>
 
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-            >
-              {isLoading ? "Creating account..." : "Create Account"}
-            </button>
-          </form>
-        </motion.div>
-      )}
-    </>
+        {/* Confirm Password */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">
+            Confirm Password
+          </label>
+          <input
+            type="password"
+            name="confirmPassword"
+            value={formData.confirmPassword}
+            onChange={handleInputChange}
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Confirm your password"
+          />
+          {errors.confirmPassword && (
+            <p className="text-red-500 text-sm mt-1">{errors.confirmPassword}</p>
+          )}
+        </div>
+
+        {/* General Error */}
+        {errors.general && (
+          <p className="text-red-500 text-sm mt-1">{errors.general}</p>
+        )}
+
+        <button
+          type="submit"
+          disabled={isLoading}
+          className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+        >
+          {isLoading ? "Creating account..." : "Create Account"}
+        </button>
+      </form>
+    </motion.div>
   );
 }
 

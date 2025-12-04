@@ -4,11 +4,6 @@ import { RootState } from "../store";
 import { motion } from "framer-motion";
 import {
   ArrowLeft,
-  Phone,
-  Calendar,
-  MapPin,
-  Navigation,
-  Utensils,
   CheckCircle,
   AlertTriangle,
   CreditCard,
@@ -23,7 +18,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useRefreshTokenMutation } from "../store/api";
-import { setAuth, logout } from "../store/slices/authSlice";
+import { setUser, setTokens, logout } from "../store/slices/authSlice";
 
 interface DeliveryProfile {
   id: string;
@@ -48,8 +43,8 @@ const DeliveryProfilePage: React.FC = () => {
   const [profile, setProfile] = useState<DeliveryProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [selfieUrl, setSelfieUrl] = useState<string | null>(null);
-  const [isUploadingSelfie, setIsUploadingSelfie] = useState(false);
-  const [selfieError, setSelfieError] = useState<string | null>(null);
+  const [_isUploadingSelfie, _setIsUploadingSelfie] = useState(false);
+  const [_selfieError, _setSelfieError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Editing state
@@ -68,7 +63,7 @@ const DeliveryProfilePage: React.FC = () => {
   const [modalSelfiePreview, setModalSelfiePreview] = useState<string | null>(
     null
   );
-  const [isUploadingModalSelfie, setIsUploadingModalSelfie] = useState(false);
+  const [_isUploadingModalSelfie, _setIsUploadingModalSelfie] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   // Language preferences state
@@ -107,15 +102,11 @@ const DeliveryProfilePage: React.FC = () => {
 
       if (result.accessToken) {
         console.log("Token refreshed successfully");
-        dispatch(
-          setAuth({
-            user: user!,
-            tokens: {
-              accessToken: result.accessToken,
-              refreshToken: result.refreshToken || tokens.refreshToken,
-            },
-          })
-        );
+        dispatch(setUser(user!));
+        dispatch(setTokens({
+          accessToken: result.accessToken,
+          refreshToken: result.refreshToken || tokens.refreshToken,
+        }));
         return result.accessToken;
       }
 
@@ -349,61 +340,6 @@ const DeliveryProfilePage: React.FC = () => {
     }
   };
 
-  const handleSelfieUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    if (file.size > 5 * 1024 * 1024) {
-      setSelfieError("File size must be less than 5MB");
-      return;
-    }
-
-    try {
-      setIsUploadingSelfie(true);
-      setSelfieError(null);
-
-      const formData = new FormData();
-      formData.append("selfie", file);
-
-      console.log("Uploading selfie file:", file.name, "Size:", file.size);
-
-      const response = await makeAuthenticatedRequest(
-        "/api/delivery/update-selfie",
-        {
-          method: "PUT",
-          // Don't set Content-Type header - let browser set it with boundary
-          body: formData,
-        }
-      );
-
-      console.log("Selfie upload response status:", response.status);
-
-      if (!response.ok) {
-        let errorMessage = `Server error: ${response.status}`;
-        try {
-          const errorText = await response.text();
-          if (errorText) {
-            const errorData = JSON.parse(errorText);
-            errorMessage = errorData.message || errorData.error || errorMessage;
-          }
-        } catch (parseError) {
-          console.warn("Could not parse error response:", parseError);
-        }
-        throw new Error(errorMessage);
-      }
-
-      const data = await response.json();
-      console.log("✅ Selfie uploaded successfully:", data);
-      setSelfieUrl(data.selfieUrl);
-    } catch (err) {
-      console.error("❌ Selfie upload error:", err);
-      setSelfieError(err instanceof Error ? err.message : "Upload failed");
-    } finally {
-      setIsUploadingSelfie(false);
-    }
-  };
 
   // Editing functions
   const handleEdit = (field: string, currentValue: string) => {
@@ -510,10 +446,6 @@ const DeliveryProfilePage: React.FC = () => {
   };
 
   // Language handling functions
-  const openLanguageModal = (type: "app" | "preferred") => {
-    setLanguageType(type);
-    setIsLanguageModalOpen(true);
-  };
 
   const closeLanguageModal = () => {
     setIsLanguageModalOpen(false);

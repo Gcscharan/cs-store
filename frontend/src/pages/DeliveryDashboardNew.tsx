@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useSelector, useDispatch } from "react-redux";
+import { useSelector } from "react-redux";
 import { RootState } from "../store";
-import { logout } from "../store/slices/authSlice";
 import DeliveryBottomNav from "../components/DeliveryBottomNav";
 import HomeTab from "../components/delivery/HomeTab";
 import EarningsTab from "../components/delivery/EarningsTab";
@@ -12,7 +11,6 @@ import { Truck } from "lucide-react";
 
 const DeliveryDashboardNew: React.FC = () => {
   const navigate = useNavigate();
-  const dispatch = useDispatch();
   const { tokens, isAuthenticated, user } = useSelector(
     (state: RootState) => state.auth
   );
@@ -194,7 +192,7 @@ const DeliveryDashboardNew: React.FC = () => {
       {renderActiveTab()}
 
       {/* Bottom Navigation */}
-      <DeliveryBottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+      <DeliveryBottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
     </div>
   );
 };

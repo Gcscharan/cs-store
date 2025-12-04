@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
-import { RootState } from "../store";
+import { RootState } from "../../store";
 import { motion } from "framer-motion";
 import { DollarSign, TrendingUp, Calendar, Package, Clock } from "lucide-react";
 

@@ -1,9 +1,26 @@
-import React from "react";
-import { useLocation } from "react-router-dom";
+import React, { useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { useSelector } from "react-redux";
+import { RootState } from "../store";
 import SignupForm from "../components/SignupForm";
 
 const SignupPage: React.FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { isAuthenticated, user } = useSelector((state: RootState) => state.auth);
+  
+  // Redirect authenticated users away from signup page
+  useEffect(() => {
+    if (isAuthenticated) {
+      // Check admin first
+      if (user?.isAdmin || user?.role === "admin") {
+        navigate("/admin", { replace: true });
+        return;
+      }
+      // Redirect to dashboard for regular users
+      navigate("/dashboard", { replace: true });
+    }
+  }, [isAuthenticated, user, navigate]);
   
   // Extract passed credentials from URL parameters (since modal is outside Router context)
   const urlParams = new URLSearchParams(location.search);
@@ -14,6 +31,11 @@ const SignupPage: React.FC = () => {
     emailOrPhone: decodeURIComponent(prefilledCredential),
     fromLogin: fromLogin
   } : null;
+
+  // Don't render signup form if user is authenticated (redirect will happen)
+  if (isAuthenticated) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">

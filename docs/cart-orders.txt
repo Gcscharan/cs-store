@@ -1,0 +1,448 @@
+================================================================================
+                           CART & ORDERS MANAGEMENT
+================================================================================
+
+WHAT THIS DOES:
+---------------
+This module handles shopping cart and order lifecycle including:
+- Shopping cart operations (add, update, remove, clear)
+- Order creation and management
+- Order status tracking with history
+- Payment integration (Razorpay)
+- Delivery assignment and tracking
+- Order cancellation and refunds
+
+FOLDER PATHS INVOLVED:
+----------------------
+Backend:
+- backend/src/controllers/cartController.ts
+- backend/src/domains/operations/controllers/orderController.ts
+- backend/src/domains/operations/controllers/deliveryOrderController.ts
+- backend/src/models/Cart.ts
+- backend/src/models/Order.ts
+- backend/src/routes/cart.ts
+- backend/src/routes/orders.ts
+
+Frontend:
+- frontend/src/pages/CartPage.tsx
+- frontend/src/pages/CheckoutPage.tsx
+- frontend/src/pages/OrdersPage.tsx
+- frontend/src/pages/OrderTrackingPage.tsx
+- frontend/src/components/CartInitializer.tsx
+- frontend/src/components/FloatingCartCTA.tsx
+- frontend/src/store/cartSlice.ts
+
+KEY MODELS:
+-----------
+
+Cart Model (Cart.ts):
+- userId: ObjectId (unique per user)
+- items: Array of { productId, name, price, image, quantity }
+- total: Number (calculated)
+- itemCount: Number (total quantity)
+- createdAt, updatedAt: Timestamps
+
+Order Model (Order.ts):
+- userId: ObjectId
+- items: Array of { productId, name, price, qty }
+- totalAmount: Number
+- paymentMethod: Enum ["card", "upi", "netbanking", "cod"]
+- paymentStatus: Enum ["pending", "paid", "failed", "refunded"]
+- orderStatus: Enum ["pending", "confirmed", "assigned", "picked_up", "in_transit", "arrived", "delivered", "cancelled"]
+- deliveryStatus: Enum ["unassigned", "assigned", "picked_up", "in_transit", "arrived", "delivered", "cancelled"]
+- deliveryBoyId: ObjectId (assigned delivery partner)
+- assignmentHistory: Array of assignment records
+- address: Full delivery address with coordinates
+- razorpayOrderId, razorpayPaymentId, razorpaySignature: Payment details
+- deliveryProof: OTP/photo/signature verification
+- deliveryOtp: 4-digit OTP for delivery confirmation
+- riderLocation: Real-time coordinates
+- earnings: Delivery fee breakdown
+- history: Status change audit trail
+- confirmedAt, deliveredAt, etc.: Timestamp fields
+
+CART OPERATIONS:
+----------------
+
+1. GET CART
+   GET /api/cart
+   Headers: { Authorization: "Bearer <token>" }
+   
+   Response:
+   {
+     "items": [
+       {
+         "productId": "prod123",
+         "name": "Basmati Rice",
+         "price": 250,
+         "image": "https://...",
+         "quantity": 2
+       }
+     ],
+     "total": 500,
+     "itemCount": 2
+   }
+
+2. ADD TO CART
+   POST /api/cart
+   {
+     "productId": "prod123",
+     "quantity": 1
+   }
+   
+   Response:
+   {
+     "message": "Item added to cart",
+     "cart": {...}
+   }
+
+3. UPDATE CART ITEM
+   PUT /api/cart
+   {
+     "productId": "prod123",
+     "quantity": 3
+   }
+
+4. REMOVE FROM CART
+   DELETE /api/cart
+   {
+     "productId": "prod123"
+   }
+
+5. CLEAR CART
+   DELETE /api/cart/clear
+
+ORDER LIFECYCLE:
+----------------
+
+1. CREATE ORDER (from cart)
+   POST /api/orders
+   {
+     "addressId": "addr123",
+     "paymentMethod": "card"
+   }
+   
+   Creates order with status "pending"
+   Generates Razorpay order ID
+   Clears cart after successful order creation
+
+2. CONFIRM PAYMENT (webhook)
+   Payment verified via Razorpay webhook
+   Order status → "confirmed"
+   Payment status → "paid"
+   Delivery assignment triggered
+
+3. ADMIN CONFIRMS ORDER
+   Order status → "confirmed"
+   Ready for delivery assignment
+
+4. DELIVERY ASSIGNMENT
+   Smart assignment algorithm assigns delivery partner
+   Order status → "assigned"
+   Delivery status → "assigned"
+   Notification sent to delivery partner
+
+5. PICKUP
+   Delivery partner picks up order
+   Order status → "picked_up"
+   Delivery status → "picked_up"
+
+6. IN TRANSIT
+   Order status → "in_transit"
+   Delivery status → "in_transit"
+   Real-time location tracking active
+
+7. ARRIVED AT DESTINATION
+   Order status → "arrived"
+   Delivery status → "arrived"
+   Customer notified
+
+8. DELIVERY COMPLETION
+   Customer provides OTP or photo proof
+   Order status → "delivered"
+   Delivery status → "delivered"
+   Payment released to delivery partner
+   Delivery completion timestamp recorded
+
+9. CANCELLATION
+   Can be cancelled by customer (before pickup) or admin
+   Order status → "cancelled"
+   Refund initiated if payment completed
+
+ORDER STATUS FLOW:
+------------------
+pending → confirmed → assigned → picked_up → in_transit → arrived → delivered
+                                                        ↓
+                                                   cancelled
+
+DELIVERY STATUS FLOW:
+---------------------
+unassigned → assigned → picked_up → in_transit → arrived → delivered
+                                                         ↓
+                                                    cancelled
+
+REQUEST/RESPONSE EXAMPLES:
+--------------------------
+
+1. CREATE ORDER
+   POST /api/orders
+   Headers: { Authorization: "Bearer <token>" }
+   {
+     "addressId": "addr123",
+     "paymentMethod": "card"
+   }
+   
+   Response:
+   {
+     "message": "Order created successfully",
+     "order": {
+       "_id": "order123",
+       "userId": "user123",
+       "items": [...],
+       "totalAmount": 500,
+       "orderStatus": "pending",
+       "paymentStatus": "pending",
+       "razorpayOrderId": "order_XYZ...",
+       "address": {...},
+       "createdAt": "..."
+     },
+     "razorpayKey": "rzp_test_..."
+   }
+
+2. GET USER ORDERS
+   GET /api/orders
+   Headers: { Authorization: "Bearer <token>" }
+   
+   Response:
+   {
+     "orders": [
+       {
+         "_id": "order123",
+         "items": [...],
+         "totalAmount": 500,
+         "orderStatus": "in_transit",
+         "deliveryStatus": "in_transit",
+         "address": {...},
+         "deliveryBoy": {
+           "name": "John",
+           "phone": "9876543210"
+         },
+         "riderLocation": {
+           "lat": 17.385,
+           "lng": 78.486
+         },
+         "createdAt": "...",
+         "confirmedAt": "...",
+         "pickedUpAt": "..."
+       }
+     ]
+   }
+
+3. GET ORDER BY ID
+   GET /api/orders/:orderId
+   
+   Full order details including history
+
+4. UPDATE ORDER STATUS (Admin/Delivery)
+   PUT /api/orders/:orderId/status
+   {
+     "orderStatus": "picked_up",
+     "deliveryStatus": "picked_up"
+   }
+
+5. CANCEL ORDER
+   PUT /api/orders/:orderId/cancel
+   {
+     "reason": "Customer request"
+   }
+
+6. VERIFY DELIVERY OTP
+   POST /api/orders/:orderId/verify-delivery
+   {
+     "otp": "1234"
+   }
+
+FRONTEND INTERACTION:
+---------------------
+
+1. Cart Page
+   - List all cart items
+   - Quantity controls (+/-)
+   - Remove item buttons
+   - Total price display
+   - Proceed to checkout button
+   - Empty cart state
+
+2. Checkout Page
+   - Address selection/addition
+   - Delivery fee display
+   - Order summary
+   - Payment method selection
+   - Place order button
+   - Razorpay integration
+
+3. Orders Page
+   - List all user orders
+   - Filter by status
+   - Order cards with key info
+   - Track order buttons
+   - Cancel order option (if applicable)
+
+4. Order Tracking Page
+   - Real-time order status
+   - Progress indicator
+   - Delivery partner info
+   - Live map with partner location
+   - Estimated delivery time
+   - Contact delivery partner
+   - OTP input for delivery confirmation
+
+5. Floating Cart CTA
+   - Sticky bottom button
+   - Shows item count
+   - Quick access to cart
+   - Animated on cart updates
+
+6. Cart Redux Slice
+   - Client-side cart state management
+   - Syncs with backend
+   - Persists to localStorage
+   - Actions: add, update, remove, clear
+
+IMPORTANT FEATURES:
+-------------------
+
+1. Stock Validation
+   - Check product stock before adding to cart
+   - Prevent over-ordering
+   - Show "out of stock" messaging
+
+2. Cart Persistence
+   - Server-side cart storage
+   - One cart per user (unique userId)
+   - Persists across sessions
+   - Syncs across devices
+
+3. Order History & Audit Trail
+   - history[] field tracks all status changes
+   - Records: who changed, when, what changed
+   - Includes metadata (reason, location, etc.)
+   - Immutable audit log
+
+4. Assignment History
+   - Tracks all delivery partner assignments
+   - Records: offered, accepted, rejected
+   - Useful for analytics and disputes
+
+5. Delivery Proof
+   - OTP verification (customer provides 4-digit code)
+   - Photo proof (delivery partner uploads)
+   - Signature capture (future feature)
+   - Ensures authentic delivery
+
+6. Real-time Tracking
+   - Delivery partner location updates
+   - WebSocket/polling for live updates
+   - Map integration on frontend
+   - ETA calculation
+
+7. Earnings Tracking
+   - Delivery fee paid to partner
+   - Tips from customer
+   - Platform commission
+   - Transparent breakdown
+
+8. Multi-assignment Support
+   - Orders can be reassigned if partner rejects
+   - assignmentHistory tracks all attempts
+   - Smart algorithm finds best available partner
+
+9. Payment Integration
+   - Razorpay order creation
+   - Webhook verification
+   - Payment capture
+   - Refund processing
+
+10. Notifications
+    - Order confirmation email/SMS
+    - Delivery assignment alert (partner)
+    - Order picked up (customer)
+    - Out for delivery (customer)
+    - Delivery completed (both)
+    - Cancellation notice
+
+IMPORTANT NOTES:
+----------------
+
+1. Cart-to-Order Flow:
+   - User adds items to cart
+   - Proceeds to checkout
+   - Selects address and payment method
+   - Places order (cart copied to order.items)
+   - Cart cleared on successful order creation
+
+2. Payment Flow:
+   - Order created with razorpayOrderId
+   - Frontend opens Razorpay checkout
+   - User completes payment
+   - Razorpay sends webhook to backend
+   - Backend verifies signature
+   - Order payment status updated
+
+3. Order Confirmation:
+   - Admin manually confirms orders (optional)
+   - Auto-confirmation can be enabled
+   - confirmedAt timestamp recorded
+   - Triggers delivery assignment
+
+4. Delivery Assignment:
+   - Smart algorithm (see delivery-system.txt)
+   - Considers: proximity, load, availability
+   - Sends notification to assigned partner
+   - Partner accepts/rejects within timeout
+   - Auto-reassign on rejection
+
+5. Order Cancellation Rules:
+   - Customer can cancel before pickup
+   - Admin can cancel anytime
+   - Refund processed for prepaid orders
+   - COD orders just marked cancelled
+
+6. Delivery OTP:
+   - Generated when order picked up
+   - 4-digit code
+   - Valid until delivery completed
+   - Customer shares with delivery partner
+   - Partner enters to confirm delivery
+
+7. Status History Tracking:
+   - Every status change logged
+   - Includes: status, updatedBy, updatedByRole, timestamp
+   - Meta field for additional context
+   - Useful for debugging and analytics
+
+8. Real-time Location:
+   - Delivery partner's app sends location updates
+   - Stored in riderLocation field
+   - Frontend polls or uses WebSocket
+   - Smoothing algorithm for accuracy
+
+9. Earnings Calculation:
+   - deliveryFee: Base fee from delivery fee calculator
+   - tip: Optional customer tip
+   - commission: Platform cut (configurable %)
+   - Net earnings = deliveryFee + tip - commission
+
+10. Order Totals:
+    - Subtotal: Sum of (item.price * item.qty)
+    - Delivery fee: Calculated separately (see delivery-fee.txt)
+    - Total: Subtotal + Delivery fee
+    - Stored in totalAmount field
+
+RELATED DOCUMENTATION:
+----------------------
+- See products-catalog.txt for product details
+- See delivery-system.txt for assignment logic
+- See delivery-fee.txt for fee calculation
+- See payments.txt for Razorpay integration
+- See notifications.txt for order alerts

@@ -24,17 +24,20 @@ export const useCartPersistence = () => {
     if (isAuthenticated && backendCart && !isLoadingCart) {
       console.log("🛒 Loading cart from MongoDB backend:", backendCart);
       
+      // Backend returns { cart: { items, totalAmount, itemCount } }
+      const cartData = backendCart.cart || backendCart;
+      
       dispatch(
         setCart({
-          items: backendCart.items.map((item: any) => ({
+          items: (cartData.items || []).map((item: any) => ({
             id: item.productId._id || item.productId,
             name: item.name,
             price: item.price,
             quantity: item.quantity,
             image: item.image,
           })),
-          total: backendCart.total,
-          itemCount: backendCart.itemCount,
+          total: cartData.totalAmount || 0,
+          itemCount: cartData.itemCount || 0,
         })
       );
     }

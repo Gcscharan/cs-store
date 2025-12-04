@@ -25,6 +25,11 @@ const TopNav = () => {
     dispatch(setSearchQuery(e.target.value));
   };
 
+  const handleSearch = () => {
+    // Handle search functionality
+    console.log("Searching for:", searchQuery);
+  };
+
   const handleLogoClick = () => {
     // If already on Home page, reload the page
     if (location.pathname === "/") {

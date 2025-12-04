@@ -9,7 +9,7 @@ import {
   CreditCard,
   Globe,
 } from "lucide-react";
-import { useSelector, useDispatch } from "react-redux";
+import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { RootState } from "../store";
 import { useLogout } from "../hooks/useLogout";
@@ -17,7 +17,6 @@ import { useLanguage } from "../contexts/LanguageContext";
 import { useGetProfileQuery } from "../store/api";
 
 const AccountPage = () => {
-  const dispatch = useDispatch();
   const navigate = useNavigate();
   const performLogout = useLogout();
   const { user, isAuthenticated } = useSelector(

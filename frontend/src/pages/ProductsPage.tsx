@@ -1,6 +1,4 @@
-import React, { useState, useEffect } from "react";
-import { useSelector, useDispatch } from "react-redux";
-import { RootState } from "../store";
+import React, { useState } from "react";
 import { useGetProductsQuery } from "../store/api";
 import ProductCard from "../components/ProductCard";
 import ProductFilters from "../components/ProductFilters";
@@ -9,7 +7,6 @@ import SkeletonLoader from "../components/SkeletonLoader";
 import { motion } from "framer-motion";
 
 const ProductsPage: React.FC = () => {
-  const dispatch = useDispatch();
   const [sortBy, setSortBy] = useState<SortOption>("newest");
   const [filters, setFilters] = useState({
     category: "",
@@ -21,42 +18,17 @@ const ProductsPage: React.FC = () => {
   });
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
-  const {
-    data: productsData,
-    error,
-    isLoading,
-    refetch,
-  } = useGetProductsQuery({
-    search: filters.search,
-    category: filters.category,
-    sortBy: filters.sortBy,
-    minPrice: filters.minPrice,
-    maxPrice: filters.maxPrice,
-  });
+  const { data: productsData, error, isLoading, refetch } = useGetProductsQuery({
+  search: filters.search || "",
+  category: filters.category || "",
+  sortBy: filters.sortBy || "createdAt",
+  minPrice: filters.minPrice || "",
+  maxPrice: filters.maxPrice || "",
+  page: 1,
+  limit: 100,
+});
 
   const products = productsData?.products || [];
-
-  const categories = [
-    "All",
-    "Electronics",
-    "Clothing",
-    "Books",
-    "Home & Garden",
-    "Sports",
-    "Toys",
-    "Beauty",
-    "Automotive",
-    "Health",
-  ];
-
-  const sortOptions = [
-    { value: "name", label: "Name A-Z" },
-    { value: "-name", label: "Name Z-A" },
-    { value: "price", label: "Price Low to High" },
-    { value: "-price", label: "Price High to Low" },
-    { value: "-createdAt", label: "Newest First" },
-    { value: "createdAt", label: "Oldest First" },
-  ];
 
   const handleFiltersChange = (newFilters: any) => {
     setFilters(newFilters);
@@ -208,12 +180,8 @@ const ProductsPage: React.FC = () => {
                 : "space-y-4"
             }
           >
-            {products.map((product) => (
-              <ProductCard
-                key={product._id}
-                product={product}
-                viewMode={viewMode}
-              />
+            {products.map((product: any) => (
+              <ProductCard key={product._id} product={product} />
             ))}
           </motion.div>
         )}

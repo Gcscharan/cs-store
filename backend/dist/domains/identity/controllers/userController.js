@@ -221,8 +221,23 @@ const updateUserProfile = async (req, res) => {
             updateData.name = name;
         if (phone !== undefined)
             updateData.phone = phone;
-        if (email !== undefined)
-            updateData.email = email;
+        // Handle email change with verification requirement
+        if (email !== undefined && email !== user.email) {
+            // Don't update email immediately - require verification
+            return res.json({
+                success: true,
+                message: "Email change requires verification",
+                emailChangePending: true,
+                pendingEmail: email,
+                user: {
+                    id: user._id,
+                    name: user.name,
+                    email: user.email, // Still return old email
+                    phone: user.phone,
+                    role: user.role,
+                },
+            });
+        }
         // Use findByIdAndUpdate to atomically update and return new document
         const updatedUser = await User_1.User.findByIdAndUpdate(userId, updateData, {
             new: true, // Return updated document

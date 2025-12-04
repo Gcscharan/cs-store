@@ -1,12 +1,18 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import OptimizedImage from "./OptimizedImage";
 
 interface Product {
   _id: string;
   name: string;
-  image: string;
   category: string;
-  price: number;
+  images: {
+    variants: { micro: string; thumb: string; small: string; medium: string; large: string; original: string };
+    formats?: { avif?: string; webp?: string; jpg?: string };
+    metadata?: { width?: number; height?: number; aspectRatio?: number };
+  }[];
+  snippet: string;
+  score: number;
 }
 
 interface SearchSuggestionsProps {
@@ -50,15 +56,22 @@ const SearchSuggestions: React.FC<SearchSuggestionsProps> = ({
               className="flex items-center px-4 py-2.5 hover:bg-gray-100 cursor-pointer transition-colors border-b border-gray-100 last:border-b-0"
             >
               <div className="w-10 h-10 flex-shrink-0 mr-3">
-                <img
-                  src={product.image}
-                  alt={product.name}
-                  className="w-full h-full object-contain"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.src =
-                      "https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=400&h=400&fit=crop&crop=center";
+                <OptimizedImage
+                  image={product.images?.[0] || {
+                    variants: {
+                      micro: '/placeholder-product.svg',
+                      thumb: '/placeholder-product.svg',
+                      small: '/placeholder-product.svg',
+                      medium: '/placeholder-product.svg',
+                      large: '/placeholder-product.svg',
+                      original: '/placeholder-product.svg'
+                    }
                   }}
+                  size="thumb"
+                  alt={product.name}
+                  className="w-full h-full"
+                  productId={product._id}
+                  debug={false}
                 />
               </div>
               <div className="flex-1 min-w-0">
@@ -68,9 +81,6 @@ const SearchSuggestions: React.FC<SearchSuggestionsProps> = ({
                 <div className="text-xs text-blue-600 mt-0.5">
                   in {product.category}
                 </div>
-              </div>
-              <div className="text-sm font-medium text-gray-700 ml-2">
-                ₹{product.price}
               </div>
             </div>
           ))}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useDispatch } from "react-redux";
 import { motion } from "framer-motion";
-import { setAuth } from "../store/slices/authSlice";
+import { setUser, setTokens } from "../store/slices/authSlice";
 import OAuthLogin from "./OAuthLogin";
 
 interface LoginFormData {
@@ -117,18 +117,28 @@ const LoginForm: React.FC = () => {
         emailOrPhone: formData.emailOrPhone,
       });
 
+      // Build explicit payload
+      const payload: any = {};
+      if (inputType === "phone") {
+        const phoneDigits = formData.emailOrPhone.replace(/\D/g, "");
+        payload.phone = phoneDigits;
+      } else {
+        payload.email = formData.emailOrPhone;
+      }
+
+      console.log("🔍 OTP send request payload:", payload);
+
       const response = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/auth/send-otp`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          [inputType]: formData.emailOrPhone,
-        }),
+        body: JSON.stringify(payload),
       });
 
+      console.log("🔍 OTP send response status:", response.status);
       const data = await response.json();
-      console.log("🔍 OTP send response:", { status: response.status, data });
+      console.log("🔍 OTP send response body:", data);
 
       if (response.ok) {
         setOtpSent(true);
@@ -136,15 +146,9 @@ const LoginForm: React.FC = () => {
       } else {
         // Handle account not found case
         if (response.status === 404 && data.action === "signup_required") {
-          console.log("❌ User not found - redirecting to signup");
           setErrors({
-            general: `Account not found for ${formData.emailOrPhone}. Please sign up first.`,
+            general: "Account does not exist. Please create an account.",
           });
-          
-          // Auto-redirect to signup page after 2 seconds
-          setTimeout(() => {
-            window.location.href = `/signup?emailOrPhone=${encodeURIComponent(formData.emailOrPhone)}`;
-          }, 2000);
         } else {
           setErrors({ general: data.error || data.details || "Failed to send OTP" });
         }
@@ -192,15 +196,19 @@ const LoginForm: React.FC = () => {
           refreshToken: data.refreshToken ? "Present" : "Missing",
         });
 
-        dispatch(
-          setAuth({
-            user: data.user,
-            tokens: {
-              accessToken: data.accessToken,
-              refreshToken: data.refreshToken,
-            },
-          })
-        );
+        // Prevent overwriting tokens with undefined
+        if (data.accessToken) {
+          dispatch(setUser(data.user));
+          dispatch(setTokens({
+            accessToken: data.accessToken,
+            refreshToken: data.refreshToken,
+          }));
+        } else {
+          console.warn("⚠️ Login response missing access token");
+          setErrors({ general: "Login failed: No access token received" });
+          setIsLoading(false);
+          return;
+        }
 
         console.log("🔍 Auth state updated, redirecting...");
 
@@ -240,15 +248,11 @@ const LoginForm: React.FC = () => {
   };
 
   const handleOAuthSuccess = (data: any) => {
-    dispatch(
-      setAuth({
-        user: data.user,
-        tokens: {
-          accessToken: data.accessToken,
-          refreshToken: data.refreshToken,
-        },
-      })
-    );
+    dispatch(setUser(data.user));
+    dispatch(setTokens({
+      accessToken: data.accessToken,
+      refreshToken: data.refreshToken,
+    }));
     // Redirect based on user role
     if (data.user.isAdmin) {
       window.location.href = "/admin";
@@ -339,16 +343,6 @@ const LoginForm: React.FC = () => {
         {errors.general && (
           <div className="text-red-600 text-sm mb-3">
             {errors.general}
-            {errors.general.includes("User doesn't exist") && (
-              <div className="mt-2">
-                <a
-                  href="/signup"
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm font-medium transition-colors inline-block"
-                >
-                  Sign Up Now
-                </a>
-              </div>
-            )}
           </div>
         )}
 
@@ -385,10 +379,7 @@ const LoginForm: React.FC = () => {
 
       <div className="mt-6 text-center">
         <p className="text-sm text-gray-600">
-          Don't have an account?{" "}
-          <a href="/signup" className="text-blue-600 hover:text-blue-500">
-            Sign up
-          </a>
+          Don't have an account? Please create an account.
         </p>
       </div>
     </motion.div>

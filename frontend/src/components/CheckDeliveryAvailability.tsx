@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { MapPin, Check, X } from "lucide-react";
+import { MapPin, Check } from "lucide-react";
 import {
   isValidPincode,
   getCityAndStateFromPincode,
@@ -19,7 +19,7 @@ const CheckDeliveryAvailability: React.FC<CheckDeliveryAvailabilityProps> = ({
   onPincodeInvalid,
   className = "",
 }) => {
-  const { success, error: showError } = useToast();
+  const { success: _success, error: _showError } = useToast();
 
   // Pincode validation state
   const [pincode, setPincode] = useState("");

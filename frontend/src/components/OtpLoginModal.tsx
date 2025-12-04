@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { X, Phone, Mail, ArrowLeft, Loader2, User } from "lucide-react";
+import { X, Phone, Mail, User } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
-import { setAuth } from "../store/slices/authSlice";
+import { setUser, setTokens } from "../store/slices/authSlice";
 import { RootState } from "../store";
 
 interface OtpLoginModalProps {
@@ -20,46 +20,23 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
   const dispatch = useDispatch();
   const { isAuthenticated } = useSelector((state: RootState) => state.auth);
   const [authMethod, setAuthMethod] = useState<AuthMethod>("choose");
-
-  // Helper function to navigate to signup without closing modal
-  const goToSignup = () => {
-    // Use window.location for navigation since we're outside Router context
-    window.location.href = "/signup";
-  };
-
-  // Helper function to redirect to signup with credential passthrough
-  const showSignupMessage = () => {
-    console.log("🔍 showSignupMessage called - implementing credential passthrough");
-    
-    // Get the entered credential (phone or email)
-    const enteredCredential = phone || email;
-    console.log("🔄 CREDENTIAL PASSTHROUGH: Redirecting to signup with:", enteredCredential);
-    
-    // Close the modal
-    onClose();
-    
-    // Navigate to signup page with credential as URL parameter
-    // Using URL params since we're outside Router context and can't use state
-    const encodedCredential = encodeURIComponent(enteredCredential);
-    window.location.href = `/signup?prefill=${encodedCredential}&fromLogin=true`;
-  };
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [otpSent, setOtpSent] = useState(false);
-  const [countdown, setCountdown] = useState(0);
   const [phoneError, setPhoneError] = useState("");
+  const [otpTimer, setOtpTimer] = useState(30);
+  const [canResendOtp, setCanResendOtp] = useState(false);
 
-  // Countdown timer
+  // Auto-close modal if user becomes authenticated
   useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (countdown > 0) {
-      timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+    if (isAuthenticated && isOpen) {
+      console.log("OtpLoginModal: User authenticated, closing modal");
+      onClose();
     }
-    return () => clearTimeout(timer);
-  }, [countdown]);
+  }, [isAuthenticated, isOpen, onClose]);
 
   // Mobile number validation function
   const isValidPhoneNumber = (number: string): boolean => {
@@ -73,20 +50,14 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
     setError("");
     setPhoneError("");
     setOtpSent(false);
-    setCountdown(0);
+    setOtpTimer(30);
+    setCanResendOtp(false);
     setAuthMethod("choose");
   };
 
   const handleClose = () => {
     resetForm();
     onClose();
-
-    // If user closes modal without logging in, redirect to home page
-    // This prevents the infinite loop when accessing protected routes
-    if (!isAuthenticated && redirectTo && redirectTo !== "/") {
-      console.log("🔴 Modal closed without login, redirecting to home");
-      window.location.href = "/";
-    }
   };
 
   const handleSendOtp = async () => {
@@ -95,8 +66,8 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
     setPhoneError("");
 
     try {
-      // Determine the request body based on what's actually filled
-      let requestBody;
+      // Build explicit payload
+      let payload: any = {};
       if (phone) {
         // Validate phone number for Indian mobile numbers
         if (!isValidPhoneNumber(phone)) {
@@ -104,38 +75,57 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
           setIsLoading(false);
           return;
         }
-        requestBody = { phone };
+        const phoneDigits = phone.replace(/\D/g, "");
+        payload.phone = phoneDigits;
       } else if (email) {
-        requestBody = { email };
+        payload.email = email;
       } else {
         // Don't show error, just return without doing anything
         setIsLoading(false);
         return;
       }
-      console.log("🔍 Sending OTP request:", { authMethod, requestBody });
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/auth/send-otp`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestBody),
-      });
+      console.log("🔍 Sending OTP request payload:", payload);
 
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/auth/send-otp`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      console.log("🔍 send-otp status:", response.status);
       const data = await response.json();
+      console.log("🔍 send-otp response body:", data);
 
       if (!response.ok) {
         // Handle account not found case
         if (response.status === 404 && data.action === "signup_required") {
-          console.log("🔍 404 response received - calling showSignupMessage");
-          showSignupMessage();
+          setError("Account does not exist. Please create an account.");
           return;
         }
         throw new Error(data.error || "Failed to send OTP");
       }
 
+      // only set otpSent when the backend actually succeeded
       setOtpSent(true);
-      setCountdown(600); // 10 minutes
+      setOtpTimer(30);
+      setCanResendOtp(false);
+
+      const interval = setInterval(() => {
+        setOtpTimer((prev) => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            setCanResendOtp(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send OTP");
     } finally {
@@ -148,16 +138,19 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
     setError("");
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/auth/verify-otp`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          otp,
-          ...(phone ? { phone } : { email }),
-        }),
-      });
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/auth/verify-otp`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            otp,
+            ...(phone ? { phone } : { email }),
+          }),
+        }
+      );
 
       const data = await response.json();
 
@@ -179,28 +172,28 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
       }
 
       // Dispatch auth data to Redux store
-      dispatch(
-        setAuth({
-          user: data.user,
-          tokens: {
-            accessToken: data.accessToken,
-            refreshToken: data.refreshToken,
-          },
-        })
-      );
+      dispatch(setUser(data.user));
+      dispatch(setTokens({
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+      }));
 
       // Close modal and redirect based on user role
       handleClose();
-      if (data.user.isAdmin) {
-        window.location.href = "/admin";
-      } else {
-        // Don't redirect if we're already on the target page
-        if (window.location.pathname !== redirectTo) {
-          window.location.href = redirectTo;
+
+      // Add longer delay to ensure Redux state is saved to localStorage before redirect
+      setTimeout(() => {
+        if (data.user.isAdmin) {
+          window.location.href = "/admin";
+        } else {
+          // Don't redirect if we're already on the target page
+          if (window.location.pathname !== redirectTo) {
+            window.location.href = redirectTo;
+          }
+          // If we're already on the target page, just close the modal
+          // The page will automatically update due to Redux state change
         }
-        // If we're already on the target page, just close the modal
-        // The page will automatically update due to Redux state change
-      }
+      }, 500);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to verify OTP");
     } finally {
@@ -213,12 +206,7 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
     window.location.href = `${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/auth/google`;
   };
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
-  };
-
+  // Don't render modal if modal is not open
   if (!isOpen) {
     console.log("OtpLoginModal: Modal is closed, not rendering");
     return null;
@@ -227,8 +215,12 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
   console.log("OtpLoginModal: Modal is open, rendering");
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl h-[600px] flex">
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
+    >
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-screen overflow-auto flex">
         {/* Left Panel - Modern Gradient Background */}
         <div className="bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 text-white p-12 flex-1 flex flex-col justify-center relative overflow-hidden">
           {/* Background Pattern */}
@@ -271,24 +263,26 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
 
         {/* Right Panel - Modern White Background */}
         <div className="bg-white p-12 flex-1 flex flex-col justify-center relative">
-          <div className="w-full max-w-md mx-auto">
-            <button
-              onClick={handleClose}
-              className="absolute top-6 right-6 text-gray-400 hover:text-gray-600 transition-colors p-2 hover:bg-gray-100 rounded-full"
-            >
-              <X className="h-5 w-5" />
-            </button>
+          {/* Put close button here so it is not inside the scrollable area */}
+          <button
+            onClick={handleClose}
+            aria-label="Close login modal"
+            className="absolute top-6 right-6 text-gray-400 hover:text-gray-600 transition-colors p-2 hover:bg-gray-100 rounded-full z-20"
+          >
+            <X className="h-5 w-5" />
+          </button>
+
+          {/* Scrollable content block */}
+          <div className="w-full max-w-md mx-auto overflow-y-auto min-h-[360px]">
             {authMethod === "choose" && (
               <div className="space-y-6">
+                {/* Heading */}
                 <div className="text-center mb-6">
-                  <h2 className="text-2xl font-bold text-gray-800 mb-2">
-                    Sign In
-                  </h2>
-                  <p className="text-gray-600">
-                    Enter your email or mobile number
-                  </p>
+                  <h2 className="text-2xl font-bold text-gray-800 mb-2">Sign In</h2>
+                  <p className="text-gray-600">Enter your email or mobile number</p>
                 </div>
 
+                {/* Email/Phone Input */}
                 <div className="relative">
                   <input
                     type="text"
@@ -323,21 +317,8 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
                       if (e.key === "Enter") {
                         e.preventDefault();
                         e.stopPropagation();
-                        // Only set authMethod when user actually submits
                         const value = phone || email;
                         if (value) {
-                          if (value.includes("@")) {
-                            setAuthMethod("email");
-                          } else if (/^[0-9]{10}$/.test(value)) {
-                            setAuthMethod("phone");
-                          } else if (
-                            /^[0-9]*$/.test(value) &&
-                            value.length <= 10
-                          ) {
-                            setAuthMethod("phone");
-                          } else if (/^[a-zA-Z0-9@._-]*$/.test(value)) {
-                            setAuthMethod("email");
-                          }
                           handleSendOtp();
                         }
                       }
@@ -367,16 +348,6 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
                 {error && (
                   <div className="text-red-600 text-sm mb-3">
                     {error}
-                    {error.includes("User doesn't exist") && (
-                      <div className="mt-2">
-                        <button
-                          onClick={goToSignup}
-                          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm font-medium transition-colors"
-                        >
-                          Sign Up Now
-                        </button>
-                      </div>
-                    )}
                   </div>
                 )}
 
@@ -392,32 +363,67 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
                   .
                 </div>
 
+                {/* Request OTP button */}
                 <button
                   onClick={() => {
                     const value = phone || email;
                     if (value) {
-                      // Set authMethod when user clicks the button
-                      if (value.includes("@")) {
-                        setAuthMethod("email");
-                      } else if (/^[0-9]{10}$/.test(value)) {
-                        setAuthMethod("phone");
-                      } else if (/^[0-9]*$/.test(value) && value.length <= 10) {
-                        setAuthMethod("phone");
-                      } else if (/^[a-zA-Z0-9@._-]*$/.test(value)) {
-                        setAuthMethod("email");
-                      }
                       handleSendOtp();
                     }
                   }}
                   disabled={
-                    (!phone && !email) || (phone && !isValidPhoneNumber(phone))
+                    Boolean(!phone && !email) || Boolean(phone && !isValidPhoneNumber(phone))
                   }
                   className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold py-4 px-6 rounded-lg text-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-105 shadow-lg"
                 >
-                  Request OTP
+                  Continue
                 </button>
 
-                <div className="relative my-6">
+                {/* OTP BLOCK – SHOW ONLY AFTER OTP IS SENT */}
+                {otpSent && (
+                  <>
+                    <label className="text-gray-700 text-sm font-medium mt-4 block">Enter OTP</label>
+                    <input
+                      type="text"
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      maxLength={6}
+                      className="w-full px-4 py-3 border-2 rounded-lg border-gray-200 focus:outline-none focus:border-blue-500"
+                      placeholder="Enter 6-digit OTP"
+                    />
+
+                    {/* RESEND TEXT BETWEEN OTP AND VERIFY */}
+                    <div className="flex items-center justify-between mt-2">
+                      <button
+                        type="button"
+                        disabled={!canResendOtp}
+                        onClick={handleSendOtp}
+                        className={`text-sm font-medium transition-colors ${
+                          canResendOtp
+                            ? "text-blue-600 hover:text-blue-700 cursor-pointer"
+                            : "text-gray-400 cursor-not-allowed"
+                        }`}
+                        style={{ background: 'none', border: 'none', padding: 0 }}
+                      >
+                        Resend OTP
+                      </button>
+                      <span className="text-sm text-gray-500">
+                        {canResendOtp ? "" : `Resend in ${otpTimer}s`}
+                      </span>
+                    </div>
+
+                    <button
+                      onClick={handleVerifyOtp}
+                      disabled={otp.length !== 6 || isLoading}
+                      className="w-full bg-blue-600 text-white py-3 rounded-lg disabled:opacity-50"
+                    >
+                      {isLoading ? "Verifying..." : "Verify OTP"}
+                    </button>
+                  </>
+                )}
+
+                {/* ALWAYS VISIBLE BELOW REQUEST OTP */}
+                <div className="relative mt-2">
                   <div className="absolute inset-0 flex items-center">
                     <div className="w-full border-t border-gray-300"></div>
                   </div>
@@ -451,176 +457,15 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
                   <span>Continue with Google</span>
                 </button>
 
-                <div className="text-center text-sm text-gray-600">
+                <div className="text-center text-sm text-gray-600 mt-4">
                   New to CS Store?{" "}
-                  <a
-                    href="/signup"
-                    className="text-blue-600 hover:underline font-medium"
-                  >
-                    Create an account
-                  </a>
-                </div>
-              </div>
-            )}
-
-            {authMethod === "phone" && !otpSent && (
-              <div className="space-y-6">
-                <button
-                  onClick={() => setAuthMethod("choose")}
-                  className="flex items-center text-gray-600 hover:text-gray-800 transition-colors mb-4"
-                >
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Back
-                </button>
-
-                <div>
-                  <input
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (phone) {
-                          handleSendOtp();
-                        }
-                      }
-                    }}
-                    placeholder="Enter Mobile number"
-                    className="w-full px-4 py-3 text-lg border-0 border-b-2 border-gray-300 focus:border-blue-500 focus:outline-none focus:ring-0"
-                    maxLength={15}
-                  />
-                </div>
-
-                <button
-                  onClick={handleSendOtp}
-                  disabled={!phone || isLoading}
-                  className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 px-6 rounded text-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
-                >
-                  {isLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    "Request OTP"
-                  )}
-                </button>
-              </div>
-            )}
-
-            {authMethod === "email" && !otpSent && (
-              <div className="space-y-6">
-                <button
-                  onClick={() => setAuthMethod("choose")}
-                  className="flex items-center text-gray-600 hover:text-gray-800 transition-colors mb-4"
-                >
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Back
-                </button>
-
-                <div>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (email) {
-                          handleSendOtp();
-                        }
-                      }
-                    }}
-                    placeholder="Enter Email address"
-                    className="w-full px-4 py-3 text-lg border-0 border-b-2 border-gray-300 focus:border-blue-500 focus:outline-none focus:ring-0"
-                  />
-                </div>
-
-                <button
-                  onClick={handleSendOtp}
-                  disabled={!email || isLoading}
-                  className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 px-6 rounded text-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
-                >
-                  {isLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    "Request OTP"
-                  )}
-                </button>
-              </div>
-            )}
-
-            {otpSent && (
-              <div className="space-y-6">
-                <button
-                  onClick={() => {
-                    setOtpSent(false);
-                    setOtp("");
-                    setError("");
-                  }}
-                  className="flex items-center text-gray-600 hover:text-gray-800 transition-colors mb-4"
-                >
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Back
-                </button>
-
-                <div className="text-center">
-                  <p className="text-gray-600 mb-2 text-lg">
-                    We've sent a 6-digit OTP to{" "}
-                    <span className="font-medium">
-                      {authMethod === "phone" ? phone : email}
-                    </span>
-                  </p>
-                  {countdown > 0 && (
-                    <p className="text-sm text-gray-500">
-                      Resend OTP in {formatTime(countdown)}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <input
-                    type="text"
-                    value={otp}
-                    onChange={(e) =>
-                      setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
-                    }
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (otp.length === 6) {
-                          handleVerifyOtp();
-                        }
-                      }
-                    }}
-                    placeholder="Enter OTP"
-                    className="w-full px-4 py-3 text-lg border-0 border-b-2 border-gray-300 focus:border-blue-500 focus:outline-none focus:ring-0 text-center tracking-widest"
-                    maxLength={6}
-                  />
-                </div>
-
-                <button
-                  onClick={handleVerifyOtp}
-                  disabled={otp.length !== 6 || isLoading}
-                  className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 px-6 rounded text-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
-                >
-                  {isLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    "Verify OTP"
-                  )}
-                </button>
-
-                {countdown === 0 && (
                   <button
-                    onClick={handleSendOtp}
-                    disabled={isLoading}
-                    className="w-full text-blue-600 hover:text-blue-800 transition-colors text-sm"
+                    onClick={() => window.location.href = "/signup"}
+                    className="text-blue-600 font-medium hover:underline"
                   >
-                    Resend OTP
+                    create an account.
                   </button>
-                )}
+                </div>
               </div>
             )}
           </div>

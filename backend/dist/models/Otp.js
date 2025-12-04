@@ -47,7 +47,7 @@ const OtpSchema = new mongoose_1.Schema({
     },
     type: {
         type: String,
-        enum: ["payment", "login", "verification"],
+        enum: ["payment", "login", "verification", "signup"],
         required: true,
     },
     orderId: {
@@ -69,7 +69,12 @@ const OtpSchema = new mongoose_1.Schema({
     attempts: {
         type: Number,
         default: 0,
-        max: 3,
+        validate: {
+            validator(value) {
+                return value <= 3;
+            },
+            message: "Maximum OTP attempts exceeded",
+        },
     },
 }, {
     timestamps: true,
