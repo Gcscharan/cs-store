@@ -6,7 +6,7 @@ interface OAuthLoginProps {
   onError?: (error: string) => void;
 }
 
-const OAuthLogin: React.FC<OAuthLoginProps> = ({ onSuccess, onError }) => {
+const OAuthLogin: React.FC<OAuthLoginProps> = () => {
   const handleGoogleLogin = () => {
     // Redirect to Google OAuth endpoint
     window.location.href = `${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/auth/google`;

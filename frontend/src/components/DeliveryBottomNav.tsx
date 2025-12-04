@@ -1,4 +1,4 @@
-import { useLocation } from "react-router-dom";
+import React from "react";
 import { motion } from "framer-motion";
 import { Home, DollarSign, Bell, MoreHorizontal } from "lucide-react";
 
@@ -11,7 +11,6 @@ const DeliveryBottomNav: React.FC<DeliveryBottomNavProps> = ({
   activeTab,
   setActiveTab,
 }) => {
-  const location = useLocation();
 
   const navItems = [
     {

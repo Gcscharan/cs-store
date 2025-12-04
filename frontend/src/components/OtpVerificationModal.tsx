@@ -1,17 +1,25 @@
 import React, { useEffect, useState } from "react";
 import { X, ShieldCheck, Loader2, RefreshCcw } from "lucide-react";
 import { useDispatch } from "react-redux";
-import { setAuth, setTokens } from "../store/slices/authSlice";
+import { setUser, setTokens } from "../store/slices/authSlice";
 
 interface OtpVerificationModalProps {
   isOpen: boolean;
   onClose: () => void;
   onVerified?: () => void;
+  phone?: string;
+  pendingUserId?: string;
 }
 
 const COOLDOWN_SECONDS = 60;
 
-const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({ isOpen, onClose, onVerified }) => {
+const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({ 
+  isOpen, 
+  onClose, 
+  onVerified, 
+  phone, 
+  pendingUserId 
+}) => {
   const dispatch = useDispatch();
   const [otp, setOtp] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -49,19 +57,40 @@ const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({ isOpen, onC
     setInfo(null);
 
     try {
+      // For authenticated users, only send OTP
+      // For unauthenticated users, send OTP, phone, and pendingUserId
+      const requestBody: any = { otp };
+      
+      if (!localStorage.getItem("accessToken") && phone) {
+        // Unauthenticated flow - include phone and pendingUserId
+        requestBody.phone = phone;
+        requestBody.pendingUserId = pendingUserId;
+      }
+
       const response = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/users/verify-mobile`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`,
         },
-        body: JSON.stringify({ otp }),
+        body: JSON.stringify(requestBody),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || "Failed to verify mobile number");
+        const errorMessage = data.error || data.message || "Failed to verify mobile number";
+        
+        // Show specific error messages
+        if (errorMessage.includes("not found") || errorMessage.includes("expired")) {
+          setError("OTP not found or expired. Please request a new OTP.");
+        } else if (errorMessage.includes("Invalid OTP")) {
+          setError(`Invalid OTP. ${data.attemptsRemaining ? `${data.attemptsRemaining} attempts remaining.` : 'Please try again.'}`);
+        } else if (errorMessage.includes("Maximum OTP attempts exceeded")) {
+          setError("Maximum OTP attempts exceeded. Please request a new OTP.");
+        } else {
+          setError(errorMessage);
+        }
         return;
       }
 
@@ -71,15 +100,16 @@ const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({ isOpen, onC
         localStorage.setItem("refreshToken", data.refreshToken);
       }
       if (data.user) {
-        dispatch(setAuth({ user: {
+        dispatch(setUser({
           id: data.user.id,
           email: data.user.email,
           role: data.user.role,
           isAdmin: data.user.isAdmin,
-        }, tokens: {
+        }));
+        dispatch(setTokens({
           accessToken: data.accessToken,
           refreshToken: data.refreshToken,
-        }}));
+        }));
       } else if (data.accessToken && data.refreshToken) {
         dispatch(setTokens({ accessToken: data.accessToken, refreshToken: data.refreshToken }));
       }

@@ -64,7 +64,7 @@ const OrderDetailsPage: React.FC = () => {
   const [order, setOrder] = useState<Order | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [socket, setSocket] = useState<Socket | null>(null);
+  const [_socket, _setSocket] = useState<Socket | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -130,7 +130,7 @@ const OrderDetailsPage: React.FC = () => {
       console.log("[ORDER_DETAILS] Socket disconnected");
     });
 
-    setSocket(newSocket);
+    _setSocket(newSocket);
 
     return () => {
       newSocket.disconnect();
@@ -340,7 +340,7 @@ const OrderDetailsPage: React.FC = () => {
               const quantity = item.qty || item.quantity || 1;
               let imageUrl =
                 product?.images && product.images.length > 0
-                  ? product.images[0]
+                  ? (typeof product.images[0] === 'string' ? product.images[0] : (product.images[0] as any)?.full || product.images[0])
                   : "/placeholder-product.png";
               
               // Replace via.placeholder.com URLs with inline SVG

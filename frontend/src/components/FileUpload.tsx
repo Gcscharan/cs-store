@@ -1,87 +1,72 @@
-import { useState, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  uploadToCloudinary,
-  uploadMultipleToCloudinary,
-} from "../utils/cloudinary";
-import toast from "react-hot-toast";
+import React, { useRef, useState } from "react";
 
 interface FileUploadProps {
-  onUpload: (urls: string[]) => void;
-  multiple?: boolean;
-  accept?: string;
-  maxFiles?: number;
-  maxSize?: number; // in MB
-  folder?: string;
-  className?: string;
+  images: Array<{ full: string; thumb: string }>;
+  onChange: (updatedImages: Array<{ full: string; thumb: string }>) => void;
 }
 
-const FileUpload = ({
-  onUpload,
-  multiple = false,
-  accept = "image/*",
-  maxFiles = 5,
-  maxSize = 5,
-  folder = "cps-store",
-  className = "",
-}: FileUploadProps) => {
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
-  const [dragActive, setDragActive] = useState(false);
+export default function FileUpload({ images, onChange }: FileUploadProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+
+  const convertToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        // Remove data URL prefix to get pure base64
+        const base64 = result.split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const uploadToBackend = async (file: File): Promise<{ full: string; thumb: string }> => {
+    const base64 = await convertToBase64(file);
+    const response = await fetch("/api/uploads/cloudinary", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image: base64 })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Upload failed: ${response.statusText}`);
+    }
+    
+    return await response.json(); // => { full, thumb }
+  };
 
   const handleFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
 
-    const fileArray = Array.from(files);
-
-    // Validate file count
-    if (fileArray.length > maxFiles) {
-      toast.error(`Maximum ${maxFiles} files allowed`);
-      return;
-    }
-
-    // Validate file size
-    const oversizedFiles = fileArray.filter(
-      (file) => file.size > maxSize * 1024 * 1024
-    );
-    if (oversizedFiles.length > 0) {
-      toast.error(`Files must be smaller than ${maxSize}MB`);
-      return;
-    }
-
-    // Validate file type
-    const invalidFiles = fileArray.filter(
-      (file) => !file.type.startsWith("image/")
-    );
-    if (invalidFiles.length > 0) {
-      toast.error("Only image files are allowed");
-      return;
-    }
-
+    setIsUploading(true);
+    
     try {
-      setIsUploading(true);
+      const uploadPromises = Array.from(files).map(async (file) => {
+        const result = await uploadToBackend(file);
+        return result;
+      });
 
-      const uploadOptions = {
-        folder,
-        quality: "auto",
-        format: "auto",
-      };
-
-      const results = multiple
-        ? await uploadMultipleToCloudinary(fileArray, uploadOptions)
-        : [await uploadToCloudinary(fileArray[0], uploadOptions)];
-
-      const urls = results.map((result) => result.secure_url);
-      setUploadedFiles((prev) => [...prev, ...urls]);
-      onUpload(urls);
-
-      toast.success(`${urls.length} file(s) uploaded successfully`);
+      const results = await Promise.all(uploadPromises);
+      
+      const newImages = [...images, ...results];
+      onChange(newImages);
     } catch (error) {
-      console.error("Upload error:", error);
-      toast.error("Failed to upload files");
+      console.error("Upload failed:", error);
+      alert("Failed to upload images. Please try again.");
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    await handleFiles(event.target.files);
+    // Clear the input to allow selecting the same file again
+    if (event.target) {
+      event.target.value = '';
     }
   };
 
@@ -95,37 +80,31 @@ const FileUpload = ({
     }
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFiles(e.dataTransfer.files);
-    }
+    
+    await handleFiles(e.dataTransfer.files);
   };
 
-  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    handleFiles(e.target.files);
-  };
-
-  const removeFile = (index: number) => {
-    setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const openFileDialog = () => {
-    fileInputRef.current?.click();
+  const removeImage = (index: number) => {
+    const newImages = images.filter((_, i) => i !== index);
+    onChange(newImages);
   };
 
   return (
-    <div className={`space-y-4 ${className}`}>
+    <div className="w-full">
       {/* Upload Area */}
       <div
-        className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-          dragActive
-            ? "border-primary-500 bg-primary-50"
+        className={`
+          relative border-2 border-dashed rounded-lg p-8 text-center transition-colors
+          ${dragActive 
+            ? "border-blue-500 bg-blue-50" 
             : "border-gray-300 hover:border-gray-400"
-        } ${isUploading ? "opacity-50 pointer-events-none" : ""}`}
+          }
+          ${isUploading ? "opacity-50 pointer-events-none" : ""}
+        `}
         onDragEnter={handleDrag}
         onDragLeave={handleDrag}
         onDragOver={handleDrag}
@@ -134,82 +113,89 @@ const FileUpload = ({
         <input
           ref={fileInputRef}
           type="file"
-          multiple={multiple}
-          accept={accept}
-          onChange={handleFileInput}
-          className="hidden"
+          multiple
+          accept="image/*"
+          onChange={handleFileSelect}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+          disabled={isUploading}
         />
-
-        {isUploading ? (
-          <div className="space-y-2">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
-            <p className="text-sm text-gray-600">Uploading...</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            <div className="text-4xl">📁</div>
-            <div>
-              <p className="text-sm font-medium text-gray-900">
-                {dragActive ? "Drop files here" : "Drag & drop files here"}
-              </p>
-              <p className="text-sm text-gray-600">
-                or{" "}
+        
+        <div className="pointer-events-none">
+          {isUploading ? (
+            <div className="space-y-2">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+              <p className="text-gray-600">Uploading images...</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <svg
+                className="mx-auto h-12 w-12 text-gray-400"
+                stroke="currentColor"
+                fill="none"
+                viewBox="0 0 48 48"
+              >
+                <path
+                  d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <p className="text-gray-600">
+                Drop images here or{" "}
                 <button
                   type="button"
-                  onClick={openFileDialog}
-                  className="text-primary-600 hover:text-primary-700 font-medium"
+                  className="text-blue-500 hover:text-blue-600 font-medium"
+                  onClick={() => fileInputRef.current?.click()}
                 >
-                  browse files
+                  browse
                 </button>
               </p>
+              <p className="text-sm text-gray-500">
+                Supports: JPG, PNG, GIF, WebP (Max 5MB per file)
+              </p>
             </div>
-            <p className="text-xs text-gray-500">
-              Max {maxFiles} files, {maxSize}MB each
-            </p>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      {/* Uploaded Files Preview */}
-      <AnimatePresence>
-        {uploadedFiles.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="space-y-2"
-          >
-            <h4 className="text-sm font-medium text-gray-900">
-              Uploaded Files:
-            </h4>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-              {uploadedFiles.map((url, index) => (
-                <motion.div
-                  key={index}
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.8 }}
-                  className="relative group"
-                >
+      {/* Image Preview Grid */}
+      {images.length > 0 && (
+        <div className="mt-6">
+          <h3 className="text-sm font-medium text-gray-700 mb-3">
+            Uploaded Images ({images.length}/5)
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            {images.map((image, index) => (
+              <div key={index} className="relative group">
+                <div className="aspect-square rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
                   <img
-                    src={url}
+                    src={image.thumb}
                     alt={`Upload ${index + 1}`}
-                    className="w-full h-20 object-cover rounded-lg border"
+                    className="w-full h-full object-cover"
                   />
-                  <button
-                    onClick={() => removeFile(index)}
-                    className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600 transition-colors"
-                  >
-                    ×
-                  </button>
-                </motion.div>
-              ))}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                </div>
+                
+                {/* Remove Button */}
+                <button
+                  type="button"
+                  onClick={() => removeImage(index)}
+                  className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+                
+                {/* Image Number Badge */}
+                <div className="absolute top-2 left-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded">
+                  {index + 1}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
-};
-
-export default FileUpload;
+}

@@ -1,11 +1,12 @@
 import { motion } from "framer-motion";
 import { useState, useMemo, useEffect } from "react";
-import { ShoppingCart, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "../contexts/LanguageContext";
 import SortingDropdown, { SortOption } from "../components/SortingDropdown";
 import TopSellingSlider from "../components/TopSellingSlider";
 import { useGetProductsQuery } from "../store/api";
+import { getProductImage } from "../utils/image";
 
 const HomePage = () => {
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -15,7 +16,7 @@ const HomePage = () => {
   const navigate = useNavigate();
 
   // Fetch products from API
-  const { data: productsData, isLoading, error } = useGetProductsQuery({
+  const { data: productsData } = useGetProductsQuery({
     limit: 100, // Get all products
   });
 
@@ -38,8 +39,8 @@ const HomePage = () => {
   
   // Group products by category
   const productData = {
-    chocolates: products.filter(p => p.category === 'chocolates'),
-    biscuits: products.filter(p => p.category === 'biscuits'),
+    chocolates: products.filter((p: any) => p.category === 'chocolates'),
+    biscuits: products.filter((p: any) => p.category === 'biscuits'),
     ladoos: [
       {
         id: 21,
@@ -250,7 +251,7 @@ const HomePage = () => {
 
   // Filter and sort products
   const filteredProducts = useMemo(() => {
-    let products = [];
+    let products: any[] = [];
 
     if (selectedCategory === "all") {
       // Show all products from all categories
@@ -268,7 +269,7 @@ const HomePage = () => {
 
     // Apply search filter
     if (searchQuery) {
-      products = products.filter((product) =>
+      products = products.filter((product: any) =>
         product.name.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
@@ -282,10 +283,10 @@ const HomePage = () => {
           return b.price - a.price;
         case "popularity":
           // Simulate popularity based on product ID (lower ID = more popular)
-          return a.id - b.id;
+          return parseInt(a.id) - parseInt(b.id);
         case "newest":
           // Simulate newest based on product ID (higher ID = newer)
-          return b.id - a.id;
+          return parseInt(b.id) - parseInt(a.id);
         case "best_selling":
           // Simulate best selling based on price (lower price = more sales)
           return a.price - b.price;
@@ -387,7 +388,7 @@ const HomePage = () => {
               >
                 <div className="aspect-square mb-3">
                   <img
-                    src={product.image}
+                    src={getProductImage(product)}
                     alt={product.name}
                     className="w-full h-full object-cover rounded-lg"
                   />

@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { MapPin, Plus, Edit, Trash2, Check, X } from "lucide-react";
+import { MapPin, Plus, Edit, Trash2, Check } from "lucide-react";
 import AddressForm from "../components/AddressForm";
 import PincodeAddressForm from "../components/PincodeAddressForm";
 import {
-  getSavedAddresses,
+  getAddresses,
   deleteAddress,
   setDefaultAddress,
   Address,
@@ -23,7 +23,7 @@ const AddressPage: React.FC = () => {
 
   // Load addresses on component mount
   useEffect(() => {
-    const savedAddresses = getSavedAddresses();
+    const savedAddresses = getAddresses();
     setAddresses(savedAddresses);
   }, []);
 
@@ -106,8 +106,8 @@ const AddressPage: React.FC = () => {
 
   // Handle set as default
   const handleSetDefault = (addressId: string) => {
-    const success = setDefaultAddress(addressId);
-    if (success) {
+    const ok = setDefaultAddress(addressId);
+    if (ok) {
       setAddresses((prev) =>
         prev.map((addr) => ({
           ...addr,
@@ -123,7 +123,8 @@ const AddressPage: React.FC = () => {
 
   // Format address for display
   const formatAddress = (address: Address) => {
-    return `${address.addressLine}, ${address.city}, ${address.state} - ${address.pincode}`;
+    const line = (address as any).addressLine || address.address;
+    return `${line}, ${address.city}, ${address.state} - ${address.pincode}`;
   };
 
   return (

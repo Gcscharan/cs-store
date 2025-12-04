@@ -25,7 +25,7 @@ const AddressForm = ({ onClose, onSave }: AddressFormProps) => {
   });
 
   const [pincode, setPincode] = useState("");
-  const [address, setAddress] = useState("");
+  const [_address, _setAddress] = useState("");
   const [deliveryStatus, setDeliveryStatus] = useState<
     "idle" | "checking" | "available" | "unavailable"
   >("idle");
@@ -164,7 +164,7 @@ const AddressForm = ({ onClose, onSave }: AddressFormProps) => {
 
       // Update pincode state
       setPincode(locationData.pincode);
-      setAddress(locationData.address);
+      _setAddress(locationData.address);
 
       // Validate delivery availability
       try {

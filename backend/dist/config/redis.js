@@ -9,6 +9,9 @@ redisClient.on("connect", () => {
 });
 redisClient.on("error", (err) => {
     console.error("❌ Redis connection error:", err);
+    console.error("❌ Redis is required for token blacklisting and caching");
+    console.error("❌ Please ensure Redis is running or check REDIS_URL configuration");
+    process.exit(1);
 });
 // Auto-connect without top-level await
 (async () => {
@@ -19,6 +22,8 @@ redisClient.on("error", (err) => {
     }
     catch (error) {
         console.error("❌ Redis auto-connect failed:", error);
+        console.error("❌ Redis is required for proper operation");
+        process.exit(1);
     }
 })();
 exports.default = redisClient;

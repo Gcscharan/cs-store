@@ -8,7 +8,10 @@ export type SortOption =
   | "price_high_low"
   | "popularity"
   | "newest"
-  | "best_selling";
+  | "best_selling"
+  | "name_asc"
+  | "name_desc"
+  | "rating";
 
 interface SortingDropdownProps {
   currentSort: SortOption;

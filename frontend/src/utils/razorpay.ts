@@ -1,4 +1,4 @@
-import Razorpay from "razorpay";
+// import Razorpay from "razorpay";
 
 // Razorpay configuration
 const RAZORPAY_KEY_ID =

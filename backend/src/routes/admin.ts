@@ -34,6 +34,27 @@ router.get(
   getAdminProfile
 );
 router.get("/users", authenticateToken, requireRole(["admin"]), getUsers);
+router.delete("/users/:id", authenticateToken, requireRole(["admin"]), async (req, res) => {
+  try {
+    const User = require("../models/User").User;
+    const { id } = req.params;
+
+    // Find and delete the user
+    const deletedUser = await User.findByIdAndDelete(id);
+
+    if (!deletedUser) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.json({
+      message: "User deleted successfully",
+      user: deletedUser
+    });
+  } catch (error) {
+    console.error("Error deleting user:", error);
+    res.status(500).json({ error: "Failed to delete user" });
+  }
+});
 router.put(
   "/users/:id/make-delivery",
   authenticateToken,

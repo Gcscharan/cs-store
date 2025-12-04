@@ -21,7 +21,7 @@ const PincodeAddressForm: React.FC<PincodeAddressFormProps> = ({
   const [pincodeMessage, setPincodeMessage] = useState("");
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
-  const [isValidating, setIsValidating] = useState(false);
+  const [_isValidating, _setIsValidating] = useState(false);
 
   // Check for autofill data on component mount
   React.useEffect(() => {
@@ -56,7 +56,7 @@ const PincodeAddressForm: React.FC<PincodeAddressFormProps> = ({
     setPincode(numericValue);
 
     if (numericValue.length === 6) {
-      setIsValidating(true);
+      _setIsValidating(true);
       setPincodeValid(null);
       setPincodeMessage("Checking delivery availability...");
 
@@ -82,7 +82,7 @@ const PincodeAddressForm: React.FC<PincodeAddressFormProps> = ({
         setCity("");
         setState("");
       } finally {
-        setIsValidating(false);
+        _setIsValidating(false);
       }
     } else if (numericValue.length > 0) {
       setPincodeValid(false);

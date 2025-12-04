@@ -22,7 +22,7 @@ interface DashboardStats {
 
 const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { tokens } = useSelector((state: RootState) => state.auth);
+  const { tokens, isAuthenticated } = useSelector((state: RootState) => state.auth);
   const [stats, setStats] = useState<DashboardStats>({
     totalProducts: 0,
     totalUsers: 0,
@@ -36,16 +36,27 @@ const AdminDashboard: React.FC = () => {
 
   // Fetch dashboard stats
   useEffect(() => {
+    let isMounted = true;
+    let hasRedirected = false;
+
     const fetchStats = async () => {
       try {
+        // Don't fetch if component is unmounted or already redirected
+        if (!isMounted || hasRedirected) {
+          return;
+        }
+
         setIsLoading(true);
         setError(null);
 
-        if (!tokens?.accessToken) {
-          throw new Error("No authentication token available");
+        // Don't fetch if no access token or user is not authenticated
+        if (!tokens?.accessToken || !isAuthenticated) {
+          console.log("AdminDashboard: No access token or not authenticated, skipping fetch");
+          if (isMounted) setIsLoading(false);
+          return;
         }
 
-        const response = await fetch("/api/admin/dashboard-stats", {
+        const response = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/admin/dashboard-stats`, {
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${tokens.accessToken}`,
@@ -56,10 +67,19 @@ const AdminDashboard: React.FC = () => {
           const errorData = await response.json();
           console.error("API error response:", errorData);
 
-          // Handle token expiration
+          // Handle token expiration/revocation
           if (response.status === 401 || response.status === 403) {
-            localStorage.removeItem("auth");
-            window.location.href = "/login";
+            console.log("AdminDashboard: Token expired/revoked, redirecting to home");
+            if (!hasRedirected) {
+              hasRedirected = true;
+              // Clear any remaining auth data
+              localStorage.removeItem("auth");
+              localStorage.removeItem("accessToken");
+              localStorage.removeItem("refreshToken");
+              localStorage.removeItem("user");
+              // Redirect to home page, not login
+              window.location.href = "/";
+            }
             return;
           }
 
@@ -69,17 +89,22 @@ const AdminDashboard: React.FC = () => {
         }
 
         const data = await response.json();
-        setStats(data);
+        if (isMounted) setStats(data);
       } catch (err) {
         console.error("Error fetching dashboard stats:", err);
-        setError("Failed to load dashboard stats. Please try again later.");
+        if (isMounted) setError("Failed to load dashboard stats. Please try again later.");
       } finally {
-        setIsLoading(false);
+        if (isMounted) setIsLoading(false);
       }
     };
 
     fetchStats();
-  }, [tokens]);
+
+    // Cleanup function
+    return () => {
+      isMounted = false;
+    };
+  }, [tokens, isAuthenticated]);
 
   const menuItems = [
     {

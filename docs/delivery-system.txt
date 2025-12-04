@@ -1,0 +1,459 @@
+================================================================================
+                    DELIVERY SYSTEM & FEE CALCULATION
+================================================================================
+
+WHAT THIS DOES:
+---------------
+Manages complete delivery operations including:
+- Delivery partner onboarding and management
+- Smart order assignment algorithm
+- Route optimization
+- Real-time location tracking
+- Delivery fee calculation (distance-based)
+- Load balancing across delivery partners
+- Delivery performance analytics
+
+FOLDER PATHS INVOLVED:
+----------------------
+Backend:
+- backend/src/controllers/deliveryController.ts
+- backend/src/controllers/deliveryPersonnelController.ts
+- backend/src/controllers/orderAssignmentController.ts
+- backend/src/controllers/enhancedDeliveryFeeController.ts
+- backend/src/services/smartAssignmentService.ts
+- backend/src/services/routeAssignmentService.ts
+- backend/src/services/deliveryFeeService.ts
+- backend/src/domains/operations/services/deliveryPartnerLoadService.ts
+- backend/src/models/DeliveryBoy.ts
+- backend/src/utils/deliveryFeeCalculator.ts
+
+Frontend:
+- frontend/src/pages/delivery/ (Delivery partner app pages)
+- frontend/src/components/delivery/ (Delivery UI components)
+
+DELIVERY PARTNER MODEL (DeliveryBoy.ts):
+-----------------------------------------
+- userId: ObjectId (links to User with role='delivery')
+- name: String
+- phone: String (unique)
+- vehicleType: Enum ['bike', 'car', 'cycle', 'scooter', 'walking']
+- assignedAreas: String[] (pincodes)
+- currentLocation: { lat, lng, updatedAt }
+- isAvailable: Boolean
+- isOnline: Boolean
+- currentOrderCount: Number (active orders)
+- maxOrders: Number (capacity, default 3)
+- documents: Array of { type, url, uploadedAt }
+- aadharOrId: String
+- approvedAt: Date
+- approvedBy: ObjectId
+- rating: Number
+- totalDeliveries: Number
+- earnings: { today, thisWeek, thisMonth, total }
+- createdAt, updatedAt: Timestamps
+
+SMART ASSIGNMENT ALGORITHM:
+----------------------------
+
+smartAssignmentService.ts implements multi-factor assignment:
+
+1. Filter Eligible Partners:
+   - isAvailable = true
+   - isOnline = true
+   - currentOrderCount < maxOrders
+   - assignedAreas includes order.pincode
+
+2. Calculate Score for Each:
+   - Distance score: Closer = higher score
+   - Load score: Less loaded = higher score
+   - Performance score: Higher rating = higher score
+   - Availability weight
+
+3. Select Best Match:
+   - Highest total score wins
+   - Assign order to selected partner
+   - Update partner's currentOrderCount
+   - Create assignment record in order.assignmentHistory
+
+4. Notification:
+   - Send real-time notification to partner
+   - Partner has limited time to accept/reject
+   - Auto-reassign on rejection or timeout
+
+Formula:
+score = (distanceScore * 0.4) + (loadScore * 0.3) + (performanceScore * 0.3)
+
+Distance Score Calculation:
+- distance = haversine(partner.currentLocation, order.address)
+- distanceScore = max(0, 100 - (distance / 100))
+- Closer partners get higher scores
+
+Load Score Calculation:
+- loadScore = ((maxOrders - currentOrderCount) / maxOrders) * 100
+- Less busy partners get higher scores
+
+DELIVERY FEE CALCULATION:
+--------------------------
+
+enhancedDeliveryFeeController.ts + deliveryFeeCalculator.ts
+
+Formula:
+deliveryFee = baseFee + (distanceFee * distance) + timeSurcharge
+
+Components:
+1. Base Fee: ₹20 (minimum charge)
+2. Distance Fee: ₹8 per km
+3. Time Surcharge:
+   - Late night (10 PM - 6 AM): +₹30
+   - Peak hours (12 PM - 2 PM, 7 PM - 9 PM): +₹15
+   - Normal hours: ₹0
+
+Distance Calculation:
+- Haversine formula for great-circle distance
+- Uses lat/lng from delivery address
+- Distance in kilometers
+
+Example Calculation:
+- Distance: 5 km
+- Time: 8 PM (peak hour)
+- Fee = ₹20 + (₹8 * 5) + ₹15 = ₹75
+
+ENDPOINTS:
+----------
+
+Delivery Partner Management:
+POST /api/delivery-personnel/register - Register new partner
+GET /api/delivery-personnel - Get all partners (admin)
+GET /api/delivery-personnel/:id - Get specific partner
+PUT /api/delivery-personnel/:id - Update partner details
+DELETE /api/delivery-personnel/:id - Remove partner
+PUT /api/delivery-personnel/:id/approve - Admin approves partner
+
+Delivery Operations:
+POST /api/delivery/orders/:orderId/accept - Accept order
+POST /api/delivery/orders/:orderId/reject - Reject order
+PUT /api/delivery/orders/:orderId/pickup - Mark as picked up
+PUT /api/delivery/orders/:orderId/location - Update location
+POST /api/delivery/orders/:orderId/deliver - Complete delivery
+GET /api/delivery/orders - Get assigned orders
+GET /api/delivery/earnings - Get earnings summary
+
+Order Assignment:
+POST /api/orders/:orderId/assign - Manual admin assignment
+POST /api/orders/:orderId/auto-assign - Smart auto-assignment
+POST /api/orders/:orderId/reassign - Reassign to different partner
+
+Delivery Fee:
+POST /api/delivery-fee/calculate - Calculate fee for address
+GET /api/delivery-fee/estimate?pincode=500001 - Quick estimate
+
+REQUEST/RESPONSE EXAMPLES:
+--------------------------
+
+1. CALCULATE DELIVERY FEE
+   POST /api/delivery-fee/calculate
+   {
+     "address": {
+       "lat": 17.385,
+       "lng": 78.486,
+       "pincode": "500001"
+     }
+   }
+   
+   Response:
+   {
+     "baseFee": 20,
+     "distanceFee": 40,
+     "distance": 5,
+     "timeSurcharge": 15,
+     "total": 75,
+     "breakdown": {
+       "base": "₹20 (Base fee)",
+       "distance": "₹40 (5 km × ₹8/km)",
+       "time": "₹15 (Peak hour)",
+       "total": "₹75"
+     }
+   }
+
+2. SMART AUTO-ASSIGN ORDER
+   POST /api/orders/:orderId/auto-assign
+   Headers: { Authorization: "Bearer <adminToken>" }
+   
+   Response:
+   {
+     "success": true,
+     "message": "Order assigned successfully",
+     "assignedTo": {
+       "_id": "delivery123",
+       "name": "John Doe",
+       "phone": "9876543210",
+       "vehicleType": "bike"
+     },
+     "distance": 2.5,
+     "estimatedTime": "15 minutes"
+   }
+
+3. ACCEPT ORDER (Delivery Partner)
+   POST /api/delivery/orders/:orderId/accept
+   Headers: { Authorization: "Bearer <deliveryToken>" }
+   
+   Response:
+   {
+     "success": true,
+     "message": "Order accepted",
+     "order": {...},
+     "pickupLocation": {
+       "address": "Store Address",
+       "lat": 17.385,
+       "lng": 78.486
+     },
+     "deliveryLocation": {
+       "address": "Customer Address",
+       "lat": 17.395,
+       "lng": 78.496
+     }
+   }
+
+4. UPDATE LOCATION (During Delivery)
+   PUT /api/delivery/orders/:orderId/location
+   {
+     "lat": 17.390,
+     "lng": 78.490
+   }
+   
+   Updates order.riderLocation
+   Real-time tracking for customer
+
+5. COMPLETE DELIVERY
+   POST /api/delivery/orders/:orderId/deliver
+   {
+     "otp": "1234",
+     "proofType": "otp"
+   }
+   
+   OR
+   {
+     "photoUrl": "https://cloudinary.com/...",
+     "proofType": "photo"
+   }
+   
+   Response:
+   {
+     "success": true,
+     "message": "Delivery completed",
+     "earnings": {
+       "deliveryFee": 75,
+       "tip": 10,
+       "commission": 15,
+       "net": 70
+     }
+   }
+
+FRONTEND INTERACTION:
+---------------------
+
+Delivery Partner App:
+- frontend/src/pages/delivery/DeliveryDashboard.tsx
+- frontend/src/components/delivery/HomeTab.tsx
+- frontend/src/components/delivery/EarningsTab.tsx
+- frontend/src/components/delivery/NotificationsTab.tsx
+
+Features:
+1. Home Tab:
+   - Online/Offline toggle
+   - Pending orders list
+   - Accept/Reject buttons
+   - Active delivery details
+   - Navigation to customer location
+
+2. Earnings Tab:
+   - Today's earnings
+   - Weekly/Monthly summaries
+   - Delivery count
+   - Tips received
+
+3. Order Details:
+   - Customer info (name, phone)
+   - Delivery address with map
+   - Items list
+   - Delivery fee
+   - OTP input for completion
+
+4. Real-time Notifications:
+   - New order assignment
+   - Order updates
+   - Earnings credited
+
+5. Location Tracking:
+   - Background location service
+   - Auto-updates every 30 seconds
+   - Smoothed for accuracy
+
+LOAD BALANCING:
+---------------
+
+deliveryPartnerLoadService.ts manages fair distribution:
+
+Redis Sorted Set: 'delivery_partner_load'
+- Key: delivery partner ID
+- Score: current order count
+
+Operations:
+- incrementLoad(partnerId): +1 order
+- decrementLoad(partnerId): -1 order
+- getLoad(partnerId): current count
+- getAllLoads(): all partners with counts
+
+Used in assignment algorithm to:
+- Prevent overloading single partners
+- Ensure fair work distribution
+- Balance earnings across team
+
+ROUTE OPTIMIZATION:
+-------------------
+
+routeAssignmentService.ts (future enhancement)
+
+Features (planned):
+- Multi-stop route optimization
+- Batch order assignments
+- TSP (Traveling Salesman Problem) solver
+- Minimizes total distance for partner
+- Increases deliveries per hour
+
+Currently: Simple single-order assignment
+
+IMPORTANT FEATURES:
+-------------------
+
+1. Multi-factor Assignment:
+   - Not just closest partner
+   - Considers load, performance, availability
+   - Prevents burnout and ensures quality
+
+2. Real-time Tracking:
+   - WebSocket or HTTP polling
+   - Location updates every 30s
+   - Smoothing algorithm removes jitter
+   - Privacy: Only during active delivery
+
+3. Dynamic Pricing:
+   - Time-based surcharges
+   - Distance-based fees
+   - Transparent breakdown
+   - Displayed before checkout
+
+4. Proof of Delivery:
+   - OTP verification (primary)
+   - Photo proof (backup)
+   - Signature (future)
+   - Prevents fraud
+
+5. Partner Ratings:
+   - Customer rates after delivery
+   - Affects future assignment score
+   - Incentivizes good service
+   - Low ratings trigger review
+
+6. Area-based Assignment:
+   - Partners assigned specific pincodes
+   - Local knowledge advantage
+   - Reduces travel time
+   - Scalable to new areas
+
+7. Capacity Management:
+   - maxOrders per partner (default 3)
+   - Prevents overload
+   - Adjustable per partner (bike vs car)
+   - Queue system when all busy
+
+8. Earnings Transparency:
+   - Real-time earnings tracking
+   - Daily/weekly/monthly views
+   - Breakdown: fee + tips - commission
+   - Instant payout options
+
+9. Approval Workflow:
+   - Document verification required
+   - Admin approval before activation
+   - Background checks (manual)
+   - Training completion
+
+10. Performance Metrics:
+    - On-time delivery rate
+    - Customer satisfaction score
+    - Total deliveries completed
+    - Average delivery time
+    - Cancellation rate
+
+IMPORTANT NOTES:
+----------------
+
+1. Distance Calculation:
+   - Haversine formula (not driving distance)
+   - Approximation: 10-15% shorter than actual
+   - Good enough for fee estimation
+   - Consider Google Directions API upgrade
+
+2. Time Surcharges:
+   - Based on server time (IST)
+   - Applied at order creation
+   - Fixed for that order (no dynamic changes)
+   - Clearly shown in breakdown
+
+3. Assignment Timeout:
+   - Partner has 2 minutes to accept
+   - Auto-decline after timeout
+   - Order reassigned to next best match
+   - Max 3 reassignment attempts
+
+4. Online/Offline Status:
+   - Partner controls via app toggle
+   - Auto-offline after 30min inactivity
+   - No assignments when offline
+   - Can go offline mid-shift
+
+5. Load Balancing:
+   - Redis sorted set tracks load
+   - Atomic increment/decrement
+   - Race condition safe
+   - Syncs with MongoDB occasionally
+
+6. Vehicle Types:
+   - Affects capacity (maxOrders)
+   - Bike: 3 orders max
+   - Car: 5 orders max
+   - Cycle/Walking: 2 orders max
+   - Configurable per partner
+
+7. Assigned Areas:
+   - Array of pincodes
+   - Partner only sees orders in their areas
+   - Can be updated by admin
+   - Expandable as demand grows
+
+8. Delivery OTP:
+   - 4-digit code
+   - Generated at pickup
+   - Shown to customer in app
+   - Partner enters to complete
+   - Expires after delivery
+
+9. Photo Proof:
+   - Fallback if customer unavailable
+   - Uploaded to Cloudinary
+   - Stored in order.deliveryProof
+   - Useful for disputes
+
+10. Commission Structure:
+    - Platform takes 20% (configurable)
+    - Partner gets 80% + 100% of tips
+    - Transparent in earnings view
+    - Higher rating = bonus % (future)
+
+RELATED DOCUMENTATION:
+----------------------
+- See cart-orders.txt for order lifecycle
+- See user-profile-addresses.txt for address geocoding
+- See redis.txt for load balancing implementation
+- See notifications.txt for partner alerts

@@ -1,0 +1,229 @@
+name: Test CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  backend-tests:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    
+    services:
+      mongodb:
+        image: mongo:5.0
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.runCommand({ping: 1})'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: backend/package-lock.json
+
+    - name: Install backend dependencies
+      working-directory: ./backend
+      run: npm ci
+
+    - name: Copy test environment
+      working-directory: ./backend
+      run: cp .env.test .env
+
+    - name: Run backend tests
+      working-directory: ./backend
+      run: npm run test:ci
+
+    - name: Upload backend coverage
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./backend/coverage/lcov.info
+        flags: backend
+        name: backend-coverage
+
+  frontend-tests:
+    name: Frontend E2E Tests
+    runs-on: ubuntu-latest
+    needs: backend-tests
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Install frontend dependencies
+      working-directory: ./frontend
+      run: npm ci
+
+    - name: Install Playwright browsers
+      working-directory: ./frontend
+      run: npx playwright install --with-deps
+
+    - name: Install backend dependencies
+      working-directory: ./backend
+      run: npm ci
+
+    - name: Copy test environment
+      working-directory: ./backend
+      run: cp .env.test .env
+
+    - name: Build frontend
+      working-directory: ./frontend
+      run: npm run build
+
+    - name: Start backend
+      working-directory: ./backend
+      run: |
+        npm run build
+        npm run test:seed &
+        npm start &
+        sleep 10
+
+    - name: Wait for backend
+      run: |
+        timeout 60 bash -c 'until curl -f http://localhost:5001/health; do sleep 2; done'
+
+    - name: Run E2E tests
+      working-directory: ./frontend
+      env:
+        BACKEND_URL: http://localhost:5001
+      run: npm run test:e2e:ci
+
+    - name: Upload E2E test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: playwright-report
+        path: frontend/playwright-report/
+        retention-days: 30
+
+    - name: Upload E2E screenshots
+      uses: actions/upload-artifact@v3
+      if: failure()
+      with:
+        name: playwright-screenshots
+        path: frontend/test-results/
+        retention-days: 30
+
+    - name: Upload E2E videos
+      uses: actions/upload-artifact@v3
+      if: failure()
+      with:
+        name: playwright-videos
+        path: frontend/test-results/videos/
+        retention-days: 30
+
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [backend-tests, frontend-tests]
+    if: always()
+    
+    steps:
+    - name: Backend tests status
+      run: |
+        if [ "${{ needs.backend-tests.result }}" == "success" ]; then
+          echo "✅ Backend tests passed"
+        else
+          echo "❌ Backend tests failed"
+          exit 1
+        fi
+
+    - name: Frontend tests status
+      run: |
+        if [ "${{ needs.frontend-tests.result }}" == "success" ]; then
+          echo "✅ Frontend E2E tests passed"
+        else
+          echo "❌ Frontend E2E tests failed"
+          exit 1
+        fi
+
+    - name: All tests passed
+      if: needs.backend-tests.result == 'success' && needs.frontend-tests.result == 'success'
+      run: |
+        echo "🎉 All tests passed successfully!"
+        echo "Backend: ✅"
+        echo "Frontend: ✅"
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  code-quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install backend dependencies
+      working-directory: ./backend
+      run: npm ci
+
+    - name: Install frontend dependencies
+      working-directory: ./frontend
+      run: npm ci
+
+    - name: Run backend linting
+      working-directory: ./backend
+      run: npm run lint
+
+    - name: Run TypeScript check
+      working-directory: ./backend
+      run: npx tsc --noEmit
+
+    - name: Run frontend TypeScript check
+      working-directory: ./frontend
+      run: npx tsc --noEmit

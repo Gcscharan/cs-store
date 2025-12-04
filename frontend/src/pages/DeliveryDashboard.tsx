@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useSelector, useDispatch } from "react-redux";
+import { useSelector } from "react-redux";
 import { RootState } from "../store";
-import { logout } from "../store/slices/authSlice";
 import DeliveryBottomNav from "../components/DeliveryBottomNav";
 import DeliveryNavbar from "../components/DeliveryNavbar";
 import EnhancedHomeTab from "../components/delivery/EnhancedHomeTab";
@@ -12,12 +11,11 @@ import MoreTab from "../components/delivery/MoreTab";
 
 const DeliveryDashboard: React.FC = () => {
   const navigate = useNavigate();
-  const dispatch = useDispatch();
   const { tokens, isAuthenticated, user } = useSelector(
     (state: RootState) => state.auth
   );
 
-  const [deliveryBoy, setDeliveryBoy] = useState<any>(null);
+  const [_deliveryBoy, _setDeliveryBoy] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("home");
 
@@ -58,7 +56,7 @@ const DeliveryDashboard: React.FC = () => {
       }
 
       const data = await response.json();
-      setDeliveryBoy(data.deliveryBoy);
+      _setDeliveryBoy(data.deliveryBoy);
     } catch (err) {
       console.error("Error fetching delivery boy info:", err);
     } finally {

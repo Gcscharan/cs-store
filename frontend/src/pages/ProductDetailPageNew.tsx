@@ -4,8 +4,6 @@ import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   ShoppingCart,
-  Plus,
-  Minus,
   Heart,
   Share2,
   Star,
@@ -20,11 +18,12 @@ import {
 import ProductMediaCarousel from "../components/ProductMediaCarousel";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useGetProductByIdQuery } from "../store/api";
+import { getProductImage } from "../utils/image";
 
 const ProductDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { t } = useLanguage();
+  const { t: _t } = useLanguage();
   const [quantity, setQuantity] = useState(1);
 
   // Review state
@@ -278,7 +277,7 @@ const ProductDetailPage = () => {
             <div className="relative">
               {product.images && product.images.length > 0 ? (
                 <ProductMediaCarousel
-                  media={product.images.map((img, index) => ({
+                  media={product.images.map((img: any, index: any) => ({
                     id: `img-${index}`,
                     type: "image" as const,
                     url: img,
@@ -654,7 +653,7 @@ const ProductDetailPage = () => {
               >
                 <div className="aspect-square bg-gray-200 overflow-hidden">
                   <img
-                    src={similarProduct.image}
+                    src={getProductImage(similarProduct)}
                     alt={similarProduct.name}
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                   />

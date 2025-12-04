@@ -4,7 +4,6 @@ import { useSelector } from "react-redux";
 import { RootState } from "../store";
 import {
   Search,
-  Filter,
   ArrowLeft,
   Users,
   Mail,
@@ -146,6 +145,45 @@ const AdminUsersPage: React.FC = () => {
   const showNotification = (type: "success" | "error", message: string) => {
     setNotification({ type, message });
     setTimeout(() => setNotification(null), 5000);
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    if (!tokens?.accessToken) {
+      showNotification("error", "No authentication token available");
+      return;
+    }
+
+    const confirmDelete = window.confirm(
+      "Are you sure you want to delete this user? This action cannot be undone."
+    );
+
+    if (!confirmDelete) return;
+
+    try {
+      const response = await fetch(`/api/admin/users/${userId}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${tokens.accessToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        showNotification(
+          "error",
+          errorData.error || "Failed to delete user. Please try again."
+        );
+        return;
+      }
+
+      showNotification("success", "User deleted successfully");
+      // Refresh users list to reflect deletion
+      fetchUsers();
+    } catch (err) {
+      console.error("Error deleting user:", err);
+      showNotification("error", "Failed to delete user. Please try again.");
+    }
   };
 
   if (isLoading) {
@@ -396,7 +434,12 @@ const AdminUsersPage: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex space-x-2">
-                          {/* Actions can be added here for regular users */}
+                          <button
+                            onClick={() => handleDeleteUser(user._id)}
+                            className="inline-flex items-center px-3 py-1 border border-red-600 text-xs font-medium rounded-full text-red-600 hover:bg-red-50"
+                          >
+                            Delete
+                          </button>
                         </div>
                       </td>
                     </tr>

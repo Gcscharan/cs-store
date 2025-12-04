@@ -6,16 +6,81 @@ Object.defineProperty(exports, "__esModule", { value: true });
 // Load environment variables FIRST before any other imports
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
+// Comprehensive Environment Variable Validation
+function validateEnvironmentVariables() {
+    const errors = [];
+    // Database
+    if (!process.env.MONGODB_URI) {
+        errors.push("❌ MONGODB_URI is required");
+    }
+    // JWT Secrets
+    if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
+        errors.push(`❌ JWT_SECRET must be at least 32 characters long. Current length: ${process.env.JWT_SECRET?.length || 0}`);
+    }
+    if (!process.env.JWT_REFRESH_SECRET || process.env.JWT_REFRESH_SECRET.length < 32) {
+        errors.push(`❌ JWT_REFRESH_SECRET must be at least 32 characters long. Current length: ${process.env.JWT_REFRESH_SECRET?.length || 0}`);
+    }
+    // Cloudinary
+    if (!process.env.CLOUDINARY_CLOUD_NAME) {
+        errors.push("❌ CLOUDINARY_CLOUD_NAME is required");
+    }
+    if (!process.env.CLOUDINARY_API_KEY) {
+        errors.push("❌ CLOUDINARY_API_KEY is required");
+    }
+    if (!process.env.CLOUDINARY_API_SECRET) {
+        errors.push("❌ CLOUDINARY_API_SECRET is required");
+    }
+    // Redis
+    if (!process.env.REDIS_URL) {
+        errors.push("⚠️  REDIS_URL is recommended (using localhost fallback)");
+    }
+    // Frontend
+    if (!process.env.FRONTEND_URL) {
+        errors.push("⚠️  FRONTEND_URL is recommended (using localhost fallback)");
+    }
+    // Razorpay
+    if (!process.env.RAZORPAY_KEY_ID) {
+        errors.push("⚠️  RAZORPAY_KEY_ID is recommended");
+    }
+    if (!process.env.RAZORPAY_KEY_SECRET) {
+        errors.push("⚠️  RAZORPAY_KEY_SECRET is recommended");
+    }
+    // Google OAuth
+    if (!process.env.GOOGLE_CLIENT_ID) {
+        errors.push("⚠️  GOOGLE_CLIENT_ID is recommended for OAuth login");
+    }
+    if (!process.env.GOOGLE_CLIENT_SECRET) {
+        errors.push("⚠️  GOOGLE_CLIENT_SECRET is recommended for OAuth login");
+    }
+    // Critical errors that prevent startup
+    const criticalErrors = errors.filter(err => err.startsWith("❌"));
+    const warnings = errors.filter(err => err.startsWith("⚠️"));
+    if (criticalErrors.length > 0) {
+        console.error("\n🚨 CRITICAL ENVIRONMENT ERRORS:");
+        criticalErrors.forEach(err => console.error(err));
+        console.error("\n❌ Server cannot start due to critical configuration errors.");
+        console.error("❌ Please check your .env file and restart the server.\n");
+        process.exit(1);
+    }
+    if (warnings.length > 0) {
+        console.warn("\n⚠️  Environment warnings:");
+        warnings.forEach(warn => console.warn(warn));
+        console.warn("⚠️  Consider adding these variables for full functionality.\n");
+    }
+    console.log("✅ Environment variables validated successfully");
+}
+// Run validation immediately after dotenv config
+validateEnvironmentVariables();
 // Validate critical environment variables immediately
 console.log("\n========================================");
 console.log("🔧 Environment Variables Check");
 console.log("========================================");
 console.log(`🌍 NODE_ENV: ${process.env.NODE_ENV || "development"}`);
 console.log(`🚪 PORT: ${process.env.PORT || "5001"}`);
-console.log(`🔗 MONGODB_URI present: ${!!process.env.MONGODB_URI ? "✅ Yes" : "❌ NO"}`);
-console.log(`🔑 JWT_SECRET present: ${!!process.env.JWT_SECRET ? "✅ Yes" : "❌ NO"}`);
-console.log(`🔑 JWT_REFRESH_SECRET present: ${!!process.env.JWT_REFRESH_SECRET ? "✅ Yes" : "❌ NO"}`);
-console.log(`☁️ CLOUDINARY_CLOUD_NAME present: ${!!process.env.CLOUDINARY_CLOUD_NAME ? "✅ Yes" : "❌ NO"}`);
+console.log(`🔗 MONGODB_URI present: ${process.env.MONGODB_URI ? "✅ Yes" : "❌ NO"}`);
+console.log(`🔑 JWT_SECRET present: ${process.env.JWT_SECRET ? "✅ Yes" : "❌ NO"}`);
+console.log(`🔑 JWT_REFRESH_SECRET present: ${process.env.JWT_REFRESH_SECRET ? "✅ Yes" : "❌ NO"}`);
+console.log(`☁️ CLOUDINARY_CLOUD_NAME present: ${process.env.CLOUDINARY_CLOUD_NAME ? "✅ Yes" : "❌ NO"}`);
 console.log(`📧 MOCK_OTP: ${process.env.MOCK_OTP || "false"}`);
 console.log("[ENV][SMS] FAST2SMS key loaded:", !!process.env.FAST2SMS_API_KEY);
 // Check FAST2SMS API key validity

@@ -6,8 +6,6 @@ import { useAddToCartMutation } from "../store/api";
 import { RootState } from "../store";
 import { useToast } from "./AccessibleToast";
 import { useNavigate } from "react-router-dom";
-import { getProductImages } from "../utils/productImageMapper";
-import { useFlyingCartContext } from "../contexts/FlyingCartContext";
 
 interface Product {
   _id: string;
@@ -17,7 +15,7 @@ interface Product {
   price: number;
   mrp?: number;
   stock: number;
-  images: string[];
+  images: { full: string; thumb: string }[];
   tags: string[];
 }
 
@@ -42,13 +40,9 @@ const QuickViewModal: React.FC<QuickViewModalProps> = ({
   const [quantity, setQuantity] = useState(1);
   const [showLoginPopup, setShowLoginPopup] = useState(false);
   
-  // Flying cart animation
-  const { triggerFlyingCart } = useFlyingCartContext();
   const addToCartButtonRef = useRef<HTMLButtonElement>(null);
 
   if (!product) return null;
-
-  const productImages = getProductImages(product.name, product.category);
 
   const handleAddToCart = async () => {
     if (product.stock === 0) return;
@@ -66,7 +60,7 @@ const QuickViewModal: React.FC<QuickViewModalProps> = ({
           id: product._id,
           name: product.name,
           price: product.price,
-          image: getProductImages(product.name, product.category)[0],
+          image: product.images[0]?.thumb || product.images[0]?.full || '/placeholder-product.svg',
           quantity,
         })
       );
@@ -90,12 +84,6 @@ const QuickViewModal: React.FC<QuickViewModalProps> = ({
 
       // Show success toast
       success("Added to Cart", `${product.name} has been added to your cart.`);
-      
-      // Trigger flying cart animation
-      if (addToCartButtonRef.current) {
-        const productImage = productImages[0];
-        triggerFlyingCart(addToCartButtonRef.current, productImage);
-      }
     } catch (error: any) {
       console.error("Failed to add to cart:", error);
 
@@ -153,7 +141,7 @@ const QuickViewModal: React.FC<QuickViewModalProps> = ({
                 <div className="aspect-square bg-gray-100 rounded-lg mb-4">
                   <img
                     src={
-                      productImages[selectedImageIndex] ||
+                      product.images?.[selectedImageIndex]?.full ||
                       "/placeholder-product.jpg"
                     }
                     alt={product.name}
@@ -161,9 +149,9 @@ const QuickViewModal: React.FC<QuickViewModalProps> = ({
                   />
                 </div>
 
-                {productImages.length > 1 && (
+                {product.images && product.images.length > 1 && (
                   <div className="flex gap-2 overflow-x-auto">
-                    {productImages.map((image, index) => (
+                    {product.images.map((image, index) => (
                       <button
                         key={index}
                         onClick={() => setSelectedImageIndex(index)}
@@ -174,7 +162,7 @@ const QuickViewModal: React.FC<QuickViewModalProps> = ({
                         }`}
                       >
                         <img
-                          src={image}
+                          src={image.thumb}
                           alt={`${product.name} ${index + 1}`}
                           className="w-full h-full object-cover"
                         />

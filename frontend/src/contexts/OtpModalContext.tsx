@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useState, ReactNode } from "react";
+import React, { createContext, useContext, useState, ReactNode, useEffect } from "react";
+import { useSelector } from "react-redux";
+import { RootState } from "../store";
 import OtpLoginModal from "../components/OtpLoginModal";
 
 interface OtpModalContextType {
@@ -28,14 +30,21 @@ export const OtpModalProvider: React.FC<OtpModalProviderProps> = ({
 }) => {
   const [isOtpModalOpen, setIsOtpModalOpen] = useState(false);
   const [redirectTo, setRedirectTo] = useState("/account/profile");
+  const { isAuthenticated } = useSelector((state: RootState) => state.auth);
 
   const showOtpModal = (redirectPath?: string) => {
+    // Don't show modal if user is already authenticated
+    if (isAuthenticated) {
+      console.log("OtpModalContext: User is already authenticated, skipping modal");
+      return;
+    }
+    
     console.log(
       "OtpModalContext: showOtpModal called with redirectPath:",
       redirectPath
     );
     setRedirectTo(redirectPath || "/account/profile");
-    setIsOtpModalOpen(true);
+    requestAnimationFrame(() => setIsOtpModalOpen(true));
     console.log("OtpModalContext: Modal should now be open");
   };
 
@@ -43,20 +52,35 @@ export const OtpModalProvider: React.FC<OtpModalProviderProps> = ({
     setIsOtpModalOpen(false);
   };
 
+  // Auto-close modal if user becomes authenticated
+  useEffect(() => {
+    if (isAuthenticated && isOtpModalOpen) {
+      console.log("OtpModalContext: User authenticated, closing modal");
+      hideOtpModal();
+    }
+  }, [isAuthenticated, isOtpModalOpen]);
+
+  // Only render modal if user is not authenticated
+  const shouldShowModal = isOtpModalOpen && !isAuthenticated;
+
   return (
     <OtpModalContext.Provider
       value={{
         showOtpModal,
         hideOtpModal,
-        isOtpModalOpen,
+        isOtpModalOpen: shouldShowModal,
       }}
     >
       {children}
-      <OtpLoginModal
-        isOpen={isOtpModalOpen}
-        onClose={hideOtpModal}
-        redirectTo={redirectTo}
-      />
+      {isOtpModalOpen && (
+        <React.Suspense fallback={<></>}>
+          <OtpLoginModal
+            isOpen={!isAuthenticated}
+            onClose={hideOtpModal}
+            redirectTo={redirectTo}
+          />
+        </React.Suspense>
+      )}
     </OtpModalContext.Provider>
   );
 };

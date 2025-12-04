@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { MapPin, Plus } from "lucide-react";
+import { MapPin } from "lucide-react";
 
 interface Address {
   _id: string;
@@ -19,7 +19,7 @@ interface DefaultAddressBarProps {
 const DefaultAddressBar: React.FC<DefaultAddressBarProps> = ({
   onOpenLocationModal,
 }) => {
-  const [addresses, setAddresses] = useState<Address[]>([]);
+  const [_addresses, _setAddresses] = useState<Address[]>([]);
   const [defaultAddress, setDefaultAddress] = useState<Address | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -42,7 +42,7 @@ const DefaultAddressBar: React.FC<DefaultAddressBarProps> = ({
         if (response.ok) {
           const data = await response.json();
           const addressesList = data.addresses || [];
-          setAddresses(addressesList);
+          _setAddresses(addressesList);
 
           // Find default address
           const defaultAddr = addressesList.find(
@@ -54,7 +54,7 @@ const DefaultAddressBar: React.FC<DefaultAddressBarProps> = ({
           const savedAddresses = JSON.parse(
             localStorage.getItem("saved_addresses") || "[]"
           );
-          setAddresses(savedAddresses);
+          _setAddresses(savedAddresses);
           const defaultAddr = savedAddresses.find(
             (addr: Address) => addr.isDefault
           );
@@ -66,7 +66,7 @@ const DefaultAddressBar: React.FC<DefaultAddressBarProps> = ({
         const savedAddresses = JSON.parse(
           localStorage.getItem("saved_addresses") || "[]"
         );
-        setAddresses(savedAddresses);
+        _setAddresses(savedAddresses);
         const defaultAddr = savedAddresses.find(
           (addr: Address) => addr.isDefault
         );

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState, memo } from "react";
 import { motion } from "framer-motion";
 import { useDispatch, useSelector } from "react-redux";
 import { addToCart, setCart } from "../store/slices/cartSlice";
@@ -6,8 +6,8 @@ import { useAddToCartMutation } from "../store/api";
 import { RootState } from "../store";
 import { useToast } from "./AccessibleToast";
 import { useNavigate } from "react-router-dom";
-import { getProductPrimaryImage } from "../utils/productImageMapper";
 import { useCartFeedback } from "../contexts/CartFeedbackContext";
+import OptimizedImage from "./OptimizedImage";
 
 interface Product {
   _id: string;
@@ -18,7 +18,11 @@ interface Product {
   mrp?: number;
   stock: number;
   weight: number;
-  images: string[];
+  images: {
+    variants: { micro: string; thumb: string; small: string; medium: string; large: string; original: string };
+    formats?: { avif?: string; webp?: string; jpg?: string };
+    metadata?: { width?: number; height?: number; aspectRatio?: number };
+  }[];
   tags: string[];
 }
 
@@ -27,7 +31,7 @@ interface ProductCardProps {
   onQuickView?: (product: Product) => void;
 }
 
-const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }) => {
+const ProductCard = memo(({ product, onQuickView }: ProductCardProps) => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const auth = useSelector((state: RootState) => state.auth);
@@ -55,7 +59,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }) => {
           id: product._id,
           name: product.name,
           price: product.price,
-          image: getProductPrimaryImage(product.name, product.category),
+          image: product.images?.[0]?.variants?.small || product.images?.[0]?.variants?.thumb || '/placeholder-product.svg',
           quantity: 1,
         })
       );
@@ -78,7 +82,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }) => {
       }
 
       // ✅ Trigger Global Amazon-style confirmation bar
-      const productImage = getProductPrimaryImage(product.name, product.category);
+      const productImage = product.images?.[0]?.variants?.small || product.images?.[0]?.variants?.thumb || '/placeholder-product.svg';
       const updatedCartCount = result.cart?.itemCount || 1; // Default to 1 if no cart data
       const updatedCartTotal = result.cart?.total || product.price; // Use product price as fallback
       triggerGlobalConfirmation(product.name, productImage, updatedCartCount, updatedCartTotal);
@@ -128,17 +132,29 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }) => {
     >
       {/* Product Image */}
       <div className="relative aspect-square bg-gray-100">
-        <img
-          src={getProductPrimaryImage(product.name, product.category)}
+        <OptimizedImage
+          image={product.images?.[0] || {
+            variants: {
+              micro: '/placeholder-product.svg',
+              thumb: '/placeholder-product.svg',
+              small: '/placeholder-product.svg',
+              medium: '/placeholder-product.svg',
+              large: '/placeholder-product.svg',
+              original: '/placeholder-product.svg'
+            }
+          }}
+          size="small"
           alt={product.name}
-          className="w-full h-full object-cover"
-          loading="lazy"
+          className="w-full h-full"
+          productId={product._id}
+          debug={false}
         />
         {discountPercentage > 0 && (
           <div className="absolute top-2 left-2 bg-red-500 text-white px-2 py-1 rounded-full text-xs font-semibold">
             {discountPercentage}% OFF
           </div>
         )}
+        <div className="absolute inset-0 bg-black bg-opacity-10 group-hover:bg-opacity-0 transition-opacity duration-300"></div>
         {product.stock === 0 && (
           <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
             <span className="text-white font-semibold">Out of Stock</span>
@@ -245,6 +261,6 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }) => {
       )}
     </motion.div>
   );
-};
+});
 
 export default ProductCard;

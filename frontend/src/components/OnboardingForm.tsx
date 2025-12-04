@@ -1,11 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { RootState } from "../store";
-import { setAuth } from "../store/slices/authSlice";
+import { setUser, setTokens } from "../store/slices/authSlice";
 import { useLogout } from "../hooks/useLogout";
 import { motion } from "framer-motion";
-import { User, Phone, Mail, ArrowRight } from "lucide-react";
+import { User, Phone, Mail, ArrowRight, LogIn, ShieldCheck } from "lucide-react";
 import { useToast } from "./AccessibleToast";
 
 const OnboardingForm: React.FC = () => {
@@ -21,6 +21,13 @@ const OnboardingForm: React.FC = () => {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<{[key: string]: string}>({});
+  const [otpSent, setOtpSent] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [otpError, setOtpError] = useState("");
+  const [otpCooldown, setOtpCooldown] = useState(0);
 
   const validateForm = () => {
     const newErrors: {[key: string]: string} = {};
@@ -51,12 +58,183 @@ const OnboardingForm: React.FC = () => {
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: "" }));
     }
+    
+    // Reset OTP verification state if phone changes
+    if (name === "phone") {
+      // Clear OTP-related errors and state when phone changes
+      setOtpError("");
+      if (otpSent) {
+        setOtpSent(false);
+        setOtpVerified(false);
+        setOtp("");
+      }
+    }
+  };
+
+  // OTP cooldown timer
+  useEffect(() => {
+    if (otpCooldown > 0) {
+      const timer = setTimeout(() => setOtpCooldown(otpCooldown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [otpCooldown]);
+
+  const handleSendOtp = async () => {
+    // Validate phone first
+    if (!formData.phone.trim()) {
+      setErrors(prev => ({ ...prev, phone: "Phone number is required" }));
+      return;
+    }
+    
+    if (!/^[6-9]\d{9}$/.test(formData.phone.trim())) {
+      setErrors(prev => ({ ...prev, phone: "Please enter a valid 10-digit mobile number starting with 6-9" }));
+      return;
+    }
+
+    setIsSendingOtp(true);
+    setOtpError("");
+    
+    try {
+      console.log("🔍 Checking if phone exists:", formData.phone.trim());
+      // First, check if phone number already exists in database
+      const checkResponse = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/auth/check-phone`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          phone: formData.phone.trim(),
+        }),
+      });
+
+      const checkData = await checkResponse.json();
+      console.log("📱 Phone check result:", checkData);
+
+      if (checkResponse.ok && checkData.exists) {
+        const errorMsg = "This phone number is already registered with another account. Please use a different number or sign in.";
+        setOtpError(errorMsg);
+        setErrors(prev => ({ ...prev, phone: errorMsg }));
+        showError("Phone Number Exists", errorMsg);
+        setIsSendingOtp(false);
+        return;
+      }
+
+      console.log("📤 Sending OTP for phone:", formData.phone.trim());
+      // If phone doesn't exist, proceed with OTP generation for verification
+      // Use the verification/generate endpoint with phone in body
+      const response = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/otp/verification/generate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${tokens?.accessToken || ""}`,
+        },
+        body: JSON.stringify({
+          phone: formData.phone.trim(),
+        }),
+      });
+
+      const data = await response.json();
+      console.log("📨 OTP response:", { status: response.status, data });
+
+      if (!response.ok) {
+        const errorMsg = data.message || data.error || "Failed to send OTP. Please try again.";
+        console.error("❌ OTP send failed:", errorMsg);
+        setOtpError(errorMsg);
+        return;
+      }
+
+      // OTP sent successfully
+      console.log("✅ OTP sent successfully");
+      setOtpSent(true);
+      setOtpCooldown(60);
+      success("OTP Sent", "A 6-digit OTP has been sent to your mobile number.");
+    } catch (error) {
+      console.error("❌ OTP send error:", error);
+      setOtpError(error instanceof Error ? error.message : "Failed to send OTP. Please try again.");
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!otp || otp.length !== 6) {
+      setOtpError("Please enter the 6-digit OTP");
+      return;
+    }
+
+    setIsVerifyingOtp(true);
+    setOtpError("");
+
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/users/verify-mobile`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${tokens?.accessToken || ""}`,
+        },
+        body: JSON.stringify({
+          otp: otp.trim(),
+          phone: formData.phone.trim(),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const errorMessage = data.error || data.message || "Invalid OTP. Please try again.";
+        
+        // Show specific error messages
+        if (errorMessage.includes("not found") || errorMessage.includes("expired")) {
+          setOtpError("OTP not found or expired. Please request a new OTP.");
+        } else if (errorMessage.includes("Invalid OTP")) {
+          setOtpError(`Invalid OTP. ${data.attemptsRemaining ? `${data.attemptsRemaining} attempts remaining.` : 'Please try again.'}`);
+        } else if (errorMessage.includes("Maximum OTP attempts exceeded")) {
+          setOtpError("Maximum OTP attempts exceeded. Please request a new OTP.");
+        } else {
+          setOtpError(errorMessage);
+        }
+        return;
+      }
+
+      setOtpVerified(true);
+      setOtpError("");
+      
+      // Update auth state if new tokens are provided
+      if (data.accessToken && data.refreshToken) {
+        dispatch(setUser({
+          ...user,
+          ...data.user,
+          mobileVerified: true,
+        } as any));
+        dispatch(setTokens({
+          accessToken: data.accessToken,
+          refreshToken: data.refreshToken,
+        }));
+      }
+      
+      success("Mobile Verified", "Your mobile number has been verified successfully!");
+    } catch (error) {
+      setOtpError(error instanceof Error ? error.message : "Failed to verify OTP. Please try again.");
+    } finally {
+      setIsVerifyingOtp(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!validateForm()) {
+      return;
+    }
+
+    // Check if OTP is verified
+    if (!otpVerified) {
+      setErrors(prev => ({ ...prev, phone: "Please verify your mobile number with OTP first" }));
+      if (!otpSent) {
+        showError("OTP Required", "Please send and verify OTP for your mobile number.");
+      } else {
+        showError("OTP Not Verified", "Please verify the OTP sent to your mobile number.");
+      }
       return;
     }
 
@@ -78,13 +256,13 @@ const OnboardingForm: React.FC = () => {
 
     try {
       const response = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/auth/complete-profile`, {
-        method: "PUT",
+        method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${tokens.accessToken}`,
         },
         body: JSON.stringify({
-          name: formData.name.trim(),
+          fullName: formData.name.trim(),
           phone: formData.phone.trim(),
         }),
       });
@@ -136,24 +314,21 @@ const OnboardingForm: React.FC = () => {
         throw new Error(data.error || "Failed to complete profile");
       }
 
-      // Update Redux store with updated user data
-      dispatch(
-        setAuth({
-          user: {
-            ...user,
-            ...data.user,
-          } as any,
-          tokens: {
-            accessToken: tokens?.accessToken || "",
-            refreshToken: tokens?.refreshToken || "",
-          },
-        })
-      );
+      // Check for success flag from backend
+      if (data.success) {
+        console.log("🎉 Profile completed. Redirecting...");
+        
+        // Update Redux store with updated user data including isProfileComplete
+        dispatch(setUser(data.user as any));
 
-      success("Profile Completed", "Welcome to CS Store! Your profile has been completed successfully.");
-      
-      // Redirect to dashboard
-      navigate("/dashboard");
+        success("Profile Completed", "Welcome to CS Store! Your profile has been completed successfully.");
+        
+        // Redirect to dashboard
+        navigate("/dashboard");
+      } else {
+        console.log("❌ Profile not completed:", data);
+        showError("Profile Completion Failed", "Unable to complete profile. Please try again.");
+      }
     } catch (error) {
       console.error("Profile completion error:", error);
       showError(
@@ -167,7 +342,8 @@ const OnboardingForm: React.FC = () => {
 
   if (!user) {
     // If no user is authenticated, redirect to home
-    navigate("/");
+    // Use replace to prevent back button issues
+    navigate("/", { replace: true });
     return null;
   }
 
@@ -259,13 +435,82 @@ const OnboardingForm: React.FC = () => {
                   value={formData.phone}
                   onChange={handleInputChange}
                   placeholder="Enter 10-digit mobile number"
+                  disabled={otpVerified}
                   className={`block w-full pl-10 pr-3 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
-                    errors.phone ? "border-red-300 bg-red-50" : "border-gray-300"
-                  }`}
+                    errors.phone ? "border-red-300 bg-red-50" : otpVerified ? "border-green-300 bg-green-50" : "border-gray-300"
+                  } ${otpVerified ? "cursor-not-allowed" : ""}`}
                 />
+                {otpVerified && (
+                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                    <ShieldCheck className="h-5 w-5 text-green-600" />
+                  </div>
+                )}
               </div>
               {errors.phone && (
-                <p className="text-red-500 text-xs mt-1">{errors.phone}</p>
+                <p className="text-red-500 text-xs mt-1 font-medium">{errors.phone}</p>
+              )}
+              {otpError && !otpSent && (
+                <p className="text-red-500 text-xs mt-1 font-medium bg-red-50 p-2 rounded">{otpError}</p>
+              )}
+              {!otpSent && !otpVerified && (
+                <div className="mt-2">
+                  <button
+                    type="button"
+                    onClick={handleSendOtp}
+                    disabled={isSendingOtp || !formData.phone.trim() || !/^[6-9]\d{9}$/.test(formData.phone.trim())}
+                    className="text-sm text-blue-600 hover:text-blue-700 font-medium disabled:text-gray-400 disabled:cursor-not-allowed px-3 py-1.5 rounded hover:bg-blue-50 transition-colors"
+                  >
+                    {isSendingOtp ? (
+                      <span className="flex items-center">
+                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600 mr-2"></div>
+                        Sending OTP...
+                      </span>
+                    ) : (
+                      "Send OTP"
+                    )}
+                  </button>
+                </div>
+              )}
+              {otpSent && !otpVerified && (
+                <div className="mt-3 space-y-2">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      placeholder="Enter 6-digit OTP"
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-center tracking-widest text-lg"
+                      maxLength={6}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleVerifyOtp}
+                      disabled={isVerifyingOtp || otp.length !== 6}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                    >
+                      {isVerifyingOtp ? "Verifying..." : "Verify"}
+                    </button>
+                  </div>
+                  {otpError && (
+                    <p className="text-red-500 text-xs">{otpError}</p>
+                  )}
+                  <div className="flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={handleSendOtp}
+                      disabled={otpCooldown > 0 || isSendingOtp}
+                      className="text-xs text-blue-600 hover:text-blue-700 disabled:text-gray-400 disabled:cursor-not-allowed"
+                    >
+                      {otpCooldown > 0 ? `Resend OTP in ${otpCooldown}s` : "Resend OTP"}
+                    </button>
+                  </div>
+                </div>
+              )}
+              {otpVerified && (
+                <p className="text-green-600 text-xs mt-1 flex items-center">
+                  <ShieldCheck className="h-3 w-3 mr-1" />
+                  Mobile number verified successfully
+                </p>
               )}
               <p className="text-xs text-gray-500 mt-1">
                 We'll use this to send order updates and OTP verification. Each phone number can only be used once.
@@ -298,8 +543,27 @@ const OnboardingForm: React.FC = () => {
             </motion.button>
           </form>
 
-          {/* Footer */}
+          {/* Sign In Link */}
           <div className="mt-6 text-center">
+            <p className="text-sm text-gray-600">
+              Already have an account?{" "}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  console.log("Sign In button clicked, navigating to /login");
+                  navigate("/login", { replace: true });
+                }}
+                className="text-blue-600 hover:text-blue-700 font-medium inline-flex items-center cursor-pointer"
+              >
+                <LogIn className="h-4 w-4 mr-1" />
+                Sign In
+              </button>
+            </p>
+          </div>
+
+          {/* Footer */}
+          <div className="mt-4 text-center">
             <p className="text-xs text-gray-500">
               By completing your profile, you agree to our{" "}
               <a href="/terms" className="text-blue-600 hover:text-blue-700 underline">

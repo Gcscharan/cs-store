@@ -1,40 +1,33 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   ShoppingCart,
-  Plus,
-  Minus,
   Heart,
+  Send,
+  Camera,
+  X,
   Share2,
   Star,
   Truck,
-  Shield,
   RotateCcw,
   CreditCard,
-  Camera,
-  X,
-  Send,
+  Shield,
 } from "lucide-react";
-import ProductMediaCarousel from "../components/ProductMediaCarousel";
-import { useLanguage } from "../contexts/LanguageContext";
-import {
-  useGetProductByIdQuery,
-  useAddToCartMutation,
-  useGetSimilarProductsQuery,
-} from "../store/api";
+import { useGetProductByIdQuery } from "../store/api";
+import { useAddToCartMutation, useGetSimilarProductsQuery } from "../store/api";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "../store";
 import { addToCart, setCart } from "../store/slices/cartSlice";
 import { useToast } from "../components/AccessibleToast";
-import { getProductImages } from "../utils/productImageMapper";
 import { useCartFeedback } from "../contexts/CartFeedbackContext";
+import OptimizedImage from "../components/OptimizedImage";
+import SkeletonProductDetail from "../components/SkeletonProductDetail";
 
 const ProductDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { t } = useLanguage();
   const dispatch = useDispatch();
   const cart = useSelector((state: RootState) => state.cart);
   const auth = useSelector((state: RootState) => state.auth);
@@ -88,9 +81,22 @@ const ProductDetailPage = () => {
     data: product,
     isLoading,
     error,
-  } = useGetProductByIdQuery(id || "", {
-    skip: !id || isFallbackProduct,
+  } = useGetProductByIdQuery(id!, {
+    skip: !id,
   });
+
+  // Debug logging for product payload
+  useEffect(() => {
+    console.log("[ProductDetailPage] product payload:", product);
+    if (product && (!product.name || !product.images || product.images.length === 0)) {
+      console.warn("[ProductDetailPage] Missing critical product data:", {
+        hasName: !!product?.name,
+        hasImages: !!product?.images,
+        imageCount: product?.images?.length,
+        productId: id
+      });
+    }
+  }, [product, id]);
 
   // Debug logging for API response
   console.log("ProductDetailPage - API Response:", {
@@ -127,17 +133,17 @@ const ProductDetailPage = () => {
       // Add to Redux store immediately for UI feedback
       dispatch(
         addToCart({
-          id: product._id || product.id,
-          name: product.name,
-          price: product.price,
+          id: product?._id || product?.id || "",
+          name: product?.name || "Unknown Product",
+          price: product?.price || 0,
           quantity: quantity,
-          image: getProductImages(product.name, product.category)[0],
+          image: product?.images?.[0]?.thumb || "/placeholder-product.svg",
         })
       );
 
       // Call backend API
       const result = await addToCartMutation({
-        productId: product._id || product.id,
+        productId: product?._id || product?.id || "",
         quantity: quantity,
       }).unwrap();
 
@@ -153,14 +159,14 @@ const ProductDetailPage = () => {
       }
 
       // ✅ Trigger Global Amazon-style confirmation bar
-      const productImage = getProductImages(product.name, product.category)[0];
+      const productImage = product?.images?.[0]?.thumb || "/placeholder-product.svg";
       const updatedCartCount = result.cart?.itemCount || (cart.itemCount + quantity);
-      const updatedCartTotal = result.cart?.total || (cart.total + (product.price * quantity));
-      triggerGlobalConfirmation(product.name, productImage, updatedCartCount, updatedCartTotal);
+      const updatedCartTotal = result.cart?.total || (cart.total + ((product?.price || 0) * quantity));
+      triggerGlobalConfirmation(product?.name || "Product", productImage, updatedCartCount, updatedCartTotal);
       
       // Show success toast
-      success(`✅ Successfully added ${product.name} to cart`);
-      console.log(`Successfully added ${quantity} ${product.name} to cart`);
+      success(`✅ Successfully added ${product?.name || "item"} to cart`);
+      console.log(`Successfully added ${quantity} ${product?.name || "item"} to cart`);
     } catch (error: any) {
       console.error("Failed to add to cart:", error);
 
@@ -279,6 +285,11 @@ const ProductDetailPage = () => {
     }
   };
 
+  // Show skeleton while loading
+  if (isLoading) {
+    return <SkeletonProductDetail />;
+  }
+
   // Show fallback product message
   if (isFallbackProduct) {
     return (
@@ -362,24 +373,20 @@ const ProductDetailPage = () => {
           <div className="space-y-4">
             <div className="relative">
               {(() => {
-                const productImages = getProductImages(
-                  product.name,
-                  product.category
-                );
-                return productImages.length > 0 ? (
-                  <ProductMediaCarousel
-                    media={productImages.map((img, index) => ({
-                      id: `img-${index}`,
-                      type: "image" as const,
-                      url: img,
-                      alt: product.name,
-                    }))}
+                const firstImage = product?.images?.[0];
+                return firstImage ? (
+                  <OptimizedImage
+                    image={firstImage}
+                    size="large"
+                    alt={product?.name ?? product?._id ?? "Product image"}
+                    className="w-full aspect-square rounded-xl"
+                    priority={true}
+                    productId={product?._id}
+                    debug={false}
                   />
                 ) : (
                   <div className="aspect-square bg-gray-200 rounded-xl flex items-center justify-center">
-                    <span className="text-gray-400 text-lg">
-                      No Image Available
-                    </span>
+                    <span className="text-gray-500">No Image Available</span>
                   </div>
                 );
               })()}
@@ -431,7 +438,7 @@ const ProductDetailPage = () => {
                   {/* Add to Cart Button */}
                   <button
                     onClick={handleAddToCart}
-                    disabled={product.stock <= 0 || isAddingToCart}
+                    disabled={(product?.stock || 0) <= 0 || isAddingToCart}
                     className="bg-blue-600 text-white py-4 px-8 rounded-xl hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center space-x-3 shadow-lg hover:shadow-xl font-semibold text-lg flex-1"
                   >
                     <ShoppingCart className="h-6 w-6" />
@@ -447,7 +454,7 @@ const ProductDetailPage = () => {
             {/* Product Name */}
             <div>
               <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                {product.name}
+                {product?.name || "Product"}
               </h1>
 
               {/* Rating */}
@@ -457,7 +464,7 @@ const ProductDetailPage = () => {
                     <Star
                       key={i}
                       className={`h-5 w-5 ${
-                        i < Math.floor(product.rating || 4.5)
+                        i < Math.floor(product?.rating || 4.5)
                           ? "text-yellow-400 fill-current"
                           : "text-gray-300"
                       }`}
@@ -465,7 +472,7 @@ const ProductDetailPage = () => {
                   ))}
                 </div>
                 <span className="text-sm text-gray-600">
-                  {product.rating || 4.5} ({product.reviews || 128} reviews)
+                  {(product?.rating || 4.5)} ({product?.reviews || 128} reviews)
                 </span>
               </div>
             </div>
@@ -473,24 +480,24 @@ const ProductDetailPage = () => {
             {/* Price */}
             <div className="flex items-center space-x-4">
               <span className="text-3xl font-bold text-gray-900">
-                ₹{product.price}
+                ₹{product?.price || 0}
               </span>
-              {product.mrp && product.mrp > product.price && (
+              {(product?.mrp || 0) > (product?.price || 0) && (
                 <>
                   <span className="text-xl text-gray-500 line-through">
-                    ₹{product.mrp}
+                    ₹{product?.mrp || 0}
                   </span>
                   <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
-                    Save ₹{product.mrp - product.price}
+                    Save ₹{(product?.mrp || 0) - (product?.price || 0)}
                   </span>
                 </>
               )}
             </div>
 
             {/* Weight */}
-            {product.weight > 0 && (
+            {(product?.weight || 0) > 0 && (
               <div className="text-lg text-gray-600">
-                <span className="font-medium">Weight:</span> {product.weight}g
+                <span className="font-medium">Weight:</span> {product?.weight || 0}g
               </div>
             )}
 
@@ -500,7 +507,7 @@ const ProductDetailPage = () => {
                 Description
               </h3>
               <p className="text-gray-700 leading-relaxed">
-                {product.description}
+                {product?.description || "No description available"}
               </p>
             </div>
 
@@ -511,7 +518,7 @@ const ProductDetailPage = () => {
                 <div>
                   <p className="font-medium text-green-900">Free Delivery</p>
                   <p className="text-sm text-green-700">
-                    Estimated delivery: {product.deliveryDate || "2-3 days"}
+                    Estimated delivery: {product?.deliveryDate || "2-3 days"}
                   </p>
                 </div>
               </div>
@@ -539,15 +546,15 @@ const ProductDetailPage = () => {
             <div className="flex items-center space-x-2">
               <div
                 className={`w-3 h-3 rounded-full ${
-                  product.stock > 0 ? "bg-green-500" : "bg-red-500"
+                  (product?.stock || 0) > 0 ? "bg-green-500" : "bg-red-500"
                 }`}
               ></div>
               <span
                 className={`text-sm font-medium ${
-                  product.stock > 0 ? "text-green-700" : "text-red-700"
+                  (product?.stock || 0) > 0 ? "text-green-700" : "text-red-700"
                 }`}
               >
-                {product.stock > 0 ? "In Stock" : "Out of Stock"}
+                {(product?.stock || 0) > 0 ? "In Stock" : "Out of Stock"}
               </span>
             </div>
           </div>
@@ -771,7 +778,7 @@ const ProductDetailPage = () => {
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {similarProducts.map((similarProduct) => (
+              {similarProducts.map((similarProduct: any) => (
                 <motion.div
                   key={similarProduct.id || similarProduct._id}
                   whileHover={{ scale: 1.05, y: -5 }}
@@ -780,17 +787,22 @@ const ProductDetailPage = () => {
                   className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer overflow-hidden group"
                 >
                   <div className="aspect-square bg-gray-200 overflow-hidden">
-                    <img
-                      src={
-                        similarProduct.image ||
-                        "https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=400&h=400&fit=crop&crop=center"
-                      }
-                      alt={similarProduct.name || "Product"}
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                      onError={(e) => {
-                        e.currentTarget.src =
-                          "https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=400&h=400&fit=crop&crop=center";
+                    <OptimizedImage
+                      image={similarProduct.images?.[0] || {
+                        variants: {
+                          micro: '/placeholder-product.svg',
+                          thumb: '/placeholder-product.svg',
+                          small: '/placeholder-product.svg',
+                          medium: '/placeholder-product.svg',
+                          large: '/placeholder-product.svg',
+                          original: '/placeholder-product.svg'
+                        }
                       }}
+                      size="small"
+                      alt={similarProduct.name || "Product"}
+                      className="w-full h-full"
+                      productId={similarProduct.id || similarProduct._id}
+                      debug={false}
                     />
                   </div>
                   <div className="p-4">

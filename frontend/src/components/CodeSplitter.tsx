@@ -10,7 +10,7 @@ const LoadingFallback: React.FC<{ message?: string }> = ({
   message = "Loading...",
 }) => (
   <div className="flex items-center justify-center p-8">
-    <AccessibleSpinner label={message} />
+    <AccessibleSpinner>{message}</AccessibleSpinner>
     <span className="ml-2 text-gray-600">{message}</span>
   </div>
 );
@@ -26,7 +26,7 @@ export const withCodeSplitting = <P extends object>(
 
   return (props: P) => (
     <Suspense fallback={<LoadingFallback message={fallbackMessage} />}>
-      <LazyComponent {...props} />
+      <LazyComponent {...(props as any)} />
     </Suspense>
   );
 };
@@ -50,7 +50,7 @@ export const LazyComponent: React.FC<{
   return (
     <ErrorBoundary fallback={ErrorFallback}>
       <Suspense fallback={<LoadingFallback message={fallbackMessage} />}>
-        <LazyComponent {...props} />
+        <LazyComponent {...(props as any)} />
       </Suspense>
     </ErrorBoundary>
   );

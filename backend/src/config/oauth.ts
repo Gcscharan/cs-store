@@ -6,11 +6,8 @@ import { User } from "../models/User";
 dotenv.config();
 
 // Environment variable validation
-const GOOGLE_CLIENT_ID =
-  process.env.GOOGLE_CLIENT_ID ||
-  "181811534733-pc8tub5e2farke4tuveh352gtngs02uv.apps.googleusercontent.com";
-const GOOGLE_CLIENT_SECRET =
-  process.env.GOOGLE_CLIENT_SECRET || "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";
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 
 console.log("Google OAuth credentials:", {
   clientId: GOOGLE_CLIENT_ID ? "Present" : "Missing",

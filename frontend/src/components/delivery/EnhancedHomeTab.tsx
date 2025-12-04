@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { RootState } from "../../store";
-import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { toast } from "react-hot-toast";
 import {
@@ -66,7 +65,6 @@ interface HomeTabProps {
 
 const EnhancedHomeTab: React.FC<HomeTabProps> = () => {
   const { user, tokens } = useSelector((state: RootState) => state.auth);
-  const navigate = useNavigate();
   const [availableOrders, setAvailableOrders] = useState<Order[]>([]);
   const [activeOrders, setActiveOrders] = useState<Order[]>([]);
   const [deliveryInfo, setDeliveryInfo] = useState<DeliveryInfo | null>(null);
@@ -74,8 +72,8 @@ const EnhancedHomeTab: React.FC<HomeTabProps> = () => {
   const [error, setError] = useState<string | null>(null);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [otpInput, setOtpInput] = useState<{ [key: string]: string }>({});
-  const [uploadingProof, setUploadingProof] = useState<{ [key: string]: boolean }>({});
-  const [arrivedTimestamp, setArrivedTimestamp] = useState<{ [key: string]: number }>({});
+  const [_uploadingProof, _setUploadingProof] = useState<{ [key: string]: boolean }>({});
+  const [_arrivedTimestamp, _setArrivedTimestamp] = useState<{ [key: string]: number }>({});
   const [resendTimer, setResendTimer] = useState<{ [key: string]: number }>({});
   const [showQRModal, setShowQRModal] = useState(false);
   const [selectedOrderForQR, setSelectedOrderForQR] = useState<Order | null>(null);
@@ -494,7 +492,7 @@ const EnhancedHomeTab: React.FC<HomeTabProps> = () => {
       }
 
       toast.success("Marked as arrived. OTP sent to customer!");
-      setArrivedTimestamp((prev) => ({ ...prev, [orderId]: Date.now() }));
+      _setArrivedTimestamp((prev: any) => ({ ...prev, [orderId]: Date.now() }));
       setResendTimer((prev) => ({ ...prev, [orderId]: 30 }));
       fetchOrders();
     } catch (err) {

@@ -1,0 +1,341 @@
+================================================================================
+                         AUTHENTICATION & USER IDENTITY
+================================================================================
+
+WHAT THIS DOES:
+---------------
+This module handles all user authentication flows including:
+- Password-based signup and login
+- OAuth (Google) authentication
+- OTP-based phone/email authentication
+- JWT token management (access and refresh tokens)
+- Password changes and profile completion
+- Secure logout with token blacklisting
+
+FOLDER PATHS INVOLVED:
+----------------------
+Backend:
+- backend/src/domains/identity/ (main auth domain)
+- backend/src/domains/identity/controllers/authController.ts
+- backend/src/domains/identity/routes/auth.ts
+- backend/src/models/User.ts
+- backend/src/models/PendingUser.ts
+- backend/src/middleware/auth.ts
+
+Frontend:
+- frontend/src/pages/auth/ (login, signup pages)
+- frontend/src/components/LoginForm.tsx
+- frontend/src/components/SignupForm.tsx
+- frontend/src/components/OtpLoginModal.tsx
+- frontend/src/store/authSlice.ts
+- frontend/src/hooks/ (auth-related hooks)
+
+KEY FILES & THEIR CONTENTS:
+---------------------------
+
+1. authController.ts
+   - signup: Creates pending user, sends verification OTP
+   - login: Email/phone + password authentication
+   - oauth: Google OAuth login/signup
+   - refresh: Generates new access token from refresh token
+   - logout: Blacklists tokens in Redis for secure logout
+   - googleCallback: Handles OAuth callback from Google
+   - changePassword: Updates user password
+   - sendAuthOTP: Sends OTP to phone/email for login
+   - verifyAuthOTP: Verifies OTP and logs user in
+   - checkPhoneExists: Checks if phone is already registered
+   - completeProfile: Completes OAuth user profile with name/phone
+
+2. User Model (User.ts)
+   Schema fields:
+   - _id: ObjectId (auto-generated)
+   - name: String (user's full name)
+   - email: String (unique, required)
+   - phone: String (10-15 digits, validated)
+   - passwordHash: String (bcrypt hashed password)
+   - oauthProviders: Array of { provider, providerId }
+   - role: Enum ["customer", "admin", "delivery"]
+   - status: Enum ["pending", "active", "suspended"]
+   - addresses: Array of address objects
+   - isProfileComplete: Boolean
+   - mobileVerified: Boolean
+   - createdAt, updatedAt: Timestamps
+   
+   Methods:
+   - comparePassword(candidatePassword): Compares hashed passwords
+
+3. PendingUser Model (PendingUser.ts)
+   - Stores incomplete signups awaiting OTP verification
+   - Auto-expires after 24 hours (TTL)
+   - Contains: name, email, phone, passwordHash, addresses
+
+4. Auth Middleware (middleware/auth.ts)
+   - authenticateToken: Verifies JWT token
+   - Checks Redis blacklist for revoked tokens
+   - Attaches user info to request object
+
+5. Auth Routes (auth.ts)
+   - POST /api/auth/signup - Register new user
+   - POST /api/auth/login - Login with email/phone + password
+   - POST /api/auth/oauth - OAuth login
+   - POST /api/auth/refresh - Refresh access token
+   - POST /api/auth/logout - Logout and blacklist tokens
+   - POST /api/auth/send-otp - Send OTP for authentication
+   - POST /api/auth/verify-otp - Verify OTP and login
+   - POST /api/auth/change-password - Change password
+   - POST /api/auth/check-phone - Check if phone exists
+   - PUT /api/auth/complete-profile - Complete OAuth profile
+   - GET /api/auth/google - Initiate Google OAuth
+   - GET /api/auth/google/callback - OAuth callback
+
+REQUEST/RESPONSE EXAMPLES:
+--------------------------
+
+1. SIGNUP (Password-based)
+   Request:
+   POST /api/auth/signup
+   {
+     "name": "John Doe",
+     "email": "john@example.com",
+     "phone": "9876543210",
+     "password": "securepass123",
+     "addresses": [
+       {
+         "label": "Home",
+         "pincode": "500001",
+         "city": "Hyderabad",
+         "state": "Telangana",
+         "addressLine": "123 Main St",
+         "lat": 17.385,
+         "lng": 78.486,
+         "isDefault": true
+       }
+     ]
+   }
+   
+   Response (202 Accepted):
+   {
+     "message": "Signup initiated. Verification OTP sent.",
+     "pendingUserId": "abc123...",
+     "expiresIn": 600
+   }
+   Note: User must verify OTP to complete signup
+
+2. LOGIN (Password-based)
+   Request:
+   POST /api/auth/login
+   {
+     "email": "john@example.com",
+     "password": "securepass123"
+   }
+   
+   Response (200):
+   {
+     "message": "Login successful",
+     "user": {
+       "id": "userId123",
+       "name": "John Doe",
+       "email": "john@example.com",
+       "phone": "9876543210",
+       "role": "customer",
+       "isAdmin": false,
+       "addresses": [...],
+       "isProfileComplete": true
+     },
+     "accessToken": "eyJhbGc...",
+     "refreshToken": "eyJhbGc..."
+   }
+
+3. SEND OTP (OTP-based login)
+   Request:
+   POST /api/auth/send-otp
+   {
+     "phone": "9876543210"
+   }
+   OR
+   {
+     "email": "john@example.com"
+   }
+   
+   Response (200):
+   {
+     "message": "OTP sent successfully",
+     "expiresIn": 600,
+     "sentTo": "phone"
+   }
+
+4. VERIFY OTP
+   Request:
+   POST /api/auth/verify-otp
+   {
+     "phone": "9876543210",
+     "otp": "123456"
+   }
+   
+   Response (200):
+   {
+     "message": "Login successful",
+     "user": {...},
+     "accessToken": "eyJhbGc...",
+     "refreshToken": "eyJhbGc..."
+   }
+
+5. REFRESH TOKEN
+   Request:
+   POST /api/auth/refresh
+   {
+     "refreshToken": "eyJhbGc..."
+   }
+   
+   Response (200):
+   {
+     "accessToken": "eyJhbGc..."
+   }
+
+6. LOGOUT
+   Request:
+   POST /api/auth/logout
+   Headers: { Authorization: "Bearer <accessToken>" }
+   {
+     "refreshToken": "eyJhbGc..."
+   }
+   
+   Response (200):
+   {
+     "success": true,
+     "message": "Logout successful - session revoked and tokens blacklisted",
+     "tokensRevoked": 2
+   }
+
+7. COMPLETE PROFILE (for OAuth users)
+   Request:
+   PUT /api/auth/complete-profile
+   Headers: { Authorization: "Bearer <accessToken>" }
+   {
+     "name": "John Doe",
+     "phone": "9876543210"
+   }
+   
+   Response (200):
+   {
+     "message": "Profile completed successfully",
+     "user": {...}
+   }
+
+FRONTEND INTERACTION:
+---------------------
+1. Login Form Component (LoginForm.tsx)
+   - Allows email/password or OTP-based login
+   - Calls POST /api/auth/login or OTP endpoints
+   - Stores tokens in Redux store and localStorage
+
+2. Signup Form Component (SignupForm.tsx)
+   - Multi-step form for user registration
+   - Validates phone number format (Indian numbers: 6-9XXXXXXXXX)
+   - Validates pincode availability
+   - Triggers OTP verification flow
+
+3. OTP Login Modal (OtpLoginModal.tsx)
+   - Real-time OTP input component
+   - Auto-submits on 6-digit entry
+   - Shows countdown timer for OTP expiry
+
+4. Auth Redux Slice (authSlice.ts)
+   - Stores: user, accessToken, refreshToken, isAuthenticated
+   - Actions: login, logout, setUser, refreshToken
+   - Persists to localStorage
+
+5. Token Management
+   - Access token: 24 hours validity
+   - Refresh token: 7 days validity
+   - Auto-refresh on API 401 responses
+   - Blacklisted tokens stored in Redis
+
+IMPORTANT MODELS:
+-----------------
+
+User Schema:
+- Primary fields: email (unique), phone, name
+- Authentication: passwordHash OR oauthProviders
+- Role-based access: customer, admin, delivery
+- Profile completeness flag for OAuth users
+- Embedded addresses array
+- Timestamps for auditing
+
+Address Schema (embedded in User):
+- label: "Home", "Work", etc.
+- pincode: Validated against Pincode collection
+- Coordinates: lat, lng for delivery
+- coordsSource: 'manual', 'geocoded', 'pincode', 'unresolved'
+- isDefault: One default address per user
+
+OAuth Providers:
+- Currently supports: Google
+- Links OAuth account to existing email if found
+- Creates new user if no account exists
+
+IMPORTANT NOTES:
+----------------
+
+1. Password Security:
+   - Passwords hashed with bcryptjs (12 salt rounds)
+   - Minimum 6 characters required
+   - Never stored or transmitted in plain text
+
+2. JWT Tokens:
+   - Access token payload: { userId, email, role }
+   - Refresh token payload: { userId }
+   - Signed with separate secrets (JWT_SECRET, JWT_REFRESH_SECRET)
+
+3. Token Blacklisting (Redis):
+   - Access tokens blacklisted for 24 hours on logout
+   - Refresh tokens blacklisted for 7 days
+   - User session revocation for extra security
+
+4. OTP Verification:
+   - OTPs expire after 10 minutes
+   - Maximum 3 attempts allowed
+   - Stored in separate Otp collection (see otp.txt)
+
+5. Phone Number Validation:
+   - Indian mobile format: 10 digits starting with 6-9
+   - Format: /^[6-9]\d{9}$/
+   - Unique constraint enforced
+
+6. Pending User Flow:
+   - Signup creates PendingUser (24hr TTL)
+   - OTP sent to phone
+   - On verification, PendingUser → User
+   - Unverified pending users auto-expire
+
+7. OAuth Flow:
+   - User redirects to /api/auth/google
+   - Google callback to /api/auth/google/callback
+   - Frontend receives tokens via URL params
+   - Profile completion required if name/phone missing
+
+8. Security Features:
+   - CORS protection
+   - Rate limiting (via middleware/security.ts)
+   - Token blacklist check on every auth request
+   - Session revocation on logout
+   - Secure password comparison (timing-safe)
+
+9. Error Handling:
+   - 400: Bad request (validation errors)
+   - 401: Unauthorized (invalid credentials)
+   - 403: Forbidden (insufficient permissions)
+   - 404: User not found
+   - 500: Server errors
+
+10. Profile Completion:
+    - OAuth users may login without phone/name
+    - isProfileComplete flag tracks this
+    - Frontend prompts completion before checkout
+
+RELATED DOCUMENTATION:
+----------------------
+- See otp.txt for OTP system details
+- See user-profile.txt for profile management
+- See middleware.txt for auth middleware details
+- See redis.txt for token blacklist implementation

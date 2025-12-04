@@ -11,15 +11,13 @@ import {
   Edit,
   Trash2,
   Search,
-  Filter,
   ArrowLeft,
   Package,
   DollarSign,
   Hash,
-  X,
 } from "lucide-react";
-import ProductForm from "../components/ProductForm";
-import toast from "react-hot-toast";
+import FileUpload from "../components/FileUpload";
+import { getProductImage } from "../utils/image";
 
 interface Product {
   _id: string;
@@ -30,7 +28,7 @@ interface Product {
   category: string;
   stock: number;
   weight?: number;
-  images?: string[];
+  images?: string[] | { full: string; thumb: string }[];
   createdAt: string;
   updatedAt: string;
 }
@@ -47,7 +45,6 @@ const AdminProductsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
-  const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editFormData, setEditFormData] = useState({
@@ -58,9 +55,8 @@ const AdminProductsPage: React.FC = () => {
     category: "",
     stock: 0,
     weight: 0,
-    image: "",
+    images: [] as { full: string; thumb: string }[],
   });
-  const [isCreating, setIsCreating] = useState(false);
 
   // Check authentication
   useEffect(() => {
@@ -132,6 +128,23 @@ const AdminProductsPage: React.FC = () => {
 
   const handleEditProduct = (product: Product) => {
     setEditingProduct(product);
+    
+    // Convert images to dual-resolution format
+    let convertedImages: { full: string; thumb: string }[] = [];
+    
+    if (product.images && product.images.length > 0) {
+      if (typeof product.images[0] === 'string') {
+        // Old format: string[] - convert to dual-resolution
+        convertedImages = product.images.map(img => ({
+          full: img as string,
+          thumb: img as string // Use same image for both full and thumb
+        }));
+      } else {
+        // New format: already dual-resolution
+        convertedImages = product.images as { full: string; thumb: string }[];
+      }
+    }
+    
     setEditFormData({
       name: product.name,
       description: product.description,
@@ -140,7 +153,7 @@ const AdminProductsPage: React.FC = () => {
       category: product.category,
       stock: product.stock,
       weight: product.weight || 0,
-      image: product.images?.[0] || "",
+      images: convertedImages,
     });
     setShowEditModal(true);
   };
@@ -153,7 +166,7 @@ const AdminProductsPage: React.FC = () => {
       await updateProductMutation({
         id: editingProduct._id,
         ...editFormData,
-        images: editFormData.image ? [editFormData.image] : undefined,
+        images: editFormData.images,
       }).unwrap();
 
       // Refresh products list
@@ -168,7 +181,7 @@ const AdminProductsPage: React.FC = () => {
         category: "",
         stock: 0,
         weight: 0,
-        image: "",
+        images: [],
       });
     } catch (error) {
       console.error("Error updating product:", error);
@@ -187,7 +200,7 @@ const AdminProductsPage: React.FC = () => {
       category: "",
       stock: 0,
       weight: 0,
-      image: "",
+      images: [],
     });
   };
 
@@ -266,7 +279,7 @@ const AdminProductsPage: React.FC = () => {
             </div>
 
             <button
-              onClick={() => setShowCreateModal(true)}
+              onClick={() => navigate("/admin/products/new")}
               className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
             >
               <Plus className="h-4 w-4" />
@@ -313,7 +326,7 @@ const AdminProductsPage: React.FC = () => {
                   : "No products available. Add your first product to get started."}
               </p>
               <button
-                onClick={() => setShowCreateModal(true)}
+                onClick={() => navigate("/admin/products/new")}
                 className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 flex items-center gap-2 mx-auto"
               >
                 <Plus className="h-4 w-4" />
@@ -351,10 +364,10 @@ const AdminProductsPage: React.FC = () => {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
                           <div className="flex-shrink-0 h-12 w-12">
-                            {product.images?.[0] ? (
+                            {getProductImage(product) ? (
                               <img
                                 className="h-12 w-12 rounded-lg object-cover"
-                                src={product.images[0]}
+                                src={getProductImage(product)}
                                 alt={product.name}
                               />
                             ) : (
@@ -477,57 +490,6 @@ const AdminProductsPage: React.FC = () => {
             </div>
           </div>
         </div>
-
-        {/* Create Product Modal */}
-        {showCreateModal && (
-          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-            <div className="relative top-10 mx-auto p-8 border w-full max-w-4xl shadow-lg rounded-md bg-white">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-2xl font-semibold text-gray-900">
-                  Add New Product
-                </h3>
-                <button
-                  onClick={() => setShowCreateModal(false)}
-                  className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  <X className="h-6 w-6" />
-                </button>
-              </div>
-
-              <ProductForm
-                onSubmit={async (productData) => {
-                  try {
-                    setIsCreating(true);
-                    const response = await fetch("/api/admin/products", {
-                      method: "POST",
-                      headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${tokens?.accessToken}`,
-                      },
-                      body: JSON.stringify(productData),
-                    });
-
-                    if (!response.ok) {
-                      const errorData = await response.json();
-                      throw new Error(errorData.error || "Failed to create product");
-                    }
-
-                    const data = await response.json();
-                    toast.success("Product created successfully!");
-                    setShowCreateModal(false);
-                    fetchProducts(); // Refresh products list
-                  } catch (error: any) {
-                    console.error("Error creating product:", error);
-                    toast.error(error.message || "Failed to create product");
-                  } finally {
-                    setIsCreating(false);
-                  }
-                }}
-                isLoading={isCreating}
-              />
-            </div>
-          </div>
-        )}
 
         {/* Edit Product Modal */}
         {showEditModal && editingProduct && (
@@ -684,18 +646,16 @@ const AdminProductsPage: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Image URL
+                      Product Images
                     </label>
-                    <input
-                      type="url"
-                      value={editFormData.image}
-                      onChange={(e) =>
+                    <FileUpload
+                      images={editFormData.images}
+                      onChange={(images) =>
                         setEditFormData({
                           ...editFormData,
-                          image: e.target.value,
+                          images,
                         })
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                   <div className="flex justify-end space-x-3 pt-4">

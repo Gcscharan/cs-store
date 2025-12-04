@@ -1,11 +1,12 @@
 import { motion } from "framer-motion";
 import { useState, useMemo, useEffect } from "react";
-import { ShoppingCart, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "../contexts/LanguageContext";
 import SortingDropdown, { SortOption } from "../components/SortingDropdown";
 import TopSellingSlider from "../components/TopSellingSlider";
 import { useGetProductsQuery } from "../store/api";
+import { getProductImage } from "../utils/image";
 
 const HomePage = () => {
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -42,11 +43,11 @@ const HomePage = () => {
 
   // Group products by category
   const productData = {
-    chocolates: products.filter((p) => p.category === "chocolates"),
-    biscuits: products.filter((p) => p.category === "biscuits"),
-    ladoos: products.filter((p) => p.category === "ladoos"),
-    cakes: products.filter((p) => p.category === "cakes"),
-    hot_snacks: products.filter((p) => p.category === "hot_snacks"),
+    chocolates: products.filter((p: any) => p.category === "chocolates"),
+    biscuits: products.filter((p: any) => p.category === "biscuits"),
+    ladoos: products.filter((p: any) => p.category === "ladoos"),
+    cakes: products.filter((p: any) => p.category === "cakes"),
+    hot_snacks: products.filter((p: any) => p.category === "hot_snacks"),
   };
 
   // Top-selling products data (dynamically updated based on customer interests)
@@ -56,13 +57,10 @@ const HomePage = () => {
 
     // Get a random selection of products for top selling
     const shuffled = [...products].sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, 8).map((product) => ({
+    return shuffled.slice(0, 8).map((product: any) => ({
       id: product._id || product.id,
       name: product.name,
-      image:
-        product.image ||
-        product.images?.[0] ||
-        "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZTVlN2ViIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGRvbWluYW50LWJhc2VsaW5lPSJtaWRkbGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM5Y2EzYWYiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNiI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+",
+      image: getProductImage(product),
       category: product.category,
     }));
   }, [products]);
@@ -127,7 +125,7 @@ const HomePage = () => {
 
     // Apply search filter
     if (searchQuery) {
-      productsToShow = productsToShow.filter((product) =>
+      productsToShow = productsToShow.filter((product: any) =>
         product.name.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
@@ -135,19 +133,25 @@ const HomePage = () => {
     // Apply sorting
     switch (sortBy) {
       case "price_low_high":
-        return productsToShow.sort((a, b) => a.price - b.price);
+        return productsToShow.sort((a: any, b: any) => a.price - b.price);
       case "price_high_low":
-        return productsToShow.sort((a, b) => b.price - a.price);
+        return productsToShow.sort((a: any, b: any) => b.price - a.price);
+      case "name_asc":
+        return productsToShow.sort((a: any, b: any) => a.name.localeCompare(b.name));
+      case "name_desc":
+        return productsToShow.sort((a: any, b: any) => b.name.localeCompare(a.name));
+      case "rating":
+        return productsToShow.sort((a: any, b: any) => (b.rating || 0) - (a.rating || 0));
       case "popularity":
-        return productsToShow.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+        return productsToShow.sort((a: any, b: any) => (b.rating || 0) - (a.rating || 0));
       case "newest":
         return productsToShow.sort(
-          (a, b) =>
+          (a: any, b: any) =>
             new Date(b.createdAt || 0).getTime() -
             new Date(a.createdAt || 0).getTime()
         );
       case "best_selling":
-        return productsToShow.sort((a, b) => (b.sales || 0) - (a.sales || 0));
+        return productsToShow.sort((a: any, b: any) => (b.sales || 0) - (a.sales || 0));
       default:
         return productsToShow;
     }
@@ -279,7 +283,7 @@ const HomePage = () => {
                 : "grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
             }`}
           >
-            {filteredProducts.map((product) => (
+            {filteredProducts.map((product: any) => (
               <motion.div
                 key={product._id || product.id}
                 initial={{ opacity: 0, scale: 0.9 }}
@@ -301,11 +305,7 @@ const HomePage = () => {
                 {/* Product Image */}
                 <div className="relative h-48 overflow-hidden">
                   <img
-                    src={
-                      product.images?.[0] ||
-                      product.image ||
-                      "https://dummyimage.com/400x400/cccccc/666666&text=No+Image"
-                    }
+                    src={getProductImage(product)}
                     alt={product.name}
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                     loading="lazy"

@@ -1,9 +1,9 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { useOtpModal } from "../contexts/OtpModalContext";
 import OtpLoginModal from "../components/OtpLoginModal";
 
 const TestOtpPage = () => {
-  const { showOtpModal, isOtpModalOpen, hideOtpModal } = useOtpModal();
+  const { showOtpModal, isOtpModalOpen } = useOtpModal();
   const [showDirectModal, setShowDirectModal] = useState(false);
 
   return (

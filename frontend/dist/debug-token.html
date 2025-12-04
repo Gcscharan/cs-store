@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Token Debug</title>
+</head>
+<body>
+    <h1>Token Debug Page</h1>
+    <button onclick="checkTokens()">Check Tokens in localStorage</button>
+    <pre id="output"></pre>
+    
+    <script>
+        function checkTokens() {
+            const output = document.getElementById('output');
+            const authData = localStorage.getItem('persist:auth');
+            
+            if (!authData) {
+                output.textContent = 'No auth data found in localStorage';
+                return;
+            }
+            
+            try {
+                const parsed = JSON.parse(authData);
+                const tokens = parsed.tokens ? JSON.parse(parsed.tokens) : null;
+                const user = parsed.user ? JSON.parse(parsed.user) : null;
+                
+                output.textContent = 'Auth Data:\n' + JSON.stringify({
+                    user: user,
+                    tokens: tokens,
+                    accessTokenLength: tokens?.accessToken?.length,
+                    accessTokenSample: tokens?.accessToken?.substring(0, 100)
+                }, null, 2);
+                
+                console.log('Full access token:', tokens?.accessToken);
+            } catch (e) {
+                output.textContent = 'Error parsing auth data: ' + e.message;
+            }
+        }
+    </script>
+</body>
+</html>

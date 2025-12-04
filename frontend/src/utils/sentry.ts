@@ -1,5 +1,4 @@
 import * as Sentry from "@sentry/react";
-import { BrowserTracing } from "@sentry/tracing";
 
 /**
  * Sentry Configuration for Frontend
@@ -16,18 +15,7 @@ export const initializeSentry = () => {
   Sentry.init({
     dsn,
     environment: import.meta.env.MODE || "development",
-    tracesSampleRate: import.meta.env.MODE === "production" ? 0.1 : 1.0,
-    integrations: [
-      new BrowserTracing({
-        routingInstrumentation: Sentry.reactRouterV6Instrumentation(
-          React.useEffect,
-          useLocation,
-          useNavigationType,
-          createRoutesFromChildren,
-          matchRoutes
-        ),
-      }),
-    ],
+    tracesSampleRate: 0.0,
     beforeSend(event) {
       // Filter out sensitive data
       if (event.request?.data) {

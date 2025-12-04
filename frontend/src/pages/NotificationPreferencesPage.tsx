@@ -299,16 +299,6 @@ const NotificationPreferencesPage: React.FC = () => {
     }
   }, [preferencesData]);
 
-  // NEW: Save all preferences in one request
-  const handleSaveAll = async () => {
-    try {
-      await updatePreferences({ preferences: settings }).unwrap();
-      showSuccess("All preferences saved");
-    } catch (error) {
-      showError("Failed to save all preferences");
-      console.error("Save all error:", error);
-    }
-  };
 
   // Automatic save function
   const handleAutoSave = async (channelId: string, categoryKey: string, subcategoryKey?: string, enabled?: boolean) => {

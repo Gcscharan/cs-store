@@ -217,7 +217,7 @@ export const getProducts = async (
     }
 
     // Build sort
-    let sort: any = { createdAt: -1 }; // default sort
+    const sort: any = { createdAt: -1 }; // default sort
     if (sortBy) {
       sort[sortBy as string] = sortOrder === "asc" ? 1 : -1;
     }

@@ -212,14 +212,39 @@ export const updateUserProfile = async (
       return;
     }
 
+    // Get current user
+    const user = await User.findById(userId);
+    if (!user) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+
     // Extract update fields from request body
     const { name, phone, email } = req.body;
+    
+    // Handle email change with verification requirement
+    if (email !== undefined && email !== user.email) {
+      // Don't update email immediately - require verification
+      res.json({
+        success: true,
+        message: "Email change requires verification",
+        emailChangePending: true,
+        pendingEmail: email,
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email, // Still return old email
+          phone: user.phone,
+          role: user.role,
+        },
+      });
+      return;
+    }
     
     // Build update object with only provided fields
     const updateData: any = {};
     if (name !== undefined) updateData.name = name;
     if (phone !== undefined) updateData.phone = phone;
-    if (email !== undefined) updateData.email = email;
 
     // Use findByIdAndUpdate to atomically update and return new document
     const updatedUser = await User.findByIdAndUpdate(

@@ -3,7 +3,7 @@ import mongoose, { Document, Schema } from "mongoose";
 export interface IOtp extends Document {
   phone: string;
   otp: string;
-  type: "payment" | "login" | "verification";
+  type: "payment" | "login" | "verification" | "signup";
   orderId?: mongoose.Types.ObjectId;
   paymentId?: string;
   expiresAt: Date;
@@ -27,7 +27,7 @@ const OtpSchema = new Schema<IOtp>(
     },
     type: {
       type: String,
-      enum: ["payment", "login", "verification"],
+      enum: ["payment", "login", "verification", "signup"],
       required: true,
     },
     orderId: {
@@ -49,7 +49,12 @@ const OtpSchema = new Schema<IOtp>(
     attempts: {
       type: Number,
       default: 0,
-      max: 3,
+      validate: {
+        validator(value: number) {
+          return value <= 3;
+        },
+        message: "Maximum OTP attempts exceeded",
+      },
     },
   },
   {

@@ -6,35 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const passport_1 = __importDefault(require("passport"));
-// JWT Secret Validation - Startup Security Check
-function validateJwtSecrets() {
-    const jwtSecret = process.env.JWT_SECRET;
-    const jwtRefreshSecret = process.env.JWT_REFRESH_SECRET;
-    if (!jwtSecret || jwtSecret.length < 32) {
-        const isDev = process.env.NODE_ENV !== 'production';
-        const errorMsg = `JWT_SECRET must be at least 32 characters long. Current length: ${jwtSecret?.length || 0}`;
-        if (isDev) {
-            console.warn(`[DEV WARNING] ${errorMsg} - Using weak secret in development`);
-        }
-        else {
-            console.error(`[FATAL] ${errorMsg}`);
-            process.exit(1);
-        }
-    }
-    if (!jwtRefreshSecret || jwtRefreshSecret.length < 32) {
-        const isDev = process.env.NODE_ENV !== 'production';
-        const errorMsg = `JWT_REFRESH_SECRET must be at least 32 characters long. Current length: ${jwtRefreshSecret?.length || 0}`;
-        if (isDev) {
-            console.warn(`[DEV WARNING] ${errorMsg} - Using weak secret in development`);
-        }
-        else {
-            console.error(`[FATAL] ${errorMsg}`);
-            process.exit(1);
-        }
-    }
-}
-// Run validation immediately on startup
-validateJwtSecrets();
+// JWT Secret Validation moved to index.ts after dotenv.config()
 const compression_1 = __importDefault(require("compression"));
 const security_1 = require("./middleware/security");
 const errorHandler_1 = require("./middleware/errorHandler");
@@ -68,6 +40,9 @@ app.use((0, cors_1.default)({
 app.use((0, compression_1.default)());
 app.use('/api/', security_1.apiLimiter);
 app.use(passport_1.default.initialize());
+// body parsers BEFORE routes
+app.use(express_1.default.json({ limit: "10mb" }));
+app.use(express_1.default.urlencoded({ extended: true }));
 // Health check route
 app.get("/health", (req, res) => {
     res.status(200).json({
@@ -100,9 +75,6 @@ app.use("/api/razorpay", razorpay_1.default);
 app.use("/api/otp", otpRoutes_1.default);
 app.use("/api/notifications", notifications_1.default);
 app.use("/api/uploads", uploads_1.default);
-// body parsers AFTER multer routes
-app.use(express_1.default.json({ limit: "10mb" }));
-app.use(express_1.default.urlencoded({ extended: true }));
 console.log("Payment routes registered successfully");
 console.log("Razorpay routes registered successfully");
 console.log("OTP routes registered successfully");

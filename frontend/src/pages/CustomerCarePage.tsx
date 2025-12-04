@@ -10,8 +10,6 @@ import {
   ArrowRight,
   CheckCircle,
   Star,
-  Users,
-  Shield,
   Truck,
   RefreshCw,
   CreditCard,

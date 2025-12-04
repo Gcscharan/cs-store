@@ -1,196 +1,117 @@
 import { createSlice, PayloadAction, createAction } from "@reduxjs/toolkit";
 
-// Minimal user info for auth/routing only
-// Profile details (name, phone) come from useGetProfileQuery
-interface User {
-  id: string;
-  email: string;
-  role?: string;
-  isAdmin?: boolean;
-  // Profile data (name, phone) NOT stored here
-  // Use useGetProfileQuery to fetch from MongoDB
+// -------- LocalStorage helpers (safe) --------
+function loadFromLocalStorage(key: string) {
+  try {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem(key);
+    }
+  } catch {
+    return null;
+  }
+}
+
+function saveToLocalStorage(key: string, value: string) {
+  try {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(key, value);
+    }
+  } catch {}
+}
+
+function removeFromLocalStorage(key: string) {
+  try {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(key);
+    }
+  } catch {}
+}
+
+// -------- Initial Tokens from LocalStorage --------
+const initialAccessToken = loadFromLocalStorage("accessToken");
+const initialRefreshToken = loadFromLocalStorage("refreshToken");
+
+// -------- User from LocalStorage (safe parse) --------
+function loadUser() {
+  try {
+    const raw = loadFromLocalStorage("authUser");
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+// -------- Initial State --------
+interface AuthTokens {
+  accessToken: string | null;
+  refreshToken: string | null;
 }
 
 interface AuthState {
-  user: User | null;
-  tokens: {
-    accessToken: string | null;
-    refreshToken: string | null;
-  };
+  user: any | null;
   isAuthenticated: boolean;
+  tokens: AuthTokens;
 }
 
-// Helper function to check if token is expired
-const isTokenExpired = (token: string): boolean => {
-  try {
-    const payload = JSON.parse(atob(token.split(".")[1]));
-    const currentTime = Math.floor(Date.now() / 1000);
-    return payload.exp < currentTime;
-  } catch (error) {
-    console.error("Error parsing token:", error);
-    return true;
-  }
+const initialState: AuthState = {
+  user: loadUser(),
+  isAuthenticated: !!initialAccessToken && !!initialRefreshToken,
+  tokens: {
+    accessToken: initialAccessToken || null,
+    refreshToken: initialRefreshToken || null,
+  },
 };
 
-// Load initial state from localStorage with token validation
-// Only loads tokens and minimal user info (id, email, role)
-// Profile data (name, phone) must be fetched via useGetProfileQuery
-const loadAuthFromStorage = (): AuthState => {
-  try {
-    const storedAuth = localStorage.getItem("auth");
-    if (storedAuth) {
-      const parsed = JSON.parse(storedAuth);
-
-      // Validate that we have all required fields and token is not expired
-      if (
-        parsed.isAuthenticated &&
-        parsed.user?.id &&
-        parsed.tokens?.accessToken &&
-        !isTokenExpired(parsed.tokens.accessToken)
-      ) {
-        // Only restore minimal user info, NOT profile data
-        return {
-          user: {
-            id: parsed.user.id,
-            email: parsed.user.email,
-            role: parsed.user.role,
-            isAdmin: parsed.user.isAdmin,
-            // DO NOT restore name, phone - fetch from MongoDB
-          },
-          tokens: parsed.tokens,
-          isAuthenticated: true,
-        };
-      } else {
-        // Clear invalid auth data
-        localStorage.removeItem("auth");
-      }
-    }
-  } catch (error) {
-    console.error("Error loading auth from localStorage:", error);
-    // Clear corrupted auth data
-    localStorage.removeItem("auth");
-  }
-
-  return {
-    user: null,
-    tokens: {
-      accessToken: null,
-      refreshToken: null,
-    },
-    isAuthenticated: false,
-  };
-};
-
-const initialState: AuthState = loadAuthFromStorage();
-
-// Helper function to save auth state to localStorage
-// Only saves tokens and minimal user info (id, email, role)
-// Profile data (name, phone) is NOT saved - must come from MongoDB
-const saveAuthToStorage = (authState: AuthState) => {
-  try {
-    if (authState.user) {
-      // Only save minimal user info, NOT profile data
-      const minimalAuth = {
-        user: {
-          id: authState.user.id,
-          email: authState.user.email,
-          role: authState.user.role,
-          isAdmin: authState.user.isAdmin,
-          // DO NOT save name, phone - fetch from MongoDB
-        },
-        tokens: authState.tokens,
-        isAuthenticated: authState.isAuthenticated,
-      };
-      localStorage.setItem("auth", JSON.stringify(minimalAuth));
-    } else {
-      localStorage.setItem("auth", JSON.stringify(authState));
-    }
-  } catch (error) {
-    console.error("Error saving auth to localStorage:", error);
-  }
-};
-
+// -------- Slice --------
 const authSlice = createSlice({
   name: "auth",
   initialState,
   reducers: {
-    // Updates user in Redux state only (in-memory)
-    // Profile data is NOT saved to localStorage
-    // Use this after fetching profile from MongoDB via useGetProfileQuery
-    setUser: (state, action: PayloadAction<User>) => {
-      // Merge with existing user to preserve id, email, role from login
-      state.user = {
-        ...state.user,
-        ...action.payload,
-      } as User;
+    // Save user object (from login, profile fetch)
+    setUser(state, action: PayloadAction<any>) {
+      state.user = action.payload;
+      saveToLocalStorage("authUser", JSON.stringify(action.payload));
       state.isAuthenticated = true;
-      // Save only minimal info (id, email, role), not profile data
-      saveAuthToStorage(state);
     },
-    setTokens: (
+
+    // Save tokens (used by login + refresh flow)
+    setTokens(
       state,
       action: PayloadAction<{ accessToken: string; refreshToken: string }>
-    ) => {
-      state.tokens = action.payload;
-      saveAuthToStorage(state);
+    ) {
+      const { accessToken, refreshToken } = action.payload;
+
+      state.tokens.accessToken = accessToken;
+      state.tokens.refreshToken = refreshToken;
+
+      saveToLocalStorage("accessToken", accessToken);
+      saveToLocalStorage("refreshToken", refreshToken);
     },
-    setAuth: (
-      state,
-      action: PayloadAction<{
-        user: User;
-        tokens: { accessToken: string; refreshToken: string };
-      }>
-    ) => {
-      state.user = action.payload.user;
-      state.tokens = action.payload.tokens;
-      state.isAuthenticated = true;
-      saveAuthToStorage(state);
-    },
-    logout: (state) => {
-      console.log('🔐 AUTH SLICE: AGGRESSIVE logout action called');
-      
-      // CRITICAL: Ensure Redux state is completely cleared
+
+    // Remove everything (on logout/account deletion/refresh failure)
+    logout(state) {
       state.user = null;
       state.tokens = { accessToken: null, refreshToken: null };
       state.isAuthenticated = false;
-      
-      // AGGRESSIVE localStorage cleanup from within the slice
-      console.log('🔐 AUTH SLICE: Aggressive localStorage cleanup...');
-      const criticalKeys = [
-        "auth", "accessToken", "refreshToken", "token", 
-        "user", "userId", "user_id", "currentUser"
-      ];
-      
-      criticalKeys.forEach(key => {
-        try {
-          localStorage.removeItem(key);
-          console.log(`🔐 AUTH SLICE: Removed ${key}`);
-        } catch (e) {
-          console.warn(`🔐 AUTH SLICE: Could not remove ${key}:`, e);
-        }
-      });
-      
-      console.log('🔐 AUTH SLICE: Logout state cleared completely');
-    },
-    switchUser: (
-      state,
-      action: PayloadAction<{
-        user: User;
-        tokens: { accessToken: string; refreshToken: string };
-      }>
-    ) => {
-      state.user = action.payload.user;
-      state.tokens = action.payload.tokens;
-      state.isAuthenticated = true;
-      saveAuthToStorage(state);
-      // Note: cart loading will be handled by the component
+
+      // aggressive cleanup to avoid stale secrets
+      try {
+        removeFromLocalStorage("authUser");
+        removeFromLocalStorage("accessToken");
+        removeFromLocalStorage("refreshToken");
+        removeFromLocalStorage("auth");
+        removeFromLocalStorage("user");
+        removeFromLocalStorage("isLoggingOut");
+      } catch (e) {
+        console.warn("authSlice.logout: localStorage cleanup failed", e);
+      }
     },
   },
 });
 
+export const { setUser, setTokens, logout } = authSlice.actions;
+
 // Standalone action for resetting entire app state
 export const resetAppState = createAction('app/RESET_STATE');
 
-export const { setUser, setTokens, setAuth, logout, switchUser } =
-  authSlice.actions;
 export default authSlice.reducer;

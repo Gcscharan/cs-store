@@ -105,8 +105,8 @@ const UserSchema = new mongoose_1.Schema({
         required: false, // Make phone optional by default
         default: "",
         match: [
-            /^[0-9]{10,15}$/,
-            "Please enter a valid phone number (10-15 digits)",
+            /^[6-9]\d{9}$/,
+            "Please enter a valid Indian phone number (10 digits starting with 6-9)",
         ],
     },
     passwordHash: {
@@ -147,6 +147,23 @@ const UserSchema = new mongoose_1.Schema({
     notificationPreferences: {
         type: mongoose_1.Schema.Types.Mixed,
         default: {},
+    },
+    // Email change verification fields
+    pendingEmail: {
+        type: String,
+        default: null,
+    },
+    pendingEmailToken: {
+        type: String,
+        default: null,
+    },
+    pendingEmailExpiresAt: {
+        type: Date,
+        default: null,
+    },
+    lastEmailChangeRequestAt: {
+        type: Date,
+        default: null,
     },
 }, {
     timestamps: true,

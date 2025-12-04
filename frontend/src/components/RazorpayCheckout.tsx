@@ -1,11 +1,10 @@
 import { useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "../store";
-import { setAuth, logout } from "../store/slices/authSlice";
+import { setUser, setTokens, logout } from "../store/slices/authSlice";
 import { useRefreshTokenMutation } from "../store/api";
 import {
   openRazorpayCheckout,
-  createRazorpayOrder,
   verifyPayment,
 } from "../utils/razorpay";
 import toast from "react-hot-toast";
@@ -42,15 +41,11 @@ const RazorpayCheckout = ({
 
       if (result.accessToken) {
         console.log("🔑 Token refreshed successfully");
-        dispatch(
-          setAuth({
-            user: user!,
-            tokens: {
-              accessToken: result.accessToken,
-              refreshToken: result.refreshToken || tokens.refreshToken,
-            },
-          })
-        );
+        dispatch(setUser(user!));
+        dispatch(setTokens({
+          accessToken: result.accessToken,
+          refreshToken: result.refreshToken || tokens.refreshToken,
+        }));
         return result.accessToken;
       }
 
@@ -184,7 +179,22 @@ const RazorpayCheckout = ({
         },
       };
 
-      await openRazorpayCheckout(razorpayOptions);
+      await openRazorpayCheckout(
+        razorpayOptions,
+        {
+          name: user?.name || 'User',
+          email: user?.email || '',
+          phone: user?.phone || '',
+        },
+        (paymentId: string, orderId: string) => {
+          toast.success('Payment successful!');
+          onSuccess({ paymentId, orderId });
+        },
+        (error: string) => {
+          toast.error(error);
+          onError(error);
+        }
+      );
     } catch (error: any) {
       console.error("Payment error:", error);
       toast.error(error.message || "Payment failed");

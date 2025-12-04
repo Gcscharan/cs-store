@@ -223,7 +223,7 @@ export function getAdminAddress() {
 /**
  * Check if delivery is available to a specific pincode
  */
-export function isDeliveryAvailable(pincode: string): boolean {
+export function isDeliveryAvailable(_pincode: string): boolean {
   // For now, we'll allow delivery to all pincodes
   // You can add specific pincode restrictions here
   return true;
