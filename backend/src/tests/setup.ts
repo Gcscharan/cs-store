@@ -5,8 +5,14 @@ import dotenv from 'dotenv';
 dotenv.config({ path: '.env.test', override: true });
 
 let mongoServer: MongoMemoryServer | null = null;
+let ownsConnection = false;
 
 export const connect = async (): Promise<void> => {
+  // If another Jest setup already connected mongoose, reuse it.
+  if (mongoose.connection.readyState !== 0) {
+    return;
+  }
+
   if (mongoServer) {
     // Already initialized
     return;
@@ -21,6 +27,8 @@ export const connect = async (): Promise<void> => {
   await mongoose.connect(uri, {
     dbName: 'test-db',
   } as any);
+
+  ownsConnection = true;
 };
 
 export const clear = async (): Promise<void> => {
@@ -33,12 +41,16 @@ export const clear = async (): Promise<void> => {
 };
 
 export const close = async (): Promise<void> => {
-  await mongoose.connection.dropDatabase().catch(() => undefined);
-  await mongoose.connection.close().catch(() => undefined);
+  if (ownsConnection) {
+    await mongoose.connection.dropDatabase().catch(() => undefined);
+    await mongoose.connection.close().catch(() => undefined);
 
-  if (mongoServer) {
-    await mongoServer.stop();
-    mongoServer = null;
+    if (mongoServer) {
+      await mongoServer.stop();
+      mongoServer = null;
+    }
+
+    ownsConnection = false;
   }
 };
 

@@ -145,10 +145,11 @@ const LoginForm: React.FC = () => {
         setErrors({});
       } else {
         // Handle account not found case
-        if (response.status === 404 && data.action === "signup_required") {
-          setErrors({
-            general: "Account does not exist. Please create an account.",
-          });
+        if (response.status === 404 && data.action === 'signup_required') {
+          // Account doesn't exist - redirect to signup
+          const identifier = data.email || formData.emailOrPhone;
+          window.location.href = `/signup?identifier=${encodeURIComponent(identifier)}`;
+          return;
         } else {
           setErrors({ general: data.error || data.details || "Failed to send OTP" });
         }

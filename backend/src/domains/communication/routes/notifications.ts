@@ -21,7 +21,6 @@ router.get("/", getNotifications);
 router.get("/unread/count", getUnreadCount);
 
 // Trigger multi-channel test notifications for the current user
-router.post("/test-all-channels", sendTestNotificationsAllChannels);
 
 // Mark all as read
 router.put("/read-all", markAllAsRead);

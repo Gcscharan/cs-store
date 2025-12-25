@@ -35,8 +35,16 @@ router.patch(
 );
 
 // Notification preferences routes
-router.get("/notification-preferences", authenticateToken, getNotificationPreferences);
-router.put("/notification-preferences", authenticateToken, updateNotificationPreferences);
+router.get(
+  "/notification-preferences",
+  authenticateToken,
+  getNotificationPreferences
+);
+router.put(
+  "/notification-preferences",
+  authenticateToken,
+  updateNotificationPreferences
+);
 
 // Account deletion route - CRITICAL: Requires authentication
 router.delete("/delete-account", authenticateToken, deleteAccount);

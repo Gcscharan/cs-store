@@ -3,14 +3,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.debugProductImages = exports.getSimilarProducts = exports.deleteProduct = exports.updateProduct = exports.createProduct = exports.getProductById = exports.getProducts = exports.getCategories = void 0;
 exports.normalizeProductImages = normalizeProductImages;
 const Product_1 = require("../../../models/Product");
-const imageService_1 = require("../../../services/imageService");
-const cloudinary_1 = require("cloudinary");
-// Configure Cloudinary
-cloudinary_1.v2.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET,
-});
+const MediaImageService_1 = require("../../media/services/MediaImageService");
+const mediaService = new MediaImageService_1.MediaImageService();
 // Valid product categories from schema
 const VALID_CATEGORIES = [
     "chocolates",
@@ -34,103 +28,7 @@ const VALID_CATEGORIES = [
 ];
 // Helper to normalize legacy images to ProductImage
 async function normalizeProductImages(product) {
-    console.log('🖼️ [Normalize] Input images:', JSON.stringify(product.images, null, 2));
-    if (!product.images || product.images.length === 0) {
-        console.log('🖼️ [Normalize] No images found, returning product as-is');
-        return product;
-    }
-    // Create a deep copy to avoid modifying the original
-    const normalizedProduct = JSON.parse(JSON.stringify(product));
-    // If first item is an object with variants -> already new schema
-    const first = normalizedProduct.images[0];
-    if (first && first.variants && first.variants.thumb) {
-        console.log('🖼️ [Normalize] Already new schema, returning as-is');
-        return normalizedProduct;
-    }
-    // GUARD: If first is corrupted object with only _id -> restore with fallback
-    if (first && Object.keys(first).length === 1 && first._id) {
-        console.log('🖼️ [Normalize] Detected corrupted image (only _id), restoring with fallback');
-        const basePublicId = 'sample';
-        const variants = (0, imageService_1.generateImageVariantsFromPublicId)(basePublicId);
-        const formats = (0, imageService_1.generateModernFormatsFromPublicId)(basePublicId);
-        normalizedProduct.images[0] = {
-            publicId: basePublicId,
-            variants,
-            formats,
-            metadata: {
-                width: 800,
-                height: 600,
-                aspectRatio: 800 / 600
-            }
-        };
-        console.log('🖼️ [Normalize] Output images:', JSON.stringify(normalizedProduct.images, null, 2));
-        return normalizedProduct;
-    }
-    // If first is legacy object { full, thumb }:
-    if (first && first.full) {
-        try {
-            // Check if it's a demo Cloudinary URL - replace with our working demo image
-            if (first.full.includes('cloudinary.com/demo/')) {
-                // Use the working demo image as base
-                const basePublicId = 'sample';
-                const variants = (0, imageService_1.generateImageVariantsFromPublicId)(basePublicId);
-                const formats = (0, imageService_1.generateModernFormatsFromPublicId)(basePublicId);
-                normalizedProduct.images[0] = {
-                    publicId: basePublicId,
-                    variants,
-                    formats,
-                    metadata: {
-                        width: 800,
-                        height: 600,
-                        aspectRatio: 800 / 600
-                    }
-                };
-                console.log('🖼️ [Normalize] Replaced demo Cloudinary URL with structured variants');
-            }
-            else {
-                // If URL contains our cloudinary cloud name and a public id, derive
-                const r = /upload\/(?:v\d+\/)?(.+)\.(jpg|jpeg|png|webp|gif|avif)$/;
-                const m = String(first.full).match(r);
-                if (m && m[1]) {
-                    const publicId = m[1];
-                    const variants = (0, imageService_1.generateImageVariantsFromPublicId)(publicId);
-                    const formats = (0, imageService_1.generateModernFormatsFromPublicId)(publicId);
-                    normalizedProduct.images[0] = {
-                        publicId,
-                        variants,
-                        formats,
-                        metadata: {
-                            width: 800,
-                            height: 600,
-                            aspectRatio: 800 / 600
-                        }
-                    };
-                }
-                else {
-                    // remote url not a cloudinary id — import to our cloudinary
-                    const newImage = await (0, imageService_1.importRemoteImageAndGenerate)(first.full);
-                    normalizedProduct.images[0] = newImage;
-                }
-            }
-        }
-        catch (err) {
-            console.error('Error normalizing image:', err);
-            // fallback: keep original
-        }
-    }
-    // If first is plain string url: import remote
-    if (typeof first === 'string') {
-        try {
-            const newImage = await (0, imageService_1.importRemoteImageAndGenerate)(first);
-            normalizedProduct.images[0] = newImage;
-        }
-        catch (err) {
-            console.error('Error importing remote image:', err);
-            // fallback: keep original
-        }
-    }
-    console.log('🖼️ [Normalize] Output images:', JSON.stringify(normalizedProduct.images, null, 2));
-    return normalizedProduct;
+    return await mediaService.normalizeProductImages(product);
 }
 const getCategories = async (req, res) => {
     try {
@@ -282,73 +180,27 @@ const createProduct = async (req, res) => {
             return res.status(400).json({ message: 'No valid images uploaded (empty or invalid mimetype)' });
         }
         const { name, description, category, price, mrp, stock, weight, tags, } = req.body;
-        // Cloudinary helper
-        const uploadToCloudinary = async (buffer) => {
-            return new Promise((resolve, reject) => {
-                cloudinary_1.v2.uploader
-                    .upload_stream({
-                    folder: "products",
-                    resource_type: "image",
-                    format: "jpg",
-                }, (err, result) => {
-                    if (err)
-                        return reject(err);
-                    resolve(result);
-                })
-                    .end(buffer);
-            });
-        };
-        // process files -> when calling Cloudinary use try/catch per file
-        const uploads = [];
-        for (const f of filtered) {
-            if (!f.buffer || f.buffer.length === 0) {
-                console.warn('⚠️ Skipping empty buffer for file', f.originalname);
-                continue;
-            }
-            console.log('🔥 Processing file:', f.originalname, 'size:', f.buffer.length, 'first 32 bytes:', f.buffer.slice(0, 32).toString('hex'));
-            try {
-                // uploadToCloudinary is your helper. Wrap it so errors are caught and logged.
-                const result = await uploadToCloudinary(f.buffer);
-                uploads.push(result);
-            }
-            catch (err) {
-                console.error('❌ Cloudinary upload failed for', f.originalname, 'error=', err);
-                // do not crash server: either return error or continue depending on your desired behaviour
-                return res.status(500).json({ message: 'Cloudinary upload failed', error: err?.message ?? String(err) });
-            }
-        }
-        if (uploads.length === 0) {
+        // Upload via MediaImageService
+        const buffers = filtered
+            .filter(f => f.buffer && f.buffer.length > 0)
+            .map(f => f.buffer);
+        if (buffers.length === 0) {
             return res.status(400).json({ message: 'No images could be uploaded' });
         }
-        // Build variants
-        const buildVariants = (publicId) => ({
-            micro: cloudinary_1.v2.url(publicId, { transformation: [{ width: 16, height: 16, crop: "fill" }] }),
-            thumb: cloudinary_1.v2.url(publicId, { transformation: [{ width: 150, height: 150, crop: "fill" }] }),
-            small: cloudinary_1.v2.url(publicId, { transformation: [{ width: 300, height: 300, crop: "fill" }] }),
-            medium: cloudinary_1.v2.url(publicId, { transformation: [{ width: 600, height: 600, crop: "fill" }] }),
-            large: cloudinary_1.v2.url(publicId, { transformation: [{ width: 1200, height: 1200, crop: "fill" }] }),
-            original: cloudinary_1.v2.url(publicId),
-        });
-        const buildFormats = (publicId) => ({
-            avif: cloudinary_1.v2.url(publicId, { format: "avif" }),
-            webp: cloudinary_1.v2.url(publicId, { format: "webp" }),
-            jpg: cloudinary_1.v2.url(publicId, { format: "jpg" }),
-        });
-        // Process uploaded images
-        const imageDocs = [];
-        for (const uploaded of uploads) {
-            const metadata = {
-                width: uploaded.width,
-                height: uploaded.height,
-                aspectRatio: uploaded.width / uploaded.height,
-            };
-            imageDocs.push({
-                publicId: uploaded.public_id,
-                variants: buildVariants(uploaded.public_id),
-                formats: buildFormats(uploaded.public_id),
-                metadata,
-            });
+        let uploadedImages = [];
+        try {
+            uploadedImages = await mediaService.uploadBuffersWithVariants(buffers, { folder: 'products' });
         }
+        catch (err) {
+            console.error('❌ Media upload failed:', err);
+            return res.status(500).json({ message: 'Cloudinary upload failed', error: err?.message ?? String(err) });
+        }
+        const imageDocs = uploadedImages.map(img => ({
+            publicId: img.publicId,
+            variants: img.variants,
+            formats: img.formats,
+            metadata: img.metadata,
+        }));
         const product = new Product_1.Product({
             name,
             description,

@@ -7,13 +7,19 @@ beforeAll(async () => {
   process.env.NODE_ENV = "test";
   process.env.MOCK_OTP = "true";
   
-  mongoServer = await MongoMemoryServer.create();
-  await mongoose.connect(mongoServer.getUri());
+  if (mongoose.connection.readyState === 0) {
+    mongoServer = await MongoMemoryServer.create();
+    await mongoose.connect(mongoServer.getUri());
+  }
 });
 
 afterAll(async () => {
-  await mongoose.disconnect();
-  await mongoServer.stop();
+  if (mongoose.connection.readyState !== 0) {
+    await mongoose.disconnect();
+  }
+  if (mongoServer) {
+    await mongoServer.stop();
+  }
 });
 
 beforeEach(async () => {

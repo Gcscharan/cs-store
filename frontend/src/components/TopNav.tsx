@@ -86,6 +86,8 @@ const TopNav = () => {
   const isAdminPage = location.pathname.startsWith("/admin");
   const isAdmin = user?.isAdmin;
 
+  const cartUniqueCount = cart.items.length;
+
   return (
     <motion.nav
       initial={{ opacity: 0, y: -20 }}
@@ -176,13 +178,13 @@ const TopNav = () => {
                     className="relative p-2 text-gray-600 hover:text-primary-600 transition-colors"
                   >
                     <div className="text-2xl">🛒</div>
-                    {isAuthenticated && cart.itemCount > 0 && (
+                    {isAuthenticated && cartUniqueCount > 0 && (
                       <motion.div
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
                         className="absolute -top-1 -right-1 bg-primary-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-semibold"
                       >
-                        {cart.itemCount}
+                        {cartUniqueCount}
                       </motion.div>
                     )}
                   </Link>

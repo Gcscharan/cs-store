@@ -20,6 +20,8 @@ const BottomNav = () => {
   );
   const { t } = useLanguage();
 
+  const cartUniqueCount = cart.items.length;
+
   const isAdmin = user?.isAdmin;
   const isDelivery = user?.role === "delivery";
   const isAdminPage = location.pathname.startsWith("/admin");
@@ -81,7 +83,7 @@ const BottomNav = () => {
       path: "/cart",
       label: t("nav.cart"),
       icon: ShoppingCart,
-      ariaLabel: `View cart with ${cart.itemCount} items`,
+      ariaLabel: `View cart with ${cartUniqueCount} items`,
     },
   ];
 
@@ -119,7 +121,7 @@ const BottomNav = () => {
       {navItems.map((item) => {
         const isActive = location.pathname === item.path;
         const showBadge =
-          item.path === "/cart" && isAuthenticated && cart.itemCount > 0;
+          item.path === "/cart" && isAuthenticated && cartUniqueCount > 0;
         const IconComponent = item.icon;
 
         return (
@@ -150,9 +152,9 @@ const BottomNav = () => {
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   className="absolute -top-1 -right-1 bg-blue-600 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center font-semibold"
-                  aria-label={`${cart.itemCount} items in cart`}
+                  aria-label={`${cartUniqueCount} items in cart`}
                 >
-                  {cart.itemCount}
+                  {cartUniqueCount}
                 </motion.div>
               )}
             </div>

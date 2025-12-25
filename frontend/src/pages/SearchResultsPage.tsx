@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Star, ArrowLeft } from "lucide-react";
 import { useSearchProductsQuery } from "../store/api";
@@ -8,19 +8,25 @@ import { RootState } from "../store";
 import OptimizedImage from "../components/OptimizedImage";
 
 const SearchResultsPage: React.FC = () => {
-  const { q } = useParams();
+  const params = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const [sortBy, setSortBy] = useState("relevance");
   const [sortOrder, setSortOrder] = useState("desc");
   const [page, setPage] = useState(1);
   const auth = useSelector((state: RootState) => state.auth);
 
+  // Prefer query string ?q= over route params, fallback to empty string
+  const searchParams = new URLSearchParams(location.search);
+  const qFromSearch = searchParams.get("q") || "";
+  const q = (params.q as string) || qFromSearch;
+
   // Use backend search
   const { data, isLoading, error } = useSearchProductsQuery({
     q,
     page,
     limit: 12
-  }) as { data: { products: any[], total: number } | undefined, isLoading: boolean, error?: any };
+  }) as { data: { products: any[]; total: number } | undefined; isLoading: boolean; error?: any };
 
   const products = data?.products || [];
   const total = data?.total || 0;
@@ -32,6 +38,12 @@ const SearchResultsPage: React.FC = () => {
 
   const handleAddToCart = (product: any, e: React.MouseEvent) => {
     e.stopPropagation();
+
+    // Block add to cart when out of stock
+    if ((product.stock || 0) <= 0) {
+      return;
+    }
+
     if (!auth.isAuthenticated) {
       navigate("/login");
       return;
@@ -193,9 +205,10 @@ const SearchResultsPage: React.FC = () => {
                 </div>
                 <button
                   onClick={(e) => handleAddToCart(product, e)}
-                  className="mt-3 w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                  disabled={(product.stock || 0) <= 0}
+                  className="mt-3 w-full py-2 rounded-lg transition-colors text-white disabled:bg-gray-400 disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-700"
                 >
-                  Add to Cart
+                  {(product.stock || 0) <= 0 ? "Out of Stock" : "Add to Cart"}
                 </button>
               </div>
             </motion.div>

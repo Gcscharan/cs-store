@@ -83,7 +83,7 @@ const ProductCard = memo(({ product, onQuickView }: ProductCardProps) => {
 
       // ✅ Trigger Global Amazon-style confirmation bar
       const productImage = product.images?.[0]?.variants?.small || product.images?.[0]?.variants?.thumb || '/placeholder-product.svg';
-      const updatedCartCount = result.cart?.itemCount || 1; // Default to 1 if no cart data
+      const updatedCartCount = result.cart?.items?.length || 1; // Default to 1 if no cart data
       const updatedCartTotal = result.cart?.total || product.price; // Use product price as fallback
       triggerGlobalConfirmation(product.name, productImage, updatedCartCount, updatedCartTotal);
       

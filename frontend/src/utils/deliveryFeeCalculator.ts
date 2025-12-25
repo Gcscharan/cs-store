@@ -67,16 +67,31 @@ export function calculateDistance(
  * Calculate delivery fee based on distance and order amount
  */
 export function calculateDeliveryFee(
-  userAddress: IAddress,
+  userAddress: IAddress | undefined,
   orderAmount: number
 ): {
-  distance: number;
+  deliveryFee: number | null;
+  distance: number | null;
+  requiresAddress: boolean;
   baseFee: number;
   distanceFee: number;
   totalFee: number;
   isFreeDelivery: boolean;
   finalFee: number;
 } {
+  if (!userAddress) {
+    return {
+      deliveryFee: null,
+      distance: null,
+      requiresAddress: true,
+      baseFee: 0,
+      distanceFee: 0,
+      totalFee: 0,
+      isFreeDelivery: false,
+      finalFee: 0,
+    };
+  }
+
   // Validate user address coordinates
   if (
     !userAddress.lat ||
@@ -88,7 +103,9 @@ export function calculateDeliveryFee(
   ) {
     console.error("❌ [Frontend] Invalid user address coordinates - cannot calculate delivery fee");
     return {
+      deliveryFee: 0,
       distance: 0,
+      requiresAddress: false,
       baseFee: 0,
       distanceFee: 0,
       totalFee: 0,
@@ -120,7 +137,9 @@ export function calculateDeliveryFee(
     // Return high penalty fee to discourage orders with bad data
     const penaltyFee = 500;
     return {
+      deliveryFee: penaltyFee,
       distance: 0,
+      requiresAddress: false,
       baseFee: penaltyFee,
       distanceFee: 0,
       totalFee: penaltyFee,
@@ -135,7 +154,9 @@ export function calculateDeliveryFee(
   if (isFreeDelivery) {
     console.log('✅ Free Delivery Applied! (Order ≥ ₹2000)');
     return {
+      deliveryFee: 0,
       distance: Math.round(distance * 100) / 100,
+      requiresAddress: false,
       baseFee: 0,
       distanceFee: 0,
       totalFee: 0,
@@ -174,7 +195,9 @@ export function calculateDeliveryFee(
   console.log(`💰 Final Delivery Fee: ₹${finalFee}`);
 
   return {
+    deliveryFee: finalFee,
     distance: Math.round(distance * 100) / 100,
+    requiresAddress: false,
     baseFee: deliveryFee,
     distanceFee: 0, // No separate distance fee calculation
     totalFee: deliveryFee,
@@ -187,7 +210,7 @@ export function calculateDeliveryFee(
  * Get delivery fee breakdown for display
  */
 export function getDeliveryFeeBreakdown(
-  userAddress: IAddress,
+  userAddress: IAddress | undefined,
   orderAmount: number
 ): {
   distance: string;
@@ -199,6 +222,18 @@ export function getDeliveryFeeBreakdown(
   message: string;
 } {
   const feeDetails = calculateDeliveryFee(userAddress, orderAmount);
+
+  if (feeDetails.requiresAddress) {
+    return {
+      distance: "",
+      baseFee: "",
+      distanceFee: "",
+      totalFee: "",
+      isFreeDelivery: false,
+      finalFee: "",
+      message: "Add delivery address to calculate delivery fee",
+    };
+  }
 
   return {
     distance: `${feeDetails.distance} km`,
@@ -250,7 +285,9 @@ export function formatDeliveryFee(fee: number, isFree: boolean): string {
  * Delivery fee result interface
  */
 export interface DeliveryFeeResult {
-  distance: number;
+  deliveryFee: number | null;
+  distance: number | null;
+  requiresAddress: boolean;
   baseFee: number;
   distanceFee: number;
   totalFee: number;

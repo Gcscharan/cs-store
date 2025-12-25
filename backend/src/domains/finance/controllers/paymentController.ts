@@ -4,6 +4,7 @@ import razorpay from "../../../config/razorpay";
 import { Order } from "../../../models/Order";
 import { Payment } from "../../../models/Payment";
 import { User } from "../../../models/User";
+import { Product } from "../../../models/Product";
 import { calculateDeliveryFee } from "../../../utils/deliveryFeeCalculator";
 
 // Create Razorpay order for cart checkout
@@ -279,6 +280,24 @@ export const verifyPayment = async (req: Request, res: Response) => {
       order.orderStatus = "pending";
     }
     await order.save();
+
+    // Decrease product stock for each ordered item after successful payment capture/pending record
+    try {
+      for (const item of order.items) {
+        const updateResult = await Product.findByIdAndUpdate(
+          item.productId,
+          { $inc: { stock: -item.qty } },
+          { new: true }
+        );
+
+        if (updateResult && (updateResult as any).stock < 0) {
+          (updateResult as any).stock = 0;
+          await updateResult.save();
+        }
+      }
+    } catch (stockError) {
+      console.error("Failed to decrement product stock on online payment", stockError);
+    }
 
     // Emit socket event to notify admin of new order
     if (paymentDetails.status === "captured") {

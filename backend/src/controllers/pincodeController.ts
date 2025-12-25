@@ -1,5 +1,8 @@
 import { Request, Response } from "express";
-import { Pincode } from "../models/Pincode";
+import {
+  resolvePincodeDetails,
+  applyDistrictOverride,
+} from "../utils/pincodeResolver";
 
 // Comprehensive pincode validation for Andhra Pradesh and Telangana
 const validatePincode = (pincode: string): boolean => {
@@ -238,22 +241,31 @@ export const checkPincodeController = async (
       return;
     }
 
-    // Check if pincode exists in database
-    const pincodeData = await Pincode.findOne({ pincode });
+    const resolved = await resolvePincodeDetails(pincode);
+    if (resolved) {
+      const admin_district = applyDistrictOverride(
+        resolved.state,
+        resolved.postal_district
+      );
 
-    if (pincodeData) {
       res.status(200).json({
-        deliverable: true,
-        state: pincodeData.state,
-        district: pincodeData.district,
-        taluka: pincodeData.taluka,
+        deliverable: resolved.deliverable,
+        state: resolved.state,
+        postal_district: resolved.postal_district,
+        admin_district,
+        cities: resolved.cities,
+        single_city: resolved.single_city,
+        message: resolved.deliverable
+          ? undefined
+          : "Not deliverable to this location or pincode",
       });
-    } else {
-      res.status(200).json({
-        deliverable: false,
-        message: "Not deliverable to this location or pincode",
-      });
+      return;
     }
+
+    res.status(200).json({
+      deliverable: false,
+      message: "Not deliverable to this location or pincode",
+    });
   } catch (error) {
     console.error("Pincode check error:", error);
     res.status(500).json({

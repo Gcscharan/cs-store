@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Auth Test</title>
+</head>
+<body>
+    <h1>Authentication Test</h1>
+    <button onclick="testLogin()">Test Login</button>
+    <button onclick="testAddresses()">Test Addresses API</button>
+    <button onclick="checkTokens()">Check Tokens</button>
+    <button onclick="clearTokens()">Clear Tokens</button>
+    <div id="output"></div>
+
+    <script>
+        const API_BASE = 'http://localhost:5001/api';
+        
+        function log(message) {
+            document.getElementById('output').innerHTML += '<pre>' + JSON.stringify(message, null, 2) + '</pre>';
+        }
+
+        async function testLogin() {
+            try {
+                const response = await fetch(API_BASE + '/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: 'test.user@example.com',
+                        password: 'Test@1234'
+                    })
+                });
+                
+                const data = await response.json();
+                log('Login Response:');
+                log(data);
+                
+                if (data.accessToken) {
+                    localStorage.setItem('accessToken', data.accessToken);
+                    localStorage.setItem('refreshToken', data.refreshToken);
+                    log('Tokens saved to localStorage');
+                }
+            } catch (error) {
+                log('Login Error:');
+                log(error.message);
+            }
+        }
+
+        async function testAddresses() {
+            const token = localStorage.getItem('accessToken');
+            if (!token) {
+                log('No token found. Please login first.');
+                return;
+            }
+
+            try {
+                const response = await fetch(API_BASE + '/user/addresses', {
+                    headers: {
+                        'Authorization': 'Bearer ' + token
+                    }
+                });
+                
+                const data = await response.json();
+                log('Addresses API Response:');
+                log({
+                    status: response.status,
+                    data: data
+                });
+            } catch (error) {
+                log('Addresses API Error:');
+                log(error.message);
+            }
+        }
+
+        function checkTokens() {
+            const accessToken = localStorage.getItem('accessToken');
+            const refreshToken = localStorage.getItem('refreshToken');
+            
+            log('Current Tokens:');
+            log({
+                accessToken: accessToken ? accessToken.substring(0, 50) + '...' : 'null',
+                refreshToken: refreshToken ? refreshToken.substring(0, 50) + '...' : 'null'
+            });
+        }
+
+        function clearTokens() {
+            localStorage.removeItem('accessToken');
+            localStorage.removeItem('refreshToken');
+            log('Tokens cleared from localStorage');
+        }
+    </script>
+</body>
+</html>

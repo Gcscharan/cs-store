@@ -226,6 +226,7 @@ export class SearchFallbackService {
                 price: 1,
                 category: 1,
                 images: 1,
+                stock: 1,
                 description: 1,
                 score: 1,
                 sales: 1,
@@ -251,6 +252,7 @@ export class SearchFallbackService {
         price: product.price || 0,
         category: product.category || "Products",
         images: await this.normalizeImages(product),
+        stock: typeof product.stock === "number" ? product.stock : 0,
         snippet: suggest ? undefined : this.createSnippet(product.description, searchQuery),
         score: product.score
       })));
@@ -263,6 +265,7 @@ export class SearchFallbackService {
           category: product.category,
           price: product.price,
           images: product.images,
+          stock: product.stock,
           score: product.score
         }));
       }
@@ -291,7 +294,7 @@ export class SearchFallbackService {
     const products = await Product.find({
       name: { $regex: escapedQuery, $options: "i" }
     })
-      .select("_id name slug price category images description sales views createdAt")
+      .select("_id name slug price category images description sales views createdAt stock")
       .sort({ sales: -1, views: -1, createdAt: -1 })
       .skip(skip)
       .limit(suggest ? 8 : limit)
@@ -309,6 +312,7 @@ export class SearchFallbackService {
       price: product.price || 0,
       category: product.category || "Products",
       images: await this.normalizeImages(product),
+      stock: typeof product.stock === "number" ? product.stock : 0,
       snippet: suggest ? undefined : this.createSnippet(product.description, searchQuery)
     })));
 

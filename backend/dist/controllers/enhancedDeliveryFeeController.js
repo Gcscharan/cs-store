@@ -69,12 +69,16 @@ const calculateDeliveryFeeForUser = async (req, res) => {
             });
             return;
         }
-        // Get default address or first address
-        const defaultAddress = user.addresses?.find((addr) => addr.isDefault) || user.addresses?.[0];
+        // Get ONLY default address - no fallback to first address
+        const defaultAddress = user.addresses?.find((addr) => addr.isDefault);
         if (!defaultAddress) {
-            res.status(400).json({
-                success: false,
-                message: "No delivery address found. Please add an address first.",
+            res.json({
+                success: true,
+                data: {
+                    deliveryFee: null,
+                    requiresAddress: true,
+                    message: "Add delivery address to calculate delivery fee"
+                }
             });
             return;
         }

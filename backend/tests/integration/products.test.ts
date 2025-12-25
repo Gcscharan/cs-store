@@ -78,9 +78,9 @@ describe("Products Endpoints", () => {
         .get(`/api/products/${product._id}`)
         .expect(200);
 
-      expect(response.body).toHaveProperty("product");
-      expect(response.body.product._id).toBe(product._id.toString());
-      expect(response.body.product.name).toBe(product.name);
+      expect(response.body).toHaveProperty("_id");
+      expect(response.body._id).toBe(product._id.toString());
+      expect(response.body.name).toBe(product.name);
     });
 
     it("should return 404 for non-existent product", async () => {
@@ -157,7 +157,7 @@ describe("Products Endpoints", () => {
 
     it("should get similar products", async () => {
       const response = await request(app)
-        .get(`/api/products/similar/${product._id}`)
+        .get(`/api/products/${product._id}/similar`)
         .expect(200);
 
       expect(response.body).toHaveProperty("products");
@@ -170,7 +170,7 @@ describe("Products Endpoints", () => {
 
     it("should return 404 for non-existent product", async () => {
       const response = await request(app)
-        .get("/api/products/similar/507f1f77bcf86cd799439011")
+        .get("/api/products/507f1f77bcf86cd799439011/similar")
         .expect(404);
 
       expect(response.body).toHaveProperty("message", "Product not found");
@@ -191,30 +191,27 @@ describe("Products Endpoints", () => {
     });
 
     it("should create product as admin", async () => {
-      const productData = {
-        name: "New Laptop",
-        description: "A powerful laptop",
-        price: 55000,
-        category: "electronics",
-        stock: 15,
-        images: ["https://example.com/laptop.jpg"],
-        specifications: {
-          brand: "TestBrand",
-          ram: "16GB",
-          storage: "512GB SSD",
-        },
-      };
+      const png1x1 = Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAOq1p8kAAAAASUVORK5CYII=",
+        "base64"
+      );
 
       const response = await request(app)
         .post("/api/products")
         .set(adminHeaders)
-        .send(productData)
+        .field("name", "New Laptop")
+        .field("description", "A powerful laptop")
+        .field("price", "55000")
+        .field("category", "electronics")
+        .field("stock", "15")
+        .field("weight", "1")
+        .attach("images", png1x1, { filename: "test.png", contentType: "image/png" })
         .expect(201);
 
-      expect(response.body).toHaveProperty("message", "Product created successfully");
+      expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("product");
-      expect(response.body.product.name).toBe(productData.name);
-      expect(response.body.product.price).toBe(productData.price);
+      expect(response.body.product.name).toBe("New Laptop");
+      expect(response.body.product.price).toBe(55000);
     });
 
     it("should not create product as regular user", async () => {

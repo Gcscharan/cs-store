@@ -8,6 +8,8 @@ export interface IAddress {
   pincode: string;
   city: string;
   state: string;
+  postal_district: string;
+  admin_district: string;
   addressLine: string;
   phone: string;
   lat: number;
@@ -193,6 +195,8 @@ const AddressSchema = new Schema<IAddress>({
   pincode: { type: String, required: true },
   city: { type: String, required: true },
   state: { type: String, required: true },
+  postal_district: { type: String, required: true },
+  admin_district: { type: String, required: true },
   addressLine: { type: String, required: true },
   phone: { type: String, required: false, default: "" },
   lat: { type: Number, required: true },
@@ -201,7 +205,7 @@ const AddressSchema = new Schema<IAddress>({
   isGeocoded: { type: Boolean, default: false },
   coordsSource: { 
     type: String, 
-    enum: ['manual', 'geocoded', 'pincode', 'unresolved'], 
+    enum: ['manual', 'saved', 'geocoded', 'pincode', 'unresolved'], 
     default: 'unresolved' 
   },
 });

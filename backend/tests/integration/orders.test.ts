@@ -10,8 +10,37 @@ describe("Orders Endpoints", () => {
   let order: any;
 
   beforeEach(async () => {
-    user = await createTestUser();
+    const { Pincode } = await import("../../src/models/Pincode");
+
+    user = await createTestUser({
+      addresses: [
+        {
+          name: "Test User",
+          phone: "9876543210",
+          label: "Home",
+          addressLine: "123 Test Street",
+          city: "Hyderabad",
+          state: "Telangana",
+          pincode: "500001",
+          postal_district: "Hyderabad",
+          admin_district: "Hyderabad",
+          lat: 17.385,
+          lng: 78.4867,
+          isDefault: true,
+          isGeocoded: true,
+          coordsSource: "saved",
+        },
+      ],
+    });
     authHeaders = getAuthHeaders(user);
+
+    await Pincode.create({
+      pincode: "500001",
+      state: "Telangana",
+      district: "Hyderabad",
+      taluka: "Hyderabad",
+    });
+
     product = await global.createTestProduct({
       name: "Test Product",
       price: 100,
@@ -20,20 +49,7 @@ describe("Orders Endpoints", () => {
   });
 
   describe("POST /api/orders/create", () => {
-    let address: any;
-
     beforeEach(async () => {
-      address = {
-        label: "Home",
-        addressLine: "123 Test Street",
-        city: "Test City",
-        state: "Telangana",
-        pincode: "500001",
-        phone: user.phone,
-        lat: 17.3850,
-        lng: 78.4867,
-      };
-
       // Add product to cart
       await request(app)
         .post("/api/cart/add")
@@ -42,37 +58,26 @@ describe("Orders Endpoints", () => {
     });
 
     it("should create order from cart", async () => {
-      // Get cart items
-      const cartData = await request(app)
-        .get("/api/cart")
-        .set(authHeaders);
-      
-      const orderData = {
-        items: cartData.body.cart.items.map((item: any) => ({
-          productId: item.productId,
-          name: item.name,
-          price: item.price,
-          qty: item.quantity
-        })),
-        address: address,
-        totalAmount: cartData.body.cart.totalAmount,
-        paymentMethod: "cod",
-      };
-
       const response = await request(app)
         .post("/api/orders/create")
         .set(authHeaders)
-        .send(orderData);
+        .send({ paymentMethod: "cod" });
 
       expect(response.status).toBe(200);
 
       expect(response.body).toHaveProperty("message", "Order placed with Cash on Delivery");
       expect(response.body).toHaveProperty("order");
-      expect(response.body.order.userId).toBe(user._id.toString());
+      expect(response.body.order.userId.toString()).toBe(user._id.toString());
       expect(response.body.order.items).toHaveLength(1);
-      expect(response.body.order.totalAmount).toBe(200);
-      expect(response.body.order.orderStatus).toBe("created");
-      expect(response.body.order.address).toMatchObject(address);
+      expect(response.body.order.items[0].qty).toBe(2);
+      expect(response.body.order.items[0].priceAtOrderTime).toBe(100);
+      expect(response.body.order.items[0].subtotal).toBe(200);
+      expect(response.body.order.itemsTotal).toBe(200);
+      expect(response.body.order.totalAmount).toBeGreaterThanOrEqual(200);
+      expect(response.body.order.orderStatus).toBe("CONFIRMED");
+      expect(response.body.order.address).toHaveProperty("pincode", "500001");
+      expect(response.body.order.address).toHaveProperty("postal_district");
+      expect(response.body.order.address).toHaveProperty("admin_district");
       expect(response.body.order.paymentMethod).toBe("cod");
 
       // Verify cart is cleared
@@ -83,122 +88,84 @@ describe("Orders Endpoints", () => {
       expect(cartResponse.body.cart.items).toHaveLength(0);
     });
 
-    it.skip("should create order with online payment", async () => {
-      // Get cart items
-      const cartData = await request(app)
-        .get("/api/cart")
-        .set(authHeaders);
-      
-      const orderData = {
-        items: cartData.body.cart.items.map((item: any) => ({
-          productId: item.productId,
-          name: item.name,
-          price: item.price,
-          qty: item.quantity
-        })),
-        address: address,
-        totalAmount: cartData.body.cart.totalAmount,
-        paymentMethod: "online",
-      };
-
-      const response = await request(app)
-        .post("/api/payment/create-order")
-        .set(authHeaders)
-        .send(orderData)
-        .expect(200);
-
-      expect(response.body.order.paymentMethod).toBe("online");
-      expect(response.body.order.paymentStatus).toBe("pending");
-    });
-
     it("should not create order with empty cart", async () => {
       // Clear cart first
       await request(app)
         .delete("/api/cart/clear")
         .set(authHeaders);
 
-      const orderData = {
-        deliveryAddress: address,
-        paymentMethod: "cod",
-      };
-
       const response = await request(app)
         .post("/api/orders/create")
         .set(authHeaders)
-        .send(orderData)
+        .send({ paymentMethod: "cod" })
         .expect(400);
 
-      expect(response.body).toHaveProperty("message", "Items are required");
+      expect(response.body).toHaveProperty("message", "Cart is empty");
     });
 
     it("should validate delivery address", async () => {
-      const orderData = {
-        deliveryAddress: {
-          street: "",
-          city: "",
-          state: "",
-          pincode: "",
-          phone: "",
-        },
-        paymentMethod: "cod",
-      };
+      const userNoAddress = await createTestUser({ email: "noaddr@example.com", addresses: [] });
+      const userNoAddressHeaders = getAuthHeaders(userNoAddress);
+
+      await request(app)
+        .post("/api/cart/add")
+        .set(userNoAddressHeaders)
+        .send({ productId: product._id, quantity: 1 });
 
       const response = await request(app)
         .post("/api/orders/create")
-        .set(authHeaders)
-        .send(orderData)
+        .set(userNoAddressHeaders)
+        .send({ paymentMethod: "cod" })
         .expect(400);
 
-      expect(response.body).toHaveProperty("message");
+      expect(response.body).toHaveProperty("message", "Default address is required");
     });
 
     it("should not create order without authentication", async () => {
-      const orderData = {
-        deliveryAddress: address,
-        paymentMethod: "cod",
-      };
-
       const response = await request(app)
         .post("/api/orders/create")
-        .send(orderData)
+        .send({ paymentMethod: "cod" })
         .expect(401);
 
       expect(response.body).toHaveProperty("message", "Authentication required");
     });
 
     it("should check pincode serviceability", async () => {
-      // Create a non-serviceable pincode
-      const { Pincode } = await import("../../src/models/Pincode");
-      await Pincode.create({
-        pincode: "999999",
-        city: "No Service City",
-        state: "Telangana",
-        deliveryAvailable: false,
+      const userBadPincode = await createTestUser({
+        email: "badpincode@example.com",
+        addresses: [
+          {
+            name: "Test User",
+            phone: "9876543210",
+            label: "Home",
+            addressLine: "123 Test Street",
+            city: "Hyderabad",
+            state: "Telangana",
+            pincode: "999999",
+            postal_district: "Hyderabad",
+            admin_district: "Hyderabad",
+            lat: 17.385,
+            lng: 78.4867,
+            isDefault: true,
+            isGeocoded: true,
+            coordsSource: "saved",
+          },
+        ],
       });
+      const badHeaders = getAuthHeaders(userBadPincode);
 
-      const orderData = {
-        items: [{
-          productId: product._id,
-          name: product.name,
-          price: product.price,
-          qty: 1
-        }],
-        address: {
-          ...address,
-          pincode: "999999",
-        },
-        totalAmount: 100,
-        paymentMethod: "cod",
-      };
+      await request(app)
+        .post("/api/cart/add")
+        .set(badHeaders)
+        .send({ productId: product._id, quantity: 1 });
 
       const response = await request(app)
         .post("/api/orders/create")
-        .set(authHeaders)
-        .send(orderData)
-        .expect(200);
+        .set(badHeaders)
+        .send({ paymentMethod: "cod" })
+        .expect(400);
 
-      // Order is created even if pincode is not serviceable
-      expect(response.body).toHaveProperty("message", "Order placed with Cash on Delivery");
+      expect(response.body).toHaveProperty("message", "Pincode not serviceable");
     });
   });
 

@@ -58,6 +58,7 @@ import AccountPage from "./pages/AccountPage";
 import EditProfilePage from "./pages/EditProfilePage";
 import NotificationsPage from "./pages/NotificationsPage";
 import OAuthCallbackPage from "./pages/OAuthCallbackPage";
+import OnboardingPage from "./pages/OnboardingPage";
 import TestOtpPage from "./pages/TestOtpPage";
 import DebugPage from "./pages/DebugPage";
 import ComingSoonPage from "./pages/ComingSoonPage";
@@ -73,6 +74,7 @@ import NotificationPreferencesPage from "./pages/NotificationPreferencesPage";
 import SettingsPage from "./pages/SettingsPage";
 import { useGetProfileQuery } from "./store/api";
 import { ReactNode } from "react";
+import CartInitializer from "./components/CartInitializer";
 
 // Wrapper component to check profile completion for non-admin users
 function ProfileCompletionWrapper({ children }: { children: ReactNode }) {
@@ -287,6 +289,14 @@ function OtherRoutes() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/onboarding/complete-profile"
+          element={
+            <ProtectedRoute>
+              <OnboardingPage />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/become-seller" element={<ComingSoonPage />} />
         <Route path="/download-app" element={<DownloadAppPage />} />
@@ -471,8 +481,8 @@ function OtherRoutes() {
         <Route path="/test-otp" element={<TestOtpPage />} />
         <Route path="/debug" element={<DebugPage />} />
         {/* Catch-all route for unmatched paths - show 404 or redirect based on auth */}
-        <Route 
-          path="*" 
+        <Route
+          path="*"
           element={
             <div className="min-h-screen bg-gray-50 flex items-center justify-center">
               <div className="text-center">
@@ -483,7 +493,7 @@ function OtherRoutes() {
                 </a>
               </div>
             </div>
-          } 
+          }
         />
       </Routes>
     </Layout>
@@ -498,32 +508,35 @@ function App() {
           <LanguageProvider>
             <OtpModalProvider>
               <Router>
-                  <Toaster
-                    position="top-center"
-                    toastOptions={{
+                <Toaster
+                  position="top-center"
+                  toastOptions={{
+                    duration: 3000,
+                    style: {
+                      background: "#363636",
+                      color: "#fff",
+                    },
+                    success: {
                       duration: 3000,
-                      style: {
-                        background: '#363636',
-                        color: '#fff',
+                      iconTheme: {
+                        primary: "#4ade80",
+                        secondary: "#fff",
                       },
-                      success: {
-                        duration: 3000,
-                        iconTheme: {
-                          primary: '#4ade80',
-                          secondary: '#fff',
-                        },
-                      },
-                    }}
-                  />
+                    },
+                  }}
+                />
 
-                  <Routes>
-                    {/* Main app routes with authentication-based routing */}
-                    <Route path="/*" element={<AuthRouter />} />
-                  </Routes>
-                </Router>
-              </OtpModalProvider>
-            </LanguageProvider>
-          </CurrencyProvider>
+                {/* Hydrate cart from backend for authenticated users */}
+                <CartInitializer />
+
+                <Routes>
+                  {/* Main app routes with authentication-based routing */}
+                  <Route path="/*" element={<AuthRouter />} />
+                </Routes>
+              </Router>
+            </OtpModalProvider>
+          </LanguageProvider>
+        </CurrencyProvider>
       </GlobalErrorBoundary>
     </Provider>
   );

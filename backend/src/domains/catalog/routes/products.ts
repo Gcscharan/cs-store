@@ -32,19 +32,18 @@ router.get("/search/suggestions", getSearchSuggestions);
 // ------------------------------------
 // PRODUCT CRUD ROUTES
 // ------------------------------------
+router.get("/categories", getCategories);
+router.get("/:id/similar", getSimilarProducts);
 router.get("/:id", getProductById);
 router.put("/:id", authenticateToken, requireRole(["admin"]), updateProduct);
 router.delete("/:id", authenticateToken, requireRole(["admin"]), deleteProduct);
 router.post(
   "/",
-  // authenticateToken,
-  // requireRole(["admin"]),
+  authenticateToken,
+  requireRole(["admin"]),
   upload.array("images"),
   createProduct
 );
 router.get("/", getProducts);
-router.get("/categories", getCategories);
-router.get("/:id/similar", getSimilarProducts);
-router.get("/debug/product-images/:id", debugProductImages);
 
 export default router;

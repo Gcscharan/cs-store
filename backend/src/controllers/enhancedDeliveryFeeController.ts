@@ -42,13 +42,17 @@ export const calculateDeliveryFeeForUser = async (req: AuthRequest, res: Respons
       return;
     }
 
-    // Get default address or first address
-    const defaultAddress = user.addresses?.find((addr) => addr.isDefault) || user.addresses?.[0];
+    // Get ONLY default address - no fallback to first address
+    const defaultAddress = user.addresses?.find((addr) => addr.isDefault);
 
     if (!defaultAddress) {
-      res.status(400).json({
-        success: false,
-        message: "No delivery address found. Please add an address first.",
+      res.json({
+        success: true,
+        data: {
+          deliveryFee: null,
+          requiresAddress: true,
+          message: "Add delivery address to calculate delivery fee"
+        }
       });
       return;
     }
@@ -247,6 +251,8 @@ export const estimateDeliveryFee = async (req: AuthRequest, res: Response): Prom
       pincode: pincode,
       city: pincodeData.district || "Unknown",
       state: pincodeData.state || "Unknown",
+      postal_district: pincodeData.district || "Unknown",
+      admin_district: pincodeData.district || "Unknown",
       addressLine: `${pincodeData.taluka || ""}, ${pincodeData.district || ""}`,
       phone: "0000000000",
       lat: 17.385, // Default to approximate location - in production, geocode this

@@ -5,11 +5,7 @@ import { RootState } from "../store";
 import { setUser } from "../store/slices/authSlice";
 import { useToast } from "../components/AccessibleToast";
 import { Plus, MapPin, Phone, User } from "lucide-react";
-import {
-  validatePincode,
-  getDeliveryStatusMessage,
-  isPincodeDeliverable,
-} from "../utils/pincodeValidation";
+import { isPincodeDeliverable } from "../utils/pincodeValidation";
 import {
   useGetAddressesQuery,
   useAddAddressMutation,
@@ -23,6 +19,8 @@ interface Address {
   name: string;
   address: string;
   city: string;
+  postal_district?: string;
+  admin_district?: string;
   state: string;
   pincode: string;
   phone: string;
@@ -595,83 +593,226 @@ const AddressForm: React.FC<AddressFormProps> = ({
     address: address?.address || autoFillData?.address || "",
     city: address?.city || autoFillData?.city || "",
     state: address?.state || autoFillData?.state || "",
+    postal_district: address?.postal_district || "",
+    admin_district: address?.admin_district || "",
     pincode: address?.pincode || autoFillData?.pincode || "",
     phone: address?.phone || autoFillData?.phone || "",
-    label: address?.label || autoFillData?.label || "HOME",
+    label: address?.label || "HOME",
   });
+
+  const [availableCities, setAvailableCities] = useState<string[]>([]);
+  const [showCityDropdown, setShowCityDropdown] = useState(false);
 
   const [pincodeStatus, setPincodeStatus] = useState<{
     message: string;
-    isValid: boolean;
+    isChecking: boolean;
+    isResolved: boolean;
     isDeliverable: boolean;
   }>({
     message: "",
-    isValid: false,
+    isChecking: false,
+    isResolved: false,
     isDeliverable: false,
   });
 
-  const handlePincodeChange = async (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const pincode = e.target.value;
-    setFormData({ ...formData, pincode });
+  const resolvePincode = async (pincode: string) => {
+    setPincodeStatus({
+      message: "Checking pincode...",
+      isChecking: true,
+      isResolved: false,
+      isDeliverable: false,
+    });
+    setAvailableCities([]);
+    setShowCityDropdown(false);
 
-    if (pincode.length === 6) {
-      // Show loading state
-      setPincodeStatus({
-        message: "Validating pincode...",
-        isValid: false,
-        isDeliverable: false,
+    try {
+      const response = await fetch(`/api/pincode/check/${pincode}`, {
+        credentials: "include",
       });
+      const data = await response.json();
 
-      try {
-        // Validate pincode asynchronously
-        const pincodeData = await validatePincode(pincode);
+      if (response.ok && data?.deliverable && data?.state) {
+        const resolvedState = data.state || "";
+        const postalDistrict = data.postal_district || "";
+        const adminDistrict = data.admin_district || postalDistrict;
+        const cities = data.cities || [];
 
-        if (pincodeData) {
+        if (!resolvedState || !postalDistrict) {
+          setFormData((prev) => ({
+            ...prev,
+            state: "",
+            postal_district: "",
+            admin_district: "",
+          }));
           setPincodeStatus({
-            message: getDeliveryStatusMessage(pincodeData),
-            isValid: true,
-            isDeliverable: pincodeData.isDeliverable,
-          });
-        } else {
-          setPincodeStatus({
-            message: "Please enter a valid 6-digit pincode",
-            isValid: false,
+            message: "Enter a valid pincode to continue",
+            isChecking: false,
+            isResolved: false,
             isDeliverable: false,
           });
+          return;
         }
-      } catch (error) {
-        console.error("Error validating pincode:", error);
+
+        // Authoritative from pincode: state + districts only.
+        // City/Village is always user-entered and NOT validated against dataset.
+        setFormData((prev) => ({
+          ...prev,
+          state: resolvedState,
+          postal_district: postalDistrict,
+          admin_district: adminDistrict,
+        }));
+
+        setAvailableCities(Array.isArray(cities) ? cities : []);
+        setShowCityDropdown(Array.isArray(cities) && cities.length > 0);
+
         setPincodeStatus({
-          message: "Error validating pincode. Please try again.",
-          isValid: false,
-          isDeliverable: false,
+          message: "State & District auto-filled. Enter City / Village.",
+          isChecking: false,
+          isResolved: true,
+          isDeliverable: true,
         });
+        return;
       }
-    } else if (pincode.length > 0) {
+
+      setFormData((prev) => ({
+        ...prev,
+        state: "",
+        postal_district: "",
+        admin_district: "",
+      }));
       setPincodeStatus({
-        message: "Pincode must be 6 digits",
-        isValid: false,
+        message: "Enter a valid pincode to continue",
+        isChecking: false,
+        isResolved: false,
         isDeliverable: false,
       });
-    } else {
+    } catch (error) {
+      console.error("Error validating pincode:", error);
+      setFormData((prev) => ({
+        ...prev,
+        state: "",
+        postal_district: "",
+        admin_district: "",
+      }));
       setPincodeStatus({
-        message: "",
-        isValid: false,
+        message: "Enter a valid pincode to continue",
+        isChecking: false,
+        isResolved: false,
         isDeliverable: false,
       });
     }
   };
 
+  useEffect(() => {
+    const cleanedPincode = (formData.pincode || "").replace(/\D/g, "");
+    if (cleanedPincode.length === 6) {
+      void resolvePincode(cleanedPincode);
+    } else {
+      setPincodeStatus({
+        message: "",
+        isChecking: false,
+        isResolved: false,
+        isDeliverable: false,
+      });
+      setFormData((prev) => ({
+        ...prev,
+        state: "",
+        postal_district: "",
+        admin_district: "",
+      }));
+    }
+  }, []);
+
+  const handlePincodeChange = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const raw = e.target.value;
+    const cleanedPincode = raw.replace(/\D/g, "").slice(0, 6);
+
+    setFormData((prev) => ({
+      ...prev,
+      pincode: cleanedPincode,
+    }));
+
+    setPincodeStatus({
+      message: "",
+      isChecking: false,
+      isResolved: false,
+      isDeliverable: false,
+    });
+    setFormData((prev) => ({
+      ...prev,
+      state: "",
+      postal_district: "",
+      admin_district: "",
+    }));
+    setAvailableCities([]);
+    setShowCityDropdown(false);
+
+    if (cleanedPincode.length === 6) {
+      await resolvePincode(cleanedPincode);
+    }
+  };
+
+  const handleCitySelection = (city: string) => {
+    setFormData((prev) => ({ ...prev, city }));
+    setShowCityDropdown(false);
+  };
+
+  const cleanCityDisplayLabel = (city: string): string => {
+    if (!city) return city;
+    
+    const suffixes = [" B O", " S O", " H O"];
+    const cityUpper = city.toUpperCase();
+    
+    for (const suffix of suffixes) {
+      if (cityUpper.endsWith(suffix)) {
+        return city.slice(0, -suffix.length);
+      }
+    }
+    
+    return city;
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Log payload before submission
+    console.info("[handleSubmit] Submitting address payload:", formData);
+
+    // Validate pincode format
+    if (!formData.pincode || formData.pincode.length !== 6 || !/^\d{6}$/.test(formData.pincode)) {
+      console.error("[handleSubmit] Invalid pincode:", formData.pincode);
+      return;
+    }
+
+    // Validate required fields
+    if (!formData.city || formData.city.trim() === "") {
+      console.error("[handleSubmit] Missing or empty city:", formData.city);
+      return;
+    }
+
+    if (!formData.address || formData.address.trim() === "") {
+      console.error("[handleSubmit] Missing or empty address line:", formData.address);
+      return;
+    }
+
+    if (!formData.state || formData.state.trim() === "") {
+      console.error("[handleSubmit] Missing or empty state:", formData.state);
+      return;
+    }
+
     // Check if pincode is deliverable before submitting
-    if (formData.pincode && !isPincodeDeliverable(formData.pincode)) {
+    if (!pincodeStatus.isResolved || pincodeStatus.isChecking || !pincodeStatus.isDeliverable) {
+      console.error("[handleSubmit] Pincode not deliverable:", {
+        isResolved: pincodeStatus.isResolved,
+        isChecking: pincodeStatus.isChecking,
+        isDeliverable: pincodeStatus.isDeliverable,
+      });
       return; // Don't submit if not deliverable
     }
 
+    console.info("[handleSubmit] All validations passed, submitting to backend");
     onSave(formData);
   };
 
@@ -729,9 +870,9 @@ const AddressForm: React.FC<AddressFormProps> = ({
                 onChange={handlePincodeChange}
                 maxLength={6}
                 className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                  pincodeStatus.isValid && pincodeStatus.isDeliverable
+                  pincodeStatus.isResolved && pincodeStatus.isDeliverable
                     ? "border-green-500"
-                    : pincodeStatus.isValid && !pincodeStatus.isDeliverable
+                    : pincodeStatus.isResolved && !pincodeStatus.isDeliverable
                     ? "border-red-500"
                     : "border-gray-300"
                 }`}
@@ -740,9 +881,9 @@ const AddressForm: React.FC<AddressFormProps> = ({
               {pincodeStatus.message && (
                 <p
                   className={`text-sm mt-1 ${
-                    pincodeStatus.isValid && pincodeStatus.isDeliverable
+                    pincodeStatus.isResolved && pincodeStatus.isDeliverable
                       ? "text-green-600"
-                      : pincodeStatus.isValid && !pincodeStatus.isDeliverable
+                      : pincodeStatus.isResolved && !pincodeStatus.isDeliverable
                       ? "text-red-600"
                       : "text-gray-600"
                   }`}
@@ -752,17 +893,49 @@ const AddressForm: React.FC<AddressFormProps> = ({
               )}
             </div>
 
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                City / Village <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={cleanCityDisplayLabel(formData.city)}
+                onChange={(e) =>
+                  setFormData({ ...formData, city: e.target.value })
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                required
+              />
+
+              {showCityDropdown && availableCities.length > 0 && (
+                <select
+                  value={""}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      handleCitySelection(e.target.value);
+                    }
+                  }}
+                  className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Suggested localities (optional)</option>
+                  {availableCities.map((city) => (
+                    <option key={city} value={city}>
+                      {cleanCityDisplayLabel(city)}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  City <span className="text-red-500">*</span>
+                  District <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
-                  value={formData.city}
-                  onChange={(e) =>
-                    setFormData({ ...formData, city: e.target.value })
-                  }
+                  value={formData.admin_district || ""}
+                  readOnly
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   required
                 />
@@ -774,9 +947,7 @@ const AddressForm: React.FC<AddressFormProps> = ({
                 <input
                   type="text"
                   value={formData.state}
-                  onChange={(e) =>
-                    setFormData({ ...formData, state: e.target.value })
-                  }
+                  readOnly
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   required
                 />
@@ -805,9 +976,14 @@ const AddressForm: React.FC<AddressFormProps> = ({
               <input
                 type="tel"
                 value={formData.phone}
-                onChange={(e) =>
-                  setFormData({ ...formData, phone: e.target.value })
-                }
+                inputMode="numeric"
+                onChange={(e) => {
+                  const digitsOnly = e.target.value.replace(/\D/g, "").slice(0, 10);
+                  setFormData({ ...formData, phone: digitsOnly });
+                }}
+                maxLength={10}
+                minLength={10}
+                pattern="[6-9][0-9]{9}"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 required
               />
@@ -842,10 +1018,18 @@ const AddressForm: React.FC<AddressFormProps> = ({
               <button
                 type="submit"
                 disabled={
-                  !!(formData.pincode && !isPincodeDeliverable(formData.pincode))
+                  pincodeStatus.isChecking ||
+                  !pincodeStatus.isResolved ||
+                  !pincodeStatus.isDeliverable ||
+                  !formData.city ||
+                  !formData.city.trim()
                 }
                 className={`flex-1 px-4 py-2 rounded-lg transition-colors ${
-                  formData.pincode && !isPincodeDeliverable(formData.pincode)
+                  pincodeStatus.isChecking ||
+                  !pincodeStatus.isResolved ||
+                  !pincodeStatus.isDeliverable ||
+                  !formData.city ||
+                  !formData.city.trim()
                     ? "bg-gray-300 text-gray-500 cursor-not-allowed"
                     : "bg-blue-600 text-white hover:bg-blue-700"
                 }`}
