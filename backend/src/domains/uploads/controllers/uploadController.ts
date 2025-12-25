@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { uploadImageBuffer, CloudinaryUploadResult } from "../../../services/cloudinaryService";
+import { MediaImageService } from "../../media/services/MediaImageService";
 
 export const uploadToCloudinary = async (
   req: Request,
@@ -17,8 +17,9 @@ export const uploadToCloudinary = async (
     const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
     const buffer = Buffer.from(base64Data, 'base64');
 
-    // Upload to Cloudinary
-    const result: CloudinaryUploadResult = await uploadImageBuffer(buffer);
+    // Upload via Media domain service (preserve response shape)
+    const media = new MediaImageService();
+    const result = await media.uploadBufferBasic(buffer);
 
     res.json({
       full: result.full,

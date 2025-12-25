@@ -36,7 +36,14 @@ describe('Catalog Domain - Products Integration', () => {
       mrp: 120,
       stock: 10,
       weight: 500,
-      images: ['https://example.com/image-a.jpg'],
+      images: [
+        {
+          publicId: 'test-a',
+          variants: {
+            original: 'https://example.com/image-a.jpg',
+          },
+        },
+      ],
       sku: 'TEST-A',
       tags: ['test', 'catalog'],
     });
@@ -49,7 +56,14 @@ describe('Catalog Domain - Products Integration', () => {
       mrp: 100,
       stock: 5,
       weight: 300,
-      images: ['https://example.com/image-b.jpg'],
+      images: [
+        {
+          publicId: 'test-b',
+          variants: {
+            original: 'https://example.com/image-b.jpg',
+          },
+        },
+      ],
       sku: 'TEST-B',
       tags: ['test', 'catalog'],
     });

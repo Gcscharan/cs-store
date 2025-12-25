@@ -5,9 +5,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const webhookController_1 = require("../controllers/webhookController");
+const razorpayWebhook_1 = require("../../../middleware/razorpayWebhook");
 const router = express_1.default.Router();
 // Webhook routes
-router.post("/razorpay", (req, res) => {
+router.post("/razorpay", razorpayWebhook_1.verifyRazorpayWebhook, (req, res) => {
     // Pass socket.io instance to the webhook handler
     req.io = req.app.get("io");
     (0, webhookController_1.razorpayWebhook)(req, res);

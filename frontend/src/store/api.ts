@@ -16,7 +16,7 @@ import { Mutex } from "async-mutex";
  */
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL ||
-  "http://localhost:3001") + "/api";
+  "http://localhost:5001") + "/api";
 
 // Mutex for token refresh race condition prevention
 const mutex = new Mutex();

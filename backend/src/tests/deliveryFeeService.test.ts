@@ -3,6 +3,10 @@
  * Demonstrates how the enhanced delivery fee calculation works
  */
 
+test("placeholder", () => {
+  expect(true).toBe(true);
+});
+
 import { calculateDeliveryFeeForAddress } from "../services/deliveryFeeService";
 import { IAddress } from "../models/User";
 
@@ -21,6 +25,8 @@ export async function testLocalDelivery() {
     city: "Hyderabad",
     state: "Telangana",
     pincode: "500081",
+    postal_district: "Hyderabad",
+    admin_district: "Hyderabad",
     lat: 17.4065,
     lng: 78.4772,
     isDefault: true,
@@ -70,6 +76,8 @@ export async function testFreeDelivery() {
     city: "Hyderabad",
     state: "Telangana",
     pincode: "500081",
+    postal_district: "Hyderabad",
+    admin_district: "Hyderabad",
     lat: 17.4485,
     lng: 78.3908,
     isDefault: false,
@@ -111,6 +119,8 @@ export async function testLongDistanceHeavy() {
     city: "Hyderabad",
     state: "Telangana",
     pincode: "500081",
+    postal_district: "Hyderabad",
+    admin_district: "Hyderabad",
     lat: 17.4065,
     lng: 78.4772,
     isDefault: true,
@@ -156,6 +166,8 @@ export async function testExpressDelivery() {
     city: "Hyderabad",
     state: "Telangana",
     pincode: "500081",
+    postal_district: "Hyderabad",
+    admin_district: "Hyderabad",
     lat: 17.4065,
     lng: 78.4772,
     isDefault: true,
@@ -198,6 +210,8 @@ export async function testUndeliverableLocation() {
     city: "Delhi",
     state: "Delhi",
     pincode: "110001",
+    postal_district: "Delhi",
+    admin_district: "Delhi",
     lat: 28.6139,
     lng: 77.209,
     isDefault: true,

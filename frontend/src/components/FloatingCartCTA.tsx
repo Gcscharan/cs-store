@@ -8,12 +8,14 @@ const FloatingCartCTA = () => {
   const cart = useSelector((state: RootState) => state.cart);
   const { isAuthenticated } = useSelector((state: RootState) => state.auth);
 
+  const cartUniqueCount = cart.items.length;
+
   // Removed minimum order requirement - delivery charges will apply for all orders
 
   // Don't show on cart page, if cart is empty, or if user is not authenticated
   if (
     location.pathname === "/cart" ||
-    cart.itemCount === 0 ||
+    cartUniqueCount === 0 ||
     !isAuthenticated
   ) {
     return null;
@@ -34,7 +36,7 @@ const FloatingCartCTA = () => {
           <div className="text-2xl">🛒</div>
           <div className="flex flex-col">
             <span className="text-sm font-semibold">
-              {cart.itemCount} items
+              {cartUniqueCount} items
             </span>
             <span className="text-xs opacity-90">₹{cart.total.toFixed(2)}</span>
             {cart.total < 500 && (

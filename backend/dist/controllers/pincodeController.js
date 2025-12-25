@@ -1,7 +1,12 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.checkPincodeController = exports.getValidPincodeRangesController = exports.validateBulkPincodesController = exports.validatePincodeController = void 0;
 const Pincode_1 = require("../models/Pincode");
+const pincodes_ap_ts_json_1 = __importDefault(require("../../data/pincodes_ap_ts.json"));
+const pincodeIndex = new Map(pincodes_ap_ts_json_1.default.map((item) => [String(item.pincode), item]));
 // Comprehensive pincode validation for Andhra Pradesh and Telangana
 const validatePincode = (pincode) => {
     if (!pincode || pincode.length !== 6)
@@ -217,6 +222,16 @@ const checkPincodeController = async (req, res) => {
             });
         }
         else {
+            const fallbackPincodeData = pincodeIndex.get(String(pincode));
+            if (fallbackPincodeData) {
+                res.status(200).json({
+                    deliverable: true,
+                    state: fallbackPincodeData.state,
+                    district: fallbackPincodeData.district,
+                    taluka: fallbackPincodeData.taluka,
+                });
+                return;
+            }
             res.status(200).json({
                 deliverable: false,
                 message: "Not deliverable to this location or pincode",

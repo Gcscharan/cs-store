@@ -7,33 +7,197 @@
 [33m[nodemon] watching path(s): src/**/* .env[39m
 [33m[nodemon] watching extensions: ts,json[39m
 [32m[nodemon] starting `ts-node src/index.ts`[39m
-/Users/gannavarapuchiranjeevisatyacharan/Desktop/Dream/node_modules/ts-node/src/index.ts:859
-    return new TSError(diagnosticText, diagnosticCodes, diagnostics);
-           ^
-TSError: ⨯ Unable to compile TypeScript:
-src/index.ts(2,20): error TS2307: Cannot find module 'dotenv' or its corresponding type declarations.
-src/index.ts(108,24): error TS2307: Cannot find module 'socket.io' or its corresponding type declarations.
-src/index.ts(152,22): error TS7006: Parameter 'socket' implicitly has an 'any' type.
-src/index.ts(156,27): error TS7006: Parameter 'data' implicitly has an 'any' type.
-src/index.ts(168,37): error TS7006: Parameter 'data' implicitly has an 'any' type.
-src/index.ts(175,46): error TS7006: Parameter 'data' implicitly has an 'any' type.
-src/index.ts(239,31): error TS7006: Parameter 'data' implicitly has an 'any' type.
-src/index.ts(245,38): error TS7006: Parameter 'data' implicitly has an 'any' type.
+✅ Environment variables validated successfully
 
-    at createTSError (/Users/gannavarapuchiranjeevisatyacharan/Desktop/Dream/node_modules/ts-node/src/index.ts:859:12)
-    at reportTSError (/Users/gannavarapuchiranjeevisatyacharan/Desktop/Dream/node_modules/ts-node/src/index.ts:863:19)
-    at getOutput (/Users/gannavarapuchiranjeevisatyacharan/Desktop/Dream/node_modules/ts-node/src/index.ts:1077:36)
-    at Object.compile (/Users/gannavarapuchiranjeevisatyacharan/Desktop/Dream/node_modules/ts-node/src/index.ts:1433:41)
-    at Module.m._compile (/Users/gannavarapuchiranjeevisatyacharan/Desktop/Dream/node_modules/ts-node/src/index.ts:1617:30)
-    at loadTS (node:internal/modules/cjs/loader:1815:10)
-    at Object.require.extensions.<computed> [as .ts] (/Users/gannavarapuchiranjeevisatyacharan/Desktop/Dream/node_modules/ts-node/src/index.ts:1621:12)
-    at Module.load (node:internal/modules/cjs/loader:1458:32)
-    at Function._load (node:internal/modules/cjs/loader:1275:12)
-    at TracingChannel.traceSync (node:diagnostics_channel:322:14) {
-  diagnosticCodes: [
-    2307, 2307, 7006,
-    7006, 7006, 7006,
-    7006, 7006
-  ]
+========================================
+🔧 Environment Variables Check
+========================================
+🌍 NODE_ENV: development
+🚪 PORT: 5001
+🔗 MONGODB_URI present: ✅ Yes
+🔑 JWT_SECRET present: ✅ Yes
+🔑 JWT_REFRESH_SECRET present: ✅ Yes
+☁️ CLOUDINARY_CLOUD_NAME present: ✅ Yes
+📧 MOCK_OTP: true
+[ENV][SMS] FAST2SMS key loaded: true
+========================================
+
+Google OAuth credentials: { clientId: 'Present', clientSecret: 'Present' }
+🔑 Razorpay configured with key: Live Key
+App.ts loaded successfully
+Payment routes registered successfully
+Razorpay routes registered successfully
+OTP routes registered successfully
+Notification routes registered successfully
+Upload routes registered successfully
+
+🔗 Connecting to MongoDB Atlas...
+📍 MongoDB URI: mongodb+srv://charan:***@csstore.2mobf49.mongodb.net/cps-store?retryWrites=true&w=majority&appName=csstore
+🌍 Environment: development
+🔗 Mongoose connected to MongoDB Atlas
+✅ MongoDB Atlas connected successfully
+🗄️  Database: cps-store
+🏠 Host: ac-vjrq9op-shard-00-00.2mobf49.mongodb.net
+
+🔧 Bootstrapping dev admin user...
+✅ Dev admin user updated successfully
+📧 Email: gcs.charan@gmail.com
+📱 Phone: 9391795162
+🔑 Password: Gcs@2004
+👤 Role: admin
+🔐 isAdmin: true
+🎯 Dev admin bootstrap completed
+🚚 Initializing delivery partner load tracking...
+🚚 Delivery partner load service initialized (MongoDB-only mode)
+🔄 Found existing processes on port 5001, closing them gracefully...
+📤 Sent SIGTERM to process 18061
+✅ Port 5001 is now available
+🚀 Server running on port 5001
+🏥 Health check: http://localhost:5001/health
+🔍 [GetProducts] Request received: {
+  limit: '100',
+  page: 1,
+  category: undefined,
+  minPrice: undefined,
+  maxPrice: undefined,
+  sortBy: undefined,
+  sortOrder: undefined,
+  search: undefined,
+  tags: undefined
 }
-[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+📊 [GetProducts] Query built: { filter: {}, sort: { createdAt: -1 } }
+🖼️ [Normalize] Input images: [
+  {
+    "variants": {
+      "micro": "httnode:events:485
+      throw er; // Unhandled 'error' event
+      ^
+
+Error: read EIO
+    at TTY.onStreamRead (node:internal/stream_base_commons:216:20)
+Emitted 'error' event on ReadStream instance at:
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  errno: -5,
+  code: 'EIO',
+  syscall: 'read'
+}
+
+Node.js v23.7.0
+: "http://res.cloudinary.com/dytgofbgw/image/upload/c_fill,h_1200,w_1200/v1/products/fvxbuzbodkrupm3pi60c",
+      "original": "http://res.cloudinary.com/dytgofbgw/image/upload/v1/products/fvxbuzbodkrupm3pi60c"
+    },
+    "formats": {
+      "avif": "http://res.cloudinary.com/dytgofbgw/image/upload/v1/products/fvxbuzbodkrupm3pi60c.avif",
+      "webp": "http://res.cloudinary.com/dytgofbgw/image/upload/v1/products/fvxbuzbodkrupm3pi60c.webp",
+      "jpg": "http://res.cloudinary.com/dytgofbgw/image/upload/v1/products/fvxbuzbodkrupm3pi60c.jpg"
+    },
+    "metadata": {
+      "width": 899,
+      "height": 1599,
+      "aspectRatio": 0.5622263914946842
+    },
+    "publicId": "products/fvxbuzbodkrupm3pi60c",
+    "_id": "692c2946975ac0b5bdef33ee"
+  }
+]
+🖼️ [Normalize] Already new schema, returning as-is
+🖼️ [Normalize] Input images: [
+  {
+    "variants": {
+      "micro": "http://res.cloudinary.com/dytgofbgw/image/upload/c_fill,h_16,w_16/v1/products/chttlvm7e5ojbw2xfr7x",
+      "thumb": "http://res.cloudinary.com/dytgofbgw/image/upload/c_fill,h_150,w_150/v1/products/chttlvm7e5ojbw2xfr7x",
+      "small": "http://res.cloudinary.com/dytgofbgw/image/upload/c_fill,h_300,w_300/v1/products/chttlvm7e5ojbw2xfr7x",
+      "medium": "http://res.cloudinary.com/dytgofbgw/image/upload/c_fill,h_600,w_600/v1/products/chttlvm7e5ojbw2xfr7x",
+      "large": "http://res.cloudinary.com/dytgofbgw/image/upload/c_fill,h_1200,w_1200/v1/products/chttlvm7e5ojbw2xfr7x",
+      "original": "http://res.cloudinary.com/dytgofbgw/image/upload/v1/products/chttlvm7e5ojbw2xfr7x"
+    },
+    "formats": {
+      "avif": "http://res.cloudinary.com/dytgofbgw/image/upload/v1/products/chttlvm7e5ojbw2xfr7x.avif",
+      "webp": "http://res.cloudinary.com/dytgofbgw/image/upload/v1/products/chttlvm7e5ojbw2xfr7x.webp",
+      "jpg": "http://res.cloudinary.com/dytgofbgw/image/upload/v1/products/chttlvm7e5ojbw2xfr7x.jpg"
+    },
+    "metadata": {
+      "width": 800,
+      "height": 800,
+      "aspectRatio": 1
+    },
+    "publicId": "products/chttlvm7e5ojbw2xfr7x",
+    "_id": "692c25af1cc41d72785728b7"
+  }
+]
+🖼️ [Normalize] Already new schema, returning as-is
+
+🛑 SIGTERM received, closing MongoDB connection...
+SIGTERM received, shutting down gracefully
+Server closed
+[32m[nodemon] clean exit - waiting for changes before restart[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `ts-node src/index.ts`[39m
+✅ Environment variables validated successfully
+
+========================================
+🔧 Environment Variables Check
+========================================
+🌍 NODE_ENV: development
+🚪 PORT: 5001
+🔗 MONGODB_URI present: ✅ Yes
+🔑 JWT_SECRET present: ✅ Yes
+🔑 JWT_REFRESH_SECRET present: ✅ Yes
+☁️ CLOUDINARY_CLOUD_NAME present: ✅ Yes
+📧 MOCK_OTP: true
+[ENV][SMS] FAST2SMS key loaded: true
+========================================
+
+Google OAuth credentials: { clientId: 'Present', clientSecret: 'Present' }
+🔑 Razorpay configured with key: Live Key
+App.ts loaded successfully
+Payment routes registered successfully
+Razorpay routes registered successfully
+OTP routes registered successfully
+Notification routes registered successfully
+Upload routes registered successfully
+
+🔗 Connecting to MongoDB Atlas...
+📍 MongoDB URI: mongodb+srv://charan:***@csstore.2mobf49.mongodb.net/cps-store?retryWrites=true&w=majority&appName=csstore
+🌍 Environment: development
+🔗 Mongoose connected to MongoDB Atlas
+✅ MongoDB Atlas connected successfully
+🗄️  Database: cps-store
+🏠 Host: ac-vjrq9op-shard-00-00.2mobf49.mongodb.net
+
+🔧 Bootstrapping dev admin user...
+✅ Dev admin user updated successfully
+📧 Email: gcs.charan@gmail.com
+📱 Phone: 9391795162
+🔑 Password: Gcs@2004
+👤 Role: admin
+🔐 isAdmin: true
+🎯 Dev admin bootstrap completed
+🚚 Initializing delivery partner load tracking...
+🚚 Delivery partner load service initialized (MongoDB-only mode)
+✅ Port 5001 is available
+🚀 Server running on port 5001
+🏥 Health check: http://localhost:5001/health
+
+🛑 SIGTERM received, closing MongoDB connection...
+SIGTERM received, shutting down gracefully
+Server closed
+[32m[nodemon] clean exit - waiting for changes before restart[39m
+node:events:485
+      throw er; // Unhandled 'error' event
+      ^
+
+Error: read EIO
+    at TTY.onStreamRead (node:internal/stream_base_commons:216:20)
+Emitted 'error' event on ReadStream instance at:
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  errno: -5,
+  code: 'EIO',
+  syscall: 'read'
+}
+
+Node.js v23.7.0

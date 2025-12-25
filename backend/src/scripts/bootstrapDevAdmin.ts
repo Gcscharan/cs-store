@@ -1,11 +1,22 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import { User } from "../models/User";
+import { DeliveryBoy } from "../models/DeliveryBoy";
 
 const DEV_ADMIN_EMAIL = "gcs.charan@gmail.com";
 const DEV_ADMIN_PASSWORD = "Gcs@2004";
 const DEV_ADMIN_NAME = "Admin";
 const DEV_ADMIN_PHONE = "9391795162";
+
+// Seed test customer user (non-admin)
+const DEV_TEST_USER_EMAIL = "test.user@example.com";
+const DEV_TEST_USER_PASSWORD = "Test@1234";
+const DEV_TEST_USER_NAME = "Test User";
+const DEV_TEST_USER_PHONE = "9000000000";
+
+// Seed test delivery boy
+const DEV_TEST_DELIVERY_NAME = "Test Delivery Boy";
+const DEV_TEST_DELIVERY_PHONE = "9000000001";
 
 export const bootstrapDevAdmin = async (): Promise<void> => {
   try {
@@ -15,7 +26,7 @@ export const bootstrapDevAdmin = async (): Promise<void> => {
       return;
     }
 
-    console.log("🔧 Bootstrapping dev admin user...");
+    console.log("🔧 Bootstrapping dev admin user and test data...");
 
     // Check if dev admin user exists
     let devAdmin = await User.findOne({ email: DEV_ADMIN_EMAIL });
@@ -83,7 +94,77 @@ export const bootstrapDevAdmin = async (): Promise<void> => {
       console.log(`🔐 isAdmin: true`);
     }
 
-    console.log("🎯 Dev admin bootstrap completed");
+    // Seed regular test customer user
+    let testUser = await User.findOne({ email: DEV_TEST_USER_EMAIL });
+
+    const testUserPasswordHash = await bcrypt.hash(DEV_TEST_USER_PASSWORD, 12);
+
+    if (!testUser) {
+      testUser = new User({
+        name: DEV_TEST_USER_NAME,
+        email: DEV_TEST_USER_EMAIL,
+        phone: DEV_TEST_USER_PHONE,
+        passwordHash: testUserPasswordHash,
+        role: "customer",
+        addresses: [],
+      });
+
+      await testUser.save();
+      console.log("✅ Dev test customer user created successfully");
+      console.log(`📧 Email: ${DEV_TEST_USER_EMAIL}`);
+      console.log(`📱 Phone: ${DEV_TEST_USER_PHONE}`);
+      console.log(`🔑 Password: ${DEV_TEST_USER_PASSWORD}`);
+    } else {
+      await User.findByIdAndUpdate(testUser._id, {
+        name: DEV_TEST_USER_NAME,
+        phone: DEV_TEST_USER_PHONE,
+        passwordHash: testUserPasswordHash,
+        role: "customer",
+      });
+      console.log("✅ Dev test customer user updated successfully");
+      console.log(`📧 Email: ${DEV_TEST_USER_EMAIL}`);
+      console.log(`📱 Phone: ${DEV_TEST_USER_PHONE}`);
+      console.log(`🔑 Password: ${DEV_TEST_USER_PASSWORD}`);
+    }
+
+    // Seed test delivery boy
+    let testDeliveryBoy = await DeliveryBoy.findOne({ phone: DEV_TEST_DELIVERY_PHONE });
+
+    if (!testDeliveryBoy) {
+      testDeliveryBoy = new DeliveryBoy({
+        name: DEV_TEST_DELIVERY_NAME,
+        phone: DEV_TEST_DELIVERY_PHONE,
+        vehicleType: "bike",
+        isActive: true,
+        availability: "available",
+        currentLocation: {
+          lat: 16.5,
+          lng: 80.5,
+          lastUpdatedAt: new Date(),
+        },
+        earnings: 0,
+        completedOrdersCount: 0,
+        assignedOrders: [],
+        currentLoad: 0,
+      });
+
+      await testDeliveryBoy.save();
+      console.log("✅ Dev test delivery boy created successfully");
+      console.log(`👤 Name: ${DEV_TEST_DELIVERY_NAME}`);
+      console.log(`📱 Phone: ${DEV_TEST_DELIVERY_PHONE}`);
+    } else {
+      await DeliveryBoy.findByIdAndUpdate(testDeliveryBoy._id, {
+        name: DEV_TEST_DELIVERY_NAME,
+        vehicleType: "bike",
+        isActive: true,
+        availability: "available",
+      });
+      console.log("✅ Dev test delivery boy updated successfully");
+      console.log(`👤 Name: ${DEV_TEST_DELIVERY_NAME}`);
+      console.log(`📱 Phone: ${DEV_TEST_DELIVERY_PHONE}`);
+    }
+
+    console.log("🎯 Dev admin and test data bootstrap completed");
   } catch (error) {
     console.error("❌ Error bootstrapping dev admin:", error);
     throw error;

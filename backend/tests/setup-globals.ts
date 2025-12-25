@@ -18,13 +18,19 @@ beforeAll(async () => {
   process.env.CLOUDINARY_API_KEY = "test-key";
   process.env.CLOUDINARY_API_SECRET = "test-secret";
   
-  mongoServer = await MongoMemoryServer.create();
-  await mongoose.connect(mongoServer.getUri());
+  if (mongoose.connection.readyState === 0) {
+    mongoServer = await MongoMemoryServer.create();
+    await mongoose.connect(mongoServer.getUri());
+  }
 });
 
 afterAll(async () => {
-  await mongoose.disconnect();
-  await mongoServer.stop();
+  if (mongoose.connection.readyState !== 0) {
+    await mongoose.disconnect();
+  }
+  if (mongoServer) {
+    await mongoServer.stop();
+  }
 });
 
 beforeEach(async () => {
@@ -65,7 +71,15 @@ beforeEach(async () => {
     price: 1000,
     category: "electronics",
     stock: 10,
-    images: ["test-image.jpg"],
+    images: [
+      {
+        publicId: "test-image",
+        url: "https://example.com/test-image.jpg",
+        variants: {
+          original: "https://example.com/test-image.jpg",
+        },
+      },
+    ],
     ...overrides,
   });
 };

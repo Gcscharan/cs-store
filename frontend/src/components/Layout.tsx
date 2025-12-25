@@ -115,7 +115,7 @@ const Layout: React.FC<LayoutProps> = ({
       isVisible: true,
       productName,
       productImage: productImage || '',
-      cartCount: cartCount || cart.itemCount || 0,
+      cartCount: cartCount || cart.items.length || 0,
       cartTotal: cartTotal || cart.total || 0
     });
     
@@ -502,9 +502,8 @@ const suggestions = suggestionList || [];
                     <span>CS Store</span>
                   </button>
 
-                  {/* Address Section - Hidden on homepage, checkout page, and admin pages */}
-                  {location.pathname !== "/" &&
-                    location.pathname !== "/checkout" &&
+                  {/* Address Section - Hidden on checkout page and admin pages */}
+                  {location.pathname !== "/checkout" &&
                     !location.pathname.startsWith("/admin") && (
                       <button
                         onClick={handleLocationClick}
@@ -623,12 +622,12 @@ const suggestions = suggestionList || [];
                       className={`relative p-3 bg-blue-100 hover:bg-blue-200 rounded-full transition-all duration-200 shadow-sm hover:shadow-md hover:scale-110 ${
                         cartPulse ? 'cart-pulse-active' : ''
                       }`}
-                      aria-label={`View cart with ${cart.itemCount ?? 0} items`}
+                      aria-label={`View cart with ${cart.items.length ?? 0} items`}
                     >
                       <ShoppingCart className="h-5 w-5 text-blue-600 cart-icon" />
-                      {auth.isAuthenticated && cart.itemCount > 0 && (
+                      {auth.isAuthenticated && cart.items.length > 0 && (
                         <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold shadow-lg">
-                          {cart.itemCount > 99 ? "99+" : cart.itemCount}
+                          {cart.items.length > 99 ? "99+" : cart.items.length}
                         </div>
                       )}
                     </button>
@@ -742,14 +741,14 @@ const suggestions = suggestionList || [];
                             cartPulse ? 'cart-pulse-active' : ''
                           }`}
                           aria-label={`View cart with ${
-                            cart.itemCount ?? 0
+                            cart.items.length ?? 0
                           } items`}
                         >
                           <ShoppingCart className="h-6 w-6 cart-icon" />
                           <span className="text-xs font-medium">Cart</span>
-                          {cart.itemCount > 0 && (
+                          {cart.items.length > 0 && (
                             <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center font-bold">
-                              {cart.itemCount > 99 ? "99+" : cart.itemCount}
+                              {cart.items.length > 99 ? "99+" : cart.items.length}
                             </div>
                           )}
                         </button>

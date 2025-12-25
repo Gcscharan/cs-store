@@ -38,10 +38,7 @@ const cartSlice = createSlice({
         (sum, item) => sum + item.price * item.quantity,
         0
       );
-      state.itemCount = state.items.reduce(
-        (sum, item) => sum + item.quantity,
-        0
-      );
+      state.itemCount = state.items.length;
     },
     removeFromCart: (state, action: PayloadAction<string>) => {
       state.items = state.items.filter((item) => item.id !== action.payload);
@@ -49,10 +46,7 @@ const cartSlice = createSlice({
         (sum, item) => sum + item.price * item.quantity,
         0
       );
-      state.itemCount = state.items.reduce(
-        (sum, item) => sum + item.quantity,
-        0
-      );
+      state.itemCount = state.items.length;
     },
     updateCartItem: (
       state,
@@ -65,10 +59,7 @@ const cartSlice = createSlice({
           (sum, item) => sum + item.price * item.quantity,
           0
         );
-        state.itemCount = state.items.reduce(
-          (sum, item) => sum + item.quantity,
-          0
-        );
+        state.itemCount = state.items.length;
       }
     },
     clearCart: (state) => {
@@ -87,7 +78,7 @@ const cartSlice = createSlice({
       console.log("🛒 setCart action called with:", action.payload);
       state.items = action.payload.items;
       state.total = action.payload.total;
-      state.itemCount = action.payload.itemCount;
+      state.itemCount = action.payload.items.length;
     },
     clearCartOnLogout: (state) => {
       state.items = [];

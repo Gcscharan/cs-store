@@ -197,7 +197,10 @@ const DashboardPage = () => {
 
       // Trigger global cart confirmation bar
       const productImage = getProductImage(product);
-      const updatedCartCount = result && "data" in result && result.data ? result.data.cart.itemCount : 1;
+      const updatedCartCount =
+        result && "data" in result && result.data
+          ? result.data.cart.items.length
+          : 1;
       const updatedCartTotal = result && "data" in result && result.data ? result.data.cart.total : product.price;
       triggerGlobalConfirmation(product.name, productImage, updatedCartCount, updatedCartTotal);
 

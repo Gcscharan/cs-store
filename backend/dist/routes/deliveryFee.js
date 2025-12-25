@@ -5,7 +5,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const deliveryController_1 = require("../controllers/deliveryController");
+const auth_1 = require("../middleware/auth");
 const router = express_1.default.Router();
 // Calculate delivery fee
-router.post("/calculate-fee", deliveryController_1.calculateDeliveryFeeController);
+router.post("/calculate-fee", auth_1.authenticateToken, deliveryController_1.calculateDeliveryFeeController);
 exports.default = router;

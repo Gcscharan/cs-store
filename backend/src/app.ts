@@ -20,14 +20,10 @@ import deliveryAuthRoutes from "./routes/deliveryAuth";
 import pincodeRoutes from "./routes/pincode";
 import locationRoutes from "./routes/locationRoutes";
 import adminRoutes from "./routes/admin";
-import webhookRoutes from "./domains/finance/routes/webhooks";
 import userRoutes from "./domains/identity/routes/user";
 import otpRoutes from "./domains/security/routes/otpRoutes";
 import mobileVerifyRoutes from "./domains/security/routes/mobileVerifyRoutes";
-import deliveryRoutes from "./routes/deliveryRoutes";
-import razorpayRoutes from "./domains/finance/routes/razorpay";
 import notificationRoutes from "./domains/communication/routes/notifications";
-import paymentRoutes from "./domains/finance/routes/paymentRoutes";
 import uploadRoutes from "./domains/uploads/routes/uploads";
 
 console.log("App.ts loaded successfully");
@@ -77,15 +73,10 @@ app.use("/api/delivery", deliveryAuthRoutes); // Delivery auth & order managemen
 app.use("/api/pincode", pincodeRoutes);
 app.use("/api/location", locationRoutes);
 app.use("/api/admin", adminRoutes);
-app.use("/api/webhooks", webhookRoutes);
-app.use("/api/payment", paymentRoutes);
-app.use("/api/razorpay", razorpayRoutes);
 app.use("/api/otp", otpRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/uploads", uploadRoutes);
 
-console.log("Payment routes registered successfully");
-console.log("Razorpay routes registered successfully");
 console.log("OTP routes registered successfully");
 console.log("Notification routes registered successfully");
 console.log("Upload routes registered successfully");

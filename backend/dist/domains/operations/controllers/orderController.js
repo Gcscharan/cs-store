@@ -224,6 +224,21 @@ const placeOrderCOD = async (req, res) => {
             },
         });
         await order.save();
+        // Decrease product stock for each ordered item
+        try {
+            for (const item of formattedItems) {
+                // Use $inc with negative qty, Mongo will prevent race conditions at document level
+                const updateResult = await Product_1.Product.findByIdAndUpdate(item.productId, { $inc: { stock: -item.qty } }, { new: true });
+                if (updateResult && updateResult.stock < 0) {
+                    // Ensure stock never goes below 0
+                    updateResult.stock = 0;
+                    await updateResult.save();
+                }
+            }
+        }
+        catch (stockError) {
+            console.error("Failed to decrement product stock on COD order", stockError);
+        }
         // Optionally auto-assign a delivery boy if available
         const availableDeliveryBoy = await DeliveryBoy_1.DeliveryBoy.findOne({
             availability: "available",

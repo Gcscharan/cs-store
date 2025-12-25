@@ -1,15 +1,19 @@
 import { Request, Response } from "express";
+import { UserProfileService } from "../../user/services/UserProfileService";
+import { UserAddressService } from "../../user/services/UserAddressService";
+import { UserAccountService } from "../../user/services/UserAccountService";
+import mongoose from "mongoose";
 import { User, IAddress } from "../../../models/User";
 import { Cart } from "../../../models/Cart";
 import { Order } from "../../../models/Order";
 import { Payment } from "../../../models/Payment";
-import Notification from "../../../models/Notification";
 import Otp from "../../../models/Otp";
-import mongoose from "mongoose";
-import { smartGeocode } from "../../../utils/geocoding";
-import { verifyOtp } from "../../security/controllers/otpController";
-import * as jwt from "jsonwebtoken";
-import { PendingUser } from "../../../models/PendingUser";
+import Notification from "../../../models/Notification";
+import { geocodeByPincode, smartGeocode } from "../../../utils/geocoding";
+import { resolvePincodeAuthoritatively } from "../../../utils/authoritativePincodeResolver";
+import {
+  resolvePincodeForAddressSave,
+} from "../../../utils/pincodeResolver";
 
 // Get user profile
 export const getUserProfile = async (
@@ -24,23 +28,15 @@ export const getUserProfile = async (
       return;
     }
 
-    const user = await User.findById(userId).select("-passwordHash");
+    const userProfileService = new UserProfileService();
+    const result = await userProfileService.getUserProfile(userId);
 
-    if (!user) {
+    if (!result) {
       res.status(404).json({ error: "User not found" });
       return;
     }
 
-    res.json({
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      phone: user.phone,
-      role: user.role,
-      isAdmin: (user as any).isAdmin || false,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-    });
+    res.json(result);
   } catch (error) {
     console.error("Error fetching user profile:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -61,141 +57,13 @@ export const markMobileAsVerified = async (
       return;
     }
 
-    // Case A: Authenticated user verifying their mobile post-signup
-    if (userId) {
-      const user = await User.findById(userId);
-      if (!user) {
-        res.status(404).json({ error: "User not found" });
-        return;
-      }
-      if (!user.phone) {
-        res.status(400).json({ error: "User does not have a registered phone" });
-        return;
-      }
+    const userAccountService = new UserAccountService();
+    const result = await userAccountService.verifyMobile(userId, { otp, phone, pendingUserId });
 
-      const result = await verifyOtp(user.phone, otp, "verification");
-      if (!result.valid) {
-        res.status(400).json({ error: result.error || "Invalid OTP" });
-        return;
-      }
-
-      user.mobileVerified = true;
-      await user.save();
-      await Otp.deleteMany({ phone: user.phone, type: "verification", isUsed: false });
-
-      const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
-      const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || "your-refresh-secret";
-      const accessToken = jwt.sign(
-        { userId: user._id, email: user.email, role: user.role },
-        JWT_SECRET,
-        { expiresIn: "24h" }
-      );
-      const refreshToken = jwt.sign({ userId: user._id }, JWT_REFRESH_SECRET, { expiresIn: "7d" });
-
-      const isProfileComplete = !!(user.name && user.phone);
-
-      res.status(200).json({
-        message: "Mobile number verified successfully",
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          phone: user.phone,
-          role: user.role,
-          isAdmin: user.role === "admin",
-          addresses: user.addresses,
-          isProfileComplete,
-          mobileVerified: true,
-        },
-        accessToken,
-        refreshToken,
-      });
-      return;
-    }
-
-    // Case B: Unauthenticated verification flow for pending users
-    if (!phone) {
-      res.status(400).json({ error: "Phone is required for verification" });
-      return;
-    }
-
-    console.log("[verify-mobile] Verifying OTP for", { phone });
-    const result = await verifyOtp(phone, otp, "verification");
-    if (!result.valid) {
-      res.status(400).json({ error: result.error || "Invalid OTP" });
-      return;
-    }
-
-    console.log("[verify-mobile] OTP verified. Fetching PendingUser", { pendingUserId, phone });
-    let pendingUser = null as any;
-    if (pendingUserId) {
-      pendingUser = await PendingUser.findOne({ _id: pendingUserId, phone });
-    } else {
-      pendingUser = await PendingUser.findOne({ phone });
-    }
-
-    if (!pendingUser) {
-      res.status(404).json({ error: "Pending signup not found for this phone" });
-      return;
-    }
-
-    console.log("[verify-mobile] Creating final User from PendingUser", { id: pendingUser._id.toString(), email: pendingUser.email });
-    const user = new User({
-      name: pendingUser.name,
-      email: pendingUser.email,
-      phone: pendingUser.phone,
-      passwordHash: pendingUser.passwordHash,
-      addresses: pendingUser.addresses || [],
-      mobileVerified: true,
-    });
-    await user.save();
-
-    console.log("[verify-mobile] Cleanup PendingUser and unused OTPs", { id: pendingUser._id.toString() });
-    await PendingUser.deleteOne({ _id: pendingUser._id });
-    await Otp.deleteMany({ phone, type: "verification", isUsed: false });
-
-    const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
-    const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || "your-refresh-secret";
-    const accessToken = jwt.sign(
-      { userId: user._id, email: user.email, role: user.role },
-      JWT_SECRET,
-      { expiresIn: "24h" }
-    );
-    const refreshToken = jwt.sign({ userId: user._id }, JWT_REFRESH_SECRET, { expiresIn: "7d" });
-
-    const isProfileComplete = !!(user.name && user.phone);
-
-    res.status(201).json({
-      message: "Account created and mobile verified successfully",
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        role: user.role,
-        isAdmin: user.role === "admin",
-        addresses: user.addresses,
-        isProfileComplete,
-        mobileVerified: true,
-      },
-      accessToken,
-      refreshToken,
-    });
-    return;
-  } catch (error: any) {
-    console.error("Error verifying mobile:", {
-      name: error?.name,
-      message: error?.message,
-      code: error?.code,
-      keyValue: error?.keyValue,
-      stack: error?.stack?.split("\n").slice(0, 2).join(" | "),
-    });
-    res.status(500).json({ error: "Failed to verify mobile number", ...(process.env.NODE_ENV !== 'production' ? { errorDetails: {
-      name: error?.name,
-      message: error?.message,
-      code: error?.code,
-      keyValue: error?.keyValue,
-    }} : {}) });
+    res.status(userId ? 200 : 201).json(result);
+  } catch (error) {
+    console.error("Error verifying mobile:", error);
+    res.status(500).json({ error: "Failed to verify mobile number" });
   }
 };
 
@@ -212,67 +80,17 @@ export const updateUserProfile = async (
       return;
     }
 
-    // Get current user
-    const user = await User.findById(userId);
-    if (!user) {
-      res.status(404).json({ error: "User not found" });
-      return;
-    }
-
-    // Extract update fields from request body
     const { name, phone, email } = req.body;
     
-    // Handle email change with verification requirement
-    if (email !== undefined && email !== user.email) {
-      // Don't update email immediately - require verification
-      res.json({
-        success: true,
-        message: "Email change requires verification",
-        emailChangePending: true,
-        pendingEmail: email,
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email, // Still return old email
-          phone: user.phone,
-          role: user.role,
-        },
-      });
-      return;
-    }
-    
-    // Build update object with only provided fields
-    const updateData: any = {};
-    if (name !== undefined) updateData.name = name;
-    if (phone !== undefined) updateData.phone = phone;
+    const userProfileService = new UserProfileService();
+    const result = await userProfileService.updateUserProfile(userId, { name, phone, email });
 
-    // Use findByIdAndUpdate to atomically update and return new document
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      updateData,
-      { 
-        new: true,  // Return updated document
-        runValidators: true,  // Run schema validators
-        select: "-passwordHash"  // Exclude password hash
-      }
-    );
-
-    if (!updatedUser) {
+    if (!result) {
       res.status(404).json({ error: "User not found" });
       return;
     }
     
-    res.json({
-      success: true,
-      message: "Profile updated successfully",
-      user: {
-        id: updatedUser._id,
-        name: updatedUser.name,
-        email: updatedUser.email,
-        phone: updatedUser.phone,
-        role: updatedUser.role,
-      },
-    });
+    res.json(result);
   } catch (error) {
     console.error("❌ Error updating user profile:", error);
     res.status(500).json({ error: "Failed to update profile" });
@@ -295,31 +113,10 @@ export const getUserAddresses = async (
       return;
     }
 
-    const user = await User.findById(userId).select("addresses");
+    const userAddressService = new UserAddressService();
+    const result = await userAddressService.getUserAddresses(userId);
 
-    if (!user) {
-      res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
-      return;
-    }
-
-    // Transform addresses to include both _id and id for frontend compatibility
-    const transformedAddresses = (user.addresses || []).map((addr: any) => ({
-      ...addr.toObject(),
-      id: addr._id.toString(),
-    }));
-
-    // Find the default address ID
-    const defaultAddress = user.addresses.find((addr: any) => addr.isDefault);
-    const defaultAddressId = defaultAddress ? defaultAddress._id.toString() : null;
-
-    res.status(200).json({
-      success: true,
-      addresses: transformedAddresses,
-      defaultAddressId: defaultAddressId,
-    });
+    res.status(200).json(result);
   } catch (error) {
     console.error("Error fetching user addresses:", error);
     res.status(500).json({
@@ -335,7 +132,14 @@ export const addUserAddress = async (
   res: Response
 ): Promise<void> => {
   try {
+    console.error("🔥 addUserAddress controller HIT");
+
     const userId = (req as any).userId || (req as any).user?._id;
+
+    console.info("[addUserAddress] Incoming payload:", {
+      userId,
+      body: req.body,
+    });
 
     if (!userId) {
       res.status(401).json({
@@ -345,11 +149,72 @@ export const addUserAddress = async (
       return;
     }
 
-    const { name, label, pincode, city, state, addressLine, phone, isDefault } =
-      req.body;
+    const {
+      name,
+      label,
+      pincode,
+      city,
+      state,
+      addressLine: addressLineFromBody,
+      address_line: addressLineSnake,
+      phone,
+      isDefault,
+    } = req.body;
+
+    const addressLine = addressLineFromBody || addressLineSnake;
+
+    if (typeof resolvePincodeAuthoritatively !== "function") {
+      throw new Error("resolvePincodeAuthoritatively is undefined");
+    }
+
+    if (!pincode || typeof pincode !== "string" || pincode.length !== 6 || !/^\d{6}$/.test(pincode)) {
+      console.warn("[addUserAddress] Invalid pincode:", pincode);
+      res.status(400).json({
+        success: false,
+        message: "Invalid pincode",
+      });
+      return;
+    }
+
+    if (!city || typeof city !== "string" || !city.trim()) {
+      console.warn("[addUserAddress] Missing/invalid city:", city);
+      res.status(400).json({
+        success: false,
+        message: "City is required",
+      });
+      return;
+    }
+
+    if (!name || typeof name !== "string" || !name.trim()) {
+      console.warn("[addUserAddress] Missing/invalid name:", name);
+      res.status(400).json({
+        success: false,
+        message: "Name is required",
+      });
+      return;
+    }
+
+    const cleanedPhone = typeof phone === "string" ? phone.trim() : "";
+    if (!cleanedPhone || !/^[6-9]\d{9}$/.test(cleanedPhone)) {
+      console.warn("[addUserAddress] Missing/invalid phone:", phone);
+      res.status(400).json({
+        success: false,
+        message: "Phone is required",
+      });
+      return;
+    }
+
+    if (!addressLine || typeof addressLine !== "string" || !addressLine.trim()) {
+      console.warn("[addUserAddress] Missing/invalid addressLine:", addressLine);
+      res.status(400).json({
+        success: false,
+        message: "Address line is required",
+      });
+      return;
+    }
 
     // Validate required fields
-    if (!label || !pincode || !city || !state || !addressLine) {
+    if (!label) {
       res.status(400).json({
         success: false,
         message: "Missing required fields",
@@ -367,6 +232,53 @@ export const addUserAddress = async (
       return;
     }
 
+    // Backfill existing addresses that might be missing required district fields.
+    // Without this, user.save() can fail validation even if the NEW address is valid.
+    for (const addr of user.addresses || []) {
+      const needsBackfill = !addr.postal_district || !addr.admin_district;
+      if (!needsBackfill) continue;
+
+      const addrPincode = (addr.pincode || "").toString();
+      if (!/^\d{6}$/.test(addrPincode)) {
+        console.error("[addUserAddress] Existing address has invalid pincode; cannot backfill", {
+          addressId: addr._id?.toString?.(),
+          pincode: addrPincode,
+        });
+        res.status(400).json({
+          success: false,
+          message: "Invalid address payload",
+          details: {
+            reason: "Existing address has invalid pincode; cannot backfill districts",
+            addressId: addr._id?.toString?.(),
+            pincode: addrPincode,
+          },
+        });
+        return;
+      }
+
+      const backfill = await resolvePincodeAuthoritatively(addrPincode);
+      if (!backfill) {
+        console.error("[addUserAddress] Failed to backfill existing address districts", {
+          addressId: addr._id?.toString?.(),
+          pincode: addrPincode,
+        });
+        res.status(400).json({
+          success: false,
+          message: "Invalid address payload",
+          details: {
+            reason: "Failed to resolve pincode for existing address; cannot backfill districts",
+            addressId: addr._id?.toString?.(),
+            pincode: addrPincode,
+          },
+        });
+        return;
+      }
+
+      addr.state = backfill.state;
+      addr.postal_district = backfill.postal_district;
+      addr.admin_district = backfill.admin_district;
+    }
+
     // AUTO-GEOCODE: Convert address to GPS coordinates with fallback chain
     console.log(`\n🌍 Auto-geocoding address for user ${userId}...`);
     
@@ -377,7 +289,6 @@ export const addUserAddress = async (
     if (!geocodeResult) {
       // Full geocoding failed, try pincode fallback
       console.warn(`⚠️ Full address geocoding failed, trying pincode fallback for ${pincode}...`);
-      const { geocodeByPincode } = require('../utils/geocoding');
       geocodeResult = await geocodeByPincode(pincode);
       
       if (geocodeResult) {
@@ -404,15 +315,33 @@ export const addUserAddress = async (
       });
     }
 
+    const resolved = await resolvePincodeAuthoritatively(pincode);
+    console.error("🔥 Resolver output:", resolved);
+
+    if (!resolved) {
+      res.status(400).json({
+        success: false,
+        message: "Invalid pincode",
+        details: { reason: "Pincode not supported" },
+      });
+      return;
+    }
+
+    const resolvedState = resolved.state;
+    const postalDistrict = resolved.postal_district;
+    const adminDistrict = resolved.admin_district;
+
     const newAddress: IAddress = {
       _id: new mongoose.Types.ObjectId(),
-      name: name || "",
+      name: name.trim(),
       label,
       pincode,
-      city,
-      state,
+      city: city.trim(),
+      state: resolvedState,
+      postal_district: postalDistrict || "",
+      admin_district: adminDistrict || "",
       addressLine,
-      phone: phone || "",
+      phone: cleanedPhone,
       lat: geocodeResult.lat,  // Auto-geocoded latitude
       lng: geocodeResult.lng,  // Auto-geocoded longitude
       isDefault: isDefault || false,
@@ -421,7 +350,12 @@ export const addUserAddress = async (
     };
 
     user.addresses.push(newAddress);
-    await user.save();
+    try {
+      await user.save();
+    } catch (dbErr) {
+      console.error("🔥 Mongo save failed", dbErr);
+      throw dbErr;
+    }
 
     // Get the saved address from the user document
     const savedAddress: any = user.addresses[user.addresses.length - 1];
@@ -434,11 +368,22 @@ export const addUserAddress = async (
         id: savedAddress._id.toString(),
       },
     });
-  } catch (error) {
-    console.error("Error adding user address:", error);
+  } catch (error: any) {
+    console.error("🔥 addUserAddress CRASH", error, error?.stack);
+
+    if (error?.name === "ValidationError") {
+      res.status(400).json({
+        success: false,
+        message: "Invalid address payload",
+        details: error?.errors || error,
+      });
+      return;
+    }
+
     res.status(500).json({
       success: false,
-      message: "Internal server error",
+      message: "Address save crashed",
+      error: error?.message,
     });
   }
 };
@@ -485,6 +430,17 @@ export const updateUserAddress = async (
     const { name, label, pincode, city, state, addressLine, phone, isDefault } =
       req.body;
 
+    if (pincode !== undefined) {
+      const p = String(pincode);
+      if (p.length !== 6 || !/^\d{6}$/.test(p)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid pincode",
+        });
+        return;
+      }
+    }
+
     // Check if address components changed (requires re-geocoding)
     const addressChanged = 
       (addressLine && addressLine !== address.addressLine) ||
@@ -506,7 +462,6 @@ export const updateUserAddress = async (
       if (!geocodeResult) {
         // Full geocoding failed, try pincode fallback
         console.warn(`⚠️ Full address geocoding failed, trying pincode fallback for ${finalPincode}...`);
-        const { geocodeByPincode } = require('../utils/geocoding');
         geocodeResult = await geocodeByPincode(finalPincode);
         
         if (geocodeResult) {
@@ -536,7 +491,7 @@ export const updateUserAddress = async (
     if (name !== undefined) address.name = name || "";
     if (label) address.label = label;
     if (pincode) address.pincode = pincode;
-    if (city) address.city = city;
+    if (city) address.city = String(city).trim();
     if (state) address.state = state;
     if (addressLine) address.addressLine = addressLine;
     if (phone !== undefined) address.phone = phone || "";
@@ -551,6 +506,50 @@ export const updateUserAddress = async (
       }
       address.isDefault = isDefault;
     }
+
+    const finalPincode = (pincode || address.pincode || "").toString();
+    const finalCity = (city || address.city || "").toString();
+    const resolved = await resolvePincodeForAddressSave(finalPincode);
+    if (!resolved) {
+      res.status(400).json({
+        success: false,
+        message: "Invalid pincode",
+      });
+      return;
+    }
+
+    if (!finalCity || !finalCity.trim()) {
+      res.status(400).json({
+        success: false,
+        message: "City is required",
+      });
+      return;
+    }
+
+    const finalName = (name !== undefined ? String(name) : String(address.name || "")).trim();
+    if (!finalName) {
+      res.status(400).json({
+        success: false,
+        message: "Name is required",
+      });
+      return;
+    }
+
+    const finalPhone = (phone !== undefined ? String(phone) : String(address.phone || "")).trim();
+    if (!finalPhone || !/^[6-9]\d{9}$/.test(finalPhone)) {
+      res.status(400).json({
+        success: false,
+        message: "Phone is required",
+      });
+      return;
+    }
+
+    address.name = finalName;
+    address.phone = finalPhone;
+    address.city = finalCity.trim();
+    address.state = resolved.state;
+    address.postal_district = resolved.postal_district;
+    address.admin_district = resolved.admin_district;
 
     await user.save();
 

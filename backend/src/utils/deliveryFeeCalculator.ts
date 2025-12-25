@@ -14,6 +14,8 @@ const ADMIN_ADDRESS: IAddress = {
   pincode: "521235",
   city: "Tiruvuru",
   state: "Andhra Pradesh",
+  postal_district: "Krishna",
+  admin_district: "NTR",
   addressLine: "Boya Bazar, Tiruvuru, Krishna District, Andhra Pradesh - 521235",
   lat: 17.0956,  // Accurate GPS for Boya Bazar, Tiruvuru
   lng: 80.6089,

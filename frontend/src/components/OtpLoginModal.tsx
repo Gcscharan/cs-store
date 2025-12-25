@@ -105,7 +105,15 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
       if (!response.ok) {
         // Handle account not found case
         if (response.status === 404 && data.action === "signup_required") {
-          setError("Account does not exist. Please create an account.");
+          setError("Account does not exist. Redirecting to signup...");
+
+          const identifier = phone || email;
+          const query = identifier
+            ? `?identifier=${encodeURIComponent(identifier)}`
+            : "";
+
+          // Redirect to signup so user can create a new account
+          window.location.href = `/signup${query}`;
           return;
         }
         throw new Error(data.error || "Failed to send OTP");

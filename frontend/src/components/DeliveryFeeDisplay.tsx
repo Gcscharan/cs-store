@@ -131,7 +131,7 @@ const DeliveryFeeDisplay: React.FC<DeliveryFeeDisplayProps> = ({
                   deliveryFee.isFreeDelivery
                 )}
               </div>
-              {deliveryFee.distance > 0 && (
+              {deliveryFee.distance !== null && deliveryFee.distance > 0 && (
                 <div className="text-xs text-gray-500">
                   {deliveryFee.distance}km from warehouse
                 </div>

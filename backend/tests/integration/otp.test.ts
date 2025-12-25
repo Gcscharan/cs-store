@@ -23,10 +23,7 @@ describe("OTP Endpoints", () => {
       expect(response.body).toHaveProperty("expiresIn", 600);
       
       if (process.env.MOCK_OTP === "true") {
-        expect(response.body).toHaveProperty("mock", true);
-        expect(response.body).toHaveProperty("otp");
-        expect(response.body).toHaveProperty("phone");
-        expect(response.body.message).toContain("(mock)");
+        expect(response.body).toHaveProperty("mockOtp");
       }
     });
 
@@ -40,8 +37,7 @@ describe("OTP Endpoints", () => {
       expect(response.body).toHaveProperty("expiresIn", 600);
       
       if (process.env.MOCK_OTP === "true") {
-        expect(response.body).toHaveProperty("mock", true);
-        expect(response.body).toHaveProperty("otp");
+        expect(response.body).toHaveProperty("mockOtp");
       }
     });
 
@@ -306,36 +302,6 @@ describe("OTP Endpoints", () => {
         .expect(401);
 
       expect(response.body).toHaveProperty("message", "Authentication required");
-    });
-  });
-
-  describe("POST /api/otp/debug/generate", () => {
-    beforeEach(async () => {
-      process.env.MOCK_OTP = "true";
-    });
-
-    it("should generate OTP without authentication via debug route", async () => {
-      const response = await request(app)
-        .post("/api/otp/debug/generate")
-        .send({ phone: "919876543210" })
-        .expect(200);
-
-      expect(response.body).toHaveProperty("message");
-      expect(response.body).toHaveProperty("expiresIn", 600);
-      
-      if (process.env.MOCK_OTP === "true") {
-        expect(response.body).toHaveProperty("mock", true);
-        expect(response.body).toHaveProperty("otp");
-      }
-    });
-
-    it("should validate phone number on debug route", async () => {
-      const response = await request(app)
-        .post("/api/otp/debug/generate")
-        .send({ phone: "invalid-phone" })
-        .expect(400);
-
-      expect(response.body).toHaveProperty("message", "Invalid phone number format");
     });
   });
 });

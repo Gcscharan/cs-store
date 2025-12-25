@@ -1,5 +1,6 @@
 import express from "express";
 import {
+  createOrder,
   getOrders,
   getOrderById,
   cancelOrder,
@@ -20,6 +21,7 @@ const router = express.Router();
 // Order routes
 router.get("/", authenticateToken, getOrders);
 router.get("/:id", authenticateToken, getOrderById);
+router.post("/", authenticateToken, createOrder);
 router.post("/create", authenticateToken, placeOrderCOD); // Add missing create route
 router.post("/cod", authenticateToken, placeOrderCOD);
 router.put("/:id/cancel", authenticateToken, cancelOrder); // Changed from POST to PUT

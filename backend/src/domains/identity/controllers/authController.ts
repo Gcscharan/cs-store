@@ -118,10 +118,20 @@ export const login = async (
   try {
     const { email, phone, password } = req.body;
 
-    // Find user by email or phone
-    const user = await User.findOne({
-      $or: [{ email }, { phone }],
-    });
+    // Require an explicit identifier
+    if (!email && !phone) {
+      res.status(400).json({ message: "Email or phone is required" });
+      return;
+    }
+
+    // Look up strictly by the identifier the client provided
+    let user;
+    if (email) {
+      user = await User.findOne({ email: String(email).toLowerCase() });
+    } else if (phone) {
+      const cleanedPhone = String(phone).replace(/\D/g, "");
+      user = await User.findOne({ phone: cleanedPhone });
+    }
 
     if (!user || !user.passwordHash) {
       res.status(400).json({ message: "Invalid email or password" });
@@ -364,6 +374,20 @@ export const googleCallback = async (
       return;
     }
 
+    // Check if this is a signup required case (user not found in OAuth strategy)
+    if (user._signupRequired) {
+      const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+      const redirectUrl = new URL(`${frontendUrl}/signup`);
+
+      if (user.email) {
+        redirectUrl.searchParams.set("identifier", user.email);
+      }
+
+      redirectUrl.searchParams.set("error", "google_signup_required");
+      res.redirect(redirectUrl.toString());
+      return;
+    }
+
     // Generate tokens
     const accessToken = jwt.sign(
       { userId: user._id, email: user.email, role: user.role },
@@ -485,11 +509,15 @@ export const sendAuthOTP = async (
     // In signup mode, we don't need to find an existing user
     let user;
     if (!isSignup) {
-      // Find user by phone or email (if exists)
-      user = await User.findOne({
-        $or: [{ phone: userInput }, { email: userInput }],
-      });
-      
+      // In login mode, look up strictly by the identifier type
+      if (isPhone) {
+        const cleanedPhone = String(userInput).replace(/\D/g, "");
+        user = await User.findOne({ phone: cleanedPhone });
+      } else if (isEmail) {
+        const normalizedEmail = String(userInput).toLowerCase();
+        user = await User.findOne({ email: normalizedEmail });
+      }
+
       // In login mode, user must exist
       if (!user) {
         return res.status(404).json({
@@ -616,13 +644,28 @@ export const verifyAuthOTP = async (
       });
     }
 
-    // LOGIN MODE: existing behavior - find user and log them in
-    const user = await User.findOne({
-      $or: [{ phone }, { email }],
-    });
+    // LOGIN MODE: strict identifier-based lookup
+    let user: any | null = null;
+
+    if (phone && !email) {
+      const cleanedPhone = String(phone).replace(/\D/g, "");
+      user = await User.findOne({ phone: cleanedPhone });
+    } else if (email && !phone) {
+      const normalizedEmail = String(email).toLowerCase();
+      user = await User.findOne({ email: normalizedEmail });
+    } else {
+      // Ambiguous input (both or neither) is not allowed in login mode
+      return res
+        .status(400)
+        .json({ error: "Provide exactly one of phone or email" });
+    }
 
     if (!user) {
-      return res.status(404).json({ error: "User not found" });
+      return res.status(404).json({
+        error: "Account not found. Please sign up first.",
+        action: "signup_required",
+        email: email ? String(email) : undefined,
+      });
     }
 
     // Find OTP record matching user's phone/email

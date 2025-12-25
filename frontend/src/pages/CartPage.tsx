@@ -15,7 +15,6 @@ import {
 import { Link, useNavigate } from "react-router-dom";
 import {
   calculateDeliveryFee,
-  formatDeliveryFee,
 } from "../utils/deliveryFeeCalculator";
 import { calculatePriceBreakdown, formatPrice } from "../utils/priceCalculator";
 import { getProductImage, handleImageError } from "../utils/image";
@@ -74,39 +73,14 @@ const CartPage = () => {
       }
     }
 
-    // Fallback: Return the first address if no default is set
-    if (addresses.length > 0) {
-      const firstAddr = addresses[0];
-      return {
-        _id: firstAddr._id,
-        label: firstAddr.label || "",
-        pincode: firstAddr.pincode || "",
-        city: firstAddr.city || "",
-        state: firstAddr.state || "",
-        addressLine: firstAddr.addressLine || "",
-        lat: (firstAddr.location?.lat ?? firstAddr.lat ?? 0),
-        lng: (firstAddr.location?.lng ?? firstAddr.lng ?? 0),
-        isDefault: false,
-      };
-    }
-
-    // Finally, default to Hyderabad if no address is found
-    return {
-      _id: "default",
-      label: "Default Location",
-      addressLine: "123 Main Street",
-      city: "Hyderabad",
-      state: "Telangana",
-      pincode: "500001",
-      lat: 17.385,
-      lng: 78.4867,
-      isDefault: false,
-    };
+    // NO FALLBACK: Only use default address - strict rule
+    // If no default address exists, return null to trigger requiresAddress state
+    return null;
   }, [addressesData, addressUpdateTrigger]);
 
   // Calculate delivery fee using the same logic as CheckoutPage
   const calculatedDeliveryFeeDetails = calculateDeliveryFee(
-    userAddress,
+    userAddress || undefined, // Pass undefined instead of null to satisfy IAddress type
     cart.total
   );
 
@@ -280,14 +254,17 @@ const CartPage = () => {
 
                 {/* Cart Items List */}
                 <div className="divide-y divide-gray-200">
-                  {cart.items.map((item) => (
-                    <motion.div
-                      key={item.id}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: 20 }}
-                      className="p-4 flex items-center space-x-4 border-b border-gray-100 last:border-b-0"
-                    >
+                  {cart.items.map((item, index) => {
+                    const isOutOfStock = item.price === 0;
+
+                    return (
+                      <motion.div
+                        key={item.id || `deleted-${index}`}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 20 }}
+                        className="p-4 flex items-center space-x-4 border-b border-gray-100 last:border-b-0"
+                      >
                       {/* Product Image */}
                       <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 border border-gray-200">
                         <img
@@ -303,9 +280,13 @@ const CartPage = () => {
                         <h3 className="font-semibold text-gray-900 truncate text-sm">
                           {item.name}
                         </h3>
-                        <p className="text-gray-600 text-xs mt-1">
-                          ₹{item.price.toFixed(2)} each
-                        </p>
+                        {isOutOfStock ? (
+                          <p className="text-xs mt-1 text-red-600">Out of stock</p>
+                        ) : (
+                          <p className="text-gray-600 text-xs mt-1">
+                            ₹{item.price.toFixed(2)} each
+                          </p>
+                        )}
                         <div className="flex items-center space-x-2 mt-2">
                           <span className="text-xs text-gray-500">Seller:</span>
                           <span className="text-xs font-medium text-blue-600">
@@ -319,42 +300,56 @@ const CartPage = () => {
 
                       {/* Quantity Controls */}
                       <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() =>
-                            handleQuantityChange(item.id, item.quantity - 1)
-                          }
-                          disabled={
-                            isUpdating === item.id || item.quantity <= 1
-                          }
-                          className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-lg font-medium"
-                        >
-                          -
-                        </button>
+                        {isOutOfStock ? (
+                          <span className="text-xs font-medium text-gray-400">--</span>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() =>
+                                handleQuantityChange(item.id, item.quantity - 1)
+                              }
+                              disabled={
+                                isUpdating === item.id || item.quantity <= 1
+                              }
+                              className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-lg font-medium"
+                            >
+                              -
+                            </button>
 
-                        <span className="w-12 text-center font-medium text-sm">
-                          {isUpdating === item.id ? "..." : item.quantity}
-                        </span>
+                            <span className="w-12 text-center font-medium text-sm">
+                              {isUpdating === item.id ? "..." : item.quantity}
+                            </span>
 
-                        <button
-                          onClick={() =>
-                            handleQuantityChange(item.id, item.quantity + 1)
-                          }
-                          disabled={isUpdating === item.id}
-                          className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-lg font-medium"
-                        >
-                          +
-                        </button>
+                            <button
+                              onClick={() =>
+                                handleQuantityChange(item.id, item.quantity + 1)
+                              }
+                              disabled={isUpdating === item.id}
+                              className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-lg font-medium"
+                            >
+                              +
+                            </button>
+                          </>
+                        )}
                       </div>
 
                       {/* Item Total */}
                       <div className="text-right">
-                        <div className="text-lg font-semibold text-gray-900">
-                          ₹{(item.price * item.quantity).toFixed(2)}
-                        </div>
-                        {item.price > 0 && (
-                          <div className="text-xs text-gray-500 line-through">
-                            ₹{(item.price * 1.2 * item.quantity).toFixed(2)}
+                        {isOutOfStock ? (
+                          <div className="text-sm font-medium text-red-500">
+                            Out of stock
                           </div>
+                        ) : (
+                          <>
+                            <div className="text-lg font-semibold text-gray-900">
+                              ₹{(item.price * item.quantity).toFixed(2)}
+                            </div>
+                            {item.price > 0 && (
+                              <div className="text-xs text-gray-500 line-through">
+                                ₹{(item.price * 1.2 * item.quantity).toFixed(2)}
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
 
@@ -382,7 +377,8 @@ const CartPage = () => {
                         </button>
                       </div>
                     </motion.div>
-                  ))}
+                  );
+                  })}
                 </div>
               </div>
             </div>
@@ -413,21 +409,6 @@ const CartPage = () => {
                       </span>
                     </div>
 
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Delivery Fee</span>
-                      <span
-                        className={`font-medium ${
-                          priceBreakdown.isFreeDelivery
-                            ? "text-green-600"
-                            : "text-gray-900"
-                        }`}
-                      >
-                        {formatDeliveryFee(
-                          calculatedDeliveryFeeDetails.finalFee,
-                          calculatedDeliveryFeeDetails.isFreeDelivery
-                        )}
-                      </span>
-                    </div>
 
                     <div className="border-t border-gray-200 pt-3">
                       <div className="flex justify-between text-lg font-semibold">
@@ -437,11 +418,6 @@ const CartPage = () => {
                     </div>
                   </div>
 
-                  {/* Savings Message */}
-                  <div className="text-sm text-green-600 font-medium mb-4">
-                    You will save {formatPrice(priceBreakdown.savings)} on this
-                    order
-                  </div>
 
                   {/* Security Message */}
                   <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
@@ -464,25 +440,6 @@ const CartPage = () => {
                     </div>
                   </div>
 
-                  {/* Coordinate Resolution Error Banner */}
-                  {(!userAddress?.lat || !userAddress?.lng || userAddress.lat === 0 || userAddress.lng === 0) && (
-                    <div className="mt-4 p-4 bg-red-50 border-2 border-red-500 rounded-lg">
-                      <div className="flex items-start space-x-3">
-                        <svg className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                        </svg>
-                        <div className="flex-1">
-                          <h4 className="text-sm font-bold text-red-900">Cannot Calculate Delivery Fee</h4>
-                          <p className="text-xs text-red-800 mt-1">
-                            Your delivery address has invalid GPS coordinates. We cannot calculate the delivery fee or process your order.
-                          </p>
-                          <p className="text-xs text-red-800 mt-2 font-semibold">
-                            <strong>Action Required:</strong> Please delete this address and create a new one with complete details (street name, landmark, area).
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
                   
                   {/* Pincode Fallback Warning Banner */}
                   {userAddress?.lat && userAddress?.lng && userAddress.lat !== 0 && userAddress.lng !== 0 && 
@@ -503,7 +460,14 @@ const CartPage = () => {
 
                   {/* Place Order Button */}
                   <div className="mt-4">
-                    {(!userAddress?.lat || !userAddress?.lng || userAddress.lat === 0 || userAddress.lng === 0) ? (
+                    {!userAddress ? (
+                      <button
+                        disabled
+                        className="w-full py-3 px-4 rounded-lg font-medium text-center bg-amber-400 text-amber-800 cursor-not-allowed text-lg"
+                      >
+                        ADD DELIVERY ADDRESS TO PLACE ORDER
+                      </button>
+                    ) : (!userAddress?.lat || !userAddress?.lng || userAddress.lat === 0 || userAddress.lng === 0) ? (
                       <button
                         disabled
                         className="w-full py-3 px-4 rounded-lg font-medium text-center bg-gray-400 text-gray-700 cursor-not-allowed text-lg"
@@ -520,76 +484,6 @@ const CartPage = () => {
                     )}
                   </div>
 
-                  {/* Delivery Fee Debug Section */}
-                  <div className="mt-6 p-4 bg-yellow-50 border-2 border-yellow-300 rounded-lg">
-                    <h3 className="text-sm font-bold text-yellow-900 mb-3 flex items-center">
-                      🐛 Delivery Fee Debug Information
-                    </h3>
-                    <div className="space-y-2 text-xs text-gray-800">
-                      <div className="bg-white p-2 rounded">
-                        <p className="font-semibold text-blue-700">📍 Admin Warehouse:</p>
-                        <p className="ml-4">Location: Tiruvuru (Boya Bazar), Andhra Pradesh</p>
-                        <p className="ml-4">Coordinates: 17.0956, 80.6089</p>
-                        <p className="ml-4">Pincode: 521235</p>
-                      </div>
-                      
-                      <div className="bg-white p-2 rounded">
-                        <p className="font-semibold text-green-700">📍 Your Default Address:</p>
-                        <p className="ml-4">Location: {userAddress?.city}, {userAddress?.state}</p>
-                        <p className="ml-4">Coordinates: {userAddress?.lat || 'N/A'}, {userAddress?.lng || 'N/A'}</p>
-                        <p className="ml-4">Pincode: {userAddress?.pincode}</p>
-                      </div>
-                      
-                      <div className="bg-white p-2 rounded">
-                        <p className="font-semibold text-purple-700">📏 Distance Calculation:</p>
-                        <p className="ml-4">Distance: {calculatedDeliveryFeeDetails.distance.toFixed(2)} km</p>
-                        <p className="ml-4">Method: Haversine Formula (straight-line)</p>
-                      </div>
-                      
-                      <div className="bg-white p-2 rounded">
-                        <p className="font-semibold text-orange-700">💰 Pricing Breakdown:</p>
-                        <p className="ml-4">Cart Subtotal: ₹{cart.total.toFixed(2)}</p>
-                        <p className="ml-4">
-                          {(!userAddress?.lat || !userAddress?.lng || userAddress.lat === 0 || userAddress.lng === 0) ? (
-                            <span className="text-red-600 font-bold">❌ CANNOT CALCULATE (Invalid coordinates)</span>
-                          ) : calculatedDeliveryFeeDetails.isFreeDelivery ? (
-                            <span className="text-green-600 font-bold">✅ FREE DELIVERY (Cart ≥ ₹2000)</span>
-                          ) : calculatedDeliveryFeeDetails.distance <= 2 ? (
-                            <>Pricing Tier: Up to 2 km → ₹25</>
-                          ) : calculatedDeliveryFeeDetails.distance <= 6 ? (
-                            <>Pricing Tier: 2-6 km → ₹{Math.round(35 + ((calculatedDeliveryFeeDetails.distance - 2) / 4) * 25)} (progressive)</>
-                          ) : (
-                            <>Pricing Tier: Beyond 6 km → ₹60 + ({(calculatedDeliveryFeeDetails.distance - 6).toFixed(2)} km × ₹8) = ₹{Math.round(60 + (calculatedDeliveryFeeDetails.distance - 6) * 8)}</>
-                          )}
-                        </p>
-                        <p className="ml-4 font-bold text-red-600 text-base mt-1">
-                          Final Delivery Fee: ₹{calculatedDeliveryFeeDetails.finalFee}
-                        </p>
-                      </div>
-                      
-                      <div className="bg-red-50 p-2 rounded border border-red-200">
-                        <p className="font-semibold text-red-700">⚠️ Issue Detection:</p>
-                        {!userAddress?.lat || !userAddress?.lng || calculatedDeliveryFeeDetails.distance === 0 ? (
-                          <div className="ml-4 text-red-600 space-y-1">
-                            <p><strong>❌ CRITICAL ERROR:</strong> Your address has invalid GPS coordinates!</p>
-                            <p className="text-xs">• Coordinates: {userAddress?.lat || 'N/A'}, {userAddress?.lng || 'N/A'}</p>
-                            <p className="text-xs">• This causes incorrect delivery fee calculation</p>
-                            <p className="text-xs font-bold">• Charging penalty fee of ₹500</p>
-                            <p className="text-xs bg-yellow-100 p-1 rounded mt-1">
-                              🔧 <strong>Fix:</strong> Delete this address and create a new one with complete details (street name, landmark, area) so the system can locate it accurately
-                            </p>
-                          </div>
-                        ) : userAddress?.pincode === "521235" && calculatedDeliveryFeeDetails.finalFee > 100 ? (
-                          <p className="ml-4 text-red-600">
-                            <strong>⚠️ WARNING:</strong> Your address pincode matches warehouse (521235) but distance is {calculatedDeliveryFeeDetails.distance.toFixed(2)} km. 
-                            This suggests incorrect coordinates are stored for your address!
-                          </p>
-                        ) : (
-                          <p className="ml-4 text-green-600">✓ Calculation looks normal</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>

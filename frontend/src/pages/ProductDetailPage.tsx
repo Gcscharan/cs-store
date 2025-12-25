@@ -123,6 +123,12 @@ const ProductDetailPage = () => {
   const handleAddToCart = async () => {
     if (!product) return;
 
+    // Block adding to cart when product is out of stock
+    if ((product.stock || 0) <= 0) {
+      showError("Out of Stock", "This item is currently out of stock.");
+      return;
+    }
+
     // Check if user is authenticated
     if (!auth.isAuthenticated) {
       navigate("/login");
@@ -160,7 +166,7 @@ const ProductDetailPage = () => {
 
       // ✅ Trigger Global Amazon-style confirmation bar
       const productImage = product?.images?.[0]?.thumb || "/placeholder-product.svg";
-      const updatedCartCount = result.cart?.itemCount || (cart.itemCount + quantity);
+      const updatedCartCount = result.cart?.items?.length || cart.items.length;
       const updatedCartTotal = result.cart?.total || (cart.total + ((product?.price || 0) * quantity));
       triggerGlobalConfirmation(product?.name || "Product", productImage, updatedCartCount, updatedCartTotal);
       
@@ -442,7 +448,13 @@ const ProductDetailPage = () => {
                     className="bg-blue-600 text-white py-4 px-8 rounded-xl hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center space-x-3 shadow-lg hover:shadow-xl font-semibold text-lg flex-1"
                   >
                     <ShoppingCart className="h-6 w-6" />
-                    <span>{isAddingToCart ? "Adding..." : "Add to Cart"}</span>
+                    <span>
+                      {(product?.stock || 0) <= 0
+                        ? "Out of Stock"
+                        : isAddingToCart
+                        ? "Adding..."
+                        : "Add to Cart"}
+                    </span>
                   </button>
                 </div>
               </div>

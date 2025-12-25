@@ -48,7 +48,7 @@ export async function getRoutePolyline(
       const encodedPolyline = route.overview_polyline.points;
 
       // Decode polyline to get path coordinates
-      const decodedPath = polyline.decode(encodedPolyline).map(([lat, lng]) => ({
+      const decodedPath = polyline.decode(encodedPolyline).map(([lat, lng]: [number, number]) => ({
         lat,
         lng,
       }));
@@ -109,7 +109,7 @@ export function isLocationNearRoute(
 ): boolean {
   try {
     // Decode the polyline
-    const decodedPath = polyline.decode(routePolyline).map(([lat, lng]) => ({
+    const decodedPath = polyline.decode(routePolyline).map(([lat, lng]: [number, number]) => ({
       lat,
       lng,
     }));
@@ -208,7 +208,7 @@ export function decodePolyline(
   encodedPolyline: string
 ): Array<{ lat: number; lng: number }> {
   try {
-    return polyline.decode(encodedPolyline).map(([lat, lng]) => ({
+    return polyline.decode(encodedPolyline).map(([lat, lng]: [number, number]) => ({
       lat,
       lng,
     }));

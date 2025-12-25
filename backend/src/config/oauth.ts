@@ -28,56 +28,48 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
           const googleId = profile.id;
           const email = profile.emails?.[0]?.value;
 
-          // 1) If user already linked with this Google account, log them in
-          let user = await User.findOne({
-            "oauthProviders.providerId": googleId,
-            "oauthProviders.provider": "google",
-          });
-
-          if (user) {
-            return done(null, user);
+          if (!email) {
+            return done(new Error("Google account does not have an email address"), undefined);
           }
 
-          // 2) Try to find existing user by email and link Google provider
-          if (email) {
-            user = await User.findOne({ email });
+          // Strict lookup: only allow login if a user with this exact email already exists
+          const user = await User.findOne({ email });
 
-            if (user) {
-              user.oauthProviders = user.oauthProviders || [];
-
-              const alreadyLinked = user.oauthProviders.some(
-                (p: any) => p.provider === "google" && p.providerId === googleId
-              );
-
-              if (!alreadyLinked) {
-                user.oauthProviders.push({
+          if (!user) {
+            // No user with this email exists -> create a temporary user object for redirect
+            // We'll handle the signup_required logic in the callback
+            const tempUser = {
+              email: email,
+              name: profile.displayName || "",
+              oauthProviders: [
+                {
                   provider: "google",
                   providerId: googleId,
-                });
-                await user.save();
-              }
-
-              return done(null, user);
-            }
+                },
+              ],
+              _signupRequired: true // Flag to indicate signup is needed
+            };
+            return done(null, tempUser);
           }
 
-          // 3) No existing user found, create a new one
-          const newUser = new User({
-            name: profile.displayName || "",
-            email: email || "",
-            phone: "", // Google OAuth typically doesn't provide phone
-            oauthProviders: [
-              {
-                provider: "google",
-                providerId: googleId,
-              },
-            ],
-            addresses: [],
-            isProfileComplete: false,
-          });
+          // Link Google provider if not already linked
+          if (!user.oauthProviders) {
+            user.oauthProviders = [];
+          }
 
-          await newUser.save();
-          return done(null, newUser);
+          const alreadyLinked = user.oauthProviders.some(
+            (p: any) => p.provider === "google" && p.providerId === googleId
+          );
+
+          if (!alreadyLinked) {
+            user.oauthProviders.push({
+              provider: "google",
+              providerId: googleId,
+            });
+            await user.save();
+          }
+
+          return done(null, user);
         } catch (error) {
           return done(error, undefined);
         }
