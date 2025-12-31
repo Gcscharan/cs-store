@@ -86,6 +86,7 @@ const AdminOrderDetailsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
   // Check authentication
   useEffect(() => {
@@ -145,13 +146,20 @@ const AdminOrderDetailsPage: React.FC = () => {
 
   // Get available status transitions based on current status
   const getAvailableStatusOptions = (currentStatus: string): { value: string; label: string; color: string }[] => {
-    const dbStatus = currentStatus.toLowerCase();
+    const upper = String(currentStatus || "").toUpperCase();
+    const canonical = upper === "PENDING" ? "CREATED" : upper;
     
     // Pending orders: Admin can ONLY Accept or Cancel
-    if (dbStatus === "created" || dbStatus === "pending") {
+    if (canonical === "CREATED") {
       return [
-        { value: "assigned", label: "Accept Order", color: "bg-green-600 hover:bg-green-700" },
-        { value: "cancelled", label: "Cancel Order", color: "bg-red-600 hover:bg-red-700" },
+        { value: "CONFIRMED", label: "Confirm Order", color: "bg-green-600 hover:bg-green-700" },
+        { value: "CANCELLED", label: "Cancel Order", color: "bg-red-600 hover:bg-red-700" },
+      ];
+    }
+
+    if (canonical === "CONFIRMED") {
+      return [
+        { value: "CANCELLED", label: "Cancel Order", color: "bg-red-600 hover:bg-red-700" },
       ];
     }
     
@@ -167,24 +175,45 @@ const AdminOrderDetailsPage: React.FC = () => {
       setIsUpdatingStatus(true);
       setError(null);
 
-      const response = await fetch(`/api/admin/orders/${orderId}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${tokens?.accessToken}`,
-        },
-        body: JSON.stringify({
-          status: newStatus,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to update order status");
+      let response: Response;
+      if (newStatus === "CONFIRMED") {
+        response = await fetch(`/api/admin/orders/${orderId}/confirm`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${tokens?.accessToken}`,
+          },
+        });
+      } else if (newStatus === "CANCELLED") {
+        response = await fetch(`/api/orders/${orderId}/cancel`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${tokens?.accessToken}`,
+          },
+        });
+      } else {
+        throw new Error("Unsupported action");
       }
 
-      const data = await response.json();
-      setOrder(data.order);
-      setSuccessMessage("Order status updated successfully!");
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        if (response.status === 403) {
+          throw new Error("You do not have permission to perform this action");
+        }
+        if (response.status === 409) {
+          throw new Error("Order cannot be updated in its current state");
+        }
+        throw new Error((data as any).message || (data as any).error || "Request failed");
+      }
+
+      const nextOrder = (data as any).order || (data as any).data?.order;
+      if (nextOrder) {
+        setOrder(nextOrder);
+      } else {
+        await fetchOrderDetails();
+      }
+      setSuccessMessage(newStatus === "CANCELLED" ? "Order cancelled successfully!" : "Order confirmed successfully!");
       setTimeout(() => setSuccessMessage(""), 3000);
       
       // Refresh order details
@@ -238,6 +267,14 @@ const AdminOrderDetailsPage: React.FC = () => {
     
     if (status === "paid" && order.paymentReceivedAt) {
       if (method === "cod") {
+        return `Paid in cash on delivery on ${new Date(order.paymentReceivedAt).toLocaleDateString('en-GB', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        })}`;
+      } else if (method === "upi") {
         return `Paid via UPI on ${new Date(order.paymentReceivedAt).toLocaleDateString('en-GB', {
           day: 'numeric',
           month: 'short',
@@ -246,7 +283,7 @@ const AdminOrderDetailsPage: React.FC = () => {
           minute: '2-digit'
         })}`;
       } else {
-        return `Paid via Razorpay on ${new Date(order.paymentReceivedAt || order.createdAt).toLocaleDateString('en-GB', {
+        return `Paid on ${new Date(order.paymentReceivedAt).toLocaleDateString('en-GB', {
           day: 'numeric',
           month: 'short',
           year: 'numeric',
@@ -255,7 +292,9 @@ const AdminOrderDetailsPage: React.FC = () => {
         })}`;
       }
     } else if (status === "paid") {
-      return method === "cod" ? "Paid via UPI" : "Paid via Razorpay";
+      if (method === "cod") return "Paid in cash on delivery";
+      if (method === "upi") return "Paid via UPI";
+      return "Paid";
     } else {
       return "Payment Pending";
     }
@@ -302,7 +341,7 @@ const AdminOrderDetailsPage: React.FC = () => {
     return null;
   }
 
-  const currentStatus = order.status || order.orderStatus || "pending";
+  const currentStatus = order.orderStatus || order.status || "pending";
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -359,7 +398,7 @@ const AdminOrderDetailsPage: React.FC = () => {
                 Order Items
               </h2>
               <div className="space-y-4">
-                {order.items.map((item, index) => {
+                {(order.items || []).map((item, index) => {
                   const productName = getProductName(item);
                   const price = getProductPrice(item);
                   const quantity = getProductQuantity(item);
@@ -537,7 +576,13 @@ const AdminOrderDetailsPage: React.FC = () => {
                     {availableActions.map((action) => (
                       <button
                         key={action.value}
-                        onClick={() => handleStatusUpdate(action.value)}
+                        onClick={() => {
+                          if (action.value === "CANCELLED") {
+                            setShowCancelModal(true);
+                            return;
+                          }
+                          handleStatusUpdate(action.value);
+                        }}
                         disabled={isUpdatingStatus}
                         className={`w-full text-white px-4 py-3 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors ${action.color}`}
                       >
@@ -556,7 +601,7 @@ const AdminOrderDetailsPage: React.FC = () => {
                       <div className="pt-3 border-t border-gray-200">
                         <p className="text-xs text-gray-500 text-center">
                           {currentStatus === "created" || currentStatus === "pending"
-                            ? "Accept to process the order or decline to cancel it."
+                            ? "Confirm to process the order or cancel it."
                             : currentStatus === "assigned"
                             ? "Move to In Progress when delivery starts."
                             : "Mark as completed when delivery is done."}
@@ -567,6 +612,38 @@ const AdminOrderDetailsPage: React.FC = () => {
                 );
               })()}
             </div>
+
+            {showCancelModal && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                    Cancel Order
+                  </h3>
+                  <p className="text-gray-600 mb-6">
+                    This action cannot be undone and inventory will be restored.
+                  </p>
+                  <div className="flex gap-3 justify-end">
+                    <button
+                      onClick={() => setShowCancelModal(false)}
+                      disabled={isUpdatingStatus}
+                      className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md disabled:opacity-50"
+                    >
+                      Keep Order
+                    </button>
+                    <button
+                      onClick={async () => {
+                        setShowCancelModal(false);
+                        await handleStatusUpdate("CANCELLED");
+                      }}
+                      disabled={isUpdatingStatus}
+                      className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md disabled:opacity-50"
+                    >
+                      {isUpdatingStatus ? "Processing..." : "Confirm Cancel"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Order Info */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">

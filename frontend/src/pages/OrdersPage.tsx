@@ -212,6 +212,14 @@ const OrdersPage: React.FC = () => {
     
     if (status === "paid" && order.paymentReceivedAt) {
       if (method === "cod") {
+        return `Paid in cash on delivery on ${new Date(order.paymentReceivedAt).toLocaleDateString('en-GB', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        })}`;
+      } else if (method === "upi") {
         return `Paid via UPI on ${new Date(order.paymentReceivedAt).toLocaleDateString('en-GB', {
           day: 'numeric',
           month: 'short',
@@ -220,7 +228,7 @@ const OrdersPage: React.FC = () => {
           minute: '2-digit'
         })}`;
       } else {
-        return `Paid via Razorpay on ${new Date(order.paymentReceivedAt || order.createdAt).toLocaleDateString('en-GB', {
+        return `Paid on ${new Date(order.paymentReceivedAt).toLocaleDateString('en-GB', {
           day: 'numeric',
           month: 'short',
           year: 'numeric',
@@ -229,7 +237,9 @@ const OrdersPage: React.FC = () => {
         })}`;
       }
     } else if (status === "paid") {
-      return method === "cod" ? "Paid via UPI" : "Paid via Razorpay";
+      if (method === "cod") return "Paid in cash on delivery";
+      if (method === "upi") return "Paid via UPI";
+      return "Paid";
     } else {
       return "Payment Pending";
     }

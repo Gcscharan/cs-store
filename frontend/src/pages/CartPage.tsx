@@ -114,6 +114,8 @@ const CartPage = () => {
   ) => {
     if (newQuantity < 1) return;
 
+    const prevQuantity = cart.items.find((item) => item.id === productId)?.quantity;
+
     setIsUpdating(productId);
     try {
       // Update in Redux store first for immediate UI feedback
@@ -129,9 +131,8 @@ const CartPage = () => {
     } catch (error) {
       console.error("Failed to update quantity:", error);
       // Revert Redux state on error
-      const item = cart.items.find((item) => item.id === productId);
-      if (item) {
-        dispatch(updateCartItem({ id: productId, quantity: item.quantity }));
+      if (typeof prevQuantity === "number") {
+        dispatch(updateCartItem({ id: productId, quantity: prevQuantity }));
       }
     } finally {
       setIsUpdating(null);

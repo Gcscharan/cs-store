@@ -405,14 +405,23 @@ export class RouteAssignmentService {
   ): Promise<void> {
     const orderIds = orders.map((o) => o._id);
 
+    const deliveryBoyDocQuery = DeliveryBoy.findById(deliveryBoyId).select("userId");
+    const deliveryBoyDoc = session
+      ? await deliveryBoyDocQuery.session(session)
+      : await deliveryBoyDocQuery;
+
+    if (!deliveryBoyDoc || !(deliveryBoyDoc as any).userId) {
+      throw new Error("Delivery partner userId not found for delivery boy");
+    }
+
+    const deliveryPartnerId = (deliveryBoyDoc as any).userId;
+
     // Update orders
     const updateQuery = Order.updateMany(
       { _id: { $in: orderIds } },
       {
         $set: {
-          deliveryBoyId: deliveryBoyId,
-          deliveryStatus: "assigned",
-          orderStatus: "assigned",
+          deliveryPartnerId: deliveryPartnerId,
         },
       }
     );

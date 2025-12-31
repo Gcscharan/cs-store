@@ -13,7 +13,7 @@ import {
   unassignDeliveryBoyFromOrder,
   getOptimalDeliveryBoy,
 } from "../controllers/orderAssignmentController";
-import { authenticateToken, requireRole } from "../middleware/auth";
+import { authenticateToken } from "../middleware/auth";
 import { Order } from "../models/Order";
 
 const router = express.Router();
@@ -59,10 +59,6 @@ router.get("/:id/tracking", authenticateToken, async (req, res) => {
   } catch (error) {
     res.status(500).json({ message: "Failed to get tracking information" });
   }
-});
-router.put("/:id/status", authenticateToken, requireRole(["admin"]), (req, res) => {
-  // Mock implementation for admin status update
-  res.json({ message: "Order status updated", order: { orderStatus: req.body.status } });
 });
 router.get("/:orderId/payment-status", authenticateToken, getPaymentStatus);
 router.put("/:orderId/payment-status", authenticateToken, updatePaymentStatus);

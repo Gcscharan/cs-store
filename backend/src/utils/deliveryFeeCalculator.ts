@@ -42,6 +42,15 @@ const DELIVERY_CONFIG = {
  * @returns Distance in kilometers
  */
 export async function getRoadDistance(userAddress: IAddress): Promise<number> {
+  // Test-only behavior: avoid any external Google API calls for deterministic, noise-free tests
+  if (process.env.NODE_ENV === "test") {
+    return calculateHaversineDistance(
+      ADMIN_ADDRESS.lat,
+      ADMIN_ADDRESS.lng,
+      userAddress.lat || 0,
+      userAddress.lng || 0
+    );
+  }
   try {
     const response = await googleMapsClient.distancematrix({
       params: {

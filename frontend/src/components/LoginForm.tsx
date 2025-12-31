@@ -106,7 +106,8 @@ const LoginForm: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSendOtp = async () => {
+  const handleSendOtp = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!validateForm()) return;
 
     setIsLoading(true);

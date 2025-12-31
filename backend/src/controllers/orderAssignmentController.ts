@@ -78,8 +78,15 @@ export const assignDeliveryBoyToOrder = async (
     }
 
     // Update order with delivery boy
-    order.deliveryBoyId = assignedDeliveryBoy._id;
-    order.orderStatus = "assigned";
+    const assignedUserId = (assignedDeliveryBoy as any).userId;
+    if (!assignedUserId) {
+      res.status(400).json({
+        error: "Delivery boy is missing linked userId",
+      });
+      return;
+    }
+
+    order.deliveryPartnerId = assignedUserId;
     await order.save();
 
     // Update delivery boy's assigned orders
@@ -165,8 +172,7 @@ export const unassignDeliveryBoyFromOrder = async (
     }
 
     // Update order
-    order.deliveryBoyId = undefined;
-    order.orderStatus = "created";
+    order.deliveryPartnerId = undefined;
     await order.save();
 
     res.json({

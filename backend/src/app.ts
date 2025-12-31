@@ -33,7 +33,13 @@ const app: Application = express();
 // Middleware
 app.use(
   cors({
-    origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
+    origin: [
+      "http://localhost:3000",
+      "http://127.0.0.1:3000",
+      "http://localhost:5173",
+      "http://127.0.0.1:5173",
+      process.env.FRONTEND_URL || "",
+    ].filter(Boolean),
     credentials: true,
   })
 );
@@ -52,11 +58,6 @@ app.get("/health", (req, res) => {
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
   });
-});
-
-// Test payment route directly in app.ts
-app.get("/api/payment/test-direct", (req, res) => {
-  res.json({ message: "Direct payment route working!" });
 });
 
 // API Routes

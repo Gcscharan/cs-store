@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+import { Request, Response, NextFunction } from "express";
 import mongoose from "mongoose";
 import { Order } from "../../../models/Order";
 import { DeliveryBoy } from "../../../models/DeliveryBoy";
@@ -6,6 +6,8 @@ import { Product } from "../../../models/Product";
 import { Cart } from "../../../models/Cart";
 import { dispatchNotification } from "../../communication/services/notificationService";
 import { createOrderFromCart } from "../services/orderBuilder";
+import { orderStateService } from "../../orders/services/orderStateService";
+import { OrderStatus } from "../../orders/enums/OrderStatus";
 
 export const getOrders = async (
   req: Request,
@@ -86,77 +88,51 @@ export const getOrderById = async (
 
 export const cancelOrder = async (
   req: Request,
-  res: Response
+  res: Response,
+  next: NextFunction
 ): Promise<Response | void> => {
   try {
     const { id } = req.params;
-    const userId = (req as any).user._id;
-
-    const order = await Order.findOne({ _id: id, userId });
-
-    if (!order) {
-      return res.status(404).json({ message: "Order not found" });
+    const actorId = String((req as any).user?._id || "");
+    if (!actorId) {
+      return res.status(401).json({ message: "User not authenticated" });
     }
 
-    // Check if order can be cancelled
-    if (order.orderStatus === "delivered") {
-      return res.status(400).json({ message: "Cannot cancel delivered order" });
-    }
+    const role = String((req as any).user?.role || "").toLowerCase();
+    const actorRole = role === "admin" ? "ADMIN" : "CUSTOMER";
 
-    if (order.orderStatus === "cancelled") {
-      return res.status(400).json({ message: "Order already cancelled" });
-    }
+    const order = await orderStateService.transition({
+      orderId: id,
+      toStatus: OrderStatus.CANCELLED,
+      actorRole,
+      actorId,
+    });
 
-    if (order.orderStatus === "confirmed") {
-      return res.status(400).json({ message: "Cannot cancel confirmed order" });
-    }
-
-    // Update order status
-    order.orderStatus = "cancelled";
-    await order.save();
-
-    // Restore product stock
-    for (const item of order.items) {
-      await Product.findByIdAndUpdate(item.productId, {
-        $inc: { stock: item.qty },
-      });
-    }
-
-    // Send cancellation notification
-    try {
-      await dispatchNotification(userId.toString(), 'ORDER_CANCELLED', {
-        orderId: order._id.toString(),
-        orderNumber: order._id.toString(),
-        amount: order.totalAmount
-      });
-    } catch (notificationError) {
-      console.error("Failed to send order cancellation notification:", notificationError);
-    }
-
-    res.json({
-      message: "Order cancelled successfully",
-      order: {
-        ...order.toObject(),
-        status: order.orderStatus, // Map orderStatus to status for test compatibility
-      },
+    return res.json({
+      message: "Order cancelled",
+      order,
     });
   } catch (error) {
-    res.status(500).json({ message: "Failed to cancel order" });
+    return next(error as any);
   }
 };
 
 export const createOrder = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user?._id;
-    const paymentMethodRaw = String(req.body?.paymentMethod || "").toLowerCase();
-    const paymentMethod = paymentMethodRaw === "upi" ? "upi" : paymentMethodRaw === "cod" ? "cod" : null;
+    const paymentMethod = String(req.body?.paymentMethod || "").toLowerCase();
 
     if (!userId) {
       return res.status(401).json({ message: "User not authenticated" });
     }
 
-    if (!paymentMethod) {
-      return res.status(400).json({ message: "Invalid payment method" });
+    if (paymentMethod !== "cod" && paymentMethod !== "upi") {
+      return res.status(400).json({ message: "Unsupported payment method" });
+    }
+
+    const upiVpa = paymentMethod === "upi" ? String(req.body?.upiVpa || "").trim() : undefined;
+    if (paymentMethod === "upi" && !upiVpa) {
+      return res.status(400).json({ message: "UPI ID required" });
     }
 
     const idempotencyKeyHeader = String(req.header("Idempotency-Key") || "").trim();
@@ -166,6 +142,7 @@ export const createOrder = async (req: Request, res: Response) => {
     const result = await createOrderFromCart({
       userId,
       paymentMethod,
+      upiVpa,
       idempotencyKey,
     });
 
@@ -276,6 +253,7 @@ export const updatePaymentStatus = async (req: Request, res: Response) => {
   try {
     const { orderId } = req.params;
     const userId = (req as any).user?._id;
+    const userRole = (req as any).user?.role;
 
     if (!userId) {
       return res.status(401).json({ message: "User not authenticated" });
@@ -288,12 +266,13 @@ export const updatePaymentStatus = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Order not found" });
     }
 
-    // Verify the order belongs to the authenticated delivery boy or user
+    // Verify the order belongs to the authenticated delivery boy or user (admin allowed)
     const deliveryBoy = await DeliveryBoy.findOne({ userId, isActive: true });
     const isDeliveryBoy = deliveryBoy && order.deliveryBoyId?.toString() === deliveryBoy._id.toString();
     const isOrderOwner = order.userId.toString() === userId.toString();
+    const isAdmin = userRole === "admin";
 
-    if (!isDeliveryBoy && !isOrderOwner) {
+    if (!isDeliveryBoy && !isOrderOwner && !isAdmin) {
       return res.status(403).json({ message: "You are not authorized to update this order" });
     }
 
@@ -311,6 +290,12 @@ export const updatePaymentStatus = async (req: Request, res: Response) => {
 
           if (fresh.paymentStatus === "PAID" || fresh.paymentStatus === "paid") {
             return;
+          }
+
+          if (fresh.paymentStatus !== "AWAITING_UPI_APPROVAL") {
+            const err: any = new Error("Order is not awaiting payment");
+            err.statusCode = 400;
+            throw err;
           }
 
           if (fresh.orderStatus !== "PENDING_PAYMENT") {
@@ -349,7 +334,6 @@ export const updatePaymentStatus = async (req: Request, res: Response) => {
 
           fresh.paymentStatus = "PAID" as any;
           fresh.paymentReceivedAt = new Date();
-          fresh.orderStatus = "CONFIRMED" as any;
 
           await fresh.save({ session });
 

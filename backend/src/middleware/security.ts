@@ -8,13 +8,18 @@ interface ExtendedRequest extends Request {
   verifiedPayment?: any;
 }
 
+const isTestEnv = process.env.NODE_ENV === "test";
+const noOpMiddleware = (req: Request, res: Response, next: NextFunction) => next();
+
 // Global API rate limiter
-export const apiLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 120,
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+export const apiLimiter = isTestEnv
+  ? noOpMiddleware
+  : rateLimit({
+      windowMs: 60 * 1000, // 1 minute
+      max: 120,
+      standardHeaders: true,
+      legacyHeaders: false,
+    });
 
 /**
  * Security Middleware for CS Store
@@ -27,6 +32,9 @@ export const createRateLimit = (
   max: number,
   message?: string
 ) => {
+  if (isTestEnv) {
+    return noOpMiddleware;
+  }
   return rateLimit({
     windowMs,
     max,

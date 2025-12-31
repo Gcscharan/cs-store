@@ -21,7 +21,6 @@ import DashboardPage from "./pages/DashboardPage";
 import ProductsPage from "./pages/ProductsPage";
 import ProductDetailPage from "./pages/ProductDetailPage";
 import CartPage from "./pages/CartPage";
-import PaymentPage from "./pages/PaymentPage";
 import CheckoutPage from "./pages/CheckoutPage";
 import OrdersPage from "./pages/OrdersPage";
 import OrderDetailsPage from "./pages/OrderDetailsPage";
@@ -29,6 +28,7 @@ import OrderTrackingPage from "./pages/OrderTrackingPage";
 import ProfilePage from "./pages/ProfilePage";
 import AddressesPage from "./pages/AddressesPage";
 import SignupPage from "./pages/SignupPage";
+import LoginPage from "./pages/LoginPage";
 import MenuPage from "./pages/MenuPage";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminProductsPage from "./pages/AdminProductsPage";
@@ -193,7 +193,7 @@ function AuthRouter() {
         path="/login"
         element={
           <Layout>
-            <HomePage />
+            <LoginPage />
           </Layout>
         }
       />
@@ -238,14 +238,6 @@ function OtherRoutes() {
           element={
             <ProtectedRoute>
               <CartPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/payment"
-          element={
-            <ProtectedRoute>
-              <PaymentPage />
             </ProtectedRoute>
           }
         />

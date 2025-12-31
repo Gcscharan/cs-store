@@ -154,7 +154,8 @@ const OrderDetailsPage: React.FC = () => {
       }
 
       const data = await response.json();
-      setOrder(data);
+      const orderData = (data as any)?.order ?? data;
+      setOrder(orderData);
     } catch (err) {
       console.error("Error fetching order details:", err);
       setError("Failed to load order details. Please try again later.");
@@ -219,7 +220,18 @@ const OrderDetailsPage: React.FC = () => {
     let listingPrice = 0;
     let sellingPriceBeforeDelivery = 0;
 
-    order.items.forEach((item) => {
+    const items = order?.items || [];
+    if (items.length === 0) {
+      return {
+        listingPrice: 0,
+        sellingPrice: 0,
+        discount: 0,
+        deliveryFee: order?.totalAmount || 0,
+        totalAmount: order?.totalAmount || 0,
+      };
+    }
+
+    items.forEach((item) => {
       const product =
         typeof item.productId === "object" ? item.productId : item.product;
       const quantity = item.qty || item.quantity || 1;
@@ -330,7 +342,7 @@ const OrderDetailsPage: React.FC = () => {
             )}
 
             {/* Product Details */}
-            {order.items.map((item, index) => {
+            {(order.items || []).map((item, index) => {
               const product =
                 typeof item.productId === "object"
                   ? item.productId
@@ -338,13 +350,25 @@ const OrderDetailsPage: React.FC = () => {
               const productName = item.name || product?.name || "Product";
               const productPrice = item.price || product?.price || 0;
               const quantity = item.qty || item.quantity || 1;
-              let imageUrl =
-                product?.images && product.images.length > 0
-                  ? (typeof product.images[0] === 'string' ? product.images[0] : (product.images[0] as any)?.full || product.images[0])
-                  : "/placeholder-product.png";
+              const rawImage = product?.images && product.images.length > 0 ? (product.images as any)[0] : undefined;
+              let imageUrl: string = "/placeholder-product.png";
+              if (rawImage) {
+                if (typeof rawImage === "string") {
+                  imageUrl = rawImage;
+                } else if (typeof rawImage === "object") {
+                  imageUrl =
+                    String(
+                      (rawImage as any)?.url ||
+                        (rawImage as any)?.full ||
+                        (rawImage as any)?.variants?.original ||
+                        (rawImage as any)?.variants?.thumbnail ||
+                        ""
+                    ) || "/placeholder-product.png";
+                }
+              }
               
               // Replace via.placeholder.com URLs with inline SVG
-              if (imageUrl && imageUrl.includes("via.placeholder.com")) {
+              if (typeof imageUrl === "string" && imageUrl.includes("via.placeholder.com")) {
                 imageUrl = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZTVlN2ViIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGRvbWluYW50LWJhc2VsaW5lPSJtaWRkbGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM5Y2EzYWYiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNiI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+";
               }
               

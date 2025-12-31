@@ -4,7 +4,7 @@ async function globalSetup(config: FullConfig) {
   console.log("🚀 Setting up E2E test environment...");
 
   // Start backend server if not running
-  const backendUrl = process.env.BACKEND_URL || "http://localhost:5000";
+  const backendUrl = process.env.BACKEND_URL || "http://localhost:5001";
 
   try {
     const response = await fetch(`${backendUrl}/health`);
@@ -14,7 +14,7 @@ async function globalSetup(config: FullConfig) {
     console.log("✅ Backend server is running");
   } catch (error) {
     console.log(
-      "⚠️  Backend server not detected. Please ensure it's running on port 5000"
+      "⚠️  Backend server not detected. Please ensure it's running on port 5001"
     );
   }
 

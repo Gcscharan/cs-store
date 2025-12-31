@@ -1,6 +1,8 @@
 import { MongoMemoryServer } from "mongodb-memory-server";
 import mongoose from "mongoose";
 
+process.env.NODE_ENV = "test";
+
 // Mock external services before any imports
 jest.mock("redis", () => ({
   createClient: jest.fn(() => ({
