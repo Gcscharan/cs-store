@@ -275,10 +275,6 @@ export const verifyPayment = async (req: Request, res: Response) => {
     order.paymentStatus =
       paymentDetails.status === "captured" ? "paid" : "pending";
     order.razorpayPaymentId = razorpay_payment_id;
-    // Move order to pending status so admin can accept/decline
-    if (paymentDetails.status === "captured") {
-      order.orderStatus = "pending";
-    }
     await order.save();
 
     // Decrease product stock for each ordered item after successful payment capture/pending record

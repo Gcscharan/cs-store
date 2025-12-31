@@ -14,10 +14,8 @@ import {
   Navigation,
   Phone,
   CheckSquare,
-  QrCode,
 } from "lucide-react";
 import { io, Socket } from "socket.io-client";
-import PaymentQRModal from "./PaymentQRModal";
 
 interface Order {
   _id: string;
@@ -75,8 +73,6 @@ const EnhancedHomeTab: React.FC<HomeTabProps> = () => {
   const [_uploadingProof, _setUploadingProof] = useState<{ [key: string]: boolean }>({});
   const [_arrivedTimestamp, _setArrivedTimestamp] = useState<{ [key: string]: number }>({});
   const [resendTimer, setResendTimer] = useState<{ [key: string]: number }>({});
-  const [showQRModal, setShowQRModal] = useState(false);
-  const [selectedOrderForQR, setSelectedOrderForQR] = useState<Order | null>(null);
   const [monitoringPayments, setMonitoringPayments] = useState<{ [key: string]: boolean }>({});
 
   useEffect(() => {
@@ -560,23 +556,6 @@ const EnhancedHomeTab: React.FC<HomeTabProps> = () => {
     toast.success("Opening navigation...");
   };
 
-  const handleGenerateQR = (order: Order) => {
-    setSelectedOrderForQR(order);
-    setShowQRModal(true);
-    toast.success("QR code generated for payment collection");
-  };
-
-  const handleCloseQRModal = () => {
-    setShowQRModal(false);
-    setSelectedOrderForQR(null);
-  };
-
-  const handlePaymentConfirmed = () => {
-    // Refresh orders to get updated payment status
-    fetchOrders();
-    toast.success("Payment status updated in the system");
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100 p-4 pb-24">
       {/* Today's Stats */}
@@ -866,19 +845,6 @@ const EnhancedHomeTab: React.FC<HomeTabProps> = () => {
                         </div>
                       )}
                       
-                      {/* Generate QR Code Button - Only for COD orders that are not paid */}
-                      {order.paymentMethod === "cod" && order.paymentStatus !== "paid" && (
-                        <>
-                          <button
-                            onClick={() => handleGenerateQR(order)}
-                            className="w-full py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all mb-2"
-                          >
-                            <QrCode className="h-5 w-5 inline mr-2" />
-                            Generate QR for Payment
-                          </button>
-                        </>
-                      )}
-                      
                       {/* Payment Received Info - Show for paid COD orders */}
                       {order.paymentMethod === "cod" && order.paymentStatus === "paid" && (
                         <div className="w-full py-3 bg-green-50 border border-green-200 text-green-800 rounded-lg font-semibold mb-2 flex items-center justify-center">
@@ -944,16 +910,6 @@ const EnhancedHomeTab: React.FC<HomeTabProps> = () => {
         </div>
       )}
 
-      {/* Payment QR Modal */}
-      {selectedOrderForQR && (
-        <PaymentQRModal
-          isOpen={showQRModal}
-          onClose={handleCloseQRModal}
-          orderId={selectedOrderForQR._id}
-          amount={selectedOrderForQR.totalAmount}
-          onPaymentConfirmed={handlePaymentConfirmed}
-        />
-      )}
     </div>
   );
 };

@@ -23,7 +23,8 @@ const googleMapsClient = new Client({});
 // Initialize cache (TTL in seconds)
 const distanceCache = new NodeCache({
   stdTTL: DELIVERY_CONFIG.CACHE_TTL_MINUTES * 60,
-  checkperiod: 120,
+  // Test-only behavior: avoid background intervals that can keep Jest open
+  checkperiod: process.env.NODE_ENV === "test" ? 0 : 120,
 });
 
 /**
@@ -188,6 +189,39 @@ async function calculateDistance(
   warehouse: Warehouse,
   userAddress: IAddress
 ): Promise<{ distance: number; method: "GOOGLE_MAPS" | "HAVERSINE"; cached: boolean }> {
+  // Test-only behavior: avoid any external Google API calls for deterministic tests
+  if (process.env.NODE_ENV === "test") {
+    const cacheKey = `${warehouse.id}_${userAddress.lat}_${userAddress.lng}`;
+
+    if (DELIVERY_CONFIG.ENABLE_DISTANCE_CACHE) {
+      const cached = distanceCache.get<number>(cacheKey);
+      if (cached !== undefined) {
+        return {
+          distance: cached,
+          method: "HAVERSINE",
+          cached: true,
+        };
+      }
+    }
+
+    const distance = calculateHaversineDistance(
+      warehouse.lat,
+      warehouse.lng,
+      userAddress.lat || 0,
+      userAddress.lng || 0
+    );
+
+    if (DELIVERY_CONFIG.ENABLE_DISTANCE_CACHE) {
+      distanceCache.set(cacheKey, distance);
+    }
+
+    return {
+      distance,
+      method: "HAVERSINE",
+      cached: false,
+    };
+  }
+
   // Generate cache key
   const cacheKey = `${warehouse.id}_${userAddress.lat}_${userAddress.lng}`;
 

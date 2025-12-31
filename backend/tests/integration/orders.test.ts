@@ -279,9 +279,11 @@ describe("Orders Endpoints", () => {
 
   describe("PUT /api/orders/:id/cancel", () => {
     let order: any;
+    let productForCancel: any;
 
     beforeEach(async () => {
-      order = await global.createTestOrder(user._id, {
+      productForCancel = await global.createTestProduct({ stock: 10 });
+      order = await global.createTestOrder(user._id, productForCancel, {
         orderStatus: "pending",
       });
     });
@@ -292,22 +294,22 @@ describe("Orders Endpoints", () => {
         .set(authHeaders)
         .expect(200);
 
-      expect(response.body).toHaveProperty("message", "Order cancelled successfully");
-      expect(response.body.order.orderStatus).toBe("cancelled");
+      expect(response.body).toHaveProperty("message", "Order cancelled");
+      expect(response.body.order.orderStatus).toBe("CANCELLED");
     });
 
-    it("should not cancel confirmed order", async () => {
-      // Update order status to confirmed
-      const { Order } = await import("../../src/models/Order");
-      await Order.findByIdAndUpdate(order._id, { orderStatus: "confirmed" });
+    it("should cancel confirmed order", async () => {
+      const confirmedOrder = await global.createTestOrder(user._id, productForCancel, {
+        orderStatus: "confirmed",
+      });
 
       const response = await request(app)
-        .put(`/api/orders/${order._id}/cancel`)
+        .put(`/api/orders/${confirmedOrder._id}/cancel`)
         .set(authHeaders)
-        .expect(400);
+        .expect(200);
 
-      expect(response.body).toHaveProperty("message");
-      expect(response.body.message).toContain("Cannot cancel confirmed order");
+      expect(response.body).toHaveProperty("message", "Order cancelled");
+      expect(response.body.order.orderStatus).toBe("CANCELLED");
     });
 
     it("should not cancel order of another user", async () => {
@@ -317,9 +319,9 @@ describe("Orders Endpoints", () => {
       const response = await request(app)
         .put(`/api/orders/${order._id}/cancel`)
         .set(otherAuthHeaders)
-        .expect(404);
+        .expect(403);
 
-      expect(response.body).toHaveProperty("message", "Order not found");
+      expect(response.body).toHaveProperty("message");
     });
 
     it("should not cancel order without authentication", async () => {
@@ -376,7 +378,7 @@ describe("Orders Endpoints", () => {
     });
   });
 
-  describe("PUT /api/orders/:id/status (Admin only)", () => {
+  describe("Admin order action endpoints", () => {
     let admin: any;
     let adminHeaders: any;
     let order: any;
@@ -389,50 +391,33 @@ describe("Orders Endpoints", () => {
       });
     });
 
-    it("should update order status as admin", async () => {
-      const statusData = {
-        status: "confirmed",
-        notes: "Order confirmed by admin",
-      };
-
+    it("should confirm order as admin", async () => {
       const response = await request(app)
-        .put(`/api/orders/${order._id}/status`)
+        .post(`/api/admin/orders/${order._id}/confirm`)
         .set(adminHeaders)
-        .send(statusData)
         .expect(200);
 
-      expect(response.body).toHaveProperty("message", "Order status updated");
-      expect(response.body.order.orderStatus).toBe("confirmed");
+      expect(response.body).toHaveProperty("success", true);
+      expect(response.body.order.orderStatus).toBe("CONFIRMED");
     });
 
-    it("should not update order status as regular user", async () => {
-      const statusData = {
-        status: "confirmed",
-      };
-
+    it("should not allow regular user to confirm order", async () => {
       const response = await request(app)
-        .put(`/api/orders/${order._id}/status`)
+        .post(`/api/admin/orders/${order._id}/confirm`)
         .set(authHeaders)
-        .send(statusData)
         .expect(403);
 
       expect(response.body).toHaveProperty("message", "Admin access required");
     });
 
-    it("should validate status value", async () => {
-      const statusData = {
-        status: "invalid-status",
-      };
-
+    it("should return 409 for invalid transition (pack before confirm)", async () => {
       const response = await request(app)
-        .put(`/api/orders/${order._id}/status`)
+        .post(`/api/admin/orders/${order._id}/pack`)
         .set(adminHeaders)
-        .send(statusData)
-        .expect(200);
+        .expect(409);
 
-      // Mock implementation accepts any status
-      expect(response.body).toHaveProperty("message", "Order status updated");
-      expect(response.body.order.orderStatus).toBe("invalid-status");
+      expect(response.body).toHaveProperty("message");
+      expect(String(response.body.message)).toContain("Invalid state transition");
     });
   });
 });

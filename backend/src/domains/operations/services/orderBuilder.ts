@@ -34,31 +34,13 @@ const hasValidCoordinates = (addr: any): boolean => {
   );
 };
 
-function buildUpiUri(params: {
-  vpa: string;
-  payeeName: string;
-  amount: number;
-  transactionNote: string;
-}): string {
-  const { vpa, payeeName, amount, transactionNote } = params;
-
-  const query = new URLSearchParams({
-    pa: vpa,
-    pn: payeeName,
-    am: String(amount),
-    cu: "INR",
-    tn: transactionNote,
-  });
-
-  return `upi://pay?${query.toString()}`;
-}
-
 export async function createOrderFromCart(params: {
   userId: mongoose.Types.ObjectId;
   paymentMethod: PaymentMethod;
+  upiVpa?: string;
   idempotencyKey?: string;
 }): Promise<CreateOrderFromCartResult> {
-  const { userId, paymentMethod, idempotencyKey } = params;
+  const { userId, paymentMethod, upiVpa, idempotencyKey } = params;
 
   if (idempotencyKey) {
     const existing = await Order.findOne({ userId, idempotencyKey });
@@ -80,6 +62,15 @@ export async function createOrderFromCart(params: {
 
   const run = async (s?: mongoose.ClientSession): Promise<CreateOrderFromCartResult> => {
     const useSession = !!s;
+
+    if (paymentMethod === "upi") {
+      const vpa = String(upiVpa || "").trim();
+      if (!vpa) {
+        const err: any = new Error("UPI ID required");
+        err.statusCode = 400;
+        throw err;
+      }
+    }
 
     const user = useSession
       ? await User.findById(userId).session(s!)
@@ -235,6 +226,8 @@ export async function createOrderFromCart(params: {
       };
 
       const orderStatus = paymentMethod === "cod" ? "CONFIRMED" : "PENDING_PAYMENT";
+      const paymentStatus =
+        paymentMethod === "upi" ? "AWAITING_UPI_APPROVAL" : ("PENDING" as any);
 
       const order = new Order({
         userId,
@@ -247,7 +240,7 @@ export async function createOrderFromCart(params: {
         totalAmount: grandTotal,
         address: addressSnapshot,
         paymentMethod,
-        paymentStatus: "PENDING",
+        paymentStatus,
         orderStatus,
         earnings: {
           deliveryFee,
@@ -256,37 +249,17 @@ export async function createOrderFromCart(params: {
         },
       });
 
+      if (paymentMethod === "upi") {
+        order.upi = {
+          vpa: String(upiVpa || "").trim(),
+          amount: grandTotal,
+        };
+      }
+
       if (useSession) {
         await order.save({ session: s! });
       } else {
         await order.save();
-      }
-
-      if (paymentMethod === "upi") {
-        const vpa = (process.env.UPI_VPA || "9391795162@ibl").trim();
-        const payeeName = (process.env.UPI_PAYEE_NAME || "CS Store").trim();
-        const transactionNote = `Payment for Order #${String(order._id).slice(-6)}`;
-        const uri = buildUpiUri({
-          vpa,
-          payeeName,
-          amount: grandTotal,
-          transactionNote,
-        });
-
-        order.upi = {
-          vpa,
-          payeeName,
-          amount: grandTotal,
-          currency: "INR",
-          transactionNote,
-          uri,
-        };
-
-        if (useSession) {
-          await order.save({ session: s! });
-        } else {
-          await order.save();
-        }
       }
 
       if (paymentMethod === "cod") {

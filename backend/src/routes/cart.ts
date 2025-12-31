@@ -6,7 +6,6 @@ import {
   removeFromCart,
   clearCart,
 } from "../domains/cart/controllers/CartController";
-import { createOrder, verifyPayment } from "../controllers/cartController";
 import { authenticateToken, requireRole } from "../middleware/auth";
 import { IUser } from "../models/User";
 
@@ -65,9 +64,5 @@ router.put("/update", authenticateToken, customerOnly, updateCartItem);
 router.delete("/remove", authenticateToken, customerOnly, removeFromCart);
 router.delete("/clear", authenticateToken, customerOnly, clearCart);
 router.delete("/:productId", authenticateToken, customerOnly, removeFromCart);
-
-// Checkout routes - customers only can create orders
-router.post("/checkout/create-order", authenticateToken, customerOnly, createOrder);
-router.post("/checkout/verify", authenticateToken, customerOnly, verifyPayment);
 
 export default router;

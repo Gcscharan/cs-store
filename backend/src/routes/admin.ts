@@ -15,6 +15,8 @@ import {
 import { authenticateToken, requireRole } from "../middleware/auth";
 import { auditLog } from "../middleware/auditLog";
 import jwt from "jsonwebtoken";
+import { orderStateService } from "../domains/orders/services/orderStateService";
+import { OrderStatus } from "../domains/orders/enums/OrderStatus";
 
 const router = express.Router();
 
@@ -115,6 +117,73 @@ router.get(
   authenticateToken,
   requireRole(["admin"]),
   exportOrders
+);
+
+router.post(
+  "/orders/:id/confirm",
+  authenticateToken,
+  requireRole(["admin"]),
+  async (req, res, next) => {
+    try {
+      const actorId = String((req as any).user?._id || "");
+      const { id } = req.params;
+      const order = await orderStateService.transition({
+        orderId: id,
+        toStatus: OrderStatus.CONFIRMED,
+        actorRole: "ADMIN",
+        actorId,
+      });
+      res.json({ success: true, order });
+    } catch (error) {
+      next(error as any);
+    }
+  }
+);
+
+router.post(
+  "/orders/:id/pack",
+  authenticateToken,
+  requireRole(["admin"]),
+  async (req, res, next) => {
+    try {
+      const actorId = String((req as any).user?._id || "");
+      const { id } = req.params;
+      const order = await orderStateService.transition({
+        orderId: id,
+        toStatus: OrderStatus.PACKED,
+        actorRole: "ADMIN",
+        actorId,
+      });
+      res.json({ success: true, order });
+    } catch (error) {
+      next(error as any);
+    }
+  }
+);
+
+router.post(
+  "/orders/:id/return",
+  authenticateToken,
+  requireRole(["admin"]),
+  async (req, res, next) => {
+    try {
+      const actorId = String((req as any).user?._id || "");
+      const { id } = req.params;
+      const { returnReason } = (req as any).body || {};
+      const order = await orderStateService.transition({
+        orderId: id,
+        toStatus: OrderStatus.RETURNED,
+        actorRole: "ADMIN",
+        actorId,
+        meta: {
+          returnReason,
+        },
+      });
+      res.json({ success: true, order });
+    } catch (error) {
+      next(error as any);
+    }
+  }
 );
 
 

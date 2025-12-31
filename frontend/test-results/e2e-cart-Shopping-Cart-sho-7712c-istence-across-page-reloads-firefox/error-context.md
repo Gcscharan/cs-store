@@ -1,0 +1,48 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - link "Skip to main content" [ref=e4] [cursor=pointer]:
+      - /url: "#main-content"
+    - link "Skip to navigation" [ref=e5] [cursor=pointer]:
+      - /url: "#navigation"
+    - generic [ref=e6]:
+      - banner [ref=e7]:
+        - generic [ref=e9]:
+          - generic [ref=e10]:
+            - button "CS Store Home" [ref=e11] [cursor=pointer]:
+              - generic [ref=e12]: CS Store
+            - button "Deliver to E2E Customer, Hyderabad" [ref=e13] [cursor=pointer]:
+              - generic [ref=e14]:
+                - img [ref=e15]
+                - generic [ref=e18]: Deliver to
+              - generic [ref=e19]:
+                - generic [ref=e20]: E2E Customer, Hyderabad
+                - img [ref=e21]
+          - generic [ref=e24]:
+            - textbox "Search for Products, Brands and More" [ref=e25]
+            - button "Search" [ref=e26] [cursor=pointer]:
+              - img [ref=e27]
+          - generic [ref=e31]:
+            - button "Account" [ref=e33] [cursor=pointer]:
+              - img [ref=e34]
+              - generic [ref=e37]:
+                - generic [ref=e38]: E2E
+                - img [ref=e39]
+            - button "View cart with 0 items" [ref=e41] [cursor=pointer]:
+              - img [ref=e42]
+              - generic [ref=e46]: Cart
+            - button "More options" [ref=e48] [cursor=pointer]:
+              - img [ref=e49]
+              - generic [ref=e53]: More
+      - main [ref=e54]:
+        - generic [ref=e56]:
+          - heading "Shopping Cart" [level=1] [ref=e58]
+          - generic [ref=e59]:
+            - generic [ref=e60]: 🛒
+            - heading "Your cart is empty" [level=3] [ref=e61]
+            - paragraph [ref=e62]: Add some products to get started
+            - button "Continue Shopping" [ref=e63] [cursor=pointer]
+  - generic "Notifications"
+```

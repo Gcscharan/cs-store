@@ -74,13 +74,13 @@ export const authenticateToken = async (
     console.log('[Auth] authenticateToken - error:', error);
     if (error instanceof jwt.JsonWebTokenError) {
       if (error.name === 'TokenExpiredError') {
-        return res.status(403).json({ message: "Token expired", code: "TOKEN_EXPIRED" });
+        return res.status(401).json({ message: "Token expired", code: "TOKEN_EXPIRED" });
       } else if (error.name === 'JsonWebTokenError') {
-        return res.status(403).json({ message: "Invalid token format", code: "INVALID_TOKEN" });
+        return res.status(401).json({ message: "Invalid token format", code: "INVALID_TOKEN" });
       }
     }
     
-    return res.status(403).json({ message: "Invalid or expired token" });
+    return res.status(401).json({ message: "Invalid or expired token" });
   }
 };
 

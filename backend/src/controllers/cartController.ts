@@ -395,7 +395,6 @@ export const createOrder = async (
 
     if (availableDeliveryBoy) {
       order.deliveryBoyId = availableDeliveryBoy._id;
-      order.orderStatus = "assigned";
       availableDeliveryBoy.assignedOrders.push(order._id);
       availableDeliveryBoy.availability = "busy";
       await availableDeliveryBoy.save();
@@ -438,7 +437,6 @@ export const verifyPayment = async (
       {
         paymentStatus: "paid",
         razorpayPaymentId: razorpay_payment_id,
-        orderStatus: "pending", // Move to pending so admin can accept/decline
       },
       { new: true }
     );

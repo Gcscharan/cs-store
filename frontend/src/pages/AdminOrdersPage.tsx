@@ -86,7 +86,6 @@ const AdminOrdersPage: React.FC = () => {
   const [showDeclineModal, setShowDeclineModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [declineReason, setDeclineReason] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [deliveryBoys, setDeliveryBoys] = useState<any[]>([]);
   const [selectedDeliveryBoy, setSelectedDeliveryBoy] = useState<string>("");
@@ -214,7 +213,7 @@ const AdminOrdersPage: React.FC = () => {
 
     try {
       setIsProcessing(true);
-      const response = await fetch(`/api/admin/orders/${selectedOrder._id}/accept`, {
+      const response = await fetch(`/api/admin/orders/${selectedOrder._id}/confirm`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -222,19 +221,18 @@ const AdminOrdersPage: React.FC = () => {
         },
       });
 
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to accept order");
+        throw new Error((data as any).message || (data as any).error || "Failed to confirm order");
       }
 
-      const data = await response.json();
-      toast.success(data.message);
+      toast.success((data as any).message || "Order confirmed");
       
       // Update the local orders state immediately if order data is returned
-      if (data.order) {
+      if ((data as any).order) {
         setOrders(prevOrders => 
           prevOrders.map(order => 
-            order._id === data.order._id ? { ...data.order } : order
+            order._id === (data as any).order._id ? { ...(data as any).order } : order
           )
         );
       }
@@ -333,26 +331,35 @@ const AdminOrdersPage: React.FC = () => {
 
     try {
       setIsProcessing(true);
-      const response = await fetch(`/api/admin/orders/${selectedOrder._id}/decline`, {
-        method: "POST",
+      const response = await fetch(`/api/orders/${selectedOrder._id}/cancel`, {
+        method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${tokens?.accessToken}`,
         },
-        body: JSON.stringify({ reason: declineReason }),
       });
 
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to decline order");
+        if (response.status === 403) {
+          throw new Error("You do not have permission to cancel this order");
+        }
+        if (response.status === 409) {
+          throw new Error("Order cannot be cancelled in its current state");
+        }
+        throw new Error((data as any).message || (data as any).error || "Failed to cancel order");
       }
 
-      const data = await response.json();
-      toast.success(data.message);
+      toast.success((data as any).message || "Order cancelled");
       setShowDeclineModal(false);
       setSelectedOrder(null);
-      setDeclineReason("");
-      fetchOrders();
+      if ((data as any).order) {
+        setOrders(prevOrders =>
+          prevOrders.map(o => (o._id === (data as any).order._id ? { ...(data as any).order } : o))
+        );
+      } else {
+        fetchOrders();
+      }
     } catch (error: any) {
       console.error("Decline order error:", error);
       toast.error(error.message || "Failed to decline order");
@@ -812,26 +819,53 @@ const AdminOrdersPage: React.FC = () => {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        {[
-                          "pending", "created", "placed", "confirmed", "processing"
-                        ].includes((order.status || order.orderStatus || "").toLowerCase()) ? (
-                          <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              onClick={(e) => handleAcceptClick(order, e)}
-                              className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-                            >
-                              Accept
-                            </button>
-                            <button
-                              onClick={(e) => handleDeclineClick(order, e)}
-                              className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                            >
-                              Decline
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="text-gray-400 text-xs">—</span>
-                        )}
+                        {(() => {
+                          const raw = String(order.orderStatus || order.status || "");
+                          const upper = raw.toUpperCase();
+                          const canonical = upper === "PENDING" ? "CREATED" : upper;
+                          const isEarlyState = ["CREATED", "CONFIRMED", "PROCESSING", "PENDING", "PLACED"].includes(canonical);
+                          console.debug("AdminOrdersPage action visibility", {
+                            orderId: order._id,
+                            rawStatus: raw,
+                            canonical,
+                            isAdmin: user?.isAdmin,
+                            isEarlyState,
+                            allowed: ["CREATED", "CONFIRMED"].includes(canonical)
+                          });
+                          // Primary logic:窃 CREATED/CONFIRMED get Confirm+Cancel
+                          if (["CREATED", "CONFIRMED"].includes(canonical)) {
+                            return (
+                              <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                                <button
+                                  onClick={(e) => handleAcceptClick(order, e)}
+                                  className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                                >
+                                  Confirm
+                                </button>
+                                <button
+                                  onClick={(e) => handleDeclineClick(order, e)}
+                                  className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                                >
+                                  Cancel Order
+                                </button>
+                              </div>
+                            );
+                          }
+                          // Fallback: for other early states, only show Confirm
+                          if (isEarlyState) {
+                            return (
+                              <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                                <button
+                                  onClick={(e) => handleAcceptClick(order, e)}
+                                  className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                                >
+                                  Confirm Order
+                                </button>
+                              </div>
+                            );
+                          }
+                          return <span className="text-gray-400 text-xs">—</span>;
+                        })()}
                       </td>
                     </tr>
                   ))}
@@ -846,10 +880,10 @@ const AdminOrdersPage: React.FC = () => {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                Accept Order
+                Confirm Order
               </h3>
               <p className="text-gray-600 mb-6">
-                Accept order #{selectedOrder.orderNumber || selectedOrder._id.substring(0, 8)} and assign for delivery?
+                Confirm order #{selectedOrder.orderNumber || selectedOrder._id.substring(0, 8)} to start processing?
                 <br />
                 <span className="text-sm text-gray-500 mt-2 block">
                   The system will automatically try to assign this order to an available delivery partner.
@@ -883,33 +917,20 @@ const AdminOrdersPage: React.FC = () => {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                Decline Order
+                Cancel Order
               </h3>
               <p className="text-gray-600 mb-4">
-                Decline order #{selectedOrder.orderNumber || selectedOrder._id.substring(0, 8)}?
+                Cancel order #{selectedOrder.orderNumber || selectedOrder._id.substring(0, 8)}?
                 <br />
                 <span className="text-sm text-gray-500 mt-1 block">
-                  This will cancel the order and trigger refund if payment was made.
+                  This action cannot be undone and inventory will be restored.
                 </span>
               </p>
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Reason (Optional)
-                </label>
-                <textarea
-                  value={declineReason}
-                  onChange={(e) => setDeclineReason(e.target.value)}
-                  placeholder="Enter reason for declining..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-                  rows={3}
-                />
-              </div>
               <div className="flex gap-3 justify-end">
                 <button
                   onClick={() => {
                     setShowDeclineModal(false);
                     setSelectedOrder(null);
-                    setDeclineReason("");
                   }}
                   disabled={isProcessing}
                   className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md disabled:opacity-50"
@@ -921,7 +942,7 @@ const AdminOrdersPage: React.FC = () => {
                   disabled={isProcessing}
                   className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md disabled:opacity-50"
                 >
-                  {isProcessing ? "Processing..." : "Confirm Decline"}
+                  {isProcessing ? "Processing..." : "Confirm Cancel"}
                 </button>
               </div>
             </div>

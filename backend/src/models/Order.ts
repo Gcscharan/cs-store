@@ -28,11 +28,7 @@ export interface IOrderAddress {
 
 export interface IUpiDetails {
   vpa: string;
-  payeeName: string;
   amount: number;
-  currency: "INR";
-  transactionNote: string;
-  uri: string;
 }
 
 export interface IAssignmentHistory {
@@ -48,16 +44,24 @@ export interface IDeliveryProof {
   value?: string; // OTP value
   url?: string; // Photo/signature URL
   verifiedAt?: Date;
+  otpVerifiedAt?: Date;
+  photoUrl?: string;
+  signature?: string;
+  geo?: {
+    lat?: number;
+    lng?: number;
+  };
+  deviceId?: string;
   deliveredBy?: mongoose.Types.ObjectId; // Who completed delivery
 }
 
 export interface IStatusHistory {
-  status: string;
-  deliveryStatus?: string;
-  updatedBy: mongoose.Types.ObjectId;
-  updatedByRole: "admin" | "delivery" | "system" | "customer";
-  timestamp: Date;
-  meta?: any; // Additional metadata like reason, location, etc.
+  from?: string;
+  to?: string;
+  actorRole?: "CUSTOMER" | "DELIVERY_PARTNER" | "ADMIN";
+  actorId?: string;
+  at?: Date;
+  meta?: any;
 }
 
 export interface IRiderLocation {
@@ -82,12 +86,26 @@ export interface IOrder extends Document {
   discount?: number;
   grandTotal?: number;
   totalAmount: number;
-  paymentMethod?: "cod" | "upi" | "card" | "netbanking";
-  paymentStatus: "PENDING" | "PAID" | "FAILED" | "pending" | "paid" | "failed" | "refunded";
+  paymentMethod: "cod" | "upi";
+  paymentStatus:
+    | "PENDING"
+    | "AWAITING_UPI_APPROVAL"
+    | "PAID"
+    | "FAILED"
+    | "pending"
+    | "paid"
+    | "failed"
+    | "refunded";
   paymentReceivedAt?: Date; // Timestamp when payment was confirmed by delivery boy
   orderStatus:
     | "PENDING_PAYMENT"
     | "CONFIRMED"
+    | "PACKED"
+    | "OUT_FOR_DELIVERY"
+    | "DELIVERED"
+    | "FAILED"
+    | "RETURNED"
+    | "CANCELLED"
     | "CREATED"
     | "pending"
     | "confirmed"
@@ -100,6 +118,7 @@ export interface IOrder extends Document {
     | "cancelled";
   deliveryStatus?: "unassigned" | "assigned" | "picked_up" | "in_transit" | "arrived" | "delivered" | "cancelled";
   deliveryBoyId?: mongoose.Types.ObjectId;
+  deliveryPartnerId?: mongoose.Types.ObjectId;
   assignmentHistory: IAssignmentHistory[];
   address: IOrderAddress;
   upi?: IUpiDetails;
@@ -109,7 +128,15 @@ export interface IOrder extends Document {
   deliveryProof?: IDeliveryProof;
   deliveryOtp?: string; // 4-digit OTP for verification
   deliveryOtpExpiresAt?: Date;
+  failureReasonCode?: string;
+  failureNotes?: string;
+  returnReason?: string;
   confirmedAt?: Date; // When admin accepted
+  packedAt?: Date;
+  outForDeliveryAt?: Date;
+  failedAt?: Date;
+  returnedAt?: Date;
+  cancelledAt?: Date;
   cancelledBy?: "admin" | "customer" | "system";
   cancelReason?: string;
   riderLocation?: IRiderLocation;
@@ -177,11 +204,7 @@ const OrderAddressSchema = new Schema<IOrderAddress>({
 
 const UpiDetailsSchema = new Schema<IUpiDetails>({
   vpa: { type: String, required: true },
-  payeeName: { type: String, required: true },
   amount: { type: Number, required: true, min: 0 },
-  currency: { type: String, enum: ["INR"], default: "INR" },
-  transactionNote: { type: String, required: true },
-  uri: { type: String, required: true },
 });
 
 const AssignmentHistorySchema = new Schema<IAssignmentHistory>({
@@ -201,15 +224,26 @@ const DeliveryProofSchema = new Schema<IDeliveryProof>({
   value: { type: String },
   url: { type: String },
   verifiedAt: { type: Date },
+  otpVerifiedAt: { type: Date },
+  photoUrl: { type: String },
+  signature: { type: String },
+  geo: {
+    lat: { type: Number },
+    lng: { type: Number },
+  },
+  deviceId: { type: String },
   deliveredBy: { type: Schema.Types.ObjectId, ref: "DeliveryBoy" },
 });
 
 const StatusHistorySchema = new Schema<IStatusHistory>({
-  status: { type: String, required: true },
-  deliveryStatus: { type: String },
-  updatedBy: { type: Schema.Types.ObjectId, required: true },
-  updatedByRole: { type: String, enum: ["admin", "delivery", "system", "customer"], required: true },
-  timestamp: { type: Date, default: Date.now },
+  from: { type: String },
+  to: { type: String },
+  actorRole: {
+    type: String,
+    enum: ["CUSTOMER", "DELIVERY_PARTNER", "ADMIN"],
+  },
+  actorId: { type: String },
+  at: { type: Date, default: Date.now },
   meta: { type: Schema.Types.Mixed },
 });
 
@@ -260,11 +294,20 @@ const OrderSchema = new Schema<IOrder>(
     },
     paymentMethod: {
       type: String,
-      enum: ["upi", "cod", "card", "netbanking"],
+      enum: ["upi", "cod"],
     },
     paymentStatus: {
       type: String,
-      enum: ["PENDING", "PAID", "FAILED", "pending", "paid", "failed", "refunded"],
+      enum: [
+        "PENDING",
+        "AWAITING_UPI_APPROVAL",
+        "PAID",
+        "FAILED",
+        "pending",
+        "paid",
+        "failed",
+        "refunded",
+      ],
       default: "PENDING",
     },
     paymentReceivedAt: {
@@ -275,6 +318,12 @@ const OrderSchema = new Schema<IOrder>(
       enum: [
         "PENDING_PAYMENT",
         "CONFIRMED",
+        "PACKED",
+        "OUT_FOR_DELIVERY",
+        "DELIVERED",
+        "FAILED",
+        "RETURNED",
+        "CANCELLED",
         "CREATED",
         "pending",
         "confirmed",
@@ -297,6 +346,10 @@ const OrderSchema = new Schema<IOrder>(
       type: Schema.Types.ObjectId,
       ref: "DeliveryBoy",
     },
+    deliveryPartnerId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+    },
     assignmentHistory: [AssignmentHistorySchema],
     address: {
       type: OrderAddressSchema,
@@ -316,9 +369,26 @@ const OrderSchema = new Schema<IOrder>(
     deliveryOtpExpiresAt: {
       type: Date,
     },
+    failureReasonCode: {
+      type: String,
+      trim: true,
+    },
+    failureNotes: {
+      type: String,
+      trim: true,
+    },
+    returnReason: {
+      type: String,
+      trim: true,
+    },
     confirmedAt: {
       type: Date,
     },
+    packedAt: { type: Date },
+    outForDeliveryAt: { type: Date },
+    failedAt: { type: Date },
+    returnedAt: { type: Date },
+    cancelledAt: { type: Date },
     cancelledBy: {
       type: String,
       enum: ["admin", "customer", "system"],

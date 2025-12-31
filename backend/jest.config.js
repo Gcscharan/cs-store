@@ -8,8 +8,8 @@ module.exports = {
   ],
   transform: {
     "^.+\\.ts$": ["ts-jest", {
-      isolatedModules: true,
       tsconfig: {
+        isolatedModules: true,
         noImplicitAny: false,
         strictNullChecks: false,
         strictFunctionTypes: false,
@@ -33,21 +33,10 @@ module.exports = {
   testTimeout: 60000,
   moduleFileExtensions: ["ts", "js", "json"],
   verbose: true,
-  forceExit: true,
   clearMocks: true,
   resetMocks: true,
   restoreMocks: true,
   testEnvironmentOptions: {
     NODE_ENV: "test",
-  },
-  globals: {
-    "ts-jest": {
-      isolatedModules: true,
-      tsconfig: {
-        noImplicitAny: false,
-        strictNullChecks: false,
-        skipLibCheck: true
-      }
-    }
   }
 };

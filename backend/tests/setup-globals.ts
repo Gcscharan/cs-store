@@ -2,10 +2,10 @@
 import dotenv from 'dotenv';
 dotenv.config({ path: '.env.test', override: true });
 
-import { MongoMemoryServer } from "mongodb-memory-server";
+import { MongoMemoryReplSet } from "mongodb-memory-server";
 import mongoose from "mongoose";
 
-let mongoServer: MongoMemoryServer;
+let mongoServer: MongoMemoryReplSet;
 
 beforeAll(async () => {
   process.env.NODE_ENV = "test";
@@ -19,14 +19,16 @@ beforeAll(async () => {
   process.env.CLOUDINARY_API_SECRET = "test-secret";
   
   if (mongoose.connection.readyState === 0) {
-    mongoServer = await MongoMemoryServer.create();
+    mongoServer = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
     await mongoose.connect(mongoServer.getUri());
   }
 });
 
 afterAll(async () => {
   if (mongoose.connection.readyState !== 0) {
-    await mongoose.disconnect();
+    await mongoose.connection.dropDatabase().catch(() => undefined);
+    await mongoose.disconnect().catch(() => undefined);
+    await mongoose.connection.close().catch(() => undefined);
   }
   if (mongoServer) {
     await mongoServer.stop();

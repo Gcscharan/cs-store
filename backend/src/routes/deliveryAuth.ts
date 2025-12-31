@@ -16,6 +16,7 @@ import {
   startDelivery,
   markArrived,
   completeDelivery,
+  failDelivery,
   updateLocation,
   toggleStatus,
   getEarnings,
@@ -49,6 +50,7 @@ router.post("/orders/:orderId/pickup", authenticateToken, requireDeliveryRole, p
 router.post("/orders/:orderId/start-delivery", authenticateToken, requireDeliveryRole, startDelivery);
 router.post("/orders/:orderId/arrived", authenticateToken, requireDeliveryRole, markArrived);
 router.post("/orders/:orderId/complete", authenticateToken, requireDeliveryRole, completeDelivery);
+router.post("/orders/:orderId/fail", authenticateToken, requireDeliveryRole, failDelivery);
 
 // Location and status
 router.put("/location", authenticateToken, requireDeliveryRole, updateLocation);
