@@ -32,6 +32,8 @@ export interface IDeliveryBoy extends Document {
   completedOrdersCount: number;
   assignedOrders: mongoose.Types.ObjectId[];
   currentLoad: number; // Number of orders currently assigned
+  rejectionsToday?: number;
+  lastAssignedAt?: Date;
   selfieUrl?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -71,7 +73,7 @@ const DeliveryBoySchema = new Schema<IDeliveryBoy>(
     vehicleType: {
       type: String,
       required: [true, "Vehicle type is required"],
-      enum: ["bike", "scooter", "cycle", "car", "walking"],
+      enum: ["AUTO", "auto", "bike", "scooter", "cycle", "car", "walking"],
     },
     isActive: {
       type: Boolean,
@@ -104,6 +106,14 @@ const DeliveryBoySchema = new Schema<IDeliveryBoy>(
       type: Number,
       default: 0,
       min: 0,
+    },
+    rejectionsToday: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    lastAssignedAt: {
+      type: Date,
     },
     email: {
       type: String,

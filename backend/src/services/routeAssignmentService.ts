@@ -3,6 +3,7 @@ import { Order } from "../models/Order";
 import { DeliveryBoy } from "../models/DeliveryBoy";
 import { User } from "../models/User";
 import { deliveryPartnerLoadService } from "../domains/operations/services/deliveryPartnerLoadService";
+import { assignPackedOrderToDeliveryBoy } from "../controllers/orderAssignmentController";
 
 interface PincodeBatch {
   pincode: string;
@@ -48,12 +49,10 @@ export class RouteAssignmentService {
     }
 
     try {
-      // 1. Fetch all orders awaiting delivery assignment (created or confirmed with unassigned delivery status)
+      // 1. Fetch PACKED orders awaiting delivery assignment (assignment must be a PACKED -> ASSIGNED transition)
       const query = Order.find({
-        $or: [
-          { orderStatus: "created", deliveryBoyId: null },
-          { orderStatus: "confirmed", deliveryStatus: "unassigned" }
-        ]
+        orderStatus: { $in: ["PACKED", "packed"] },
+        $or: [{ deliveryBoyId: { $exists: false } }, { deliveryBoyId: null }],
       });
       
       const pendingOrders = session ? await query.session(session) : await query;
@@ -403,52 +402,17 @@ export class RouteAssignmentService {
     orders: any[],
     session: mongoose.ClientSession | null
   ): Promise<void> {
-    const orderIds = orders.map((o) => o._id);
-
-    const deliveryBoyDocQuery = DeliveryBoy.findById(deliveryBoyId).select("userId");
-    const deliveryBoyDoc = session
-      ? await deliveryBoyDocQuery.session(session)
-      : await deliveryBoyDocQuery;
-
-    if (!deliveryBoyDoc || !(deliveryBoyDoc as any).userId) {
-      throw new Error("Delivery partner userId not found for delivery boy");
+    // Assign each order atomically. If another worker already assigned it, this becomes a safe no-op/409.
+    for (const o of orders) {
+      await assignPackedOrderToDeliveryBoy({
+        orderId: String(o._id),
+        deliveryBoyId: String(deliveryBoyId),
+        actorId: "SYSTEM_ROUTE_ASSIGNER",
+      });
     }
 
-    const deliveryPartnerId = (deliveryBoyDoc as any).userId;
-
-    // Update orders
-    const updateQuery = Order.updateMany(
-      { _id: { $in: orderIds } },
-      {
-        $set: {
-          deliveryPartnerId: deliveryPartnerId,
-        },
-      }
-    );
-    if (session) {
-      await updateQuery.session(session);
-    } else {
-      await updateQuery;
-    }
-
-    // Update delivery boy in MongoDB
-    const updateBoyQuery = DeliveryBoy.findByIdAndUpdate(
-      deliveryBoyId,
-      {
-        $push: { assignedOrders: { $each: orderIds } },
-        $inc: { currentLoad: orders.length },
-      }
-    );
-    if (session) {
-      await updateBoyQuery.session(session);
-    } else {
-      await updateBoyQuery;
-    }
-
-    // Update load in Redis ZSET for O(1) performance
+    // Keep load service call for backward compatibility (it is Mongo-backed today).
     await deliveryPartnerLoadService.incrementLoad(deliveryBoyId.toString(), orders.length);
-    
-    console.log(`📈 Updated Redis load for delivery partner ${deliveryBoyId} (+${orders.length} orders)`)
   }
 }
 

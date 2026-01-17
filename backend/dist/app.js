@@ -22,19 +22,36 @@ const deliveryAuth_1 = __importDefault(require("./routes/deliveryAuth"));
 const pincode_1 = __importDefault(require("./routes/pincode"));
 const locationRoutes_1 = __importDefault(require("./routes/locationRoutes"));
 const admin_1 = __importDefault(require("./routes/admin"));
-const webhooks_1 = __importDefault(require("./domains/finance/routes/webhooks"));
+const adminOps_1 = __importDefault(require("./routes/adminOps"));
+const adminTracking_1 = __importDefault(require("./routes/adminTracking"));
+const internalTracking_1 = __importDefault(require("./routes/internalTracking"));
 const user_1 = __importDefault(require("./domains/identity/routes/user"));
 const otpRoutes_1 = __importDefault(require("./domains/security/routes/otpRoutes"));
 const mobileVerifyRoutes_1 = __importDefault(require("./domains/security/routes/mobileVerifyRoutes"));
-const razorpay_1 = __importDefault(require("./domains/finance/routes/razorpay"));
 const notifications_1 = __importDefault(require("./domains/communication/routes/notifications"));
-const paymentRoutes_1 = __importDefault(require("./domains/finance/routes/paymentRoutes"));
+const devNotifications_1 = __importDefault(require("./domains/communication/routes/devNotifications"));
 const uploads_1 = __importDefault(require("./domains/uploads/routes/uploads"));
 console.log("App.ts loaded successfully");
 const app = (0, express_1.default)();
 // Middleware
+const corsOriginFromEnv = String(process.env.CORS_ORIGIN || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+const corsOrigins = [
+    ...(process.env.NODE_ENV === "production"
+        ? []
+        : [
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+        ]),
+    process.env.FRONTEND_URL || "",
+    ...corsOriginFromEnv,
+].filter(Boolean);
 app.use((0, cors_1.default)({
-    origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
+    origin: corsOrigins,
     credentials: true,
 }));
 app.use((0, compression_1.default)());
@@ -46,14 +63,10 @@ app.use(express_1.default.urlencoded({ extended: true }));
 // Health check route
 app.get("/health", (req, res) => {
     res.status(200).json({
-        status: "OK",
-        timestamp: new Date().toISOString(),
         uptime: process.uptime(),
+        timestamp: new Date().toISOString(),
+        status: "ok",
     });
-});
-// Test payment route directly in app.ts
-app.get("/api/payment/test-direct", (req, res) => {
-    res.json({ message: "Direct payment route working!" });
 });
 // API Routes
 app.use("/api/auth", auth_1.default);
@@ -69,14 +82,15 @@ app.use("/api/delivery", deliveryAuth_1.default); // Delivery auth & order manag
 app.use("/api/pincode", pincode_1.default);
 app.use("/api/location", locationRoutes_1.default);
 app.use("/api/admin", admin_1.default);
-app.use("/api/webhooks", webhooks_1.default);
-app.use("/api/payment", paymentRoutes_1.default);
-app.use("/api/razorpay", razorpay_1.default);
+app.use("/api/admin/ops", adminOps_1.default);
 app.use("/api/otp", otpRoutes_1.default);
 app.use("/api/notifications", notifications_1.default);
+app.use("/api/dev/notifications", devNotifications_1.default);
 app.use("/api/uploads", uploads_1.default);
-console.log("Payment routes registered successfully");
-console.log("Razorpay routes registered successfully");
+// Admin tracking (Phase 4)
+app.use("/admin/tracking", adminTracking_1.default);
+// Internal (non-customer) routes
+app.use("/internal/tracking", internalTracking_1.default);
 console.log("OTP routes registered successfully");
 console.log("Notification routes registered successfully");
 console.log("Upload routes registered successfully");

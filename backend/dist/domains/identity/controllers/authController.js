@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteAccount = exports.getMe = exports.completeProfile = exports.checkPhoneExists = exports.verifyAuthOTP = exports.sendAuthOTP = exports.changePassword = exports.googleCallback = exports.logout = exports.refresh = exports.oauth = exports.login = exports.signup = void 0;
+exports.deleteAccount = exports.getMe = exports.completeProfile = exports.checkPhoneExists = exports.verifyAuthOTP = exports.sendAuthOTP = exports.changePassword = exports.googleCallback = exports.logout = exports.refresh = exports.oauth = exports.login = exports.completeOnboarding = exports.verifyOnboardingOtp = exports.signup = void 0;
 const jwt = __importStar(require("jsonwebtoken"));
 const bcrypt = __importStar(require("bcryptjs"));
 const User_1 = require("../../../models/User");
@@ -44,6 +44,8 @@ const Pincode_1 = require("../../../models/Pincode");
 const Otp_1 = __importDefault(require("../../../models/Otp"));
 const sms_1 = require("../../../utils/sms");
 const sendEmailOTP_1 = require("../../../utils/sendEmailOTP");
+const eventBus_1 = require("../../events/eventBus");
+const account_events_1 = require("../../events/account.events");
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || "your-refresh-secret";
 const signup = async (req, res) => {
@@ -127,6 +129,161 @@ const signup = async (req, res) => {
     }
 };
 exports.signup = signup;
+const verifyOnboardingOtp = async (req, res) => {
+    try {
+        const { phone, otp } = req.body;
+        if (!phone || !otp) {
+            return res.status(400).json({ error: "Phone and OTP are required" });
+        }
+        const cleanedPhone = String(phone).replace(/\D/g, "");
+        const otpRecord = await Otp_1.default.findOne({
+            phone: cleanedPhone,
+            type: "signup",
+            isUsed: false,
+            expiresAt: { $gt: new Date() },
+        }).sort({ createdAt: -1 });
+        if (!otpRecord) {
+            return res.status(400).json({ error: "Invalid or expired OTP" });
+        }
+        if (otpRecord.attempts >= 3) {
+            return res.status(400).json({
+                error: "Maximum OTP attempts exceeded. Please request a new OTP.",
+            });
+        }
+        if (otpRecord.otp !== String(otp).trim()) {
+            otpRecord.attempts += 1;
+            await otpRecord.save();
+            return res.status(400).json({
+                error: `Invalid OTP. ${3 - otpRecord.attempts} attempts remaining.`,
+            });
+        }
+        return res.json({ verified: true });
+    }
+    catch (error) {
+        console.error("verifyOnboardingOtp error:", error);
+        return res.status(500).json({ error: "Failed to verify OTP" });
+    }
+};
+exports.verifyOnboardingOtp = verifyOnboardingOtp;
+const completeOnboarding = async (req, res) => {
+    try {
+        const googleClaims = req.googleAuthOnly;
+        if (!googleClaims?.email) {
+            return res.status(401).json({ message: "Invalid onboarding session" });
+        }
+        const { fullName, name, phone, otp } = req.body;
+        const nextName = String(name || fullName || "").trim();
+        const nextPhone = String(phone || "").replace(/\D/g, "");
+        const nextOtp = String(otp || "").trim();
+        const email = String(googleClaims.email).toLowerCase();
+        if (!nextName || nextName.length < 2) {
+            return res.status(400).json({ message: "Full name is required" });
+        }
+        if (!/^[6-9]\d{9}$/.test(nextPhone)) {
+            return res.status(400).json({ message: "Invalid phone number format" });
+        }
+        if (!/^[0-9]{6}$/.test(nextOtp)) {
+            return res.status(400).json({ message: "Invalid OTP format" });
+        }
+        const existingUserByEmail = await User_1.User.findOne({ email });
+        if (existingUserByEmail) {
+            const accessToken = jwt.sign({ userId: existingUserByEmail._id, email: existingUserByEmail.email, role: existingUserByEmail.role }, JWT_SECRET, { expiresIn: "24h" });
+            const refreshToken = jwt.sign({ userId: existingUserByEmail._id }, JWT_REFRESH_SECRET, {
+                expiresIn: "7d",
+            });
+            const resolvedName = String(existingUserByEmail.name || existingUserByEmail.fullName || "").trim();
+            const resolvedPhoneRaw = String(existingUserByEmail.phone || "");
+            const resolvedPhoneDigits = resolvedPhoneRaw.replace(/\D/g, "");
+            const resolvedPhone10 = resolvedPhoneDigits.length >= 10
+                ? resolvedPhoneDigits.slice(-10)
+                : resolvedPhoneDigits;
+            const profileCompleted = resolvedName.length > 0 && /^[6-9]\d{9}$/.test(resolvedPhone10);
+            return res.json({
+                authState: "ACTIVE",
+                profileCompleted,
+                user: {
+                    ...existingUserByEmail?.toObject?.()
+                        ? existingUserByEmail.toObject()
+                        : existingUserByEmail,
+                    profileCompleted,
+                    isProfileComplete: profileCompleted,
+                },
+                accessToken,
+                refreshToken,
+            });
+        }
+        const existingUserByPhone = await User_1.User.findOne({ phone: nextPhone });
+        if (existingUserByPhone) {
+            return res
+                .status(409)
+                .json({ message: "Phone number already exists" });
+        }
+        const otpRecord = await Otp_1.default.findOne({
+            phone: nextPhone,
+            type: "signup",
+            isUsed: false,
+            expiresAt: { $gt: new Date() },
+        }).sort({ createdAt: -1 });
+        if (!otpRecord) {
+            return res.status(400).json({ message: "Invalid or expired OTP" });
+        }
+        if (otpRecord.attempts >= 3) {
+            return res.status(400).json({
+                message: "Maximum OTP attempts exceeded. Please request a new OTP.",
+            });
+        }
+        if (otpRecord.otp !== nextOtp) {
+            otpRecord.attempts += 1;
+            await otpRecord.save();
+            return res.status(400).json({
+                message: `Invalid OTP. ${3 - otpRecord.attempts} attempts remaining.`,
+            });
+        }
+        otpRecord.isUsed = true;
+        await otpRecord.save();
+        const newUser = new User_1.User({
+            name: nextName,
+            email,
+            phone: nextPhone,
+            oauthProviders: googleClaims.providerId
+                ? [{ provider: "google", providerId: String(googleClaims.providerId) }]
+                : [],
+            isProfileComplete: true,
+            mobileVerified: true,
+        });
+        await newUser.save();
+        const accessToken = jwt.sign({ userId: newUser._id, email: newUser.email, role: newUser.role }, JWT_SECRET, { expiresIn: "24h" });
+        const refreshToken = jwt.sign({ userId: newUser._id }, JWT_REFRESH_SECRET, {
+            expiresIn: "7d",
+        });
+        const resolvedName = String(newUser.name || newUser.fullName || "").trim();
+        const resolvedPhoneRaw = String(newUser.phone || "");
+        const resolvedPhoneDigits = resolvedPhoneRaw.replace(/\D/g, "");
+        const resolvedPhone10 = resolvedPhoneDigits.length >= 10
+            ? resolvedPhoneDigits.slice(-10)
+            : resolvedPhoneDigits;
+        const profileCompleted = resolvedName.length > 0 && /^[6-9]\d{9}$/.test(resolvedPhone10);
+        return res.json({
+            authState: "ACTIVE",
+            profileCompleted,
+            user: {
+                ...newUser?.toObject?.() ? newUser.toObject() : newUser,
+                profileCompleted,
+                isProfileComplete: profileCompleted,
+            },
+            accessToken,
+            refreshToken,
+        });
+    }
+    catch (error) {
+        if (error?.code === 11000) {
+            return res.status(409).json({ message: "Account already exists" });
+        }
+        console.error("completeOnboarding error:", error);
+        return res.status(500).json({ message: "Failed to complete onboarding" });
+    }
+};
+exports.completeOnboarding = completeOnboarding;
 const login = async (req, res) => {
     try {
         const { email, phone, password } = req.body;
@@ -160,7 +317,14 @@ const login = async (req, res) => {
         const refreshToken = jwt.sign({ userId: user._id }, JWT_REFRESH_SECRET, {
             expiresIn: "7d",
         });
-        const isProfileComplete = !!(user.name && user.phone);
+        const resolvedName = String(user.name || user.fullName || "").trim();
+        const resolvedPhoneRaw = String(user.phone || "");
+        const resolvedPhoneDigits = resolvedPhoneRaw.replace(/\D/g, "");
+        const resolvedPhone10 = resolvedPhoneDigits.length >= 10 ? resolvedPhoneDigits.slice(-10) : resolvedPhoneDigits;
+        const hasName = resolvedName.length > 0;
+        const hasPhone = /^[6-9]\d{9}$/.test(resolvedPhone10);
+        const isPhoneVerified = !!user.mobileVerified || !!user.isProfileComplete;
+        const profileCompleted = hasName && hasPhone;
         res.json({
             message: "Login successful",
             user: {
@@ -171,11 +335,23 @@ const login = async (req, res) => {
                 role: user.role,
                 isAdmin: user.role === "admin",
                 addresses: user.addresses,
-                isProfileComplete,
+                profileCompleted,
+                // backward compatibility for older frontend code paths
+                isProfileComplete: profileCompleted,
             },
             token: accessToken,
             refreshToken,
         });
+        try {
+            await (0, eventBus_1.publish)((0, account_events_1.createAccountNewLoginEvent)({
+                source: "identity",
+                actor: { type: user.role === "admin" ? "admin" : "user", id: String(user._id) },
+                userId: String(user._id),
+            }));
+        }
+        catch (e) {
+            console.error("[authController] failed to publish ACCOUNT_NEW_LOGIN", e);
+        }
     }
     catch (error) {
         res.status(500).json({ error: "Login failed" });
@@ -217,6 +393,15 @@ const oauth = async (req, res) => {
         const refreshToken = jwt.sign({ userId: user._id }, JWT_REFRESH_SECRET, {
             expiresIn: "7d",
         });
+        const resolvedName = String(user.name || user.fullName || "").trim();
+        const resolvedPhoneRaw = String(user.phone || "");
+        const resolvedPhoneDigits = resolvedPhoneRaw.replace(/\D/g, "");
+        const resolvedPhone10 = resolvedPhoneDigits.length >= 10
+            ? resolvedPhoneDigits.slice(-10)
+            : resolvedPhoneDigits;
+        const hasName = resolvedName.length > 0;
+        const hasPhone = /^[6-9]\d{9}$/.test(resolvedPhone10);
+        const profileCompleted = hasName && hasPhone;
         res.json({
             message: "OAuth login successful",
             user: {
@@ -226,7 +411,9 @@ const oauth = async (req, res) => {
                 phone: user.phone,
                 role: user.role,
                 addresses: user.addresses,
-                isProfileComplete: user.isProfileComplete,
+                profileCompleted,
+                // backward compatibility for older frontend code paths
+                isProfileComplete: profileCompleted,
             },
             accessToken,
             refreshToken,
@@ -344,13 +531,24 @@ const googleCallback = async (req, res) => {
             return;
         }
         // Check if this is a signup required case (user not found in OAuth strategy)
+        // IMPORTANT: do NOT create a partial user record. Issue a GOOGLE_AUTH_ONLY onboarding session.
         if (user._signupRequired) {
             const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
-            const redirectUrl = new URL(`${frontendUrl}/signup`);
-            if (user.email) {
-                redirectUrl.searchParams.set("identifier", user.email);
-            }
-            redirectUrl.searchParams.set("error", "google_signup_required");
+            const redirectUrl = new URL(`${frontendUrl}/auth/callback`);
+            const email = String(user.email || "").toLowerCase();
+            const name = String(user.name || "");
+            const providerId = String(user.oauthProviders?.[0]?.providerId || "");
+            const onboardingToken = jwt.sign({
+                authState: "GOOGLE_AUTH_ONLY",
+                email,
+                name,
+                provider: "google",
+                providerId,
+            }, JWT_SECRET, { expiresIn: "30m" });
+            redirectUrl.searchParams.set("token", onboardingToken);
+            redirectUrl.searchParams.set("authState", "GOOGLE_AUTH_ONLY");
+            redirectUrl.searchParams.set("email", email);
+            redirectUrl.searchParams.set("name", name);
             res.redirect(redirectUrl.toString());
             return;
         }
@@ -416,6 +614,16 @@ const changePassword = async (req, res) => {
         // Update password
         user.passwordHash = newPasswordHash;
         await user.save();
+        try {
+            await (0, eventBus_1.publish)((0, account_events_1.createAccountPasswordChangedEvent)({
+                source: "identity",
+                actor: { type: user.role === "admin" ? "admin" : "user", id: String(user._id) },
+                userId: String(user._id),
+            }));
+        }
+        catch (e) {
+            console.error("[authController] failed to publish ACCOUNT_PASSWORD_CHANGED", e);
+        }
         res.json({
             message: "Password changed successfully",
         });
@@ -621,13 +829,25 @@ const verifyAuthOTP = async (req, res) => {
         // Mark OTP as used
         otpRecord.isUsed = true;
         await otpRecord.save();
+        // Successful OTP login means the phone is verified for this account
+        if (!user.mobileVerified) {
+            user.mobileVerified = true;
+            await user.save();
+        }
         // Generate tokens
         const accessToken = jwt.sign({ userId: user._id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: "24h" } // Extended from 15m to 24h to prevent frequent expiration
         );
         const refreshToken = jwt.sign({ userId: user._id }, JWT_REFRESH_SECRET, {
             expiresIn: "7d",
         });
-        const isProfileComplete = !!(user.name && user.phone);
+        const resolvedName = String(user.name || user.fullName || "").trim();
+        const resolvedPhoneRaw = String(user.phone || "");
+        const resolvedPhoneDigits = resolvedPhoneRaw.replace(/\D/g, "");
+        const resolvedPhone10 = resolvedPhoneDigits.length >= 10 ? resolvedPhoneDigits.slice(-10) : resolvedPhoneDigits;
+        const hasName = resolvedName.length > 0;
+        const hasPhone = /^[6-9]\d{9}$/.test(resolvedPhone10);
+        const isPhoneVerified = !!user.mobileVerified || !!user.isProfileComplete;
+        const profileCompleted = hasName && hasPhone;
         res.json({
             message: "Login successful",
             user: {
@@ -638,7 +858,9 @@ const verifyAuthOTP = async (req, res) => {
                 role: user.role,
                 isAdmin: user.role === "admin",
                 addresses: user.addresses,
-                isProfileComplete,
+                profileCompleted,
+                // backward compatibility for older frontend code paths
+                isProfileComplete: profileCompleted,
             },
             accessToken,
             refreshToken,
@@ -684,16 +906,31 @@ const completeProfile = async (req, res) => {
         if (!userId) {
             return res.status(401).json({ message: "Unauthorized" });
         }
-        const { fullName, phone, email } = req.body;
+        const { fullName, name, phone, email } = req.body;
+        const nextName = String(name || fullName || "").trim();
+        const nextPhone = String(phone || "").replace(/\D/g, "");
         const updatedUser = await User_1.User.findByIdAndUpdate(userId, {
-            fullName,
-            phone,
+            name: nextName,
+            phone: nextPhone,
             email,
             isProfileComplete: true,
+            mobileVerified: true,
         }, { new: true });
+        const updatedName = String(updatedUser?.name || updatedUser?.fullName || "").trim();
+        const updatedPhoneRaw = String(updatedUser?.phone || "");
+        const updatedPhoneDigits = updatedPhoneRaw.replace(/\D/g, "");
+        const updatedPhone10 = updatedPhoneDigits.length >= 10 ? updatedPhoneDigits.slice(-10) : updatedPhoneDigits;
+        const hasName = updatedName.length > 0;
+        const hasPhone = /^[6-9]\d{9}$/.test(updatedPhone10);
+        const isPhoneVerified = !!updatedUser?.mobileVerified;
+        const profileCompleted = hasName && hasPhone;
         return res.json({
             success: true,
-            user: updatedUser,
+            user: {
+                ...updatedUser?.toObject?.() ? updatedUser.toObject() : updatedUser,
+                profileCompleted,
+                isProfileComplete: profileCompleted,
+            },
         });
     }
     catch (err) {
@@ -713,7 +950,16 @@ const getMe = async (req, res) => {
         if (!user) {
             return res.status(404).json({ message: "User not found" });
         }
-        res.json({ user });
+        // Authoritative profile completion check (server-side)
+        const resolvedName = String(user.name || user.fullName || "").trim();
+        const resolvedPhoneRaw = String(user.phone || "");
+        const resolvedPhoneDigits = resolvedPhoneRaw.replace(/\D/g, "");
+        const resolvedPhone10 = resolvedPhoneDigits.length >= 10 ? resolvedPhoneDigits.slice(-10) : resolvedPhoneDigits;
+        const hasName = resolvedName.length > 0;
+        const hasPhone = /^[6-9]\d{9}$/.test(resolvedPhone10);
+        const isPhoneVerified = !!user.mobileVerified || !!user.isProfileComplete; // Backward compatible
+        const profileCompleted = hasName && hasPhone;
+        res.json({ user: { ...user.toObject(), profileCompleted } });
     }
     catch (error) {
         console.error("Get profile error:", error);

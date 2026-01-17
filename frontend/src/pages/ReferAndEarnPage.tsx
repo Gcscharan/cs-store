@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   ArrowLeft,
@@ -10,31 +10,99 @@ import {
   Star,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
+import { useSelector } from "react-redux";
+import { RootState } from "../store";
+import DeliveryBottomNav from "../components/DeliveryBottomNav";
 
 const ReferAndEarnPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const isDeliveryRoute = location.pathname.startsWith("/delivery/");
+  const { tokens } = useSelector((state: RootState) => state.auth);
+
+  const [activeTab, setActiveTab] = useState("more");
   const [copied, setCopied] = useState(false);
 
-  const referralCode = "DELIVER2024";
-  const referralLink = `https://csstore.com/refer/${referralCode}`;
+  const [isLoading, setIsLoading] = useState(isDeliveryRoute);
+  const [error, setError] = useState<string | null>(null);
+  const [referralCode, setReferralCode] = useState<string>("");
+
+  useEffect(() => {
+    const fetchReferral = async () => {
+      if (!isDeliveryRoute) return;
+
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        if (!tokens?.accessToken) {
+          setReferralCode("");
+          setError("Authentication required");
+          return;
+        }
+
+        const response = await fetch("/api/delivery/referral", {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${tokens.accessToken}`,
+          },
+        });
+
+        if (!response.ok) {
+          const text = await response.text();
+          let message = `Failed to load referral code (${response.status})`;
+          try {
+            const parsed = JSON.parse(text);
+            message = parsed.error || parsed.message || message;
+          } catch {
+            // ignore
+          }
+          throw new Error(message);
+        }
+
+        const data = await response.json();
+        setReferralCode(String(data.referralCode || ""));
+      } catch (e) {
+        setReferralCode("");
+        setError(e instanceof Error ? e.message : "Failed to load referral code");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchReferral();
+  }, [isDeliveryRoute, tokens?.accessToken]);
+
+  const referralLink = referralCode
+    ? `${window.location.origin}/delivery/signup?ref=${encodeURIComponent(
+        referralCode
+      )}`
+    : "";
 
   const handleCopyCode = () => {
+    if (!referralCode) return;
     navigator.clipboard.writeText(referralCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   const handleCopyLink = () => {
+    if (!referralLink) return;
     navigator.clipboard.writeText(referralLink);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   const handleShare = () => {
+    if (!referralCode || !referralLink) {
+      handleCopyCode();
+      return;
+    }
     if (navigator.share) {
       navigator.share({
         title: "Join CS Store as a Delivery Partner",
-        text: "Earn money by delivering orders! Use my referral code: DELIVER2024",
+        text: `Earn money by delivering orders! Use my referral code: ${referralCode}`,
         url: referralLink,
       });
     } else {
@@ -104,13 +172,24 @@ const ReferAndEarnPage: React.FC = () => {
               Share this code with friends to earn rewards
             </p>
             <div className="bg-white/20 rounded-xl p-4 mb-4">
-              <div className="text-3xl font-bold tracking-wider">
-                {referralCode}
-              </div>
+              {isDeliveryRoute && isLoading ? (
+                <div className="text-lg font-semibold text-blue-100">
+                  Loading referral code...
+                </div>
+              ) : referralCode ? (
+                <div className="text-3xl font-bold tracking-wider">
+                  {referralCode}
+                </div>
+              ) : (
+                <div className="text-sm text-blue-100">
+                  {error ? error : "No referral code available"}
+                </div>
+              )}
             </div>
             <div className="flex space-x-3">
               <button
                 onClick={handleCopyCode}
+                disabled={!referralCode}
                 className="flex-1 flex items-center justify-center space-x-2 bg-white/20 hover:bg-white/30 rounded-xl py-3 transition-colors"
               >
                 <Copy className="h-5 w-5" />
@@ -118,6 +197,7 @@ const ReferAndEarnPage: React.FC = () => {
               </button>
               <button
                 onClick={handleShare}
+                disabled={!referralCode}
                 className="flex-1 flex items-center justify-center space-x-2 bg-white/20 hover:bg-white/30 rounded-xl py-3 transition-colors"
               >
                 <Share2 className="h-5 w-5" />
@@ -230,6 +310,16 @@ const ReferAndEarnPage: React.FC = () => {
           </div>
         </motion.div>
       </div>
+
+      {isDeliveryRoute && (
+        <DeliveryBottomNav
+          activeTab={activeTab}
+          setActiveTab={(tab) => {
+            setActiveTab(tab);
+            navigate("/delivery");
+          }}
+        />
+      )}
     </div>
   );
 };

@@ -5,6 +5,7 @@ import type { FetchArgs, FetchBaseQueryError } from "@reduxjs/toolkit/query";
 import { RootState } from "./index"; // adjust path if needed
 import { logout as logoutAction } from "./slices/authSlice";
 import { Mutex } from "async-mutex";
+import { getApiBaseUrl } from "../config/runtime";
 
 /**
  * Robust RTK Query API with:
@@ -15,8 +16,7 @@ import { Mutex } from "async-mutex";
  * NOTE: adjust baseUrl if your env var name/path differs
  */
 
-const API_BASE_URL = (import.meta.env.VITE_API_URL ||
-  "http://localhost:5001") + "/api";
+const API_BASE_URL = getApiBaseUrl();
 
 // Mutex for token refresh race condition prevention
 const mutex = new Mutex();
@@ -50,6 +50,11 @@ const baseQueryWithReauth: BaseQueryFn<
   let result = await rawBaseQuery(args, api, extraOptions);
 
   if (result.error && result.error.status === 401) {
+    const currentAuthState = (api.getState() as any)?.auth?.authState;
+    if (currentAuthState === "GOOGLE_AUTH_ONLY") {
+      return result;
+    }
+
     if (!mutex.isLocked()) {
       const release = await mutex.acquire();
       try {
@@ -88,6 +93,60 @@ const baseQueryWithReauth: BaseQueryFn<
   return result;
 };
 
+function findWasUnreadInNotificationsV2Cache(getState: () => unknown, notificationId: string): boolean | null {
+  try {
+    const state: any = getState() as any;
+    const queries = state?.api?.queries;
+    if (!queries || typeof queries !== "object") return null;
+
+    for (const key of Object.keys(queries)) {
+      const entry = queries[key];
+      if (!entry || entry.endpointName !== "getNotificationsV2") continue;
+      const data = entry?.data;
+      const list = Array.isArray(data?.notifications) ? data.notifications : [];
+      const found = list.find((n: any) => String(n?.id || n?._id || "") === String(notificationId));
+      if (found) {
+        return !Boolean(found?.isRead);
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function removeFromNotificationsV2Caches(dispatch: any, getState: () => unknown, notificationId: string) {
+  const v2Args = listNotificationsV2CachedArgs(getState);
+  return v2Args.map((arg) =>
+    dispatch(
+      api.util.updateQueryData("getNotificationsV2", arg, (draft: any) => {
+        const list = Array.isArray(draft?.notifications) ? draft.notifications : [];
+        const next = list.filter((n: any) => String(n?.id || n?._id || "") !== String(notificationId));
+        if (Array.isArray(draft?.notifications)) {
+          draft.notifications = next;
+        }
+      })
+    )
+  );
+}
+
+function listNotificationsV2CachedArgs(getState: () => unknown): any[] {
+  try {
+    const state: any = getState() as any;
+    const queries = state?.api?.queries;
+    if (!queries || typeof queries !== "object") return [];
+    const args: any[] = [];
+    for (const key of Object.keys(queries)) {
+      const entry = queries[key];
+      if (!entry || entry.endpointName !== "getNotificationsV2") continue;
+      args.push(entry.originalArgs);
+    }
+    return args;
+  } catch {
+    return [];
+  }
+}
+
 export const api = createApi({
   reducerPath: "api",
   baseQuery: baseQueryWithReauth,
@@ -99,6 +158,7 @@ export const api = createApi({
     "Cart",
     "Address",
     "Notification",
+    "NotificationUnreadCount",
   ],
   endpoints: (builder) => ({
     // ---------- AUTH ----------
@@ -149,9 +209,9 @@ export const api = createApi({
 
     // ---------- USER ----------
     getProfile: builder.query({
-      query: () => "/user/profile",
+      query: () => "/auth/me",
       providesTags: ["User"],
-      transformResponse: (response: any) => response, // backend returns user object
+      transformResponse: (response: any) => (response && response.user ? response.user : response), // backend returns { user: { ..., profileCompleted } }
     }),
     updateProfile: builder.mutation({
       query: (profileData: any) => ({
@@ -286,7 +346,7 @@ export const api = createApi({
         method: "POST",
         body: orderData,
       }),
-      invalidatesTags: ["Cart", "Order"],
+      invalidatesTags: ["Cart", "Order", "Notification", "NotificationUnreadCount"],
     }),
 
     // ---------- ADDRESS ----------
@@ -336,30 +396,175 @@ export const api = createApi({
       query: () => "/notifications",
       providesTags: ["Notification"],
     }),
-    getUnreadCount: builder.query({
-      query: () => "/notifications/unread/count",
+    getNotificationsV2: builder.query({
+      query: (params?: { cursor?: string; limit?: number; category?: string }) => ({
+        url: "/notifications/v2",
+        method: "GET",
+        params: {
+          ...(params?.cursor ? { cursor: params.cursor } : {}),
+          ...(typeof params?.limit === "number" ? { limit: params.limit } : {}),
+          ...(params?.category ? { category: params.category } : {}),
+        },
+      }),
       providesTags: ["Notification"],
+    }),
+    getUnreadNotificationCount: builder.query<{ count: number }, void>({
+      query: () => "/notifications/unread/count",
+      providesTags: ["NotificationUnreadCount"],
     }),
     markAsRead: builder.mutation({
       query: (notificationId: string) => ({
         url: `/notifications/${notificationId}/read`,
         method: "PUT",
       }),
-      invalidatesTags: ["Notification"],
+      async onQueryStarted(notificationId: string, { dispatch, getState, queryFulfilled }) {
+        const wasUnread = findWasUnreadInNotificationsV2Cache(getState, notificationId);
+        const v2Args = listNotificationsV2CachedArgs(getState);
+
+        const v2Patches = v2Args.map((arg) =>
+          dispatch(
+            api.util.updateQueryData("getNotificationsV2", arg, (draft: any) => {
+              const list = Array.isArray(draft?.notifications) ? draft.notifications : [];
+              for (const n of list) {
+                if (String(n?.id || n?._id || "") === String(notificationId)) {
+                  n.isRead = true;
+                }
+              }
+            })
+          )
+        );
+
+        const patchCount = wasUnread
+          ? dispatch(
+              api.util.updateQueryData(
+                "getUnreadNotificationCount",
+                undefined,
+                (draft: any) => {
+                  const current = Number(draft?.count || 0);
+                  if (current > 0) {
+                    draft.count = current - 1;
+                  }
+                }
+              )
+            )
+          : ({ undo: () => undefined } as any);
+
+        const patchLegacyList = dispatch(
+          api.util.updateQueryData("getNotifications", undefined, (draft: any) => {
+            const list = Array.isArray(draft?.notifications) ? draft.notifications : [];
+            for (const n of list) {
+              if (String(n?._id || n?.id || "") === String(notificationId)) {
+                n.isRead = true;
+              }
+            }
+          })
+        );
+
+        try {
+          await queryFulfilled;
+        } catch {
+          patchCount.undo();
+          patchLegacyList.undo();
+          for (const p of v2Patches) p.undo();
+        }
+      },
+      invalidatesTags: ["NotificationUnreadCount"],
     }),
-    markAllAsRead: builder.mutation({
-      query: () => ({
-        url: "/notifications/read-all",
-        method: "PUT",
-      }),
-      invalidatesTags: ["Notification"],
-    }),
+
     deleteNotification: builder.mutation({
       query: (notificationId: string) => ({
         url: `/notifications/${notificationId}`,
         method: "DELETE",
       }),
-      invalidatesTags: ["Notification"],
+      async onQueryStarted(notificationId: string, { dispatch, getState, queryFulfilled }) {
+        const deletedWasUnread = findWasUnreadInNotificationsV2Cache(getState, notificationId);
+        const v2Patches = removeFromNotificationsV2Caches(dispatch, getState, notificationId);
+
+        const patchLegacyList = dispatch(
+          api.util.updateQueryData("getNotifications", undefined, (draft: any) => {
+            const list = Array.isArray(draft?.notifications) ? draft.notifications : [];
+            const idx = list.findIndex(
+              (n: any) => String(n?._id || n?.id || "") === String(notificationId)
+            );
+            if (idx >= 0) {
+              list.splice(idx, 1);
+              draft.count = Array.isArray(draft?.notifications) ? draft.notifications.length : draft.count;
+            }
+          })
+        );
+
+        const patchCount = deletedWasUnread
+          ? dispatch(
+              api.util.updateQueryData(
+                "getUnreadNotificationCount",
+                undefined,
+                (draft: any) => {
+                  const current = Number(draft?.count || 0);
+                  if (current > 0) {
+                    draft.count = current - 1;
+                  }
+                }
+              )
+            )
+          : ({ undo: () => undefined } as any);
+
+        try {
+          await queryFulfilled;
+        } catch {
+          patchCount.undo();
+          patchLegacyList.undo();
+          for (const p of v2Patches) p.undo();
+        }
+      },
+      invalidatesTags: ["NotificationUnreadCount"],
+    }),
+
+    markAllAsRead: builder.mutation({
+      query: () => ({
+        url: "/notifications/read-all",
+        method: "PUT",
+      }),
+      async onQueryStarted(_arg, { dispatch, getState, queryFulfilled }) {
+        const patchCount = dispatch(
+          api.util.updateQueryData(
+            "getUnreadNotificationCount",
+            undefined,
+            (draft: any) => {
+              draft.count = 0;
+            }
+          )
+        );
+
+        const v2Args = listNotificationsV2CachedArgs(getState);
+        const v2Patches = v2Args.map((arg) =>
+          dispatch(
+            api.util.updateQueryData("getNotificationsV2", arg, (draft: any) => {
+              const list = Array.isArray(draft?.notifications) ? draft.notifications : [];
+              for (const n of list) {
+                n.isRead = true;
+              }
+            })
+          )
+        );
+
+        const patchLegacyList = dispatch(
+          api.util.updateQueryData("getNotifications", undefined, (draft: any) => {
+            const list = Array.isArray(draft?.notifications) ? draft.notifications : [];
+            for (const n of list) {
+              n.isRead = true;
+            }
+          })
+        );
+
+        try {
+          await queryFulfilled;
+        } catch {
+          patchCount.undo();
+          patchLegacyList.undo();
+          for (const p of v2Patches) p.undo();
+        }
+      },
+      invalidatesTags: ["NotificationUnreadCount"],
     }),
 
     // ---------- NOTIFICATION PREFERENCES ----------
@@ -445,7 +650,9 @@ export const {
   useDeleteAddressMutation,
   useSetDefaultAddressMutation,
   useGetNotificationsQuery,
-  useGetUnreadCountQuery,
+  useGetNotificationsV2Query,
+  useLazyGetNotificationsV2Query,
+  useGetUnreadNotificationCountQuery,
   useMarkAsReadMutation,
   useMarkAllAsReadMutation,
   useDeleteNotificationMutation,

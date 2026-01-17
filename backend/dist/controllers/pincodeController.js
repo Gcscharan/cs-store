@@ -1,12 +1,7 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.checkPincodeController = exports.getValidPincodeRangesController = exports.validateBulkPincodesController = exports.validatePincodeController = void 0;
-const Pincode_1 = require("../models/Pincode");
-const pincodes_ap_ts_json_1 = __importDefault(require("../../data/pincodes_ap_ts.json"));
-const pincodeIndex = new Map(pincodes_ap_ts_json_1.default.map((item) => [String(item.pincode), item]));
+const pincodeResolver_1 = require("../utils/pincodeResolver");
 // Comprehensive pincode validation for Andhra Pradesh and Telangana
 const validatePincode = (pincode) => {
     if (!pincode || pincode.length !== 6)
@@ -211,32 +206,26 @@ const checkPincodeController = async (req, res) => {
             });
             return;
         }
-        // Check if pincode exists in database
-        const pincodeData = await Pincode_1.Pincode.findOne({ pincode });
-        if (pincodeData) {
+        const resolved = await (0, pincodeResolver_1.resolvePincodeDetails)(pincode);
+        if (resolved) {
+            const admin_district = (0, pincodeResolver_1.applyDistrictOverride)(resolved.state, resolved.postal_district);
             res.status(200).json({
-                deliverable: true,
-                state: pincodeData.state,
-                district: pincodeData.district,
-                taluka: pincodeData.taluka,
+                deliverable: resolved.deliverable,
+                state: resolved.state,
+                postal_district: resolved.postal_district,
+                admin_district,
+                cities: resolved.cities,
+                single_city: resolved.single_city,
+                message: resolved.deliverable
+                    ? undefined
+                    : "Not deliverable to this location or pincode",
             });
+            return;
         }
-        else {
-            const fallbackPincodeData = pincodeIndex.get(String(pincode));
-            if (fallbackPincodeData) {
-                res.status(200).json({
-                    deliverable: true,
-                    state: fallbackPincodeData.state,
-                    district: fallbackPincodeData.district,
-                    taluka: fallbackPincodeData.taluka,
-                });
-                return;
-            }
-            res.status(200).json({
-                deliverable: false,
-                message: "Not deliverable to this location or pincode",
-            });
-        }
+        res.status(200).json({
+            deliverable: false,
+            message: "Not deliverable to this location or pincode",
+        });
     }
     catch (error) {
         console.error("Pincode check error:", error);

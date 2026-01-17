@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { RootState } from "../store";
+import { toApiUrl } from "../config/runtime";
 import {
   Package,
   Users,
@@ -56,7 +57,7 @@ const AdminDashboard: React.FC = () => {
           return;
         }
 
-        const response = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/admin/dashboard-stats`, {
+        const response = await fetch(toApiUrl("/admin/dashboard-stats"), {
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${tokens.accessToken}`,

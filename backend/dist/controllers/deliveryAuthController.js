@@ -36,9 +36,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updateSelfie = exports.getSelfieUrl = exports.updateDeliveryProfile = exports.getDeliveryProfile = exports.deliveryLogin = exports.deliverySignup = void 0;
+exports.updateSelfie = exports.getSelfieUrl = exports.updateDeliveryProfile = exports.getDeliveryProfile = exports.deliveryLogin = exports.getDeliveryMessages = exports.getDeliveryReferral = exports.deliverySignup = void 0;
 const User_1 = require("../models/User");
 const DeliveryBoy_1 = require("../models/DeliveryBoy");
+const Notification_1 = __importDefault(require("../models/Notification"));
 const bcrypt = __importStar(require("bcryptjs"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
@@ -129,6 +130,57 @@ const deliverySignup = async (req, res) => {
 };
 exports.deliverySignup = deliverySignup;
 /**
+ * Get Delivery Referral Info
+ * GET /api/delivery/referral
+ */
+const getDeliveryReferral = async (req, res) => {
+    try {
+        const user = req.user;
+        if (!user) {
+            res.status(401).json({ error: "Authentication required" });
+            return;
+        }
+        const id = String(user._id || "");
+        const suffix = id.replace(/[^a-fA-F0-9]/g, "").slice(-6).toUpperCase();
+        const referralCode = suffix ? `DEL${suffix}` : "";
+        res.json({
+            success: true,
+            referralCode,
+        });
+    }
+    catch (error) {
+        console.error("Get delivery referral error:", error);
+        res.status(500).json({ error: "Failed to get referral info" });
+    }
+};
+exports.getDeliveryReferral = getDeliveryReferral;
+/**
+ * Get Delivery Messages
+ * GET /api/delivery/messages
+ */
+const getDeliveryMessages = async (req, res) => {
+    try {
+        const user = req.user;
+        if (!user) {
+            res.status(401).json({ error: "Authentication required" });
+            return;
+        }
+        const messages = await Notification_1.default.find({ userId: user._id })
+            .sort({ createdAt: -1 })
+            .limit(50);
+        res.json({
+            success: true,
+            messages,
+            count: messages.length,
+        });
+    }
+    catch (error) {
+        console.error("Get delivery messages error:", error);
+        res.status(500).json({ error: "Failed to fetch messages" });
+    }
+};
+exports.getDeliveryMessages = getDeliveryMessages;
+/**
  * Delivery Boy Login
  * POST /api/delivery/auth/login
  */
@@ -180,11 +232,25 @@ const deliveryLogin = async (req, res) => {
             });
             return;
         }
+        if (user.status !== "active") {
+            res.status(403).json({
+                error: "Your account is not approved yet.",
+                status: user.status,
+            });
+            return;
+        }
         // Get delivery boy record
         const deliveryBoy = await DeliveryBoy_1.DeliveryBoy.findOne({ userId: user._id });
         if (!deliveryBoy) {
             res.status(404).json({
                 error: "Delivery profile not found",
+            });
+            return;
+        }
+        if (!deliveryBoy.isActive) {
+            res.status(403).json({
+                error: "Your delivery profile is not active yet. Please wait for activation.",
+                status: "inactive",
             });
             return;
         }

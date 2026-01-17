@@ -3,6 +3,7 @@ import { useDispatch } from "react-redux";
 import { motion } from "framer-motion";
 import { setUser, setTokens } from "../store/slices/authSlice";
 import OAuthLogin from "./OAuthLogin";
+import { toApiUrl } from "../config/runtime";
 
 interface LoginFormData {
   emailOrPhone: string;
@@ -47,7 +48,8 @@ const LoginForm: React.FC = () => {
 
   const checkDeliverySelfie = async (accessToken: string) => {
     try {
-      const response = await fetch("/api/delivery/selfie-url", {
+      console.log("🔍 Checking delivery selfie status...");
+      const response = await fetch(toApiUrl("/delivery/selfie-url"), {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
@@ -57,17 +59,20 @@ const LoginForm: React.FC = () => {
         const data = await response.json();
         if (data.selfieUrl) {
           // Selfie exists, go to dashboard
-          window.location.href = "/delivery";
+          console.log("🔍 Selfie verified, redirecting to /delivery/dashboard");
+          window.location.href = "/delivery/dashboard";
         } else {
           // No selfie, go to selfie verification
+          console.log("⚠️ No selfie found, redirecting to /delivery-selfie");
           window.location.href = "/delivery-selfie";
         }
       } else {
         // Error checking selfie, go to selfie verification
+        console.warn("⚠️ Error checking selfie status, redirecting to /delivery-selfie");
         window.location.href = "/delivery-selfie";
       }
     } catch (error) {
-      console.error("Error checking selfie:", error);
+      console.error("❌ Error checking selfie:", error);
       // Error checking selfie, go to selfie verification
       window.location.href = "/delivery-selfie";
     }
@@ -129,7 +134,7 @@ const LoginForm: React.FC = () => {
 
       console.log("🔍 OTP send request payload:", payload);
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/auth/send-otp`, {
+      const response = await fetch(toApiUrl("/auth/send-otp"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -149,7 +154,7 @@ const LoginForm: React.FC = () => {
         if (response.status === 404 && data.action === 'signup_required') {
           // Account doesn't exist - redirect to signup
           const identifier = data.email || formData.emailOrPhone;
-          window.location.href = `/signup?identifier=${encodeURIComponent(identifier)}`;
+          window.location.href = `/signup?prefill=${encodeURIComponent(identifier)}&fromLogin=true`;
           return;
         } else {
           setErrors({ general: data.error || data.details || "Failed to send OTP" });
@@ -177,13 +182,21 @@ const LoginForm: React.FC = () => {
         otp: formData.otp,
       });
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/auth/verify-otp`, {
+      const payload: any = {};
+      if (inputType === "phone") {
+        const phoneDigits = formData.emailOrPhone.replace(/\D/g, "");
+        payload.phone = phoneDigits;
+      } else {
+        payload.email = formData.emailOrPhone;
+      }
+
+      const response = await fetch(toApiUrl("/auth/verify-otp"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          [inputType]: formData.emailOrPhone,
+          ...payload,
           otp: formData.otp,
         }),
       });
@@ -213,17 +226,18 @@ const LoginForm: React.FC = () => {
         }
 
         console.log("🔍 Auth state updated, redirecting...");
+        console.log("🔍 User role:", data.user.role, "isAdmin:", data.user.isAdmin);
 
         // Redirect based on user role
         if (data.user.isAdmin) {
-          console.log("🔍 Redirecting to admin page");
+          console.log("🔍 Redirecting admin to /admin");
           window.location.href = "/admin";
         } else if (data.user.role === "delivery") {
-          console.log("🔍 Redirecting to delivery page");
+          console.log("🔍 Redirecting delivery user to /delivery/dashboard");
           // Check if delivery boy has selfie uploaded
           checkDeliverySelfie(data.accessToken);
         } else {
-          console.log("🔍 Redirecting to homepage");
+          console.log("🔍 Redirecting customer to homepage");
           window.location.href = "/";
         }
       } else {

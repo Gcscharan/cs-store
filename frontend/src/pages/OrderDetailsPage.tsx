@@ -3,9 +3,10 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { RootState } from "../store";
 import { motion } from "framer-motion";
-import { Package, CheckCircle, MapPin, User, ArrowLeft } from "lucide-react";
-import { io, Socket } from "socket.io-client";
-import toast from "react-hot-toast";
+import { CheckCircle, MapPin, User, ArrowLeft } from "lucide-react";
+import OrderTimeline from "../components/OrderTimeline";
+import { buildCustomerOrderTimeline } from "../utils/customerOrderTimeline";
+import { shouldShowDeliveryPartner } from "../utils/deliveryPartnerVisibility";
 
 interface OrderItem {
   productId?: {
@@ -53,6 +54,12 @@ interface Order {
   paymentReceivedAt?: string;
   createdAt: string;
   updatedAt: string;
+  timeline?: any[];
+  deliveryPartner?: {
+    name?: string;
+    phone?: string;
+    vehicleType?: string;
+  } | null;
 }
 
 const OrderDetailsPage: React.FC = () => {
@@ -64,83 +71,30 @@ const OrderDetailsPage: React.FC = () => {
   const [order, setOrder] = useState<Order | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [_socket, _setSocket] = useState<Socket | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated) {
       navigate("/login");
       return;
     }
+    if (!orderId) {
+      setError("Order not found");
+      setIsLoading(false);
+      return;
+    }
     fetchOrderDetails();
   }, [isAuthenticated, orderId]);
-
-  // Socket.IO for real-time updates
-  useEffect(() => {
-    if (!isAuthenticated || !tokens?.accessToken || !order) return;
-
-    const newSocket = io("http://localhost:5001", {
-      auth: {
-        token: tokens.accessToken,
-      },
-    });
-
-    newSocket.on("connect", () => {
-      console.log("[ORDER_DETAILS] Socket connected");
-      // Join user-specific room for order updates
-      const userId = order.userId?._id || order.userId;
-      if (userId) {
-        newSocket.emit("join_room", {
-          room: `user_${userId}`,
-          userId: userId,
-          userRole: "user",
-        });
-        console.log(`[ORDER_DETAILS] Joined room: user_${userId}`);
-      }
-      // Also join order-specific room
-      newSocket.emit("join_room", {
-        room: `order_${orderId}`,
-        userId: userId,
-        userRole: "user",
-      });
-      console.log(`[ORDER_DETAILS] Joined room: order_${orderId}`);
-    });
-
-    // Listen for order status updates
-    newSocket.on("order:statusUpdate", (data: any) => {
-      console.log("[ORDER_DETAILS] Received status update:", data);
-      
-      // If this is the order we're viewing, update it
-      if (data.orderId === orderId || data.orderId === order._id) {
-        toast.success(data.message || `Order status updated: ${data.status}`);
-        
-        // Refetch order details to get fresh data
-        fetchOrderDetails();
-      }
-    });
-
-    newSocket.on("order:delivered", (data: any) => {
-      console.log("[ORDER_DETAILS] Order delivered:", data);
-      if (data.orderId === orderId || data.orderId === order._id) {
-        toast.success(data.message || "Your order has been delivered!");
-        fetchOrderDetails();
-      }
-    });
-
-    newSocket.on("disconnect", () => {
-      console.log("[ORDER_DETAILS] Socket disconnected");
-    });
-
-    _setSocket(newSocket);
-
-    return () => {
-      newSocket.disconnect();
-    };
-  }, [isAuthenticated, tokens, orderId, order?._id]);
 
   const fetchOrderDetails = async () => {
     try {
       setIsLoading(true);
       setError(null);
+
+      if (!orderId) {
+        setOrder(null);
+        setError("Order not found");
+        return;
+      }
 
       const response = await fetch(`/api/orders/${orderId}`, {
         headers: {
@@ -148,6 +102,18 @@ const OrderDetailsPage: React.FC = () => {
           Authorization: `Bearer ${tokens?.accessToken}`,
         },
       });
+
+      if (response.status === 404) {
+        setOrder(null);
+        setError("Order not found");
+        return;
+      }
+
+      if (response.status === 400) {
+        setOrder(null);
+        setError("Invalid order link");
+        return;
+      }
 
       if (!response.ok) {
         throw new Error("Failed to fetch order details");
@@ -164,21 +130,6 @@ const OrderDetailsPage: React.FC = () => {
     }
   };
 
-  const getStatusTimeline = (currentStatus: string) => {
-    const statuses = [
-      { key: "created", label: "Order Confirmed", icon: CheckCircle },
-      { key: "picked_up", label: "Picked Up", icon: Package },
-      { key: "in_transit", label: "In Transit", icon: Package },
-      { key: "delivered", label: "Delivered", icon: CheckCircle },
-    ];
-
-    const currentIndex = statuses.findIndex((s) => s.key === currentStatus);
-
-    return statuses.map((status, index) => ({
-      ...status,
-      completed: index <= currentIndex,
-    }));
-  };
 
   if (isLoading) {
     return (
@@ -212,8 +163,14 @@ const OrderDetailsPage: React.FC = () => {
       </div>
     );
   }
-
-  const timeline = getStatusTimeline(order.orderStatus || "created");
+  const backendTimeline = Array.isArray((order as any)?.timeline) ? ((order as any).timeline as any[]) : [];
+  const timeline = buildCustomerOrderTimeline(backendTimeline);
+  const failedStep = timeline.find((s: any) => String(s?.state || "") === "failed");
+  const currentStep = timeline.find((s: any) => String(s?.state || "") === "current");
+  const showPartner = shouldShowDeliveryPartner({
+    currentCustomerStepKey: String((currentStep as any)?.key || ""),
+    hasDeliveryPartner: Boolean((order as any)?.deliveryPartner),
+  });
 
   // Calculate price breakdown
   const calculatePriceDetails = () => {
@@ -333,11 +290,46 @@ const OrderDetailsPage: React.FC = () => {
           {/* Left Column - Order Details */}
           <div className="lg:col-span-2 space-y-6">
             {/* Cancellation Message */}
-            {order.orderStatus === "cancelled" && (
+            {failedStep && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                 <p className="text-red-600 font-semibold text-center">
-                  Order has been cancelled by the seller
+                  {String((failedStep as any)?.label || "Order update")}
                 </p>
+                {String((failedStep as any)?.description || "").trim() && (
+                  <p className="text-red-700 text-sm text-center mt-1">
+                    {String((failedStep as any)?.description || "").trim()}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {showPartner && (
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">Delivery Partner</h3>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 truncate">
+                      {String((order as any)?.deliveryPartner?.name || "Delivery partner")}
+                    </p>
+                    {(order as any)?.deliveryPartner?.vehicleType && (
+                      <p className="text-xs text-gray-600 mt-0.5">
+                        {String((order as any)?.deliveryPartner?.vehicleType)}
+                      </p>
+                    )}
+                    {(order as any)?.deliveryPartner?.phone && (
+                      <p className="text-sm text-gray-700 mt-2">{String((order as any)?.deliveryPartner?.phone)}</p>
+                    )}
+                  </div>
+
+                  {(order as any)?.deliveryPartner?.phone && (
+                    <a
+                      href={`tel:${String((order as any)?.deliveryPartner?.phone)}`}
+                      className="inline-flex items-center rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                    >
+                      Call
+                    </a>
+                  )}
+                </div>
               </div>
             )}
 
@@ -423,59 +415,7 @@ const OrderDetailsPage: React.FC = () => {
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
                 Order Status
               </h3>
-              <div className="space-y-3">
-                {timeline.map((step, index) => {
-                  const Icon = step.icon;
-                  const isLastStep = index === timeline.length - 1;
-                  const nextStep = timeline[index + 1];
-                  
-                  return (
-                    <div key={step.key} className="relative flex items-start">
-                      {/* Icon Circle */}
-                      <div className="relative flex flex-col items-center">
-                        <div
-                          className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                            step.completed ? "bg-green-500" : "bg-gray-200"
-                          }`}
-                        >
-                          {step.completed ? (
-                            <CheckCircle className="h-5 w-5 text-white" />
-                          ) : (
-                            <Icon className="h-5 w-5 text-gray-400" />
-                          )}
-                        </div>
-                        
-                        {/* Connector Line */}
-                        {!isLastStep && (
-                          <div
-                            className={`w-0.5 h-6 mt-1 ${
-                              step.completed && nextStep?.completed
-                                ? "bg-green-500"
-                                : "bg-gray-300"
-                            }`}
-                          ></div>
-                        )}
-                      </div>
-                      
-                      {/* Label */}
-                      <div className="ml-4 flex-1">
-                        <p
-                          className={`text-sm font-medium ${
-                            step.completed ? "text-gray-900" : "text-gray-500"
-                          }`}
-                        >
-                          {step.label}
-                        </p>
-                        {step.key === order.orderStatus && (
-                          <p className="text-xs text-blue-600 mt-0.5">
-                            Current Status
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+              <OrderTimeline steps={timeline as any} />
             </div>
           </div>
 

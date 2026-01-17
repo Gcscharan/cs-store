@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { useSelector, useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
+import { setUser, setTokens, setAuthState } from "../store/slices/authSlice";
 import { RootState } from "../store";
-import { setUser, setTokens } from "../store/slices/authSlice";
+import { toApiUrl } from "../config/runtime";
 import { useLogout } from "../hooks/useLogout";
 import { motion } from "framer-motion";
 import { User, Phone, Mail, ArrowRight, LogIn, ShieldCheck } from "lucide-react";
@@ -11,9 +12,31 @@ import { useToast } from "./AccessibleToast";
 const OnboardingForm: React.FC = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const { user, tokens } = useSelector((state: RootState) => state.auth);
+  const { user, tokens, profileCompleted, authState } = useSelector((state: RootState) => state.auth);
   const { success, error: showError } = useToast();
   const performLogout = useLogout();
+
+  // SAFETY: If profile is already completed, redirect away immediately
+  useEffect(() => {
+    if (profileCompleted) {
+      navigate("/", { replace: true });
+    }
+  }, [profileCompleted, navigate]);
+
+  // Terminal rule: only GOOGLE_AUTH_ONLY can use onboarding
+  useEffect(() => {
+    if (authState && authState !== "GOOGLE_AUTH_ONLY") {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [authState, navigate]);
+
+  // Prefill name from Google (if available)
+  useEffect(() => {
+    const nextName = String((user as any)?.name || "").trim();
+    if (nextName) {
+      setFormData((prev) => ({ ...prev, name: nextName }));
+    }
+  }, [user]);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -97,7 +120,7 @@ const OnboardingForm: React.FC = () => {
     try {
       console.log("🔍 Checking if phone exists:", formData.phone.trim());
       // First, check if phone number already exists in database
-      const checkResponse = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/auth/check-phone`, {
+      const checkResponse = await fetch(toApiUrl("/auth/check-phone"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -120,18 +143,19 @@ const OnboardingForm: React.FC = () => {
       }
 
       console.log("📤 Sending OTP for phone:", formData.phone.trim());
-      // If phone doesn't exist, proceed with OTP generation for verification
-      // Use the verification/generate endpoint with phone in body
-      const response = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/otp/verification/generate`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${tokens?.accessToken || ""}`,
-        },
-        body: JSON.stringify({
-          phone: formData.phone.trim(),
-        }),
-      });
+      // Create OTP in "signup" type for onboarding finalization
+      const response = await fetch(
+        toApiUrl("/auth/send-otp?mode=signup"),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            phone: formData.phone.trim(),
+          }),
+        }
+      );
 
       const data = await response.json();
       console.log("📨 OTP response:", { status: response.status, data });
@@ -166,7 +190,7 @@ const OnboardingForm: React.FC = () => {
     setOtpError("");
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/users/verify-mobile`, {
+      const response = await fetch(toApiUrl("/auth/verify-onboarding-otp"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -199,19 +223,6 @@ const OnboardingForm: React.FC = () => {
       setOtpVerified(true);
       setOtpError("");
       
-      // Update auth state if new tokens are provided
-      if (data.accessToken && data.refreshToken) {
-        dispatch(setUser({
-          ...user,
-          ...data.user,
-          mobileVerified: true,
-        } as any));
-        dispatch(setTokens({
-          accessToken: data.accessToken,
-          refreshToken: data.refreshToken,
-        }));
-      }
-      
       success("Mobile Verified", "Your mobile number has been verified successfully!");
     } catch (error) {
       setOtpError(error instanceof Error ? error.message : "Failed to verify OTP. Please try again.");
@@ -238,8 +249,8 @@ const OnboardingForm: React.FC = () => {
       return;
     }
 
-    // Check authentication before proceeding
-    if (!tokens?.accessToken) {
+    // Check onboarding session before proceeding
+    if (!tokens?.accessToken || authState !== "GOOGLE_AUTH_ONLY") {
       console.error("No access token available");
       showError(
         "Authentication Error", 
@@ -255,7 +266,7 @@ const OnboardingForm: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/auth/complete-profile`, {
+      const response = await fetch(toApiUrl("/auth/complete-onboarding"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -264,6 +275,7 @@ const OnboardingForm: React.FC = () => {
         body: JSON.stringify({
           fullName: formData.name.trim(),
           phone: formData.phone.trim(),
+          otp: otp.trim(),
         }),
       });
 
@@ -311,24 +323,17 @@ const OnboardingForm: React.FC = () => {
           return;
         }
         
-        throw new Error(data.error || "Failed to complete profile");
+        throw new Error(data.message || data.error || "Failed to complete onboarding");
       }
 
-      // Check for success flag from backend
-      if (data.success) {
-        console.log("🎉 Profile completed. Redirecting...");
-        
-        // Update Redux store with updated user data including isProfileComplete
-        dispatch(setUser(data.user as any));
-
-        success("Profile Completed", "Welcome to CS Store! Your profile has been completed successfully.");
-        
-        // Redirect to dashboard
-        navigate("/dashboard");
-      } else {
-        console.log("❌ Profile not completed:", data);
-        showError("Profile Completion Failed", "Unable to complete profile. Please try again.");
+      if (data?.accessToken && data?.refreshToken && data?.user) {
+        dispatch(setTokens({ accessToken: data.accessToken, refreshToken: data.refreshToken }));
+        dispatch(setUser({ ...data.user, authState: data.authState || "ACTIVE" }));
+        dispatch(setAuthState("ACTIVE"));
       }
+
+      success("Profile Completed", "Welcome to CS Store! Your account is ready.");
+      navigate("/dashboard", { replace: true });
     } catch (error) {
       console.error("Profile completion error:", error);
       showError(
@@ -340,11 +345,17 @@ const OnboardingForm: React.FC = () => {
     }
   };
 
+  // If no user is authenticated, the ProtectedRoute wrapper will handle the redirect
+  // We don't need to navigate here as it causes conflicts
   if (!user) {
-    // If no user is authenticated, redirect to home
-    // Use replace to prevent back button issues
-    navigate("/", { replace: true });
-    return null;
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
   }
 
   return (

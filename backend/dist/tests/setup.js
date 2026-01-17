@@ -9,7 +9,12 @@ const mongodb_memory_server_1 = require("mongodb-memory-server");
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config({ path: '.env.test', override: true });
 let mongoServer = null;
+let ownsConnection = false;
 const connect = async () => {
+    // If another Jest setup already connected mongoose, reuse it.
+    if (mongoose_1.default.connection.readyState !== 0) {
+        return;
+    }
     if (mongoServer) {
         // Already initialized
         return;
@@ -21,6 +26,7 @@ const connect = async () => {
     await mongoose_1.default.connect(uri, {
         dbName: 'test-db',
     });
+    ownsConnection = true;
 };
 exports.connect = connect;
 const clear = async () => {
@@ -33,11 +39,14 @@ const clear = async () => {
 };
 exports.clear = clear;
 const close = async () => {
-    await mongoose_1.default.connection.dropDatabase().catch(() => undefined);
-    await mongoose_1.default.connection.close().catch(() => undefined);
-    if (mongoServer) {
-        await mongoServer.stop();
-        mongoServer = null;
+    if (ownsConnection) {
+        await mongoose_1.default.connection.dropDatabase().catch(() => undefined);
+        await mongoose_1.default.connection.close().catch(() => undefined);
+        if (mongoServer) {
+            await mongoServer.stop();
+            mongoServer = null;
+        }
+        ownsConnection = false;
     }
 };
 exports.close = close;

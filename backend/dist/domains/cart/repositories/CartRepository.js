@@ -200,7 +200,7 @@ class CartRepository {
                 $set: {
                     items: {
                         $filter: {
-                            input: '$items',
+                            input: { $ifNull: ['$items', []] },
                             as: 'item',
                             cond: { $ne: ['$$item.productId', productObjectId] }
                         }
@@ -209,8 +209,24 @@ class CartRepository {
             },
             {
                 $set: {
-                    total: { $sum: { $map: { input: '$items', as: 'item', in: { $multiply: ['$$item.price', '$$item.quantity'] } } } },
-                    itemCount: { $sum: '$items.quantity' }
+                    total: {
+                        $sum: {
+                            $map: {
+                                input: { $ifNull: ['$items', []] },
+                                as: 'item',
+                                in: { $multiply: ['$$item.price', '$$item.quantity'] }
+                            }
+                        }
+                    },
+                    itemCount: {
+                        $sum: {
+                            $map: {
+                                input: { $ifNull: ['$items', []] },
+                                as: 'item',
+                                in: '$$item.quantity'
+                            }
+                        }
+                    }
                 }
             }
         ], { new: true });

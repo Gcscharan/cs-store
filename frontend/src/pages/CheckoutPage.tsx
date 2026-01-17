@@ -17,7 +17,11 @@ import {
 } from "../utils/deliveryFeeCalculator";
 import toast from "react-hot-toast";
 import { MapPin, Shield } from "lucide-react";
-import { useClearCartMutation, useGetAddressesQuery, useSetDefaultAddressMutation } from "../store/api";
+import api, {
+  useClearCartMutation,
+  useGetAddressesQuery,
+  useSetDefaultAddressMutation,
+} from "../store/api";
 
 const CheckoutPage = () => {
   const cart = useSelector((state: RootState) => state.cart);
@@ -161,8 +165,25 @@ const CheckoutPage = () => {
 
   const handleCODOrder = async () => {
     try {
+      // Validate address before attempting order
       if (!canAttemptCheckout) {
-        toast.error("Please select a valid delivery address");
+        if (!hasValidCoordinates) {
+          toast.error(
+            "Address coordinates are missing. Please update your delivery address with complete location details.",
+            { duration: 5000 }
+          );
+        } else {
+          toast.error("Please select a valid delivery address");
+        }
+        return;
+      }
+
+      // Additional explicit coordinate check before API call
+      if (!hasValidCoordinates) {
+        toast.error(
+          "Your delivery address is missing GPS coordinates. Please delete and recreate your address with complete details.",
+          { duration: 6000 }
+        );
         return;
       }
 
@@ -191,15 +212,27 @@ const CheckoutPage = () => {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to place order");
+        // Backend may return error in 'message' or 'error' field
+        const errorMessage = errorData.message || errorData.error || "Failed to place order";
+        
+        // Handle specific error cases with actionable messages
+        if (errorMessage.includes("coordinates") || errorMessage.includes("Address coordinates")) {
+          throw new Error(
+            "Your delivery address is missing location coordinates. Please update your address with complete details (street name, landmark, area)."
+          );
+        }
+        
+        throw new Error(errorMessage);
       }
 
       await clearCartCompletely();
       toast.success("Order placed with Cash on Delivery");
+
+      dispatch(api.util.invalidateTags(["Notification", "NotificationUnreadCount"]));
       navigate("/orders");
     } catch (error: any) {
       console.error("COD order error:", error);
-      toast.error(error.message || "Failed to place order");
+      toast.error(error.message || "Failed to place order", { duration: 5000 });
     } finally {
       setIsPlacingOrder(false);
     }
@@ -207,8 +240,25 @@ const CheckoutPage = () => {
 
   const handleCreateUpiOrder = async () => {
     try {
+      // Validate address before attempting order
       if (!canAttemptCheckout) {
-        toast.error("Please select a valid delivery address");
+        if (!hasValidCoordinates) {
+          toast.error(
+            "Address coordinates are missing. Please update your delivery address with complete location details.",
+            { duration: 5000 }
+          );
+        } else {
+          toast.error("Please select a valid delivery address");
+        }
+        return;
+      }
+
+      // Additional explicit coordinate check before API call
+      if (!hasValidCoordinates) {
+        toast.error(
+          "Your delivery address is missing GPS coordinates. Please delete and recreate your address with complete details.",
+          { duration: 6000 }
+        );
         return;
       }
 
@@ -243,7 +293,16 @@ const CheckoutPage = () => {
 
       const data = await response.json().catch(() => ({} as any));
       if (!response.ok) {
-        throw new Error((data as any)?.message || (data as any)?.error || "Failed to create UPI order");
+        const errorMessage = (data as any)?.message || (data as any)?.error || "Failed to create UPI order";
+        
+        // Handle specific error cases with actionable messages
+        if (errorMessage.includes("coordinates") || errorMessage.includes("Address coordinates")) {
+          throw new Error(
+            "Your delivery address is missing location coordinates. Please update your address with complete details (street name, landmark, area)."
+          );
+        }
+        
+        throw new Error(errorMessage);
       }
 
       const orderId = String((data as any)?.order?._id || "");
@@ -253,9 +312,10 @@ const CheckoutPage = () => {
 
       setCreatedUpiOrderId(orderId);
       toast.success("UPI request sent. Approve it in your UPI app");
+      dispatch(api.util.invalidateTags(["Notification", "NotificationUnreadCount"]));
     } catch (error: any) {
       console.error("UPI order error:", error);
-      toast.error(error.message || "Failed to create UPI order");
+      toast.error(error.message || "Failed to place order", { duration: 5000 });
     } finally {
       setIsPlacingOrder(false);
     }
@@ -351,6 +411,26 @@ const CheckoutPage = () => {
               </div>
 
               <div className="py-4">
+                {/* Warning banner for invalid coordinates */}
+                {userAddress && !hasValidCoordinates && (
+                  <div className="mb-4 bg-red-50 border-2 border-red-300 rounded-lg p-4">
+                    <div className="flex items-start space-x-3">
+                      <div className="text-2xl flex-shrink-0">⚠️</div>
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-red-900 mb-2">
+                          Address Missing Location Coordinates
+                        </h4>
+                        <p className="text-sm text-red-800 mb-2">
+                          Your delivery address does not have valid GPS coordinates. Orders cannot be placed without location coordinates.
+                        </p>
+                        <p className="text-sm text-red-700 font-medium">
+                          📍 <strong>How to fix:</strong> Delete this address and create a new one with complete details including street name, landmark, and area. This allows the system to accurately determine your location.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
                   <div className="flex items-start space-x-3">
                     <MapPin className="h-5 w-5 text-orange-500 mt-1 flex-shrink-0" />

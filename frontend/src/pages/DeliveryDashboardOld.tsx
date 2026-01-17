@@ -69,7 +69,7 @@ const DeliveryDashboard: React.FC = () => {
   // Check authentication and role
   useEffect(() => {
     if (!isAuthenticated || user?.role !== "delivery") {
-      navigate("/login");
+      navigate("/delivery/login");
       return;
     }
     fetchOrders();
@@ -112,9 +112,19 @@ const DeliveryDashboard: React.FC = () => {
         console.error("API error response:", errorData);
 
         if (response.status === 401 || response.status === 403) {
-          console.log("Authentication failed, redirecting to login");
-          localStorage.removeItem("auth");
-          window.location.href = "/login";
+          if (response.status === 401) {
+            console.log("Authentication failed, redirecting to login");
+            localStorage.removeItem("auth");
+            window.location.href = "/delivery/login";
+            return;
+          }
+
+          let errorMessage = "Access denied";
+          try {
+            errorMessage = errorData?.error || errorData?.message || errorMessage;
+          } catch {
+          }
+          setError(errorMessage);
           return;
         }
 
@@ -200,7 +210,7 @@ const DeliveryDashboard: React.FC = () => {
 
   const handleLogout = () => {
     dispatch(logout());
-    navigate("/login");
+    navigate("/delivery/login");
   };
 
   const getStatusColor = (status: string) => {

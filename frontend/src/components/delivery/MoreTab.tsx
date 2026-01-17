@@ -21,7 +21,7 @@ const MoreTab: React.FC = () => {
 
   const handleLogout = () => {
     dispatch(logout());
-    navigate("/login");
+    navigate("/delivery/login");
   };
 
   const menuItems = [
@@ -29,7 +29,7 @@ const MoreTab: React.FC = () => {
       icon: User,
       label: "Profile",
       description: "Manage your personal information and password",
-      action: () => navigate("/delivery-profile"),
+      action: () => navigate("/delivery/profile"),
       color: "text-blue-600",
       bgColor: "bg-blue-50",
     },
@@ -37,7 +37,7 @@ const MoreTab: React.FC = () => {
       icon: DollarSign,
       label: "Ways to Earn",
       description: "Tips, bonuses, and performance incentives",
-      action: () => navigate("/ways-to-earn"),
+      action: () => navigate("/delivery/earnings-info"),
       color: "text-green-600",
       bgColor: "bg-green-50",
     },
@@ -45,7 +45,7 @@ const MoreTab: React.FC = () => {
       icon: Users,
       label: "Refer and Earn",
       description: "Invite new delivery partners and earn rewards",
-      action: () => navigate("/refer-and-earn"),
+      action: () => navigate("/delivery/refer"),
       color: "text-purple-600",
       bgColor: "bg-purple-50",
     },
@@ -53,7 +53,7 @@ const MoreTab: React.FC = () => {
       icon: HelpCircle,
       label: "Help & Support",
       description: "FAQs, support resources, and contact info",
-      action: () => navigate("/help-support"),
+      action: () => navigate("/delivery/support"),
       color: "text-orange-600",
       bgColor: "bg-orange-50",
     },
@@ -61,7 +61,7 @@ const MoreTab: React.FC = () => {
       icon: MessageSquare,
       label: "Message Center",
       description: "Updates, alerts, and admin messages",
-      action: () => navigate("/message-center"),
+      action: () => navigate("/delivery/messages"),
       color: "text-indigo-600",
       bgColor: "bg-indigo-50",
     },
@@ -69,7 +69,7 @@ const MoreTab: React.FC = () => {
       icon: Settings,
       label: "Settings",
       description: "Notification preferences and app settings",
-      action: () => navigate("/delivery-settings"),
+      action: () => navigate("/delivery/settings"),
       color: "text-gray-600",
       bgColor: "bg-gray-50",
     },

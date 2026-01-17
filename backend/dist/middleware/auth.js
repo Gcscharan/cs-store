@@ -3,9 +3,31 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.requireDeliveryRole = exports.requireRole = exports.authenticateToken = void 0;
+exports.requireDeliveryRole = exports.requireRole = exports.authenticateToken = exports.authenticateGoogleAuthOnly = void 0;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const User_1 = require("../models/User");
+const authenticateGoogleAuthOnly = async (req, res, next) => {
+    try {
+        const authHeader = req.headers.authorization;
+        const token = authHeader && authHeader.split(" ")[1];
+        if (!token) {
+            return res.status(401).json({ message: "Authentication required" });
+        }
+        const decoded = jsonwebtoken_1.default.verify(token, process.env.JWT_SECRET || "your-secret-key");
+        if (decoded?.authState !== "GOOGLE_AUTH_ONLY" || !decoded?.email) {
+            return res.status(403).json({ message: "Invalid onboarding session" });
+        }
+        req.googleAuthOnly = decoded;
+        next();
+    }
+    catch (error) {
+        if (error instanceof jsonwebtoken_1.default.JsonWebTokenError) {
+            return res.status(401).json({ message: "Invalid or expired token" });
+        }
+        return res.status(401).json({ message: "Invalid or expired token" });
+    }
+};
+exports.authenticateGoogleAuthOnly = authenticateGoogleAuthOnly;
 const authenticateToken = async (req, res, next) => {
     try {
         console.log('[Auth] authenticateToken - starting');
@@ -55,13 +77,13 @@ const authenticateToken = async (req, res, next) => {
         console.log('[Auth] authenticateToken - error:', error);
         if (error instanceof jsonwebtoken_1.default.JsonWebTokenError) {
             if (error.name === 'TokenExpiredError') {
-                return res.status(403).json({ message: "Token expired", code: "TOKEN_EXPIRED" });
+                return res.status(401).json({ message: "Token expired", code: "TOKEN_EXPIRED" });
             }
             else if (error.name === 'JsonWebTokenError') {
-                return res.status(403).json({ message: "Invalid token format", code: "INVALID_TOKEN" });
+                return res.status(401).json({ message: "Invalid token format", code: "INVALID_TOKEN" });
             }
         }
-        return res.status(403).json({ message: "Invalid or expired token" });
+        return res.status(401).json({ message: "Invalid or expired token" });
     }
 };
 exports.authenticateToken = authenticateToken;

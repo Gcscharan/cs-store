@@ -5,7 +5,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const CartController_1 = require("../domains/cart/controllers/CartController");
-const cartController_1 = require("../controllers/cartController");
 const auth_1 = require("../middleware/auth");
 const router = express_1.default.Router();
 // Test endpoint to verify route is working
@@ -53,10 +52,7 @@ router.put("/", auth_1.authenticateToken, customerOnly, async (req, res) => {
 router.post("/add", auth_1.authenticateToken, customerOnly, CartController_1.addToCart);
 router.put("/update", auth_1.authenticateToken, customerOnly, CartController_1.updateCartItem);
 // Frontend calls DELETE /api/cart/:productId, so support both param and body-based removal
-router.delete("/:productId", auth_1.authenticateToken, customerOnly, CartController_1.removeFromCart);
 router.delete("/remove", auth_1.authenticateToken, customerOnly, CartController_1.removeFromCart);
 router.delete("/clear", auth_1.authenticateToken, customerOnly, CartController_1.clearCart);
-// Checkout routes - customers only can create orders
-router.post("/checkout/create-order", auth_1.authenticateToken, customerOnly, cartController_1.createOrder);
-router.post("/checkout/verify", auth_1.authenticateToken, customerOnly, cartController_1.verifyPayment);
+router.delete("/:productId", auth_1.authenticateToken, customerOnly, CartController_1.removeFromCart);
 exports.default = router;

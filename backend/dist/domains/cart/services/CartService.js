@@ -80,7 +80,10 @@ class CartService {
         if (!product) {
             throw new Error("Product not found");
         }
-        if (product.stock < quantity) {
+        const stock = Number(product.stock || 0);
+        const reservedStock = Number(product.reservedStock || 0);
+        const availableStock = stock - reservedStock;
+        if (availableStock < quantity) {
             throw new Error("Insufficient stock");
         }
         // Atomic add to cart
@@ -107,13 +110,25 @@ class CartService {
         if (quantity === undefined || quantity === null) {
             throw new Error("Quantity is required");
         }
+        // Ensure cart exists and item is present before validating the product
+        const existingCart = await this.cartRepository.findByUserId(userId);
+        if (!existingCart) {
+            throw new Error("Cart not found");
+        }
+        const hasItem = (existingCart.items || []).some((it) => String(it.productId) === String(productId));
+        if (!hasItem) {
+            throw new Error("Item not found in cart");
+        }
         // Verify product exists and has stock (only if quantity > 0)
         if (quantity > 0) {
             const product = await this.productRepository.findById(productId);
             if (!product) {
                 throw new Error("Product not found");
             }
-            if (product.stock < quantity) {
+            const stock = Number(product.stock || 0);
+            const reservedStock = Number(product.reservedStock || 0);
+            const availableStock = stock - reservedStock;
+            if (availableStock < quantity) {
                 throw new Error("Insufficient stock");
             }
         }
@@ -138,6 +153,14 @@ class CartService {
         if (!productId) {
             throw new Error("Product ID is required");
         }
+        const existingCart = await this.cartRepository.findByUserId(userId);
+        if (!existingCart) {
+            throw new Error("Cart not found");
+        }
+        const hasItem = (existingCart.items || []).some((it) => String(it.productId) === String(productId));
+        if (!hasItem) {
+            throw new Error("Item not found in cart");
+        }
         // Atomic remove from cart
         const cart = await this.cartRepository.atomicRemoveFromCart(userId, productId);
         if (!cart) {
@@ -155,6 +178,10 @@ class CartService {
         };
     }
     async clearCart(userId) {
+        const existingCart = await this.cartRepository.findByUserId(userId);
+        if (!existingCart) {
+            throw new Error("Cart not found");
+        }
         // Atomic clear cart
         const cart = await this.cartRepository.atomicClearCart(userId);
         if (!cart) {

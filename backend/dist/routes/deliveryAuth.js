@@ -18,8 +18,13 @@ router.get("/profile", auth_1.authenticateToken, auth_1.requireDeliveryRole, del
 router.put("/profile", auth_1.authenticateToken, auth_1.requireDeliveryRole, deliveryAuthController_1.updateDeliveryProfile);
 router.get("/selfie-url", auth_1.authenticateToken, auth_1.requireDeliveryRole, deliveryAuthController_1.getSelfieUrl);
 router.put("/update-selfie", auth_1.authenticateToken, auth_1.requireDeliveryRole, deliveryAuthController_1.updateSelfie);
+// Referral + messages
+router.get("/referral", auth_1.authenticateToken, auth_1.requireDeliveryRole, deliveryAuthController_1.getDeliveryReferral);
+router.get("/messages", auth_1.authenticateToken, auth_1.requireDeliveryRole, deliveryAuthController_1.getDeliveryMessages);
 // Delivery boy info
 router.get("/info", auth_1.authenticateToken, auth_1.requireDeliveryRole, deliveryOrderController_1.getDeliveryBoyInfo);
+// Route consumption (read-only)
+router.get("/routes/current", auth_1.authenticateToken, auth_1.requireDeliveryRole, deliveryOrderController_1.getCurrentRoute);
 // Order management
 router.get("/orders", auth_1.authenticateToken, auth_1.requireDeliveryRole, deliveryOrderController_1.getDeliveryOrders);
 router.post("/orders/:orderId/accept", auth_1.authenticateToken, auth_1.requireDeliveryRole, deliveryOrderController_1.acceptOrder);
@@ -28,7 +33,13 @@ router.post("/orders/:orderId/reject", auth_1.authenticateToken, auth_1.requireD
 router.post("/orders/:orderId/pickup", auth_1.authenticateToken, auth_1.requireDeliveryRole, deliveryOrderController_1.pickupOrder);
 router.post("/orders/:orderId/start-delivery", auth_1.authenticateToken, auth_1.requireDeliveryRole, deliveryOrderController_1.startDelivery);
 router.post("/orders/:orderId/arrived", auth_1.authenticateToken, auth_1.requireDeliveryRole, deliveryOrderController_1.markArrived);
+router.get("/orders/:orderId/cod-collection", auth_1.authenticateToken, auth_1.requireDeliveryRole, deliveryOrderController_1.getCodCollection);
+router.post("/orders/:orderId/cod-collection", auth_1.authenticateToken, auth_1.requireDeliveryRole, deliveryOrderController_1.createCodCollection);
+router.post("/orders/:orderId/deliver", auth_1.authenticateToken, auth_1.requireDeliveryRole, deliveryOrderController_1.deliverAttempt);
+router.post("/orders/:orderId/verify-otp", auth_1.authenticateToken, auth_1.requireDeliveryRole, deliveryOrderController_1.verifyDeliveryOtp);
 router.post("/orders/:orderId/complete", auth_1.authenticateToken, auth_1.requireDeliveryRole, deliveryOrderController_1.completeDelivery);
+router.post("/orders/:orderId/fail", auth_1.authenticateToken, auth_1.requireDeliveryRole, deliveryOrderController_1.failDelivery);
+router.post("/orders/:orderId/attempt", auth_1.authenticateToken, auth_1.requireDeliveryRole, deliveryOrderController_1.recordDeliveryAttempt);
 // Location and status
 router.put("/location", auth_1.authenticateToken, auth_1.requireDeliveryRole, deliveryOrderController_1.updateLocation);
 router.put("/status", auth_1.authenticateToken, auth_1.requireDeliveryRole, deliveryOrderController_1.toggleStatus);

@@ -3,9 +3,192 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendTestNotificationsAllChannels = exports.getUnreadCount = exports.deleteNotification = exports.markAllAsRead = exports.markAsRead = exports.getNotifications = void 0;
+exports.sendTestNotificationsAllChannels = exports.getUnreadCount = exports.deleteNotification = exports.markAllAsRead = exports.markAsRead = exports.getNotifications = exports.getNotificationsV2 = void 0;
+const mongoose_1 = __importDefault(require("mongoose"));
 const Notification_1 = __importDefault(require("../../../models/Notification"));
 const notificationService_1 = require("../services/notificationService");
+function clampInt(value, min, max, fallback) {
+    const n = Number(value);
+    if (!Number.isFinite(n))
+        return fallback;
+    return Math.max(min, Math.min(max, Math.floor(n)));
+}
+function encodeCursor(input) {
+    return Buffer.from(JSON.stringify({ createdAt: input.createdAt.toISOString(), id: input.id })).toString("base64");
+}
+function decodeCursor(cursor) {
+    try {
+        const raw = Buffer.from(String(cursor), "base64").toString("utf8");
+        const parsed = JSON.parse(raw);
+        const createdAt = new Date(parsed?.createdAt);
+        const id = String(parsed?.id || "");
+        if (!id || !Number.isFinite(createdAt.getTime()))
+            return null;
+        if (!mongoose_1.default.Types.ObjectId.isValid(id))
+            return null;
+        return { createdAt, id };
+    }
+    catch {
+        return null;
+    }
+}
+function parseCategoryFilter(value) {
+    const raw = String(value || "").trim();
+    if (!raw)
+        return null;
+    if (["order", "delivery", "payment", "account", "promo"].includes(raw)) {
+        return raw;
+    }
+    return null;
+}
+function buildCategoryMongoFilter(category) {
+    if (category === "order") {
+        return {
+            $or: [
+                { category: "order" },
+                { orderId: { $exists: true, $ne: null } },
+                { type: "order_update" },
+            ],
+        };
+    }
+    if (category === "delivery") {
+        return {
+            $or: [{ category: "delivery" }, { type: "delivery_otp" }],
+        };
+    }
+    if (category === "account") {
+        return {
+            $or: [{ category: "account" }, { category: { $exists: false } }, { category: null }],
+        };
+    }
+    return { category };
+}
+function mapLegacyToCategory(input) {
+    const explicit = String(input?.category || "");
+    if (["order", "delivery", "payment", "account", "promo"].includes(explicit)) {
+        return explicit;
+    }
+    const type = String(input?.type || "");
+    const hasOrder = !!input?.orderId;
+    if (hasOrder)
+        return "order";
+    if (type === "delivery_otp")
+        return "delivery";
+    if (type === "order_update")
+        return "order";
+    return "account";
+}
+function defaultPriorityForCategory(category) {
+    if (category === "order" || category === "delivery" || category === "payment")
+        return "high";
+    return "normal";
+}
+function sanitizeMeta(input) {
+    if (!input || typeof input !== "object")
+        return undefined;
+    const meta = { ...input };
+    delete meta.userId;
+    delete meta.orderId;
+    delete meta.paymentId;
+    delete meta.trackingNumber;
+    delete meta.eventId;
+    delete meta.source;
+    return meta;
+}
+function mapNotificationToDTO(notification) {
+    const id = String(notification?._id || "");
+    const title = String(notification?.title || "");
+    const body = String(notification?.body ?? notification?.message ?? "");
+    const eventType = typeof notification?.eventType === "string" ? notification.eventType : undefined;
+    const meta = sanitizeMeta(notification?.meta);
+    const category = mapLegacyToCategory(notification);
+    const priorityRaw = String(notification?.priority || "");
+    const priority = ([
+        "high",
+        "normal",
+        "low",
+    ].includes(priorityRaw)
+        ? priorityRaw
+        : defaultPriorityForCategory(category));
+    const deepLink = typeof notification?.deepLink === "string" && notification.deepLink.trim()
+        ? String(notification.deepLink)
+        : notification?.orderId
+            ? `/orders/${String(notification.orderId)}`
+            : undefined;
+    return {
+        id,
+        title,
+        body,
+        ...(eventType ? { eventType } : {}),
+        ...(meta ? { meta } : {}),
+        category,
+        priority,
+        isRead: Boolean(notification?.isRead),
+        ...(deepLink ? { deepLink } : {}),
+        createdAt: new Date(notification?.createdAt || Date.now()).toISOString(),
+    };
+}
+/**
+ * Get notifications in canonical v2 shape with cursor pagination
+ * GET /api/notifications/v2
+ */
+const getNotificationsV2 = async (req, res) => {
+    try {
+        const user = req.user;
+        if (!user) {
+            res.status(401).json({ error: "Authentication required" });
+            return;
+        }
+        const limit = clampInt(req.query?.limit, 1, 50, 20);
+        const cursorRaw = String(req.query?.cursor || "");
+        const cursor = cursorRaw ? decodeCursor(cursorRaw) : null;
+        const categoryRaw = req.query?.category;
+        const category = categoryRaw ? parseCategoryFilter(categoryRaw) : null;
+        if (categoryRaw && !category) {
+            res.status(400).json({ error: "Invalid category" });
+            return;
+        }
+        const andConditions = [
+            { userId: user._id },
+        ];
+        if (category) {
+            andConditions.push(buildCategoryMongoFilter(category));
+        }
+        if (cursor) {
+            andConditions.push({
+                $or: [
+                    { createdAt: { $lt: cursor.createdAt } },
+                    {
+                        createdAt: cursor.createdAt,
+                        _id: { $lt: new mongoose_1.default.Types.ObjectId(cursor.id) },
+                    },
+                ],
+            });
+        }
+        const baseFilter = andConditions.length > 1 ? { $and: andConditions } : andConditions[0];
+        const docs = await Notification_1.default.find(baseFilter)
+            .sort({ createdAt: -1, _id: -1 })
+            .limit(limit + 1)
+            .lean();
+        const hasMore = docs.length > limit;
+        const pageDocs = hasMore ? docs.slice(0, limit) : docs;
+        const notifications = pageDocs.map(mapNotificationToDTO);
+        const last = pageDocs.length ? pageDocs[pageDocs.length - 1] : null;
+        const nextCursor = hasMore && last?._id && last?.createdAt
+            ? encodeCursor({ createdAt: new Date(last.createdAt), id: String(last._id) })
+            : undefined;
+        res.json({
+            notifications,
+            hasMore,
+            ...(nextCursor ? { nextCursor } : {}),
+        });
+    }
+    catch (error) {
+        console.error("Error fetching notifications v2:", error);
+        res.status(500).json({ error: "Failed to fetch notifications" });
+    }
+};
+exports.getNotificationsV2 = getNotificationsV2;
 /**
  * Get all notifications for authenticated user
  * GET /api/notifications
@@ -77,7 +260,10 @@ const markAllAsRead = async (req, res) => {
             res.status(401).json({ error: "Authentication required" });
             return;
         }
-        await Notification_1.default.updateMany({ userId: user._id, isRead: false }, { $set: { isRead: true } });
+        await Notification_1.default.updateMany({
+            userId: user._id,
+            isRead: false,
+        }, { $set: { isRead: true } });
         res.json({
             success: true,
             message: "All notifications marked as read",

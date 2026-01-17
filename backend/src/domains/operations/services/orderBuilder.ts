@@ -3,6 +3,11 @@ import { Cart } from "../../../models/Cart";
 import { Order } from "../../../models/Order";
 import { Product } from "../../../models/Product";
 import { User } from "../../../models/User";
+import { OrderStatus } from "../../orders/enums/OrderStatus";
+import { publish } from "../../events/eventBus";
+import { stableEventId } from "../../events/eventId";
+import { createOrderCreatedEvent } from "../../events/order.events";
+import { inventoryReservationService } from "../../orders/services/inventoryReservationService";
 import { calculateDeliveryFee } from "../../../utils/deliveryFeeCalculator";
 import {
   applyDistrictOverride,
@@ -88,7 +93,9 @@ export async function createOrderFromCart(params: {
         throw err;
       }
 
-      const addr = defaultAddress as any;
+      // Convert mongoose subdocument to plain object to ensure proper spread behavior
+      const addr = (defaultAddress as any).toObject ? (defaultAddress as any).toObject() : defaultAddress;
+      
       const requiredStrings = [
         { key: "name", value: addr.name },
         { key: "phone", value: addr.phone },
@@ -174,12 +181,6 @@ export async function createOrderFromCart(params: {
           throw err;
         }
 
-        if (paymentMethod === "cod" && product.stock < quantity) {
-          const err: any = new Error(`Insufficient stock for ${product.name}`);
-          err.statusCode = 409;
-          throw err;
-        }
-
         const priceAtOrderTime = Number(product.price) || 0;
         const subtotal = priceAtOrderTime * quantity;
 
@@ -197,15 +198,24 @@ export async function createOrderFromCart(params: {
 
       const itemsTotal = orderItems.reduce((sum, it) => sum + Number(it.subtotal || 0), 0);
 
-      const deliveryFeeDetails = await calculateDeliveryFee(
-        {
-          ...addr,
-          state: resolved.state,
-          postal_district,
-          admin_district,
-        } as any,
-        itemsTotal
-      );
+      // Calculate delivery fee using saved coordinates (NO re-geocoding)
+      let deliveryFeeDetails;
+      try {
+        deliveryFeeDetails = await calculateDeliveryFee(
+          {
+            ...addr,
+            state: resolved.state,
+            postal_district,
+            admin_district,
+          } as any,
+          itemsTotal
+        );
+      } catch (feeError: any) {
+        // Re-throw with proper error handling
+        const err: any = new Error(feeError.message || 'Failed to calculate delivery fee');
+        err.statusCode = feeError.statusCode || 400;
+        throw err;
+      }
 
       const deliveryFee = Number(deliveryFeeDetails.finalFee || 0);
       const discount = 0;
@@ -225,7 +235,7 @@ export async function createOrderFromCart(params: {
         lng: Number(addr.lng),
       };
 
-      const orderStatus = paymentMethod === "cod" ? "CONFIRMED" : "PENDING_PAYMENT";
+      const orderStatus = OrderStatus.CREATED;
       const paymentStatus =
         paymentMethod === "upi" ? "AWAITING_UPI_APPROVAL" : ("PENDING" as any);
 
@@ -235,6 +245,8 @@ export async function createOrderFromCart(params: {
         items: orderItems,
         itemsTotal,
         deliveryFee,
+        distanceKm: deliveryFeeDetails.distance,
+        coordsSource: deliveryFeeDetails.coordsSource,
         discount,
         grandTotal,
         totalAmount: grandTotal,
@@ -256,38 +268,86 @@ export async function createOrderFromCart(params: {
         };
       }
 
-      if (useSession) {
-        await order.save({ session: s! });
-      } else {
-        await order.save();
+      console.log('📦 [OrderBuilder] Order object before save:', {
+        distanceKm: order.distanceKm,
+        coordsSource: order.coordsSource,
+        deliveryFee: order.deliveryFee,
+        totalAmount: order.totalAmount,
+      });
+
+      try {
+        if (useSession) {
+          await order.save({ session: s! });
+        } else {
+          await order.save();
+        }
+      } catch (saveError: any) {
+        console.error('❌ [OrderBuilder] Order save failed:', {
+          error: saveError.message,
+          validationErrors: saveError.errors,
+        });
+        throw saveError;
       }
 
-      if (paymentMethod === "cod") {
-        for (const it of orderItems) {
-          const updateResult = await Product.findByIdAndUpdate(
-            it.productId,
-            { $inc: { stock: -Number(it.qty) } },
-            useSession ? { new: true, session: s! } : { new: true }
+      if (useSession) {
+        const ttlMs = paymentMethod === "cod" ? 48 * 60 * 60_000 : 20 * 60_000;
+        await inventoryReservationService.reserveForOrder({
+          session: s!,
+          orderId: (order as any)._id,
+          ttlMs,
+          items: (orderItems || []).map((it: any) => ({
+            productId: it.productId,
+            qty: Number(it.qty ?? it.quantity ?? 0),
+          })),
+        });
+
+        if (paymentMethod === "cod") {
+          await Cart.findOneAndUpdate(
+            { userId },
+            { items: [], total: 0, itemCount: 0 },
+            { new: true, session: s! }
           );
-
-          if (!updateResult) {
-            const err: any = new Error("Failed to update product stock");
-            err.statusCode = 500;
-            throw err;
-          }
-
-          if (updateResult.stock < 0) {
-            const err: any = new Error(`Insufficient stock for ${updateResult.name}`);
-            err.statusCode = 409;
-            throw err;
-          }
         }
+      } else {
+        const err: any = new Error("Inventory reservation requires transactions (Mongo replica set)");
+        err.statusCode = 500;
+        throw err;
+      }
 
-        await Cart.findOneAndUpdate(
-          { userId },
-          { items: [], total: 0, itemCount: 0 },
-          useSession ? { new: true, session: s! } : { new: true }
+      try {
+        const orderId = String((order as any)._id);
+        const occurredAt = (order as any).createdAt
+          ? new Date((order as any).createdAt).toISOString()
+          : new Date().toISOString();
+
+        const items = Array.isArray((order as any).items) ? (order as any).items : [];
+        const itemCount = items.reduce(
+          (sum: number, it: any) => sum + Number(it?.qty ?? it?.quantity ?? 0),
+          0
         );
+        const primaryProductName =
+          typeof items?.[0]?.name === "string" && items[0].name.trim()
+            ? String(items[0].name)
+            : undefined;
+        const totalAmount = Number((order as any).totalAmount ?? (order as any).grandTotal ?? 0);
+
+        await publish(
+          createOrderCreatedEvent({
+            source: "operations",
+            actor: { type: "user", id: String(userId) },
+            eventId: stableEventId(`order:${orderId}:created`),
+            occurredAt,
+            userId: String(userId),
+            orderId,
+            title: "Order placed successfully",
+            itemCount: Number.isFinite(itemCount) ? itemCount : undefined,
+            totalAmount: Number.isFinite(totalAmount) ? totalAmount : undefined,
+            primaryProductName,
+          }),
+          useSession ? { session: s! } : undefined
+        );
+      } catch (e) {
+        console.error("[OrderBuilder] failed to publish ORDER_CREATED", e);
       }
 
       return { order, created: true };

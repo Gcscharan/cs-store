@@ -8,6 +8,7 @@ export interface IProduct extends Document {
   price: number;
   mrp?: number;
   stock: number;
+  reservedStock?: number;
   weight: number;
   images: {
     publicId?: string;
@@ -87,6 +88,11 @@ const ProductSchema = new Schema<IProduct>(
       type: Number,
       required: [true, "Stock quantity is required"],
       min: [0, "Stock cannot be negative"],
+      default: 0,
+    },
+    reservedStock: {
+      type: Number,
+      min: [0, "Reserved stock cannot be negative"],
       default: 0,
     },
     weight: {

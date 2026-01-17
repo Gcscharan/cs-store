@@ -101,24 +101,18 @@ const DeliverySelfiePage: React.FC = () => {
       setIsUploading(true);
       setError(null);
 
-      // Convert data URL to blob
-      const response = await fetch(preview);
-      const blob = await response.blob();
-
-      const formData = new FormData();
-      formData.append("selfie", blob, "selfie.jpg");
-
-      const uploadResponse = await fetch("/api/delivery/upload-selfie", {
-        method: "POST",
+      const uploadResponse = await fetch("/api/delivery/update-selfie", {
+        method: "PUT",
         headers: {
+          "Content-Type": "application/json",
           Authorization: `Bearer ${tokens?.accessToken}`,
         },
-        body: formData,
+        body: JSON.stringify({ selfieUrl: preview }),
       });
 
       if (!uploadResponse.ok) {
         const errorData = await uploadResponse.json();
-        throw new Error(errorData.message || "Upload failed");
+        throw new Error(errorData.error || errorData.message || "Upload failed");
       }
 
       setSuccess(true);

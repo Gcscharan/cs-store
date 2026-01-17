@@ -3,6 +3,7 @@ import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { setUser, setTokens } from "../store/slices/authSlice";
+import { toApiUrl } from "../config/runtime";
 
 interface SignupFormData {
   name: string;
@@ -135,8 +136,29 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
       setIsOtpLoading(true);
       setOtpError("");
 
+      // IMPORTANT: do not send OTP if phone is already registered
+      const checkResponse = await fetch(
+        toApiUrl("/auth/check-phone"),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone: formData.phone.replace(/\D/g, "") }),
+        }
+      );
+
+      const checkData = await checkResponse.json();
+
+      if (checkResponse.ok && checkData?.exists) {
+        const errorMsg =
+          "This phone number is already registered. Please sign in or use a different number.";
+        setOtpError("");
+        setErrors((prev) => ({ ...prev, phone: errorMsg }));
+        setPhoneOtpSent(false);
+        return;
+      }
+
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/auth/send-otp?mode=signup`,
+        toApiUrl("/auth/send-otp?mode=signup"),
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -187,7 +209,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
       setOtpError("");
 
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/auth/verify-otp?mode=signup`,
+        toApiUrl("/auth/verify-otp?mode=signup"),
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -234,7 +256,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
     setIsLoading(true);
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/auth/signup?t=${Date.now()}`,
+        toApiUrl(`/auth/signup?t=${Date.now()}`),
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -267,7 +289,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
           // TRY OTP generation (no modal) — best-effort
           try {
             await fetch(
-              `${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/otp/verification/generate`,
+              toApiUrl("/otp/verification/generate"),
               {
                 method: "POST",
                 headers: {

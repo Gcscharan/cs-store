@@ -49,10 +49,28 @@ const NotificationSchema = new mongoose_1.Schema({
         type: String,
         required: true,
     },
+    body: {
+        type: String,
+    },
+    eventType: {
+        type: String,
+        trim: true,
+    },
+    meta: {
+        type: mongoose_1.Schema.Types.Mixed,
+    },
     type: {
         type: String,
         enum: ["info", "delivery_otp", "order_update", "general"],
         default: "general",
+    },
+    category: {
+        type: String,
+        enum: ["order", "delivery", "payment", "account", "promo"],
+    },
+    priority: {
+        type: String,
+        enum: ["high", "normal", "low"],
     },
     isRead: {
         type: Boolean,
@@ -61,6 +79,10 @@ const NotificationSchema = new mongoose_1.Schema({
     orderId: {
         type: mongoose_1.Schema.Types.ObjectId,
         ref: "Order",
+    },
+    deepLink: {
+        type: String,
+        trim: true,
     },
 }, {
     timestamps: true,

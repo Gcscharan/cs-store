@@ -360,11 +360,17 @@ export const corsOptions = {
     callback: (err: Error | null, allow?: boolean) => void
   ) => {
     const allowedOrigins = [
-      "http://localhost:5173",
-      "http://localhost:3000",
+      ...(process.env.NODE_ENV === "production"
+        ? []
+        : ["http://localhost:5173", "http://localhost:3000"]),
       "https://cpsstore.com",
       "https://www.cpsstore.com",
-    ];
+      process.env.FRONTEND_URL || "",
+      ...String(process.env.CORS_ORIGIN || "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
+    ].filter(Boolean);
 
     // Allow requests with no origin (mobile apps, Postman, etc.)
     if (!origin) return callback(null, true);

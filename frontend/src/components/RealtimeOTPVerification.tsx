@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { io, Socket } from "socket.io-client";
+import { getApiOrigin } from "../config/runtime";
 
 interface RealtimeOTPVerificationProps {
   isOpen: boolean;
@@ -58,7 +59,7 @@ const RealtimeOTPVerification: React.FC<RealtimeOTPVerificationProps> = ({
 
       // Connect to WebSocket server
       socketRef.current = io(
-        import.meta.env.VITE_API_URL || "http://localhost:5001",
+        getApiOrigin() || "/",
         {
           auth: {
             token: token,

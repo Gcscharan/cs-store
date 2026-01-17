@@ -1,7 +1,6 @@
 import { IAddress } from "../models/User";
 import mongoose from "mongoose";
 import { Client, UnitSystem } from "@googlemaps/google-maps-services-js";
-import { smartGeocode, geocodeByPincode } from "./geocoding";
 
 // Admin's warehouse address (Boya Bazar, Tiruvuru, Krishna District)
 // Pincode: 521235
@@ -37,56 +36,47 @@ const DELIVERY_CONFIG = {
 };
 
 /**
- * Get actual road distance using Google Distance Matrix API
- * @param userAddress User's delivery address
- * @returns Distance in kilometers
+ * Validate that address has valid coordinates
+ * @param address Address to validate
+ * @returns { isValid: boolean, error?: string }
  */
-export async function getRoadDistance(userAddress: IAddress): Promise<number> {
-  // Test-only behavior: avoid any external Google API calls for deterministic, noise-free tests
-  if (process.env.NODE_ENV === "test") {
-    return calculateHaversineDistance(
-      ADMIN_ADDRESS.lat,
-      ADMIN_ADDRESS.lng,
-      userAddress.lat || 0,
-      userAddress.lng || 0
-    );
+export function validateAddressCoordinates(address: IAddress): { isValid: boolean; error?: string } {
+  if (!address) {
+    return { isValid: false, error: 'Address is required' };
   }
-  try {
-    const response = await googleMapsClient.distancematrix({
-      params: {
-        origins: [`${ADMIN_ADDRESS.lat},${ADMIN_ADDRESS.lng}`],
-        destinations: [`${userAddress.lat},${userAddress.lng}`],
-        key: process.env.GOOGLE_MAPS_API_KEY || "",
-        units: "metric" as any,
-      },
-    });
 
-    if (response.data.rows[0]?.elements[0]?.status === "OK") {
-      const distance = response.data.rows[0].elements[0].distance.value / 1000; // Convert meters to kilometers
-      return Math.round(distance * 100) / 100; // Round to 2 decimal places
-    } else {
-      // Fallback to Haversine formula if API fails
-      return calculateHaversineDistance(
-        ADMIN_ADDRESS.lat,
-        ADMIN_ADDRESS.lng,
-        userAddress.lat,
-        userAddress.lng
-      );
-    }
-  } catch (error) {
-    console.error("Google Distance Matrix API error:", error);
-    // Fallback to Haversine formula if API fails
-    return calculateHaversineDistance(
-      ADMIN_ADDRESS.lat,
-      ADMIN_ADDRESS.lng,
-      userAddress.lat,
-      userAddress.lng
-    );
+  // Convert to numbers, handling various input types
+  let lat: number;
+  let lng: number;
+
+  try {
+    lat = typeof address.lat === 'number' ? address.lat : parseFloat(String(address.lat || ''));
+    lng = typeof address.lng === 'number' ? address.lng : parseFloat(String(address.lng || ''));
+  } catch (e) {
+    return { isValid: false, error: 'Address coordinates are invalid (parsing error)' };
   }
+
+  // Check if coordinates exist and are valid numbers
+  if (isNaN(lat) || isNaN(lng)) {
+    return { isValid: false, error: 'Address coordinates are invalid (NaN)' };
+  }
+
+  // Check if coordinates are zero (invalid)
+  if (lat === 0 || lng === 0) {
+    return { isValid: false, error: 'Address coordinates are invalid (zero values)' };
+  }
+
+  // Validate coordinates are within India bounds
+  const isInIndia = lat >= 6 && lat <= 37 && lng >= 68 && lng <= 98;
+  if (!isInIndia) {
+    return { isValid: false, error: `Address coordinates outside India bounds (lat=${lat}, lng=${lng})` };
+  }
+
+  return { isValid: true };
 }
 
 /**
- * Calculate the distance between two coordinates using Haversine formula (fallback)
+ * Calculate the distance between two coordinates using Haversine formula
  * @param lat1 Latitude of first point
  * @param lng1 Longitude of first point
  * @param lat2 Latitude of second point
@@ -117,92 +107,12 @@ export function calculateHaversineDistance(
 }
 
 /**
- * Resolve coordinates for an address with fallback chain
- * Priority: 1) Saved coords → 2) Full geocoding → 3) Pincode centroid
- * @param address Address to resolve coordinates for
- * @returns Resolved coordinates with source information
- */
-export async function resolveCoordinates(
-  address: IAddress
-): Promise<{
-  lat: number;
-  lng: number;
-  coordsSource: 'saved' | 'geocoded' | 'pincode' | 'unresolved';
-  error?: string;
-}> {
-  console.log(`\n🔍 [resolveCoordinates] Resolving coordinates for address: ${address.addressLine}, ${address.city}`);
-  
-  // Step 1: Check if address has valid saved coordinates
-  if (address.lat && address.lng && 
-      address.lat !== 0 && address.lng !== 0 &&
-      !isNaN(address.lat) && !isNaN(address.lng)) {
-    
-    // Validate coordinates are within India bounds
-    const isInIndia = address.lat >= 6 && address.lat <= 37 && 
-                     address.lng >= 68 && address.lng <= 98;
-    
-    if (isInIndia) {
-      console.log(`✅ [resolveCoordinates] Using saved coordinates: lat=${address.lat}, lng=${address.lng}`);
-      return {
-        lat: address.lat,
-        lng: address.lng,
-        coordsSource: 'saved'
-      };
-    } else {
-      console.warn(`⚠️ [resolveCoordinates] Saved coordinates outside India bounds, will re-geocode`);
-    }
-  } else {
-    console.warn(`⚠️ [resolveCoordinates] Missing or invalid saved coordinates (lat=${address.lat}, lng=${address.lng})`);
-  }
-
-  // Step 2: Attempt full address geocoding
-  console.log(`🌍 [resolveCoordinates] Attempting full address geocoding...`);
-  const geocodeResult = await smartGeocode(
-    address.addressLine,
-    address.city,
-    address.state,
-    address.pincode
-  );
-
-  if (geocodeResult) {
-    console.log(`✅ [resolveCoordinates] Full geocoding successful: lat=${geocodeResult.lat}, lng=${geocodeResult.lng}`);
-    return {
-      lat: geocodeResult.lat,
-      lng: geocodeResult.lng,
-      coordsSource: 'geocoded'
-    };
-  }
-
-  console.warn(`⚠️ [resolveCoordinates] Full geocoding failed, trying pincode fallback...`);
-
-  // Step 3: Fallback to pincode centroid
-  const pincodeResult = await geocodeByPincode(address.pincode);
-  
-  if (pincodeResult) {
-    console.log(`✅ [resolveCoordinates] Pincode geocoding successful: lat=${pincodeResult.lat}, lng=${pincodeResult.lng}`);
-    console.warn(`⚠️ Using PINCODE CENTROID - delivery fee will be ESTIMATED. User should update address for exact fee.`);
-    return {
-      lat: pincodeResult.lat,
-      lng: pincodeResult.lng,
-      coordsSource: 'pincode'
-    };
-  }
-
-  // Step 4: All resolution attempts failed
-  console.error(`❌ [resolveCoordinates] All coordinate resolution attempts failed for: ${address.addressLine}, ${address.city}, ${address.pincode}`);
-  return {
-    lat: 0,
-    lng: 0,
-    coordsSource: 'unresolved',
-    error: 'ADDRESS_COORDINATES_UNRESOLVED'
-  };
-}
-
-/**
  * Calculate delivery fee based on distance and order amount
- * @param userAddress User's delivery address
+ * IMPORTANT: This function trusts saved coordinates and does NOT re-geocode
+ * @param userAddress User's delivery address (must have valid saved coordinates)
  * @param orderAmount Total order amount
  * @returns Delivery fee details
+ * @throws Error if coordinates are invalid
  */
 export async function calculateDeliveryFee(
   userAddress: IAddress,
@@ -215,61 +125,40 @@ export async function calculateDeliveryFee(
   isFreeDelivery: boolean;
   finalFee: number;
   distanceFrom: string;
-  coordsSource?: 'saved' | 'geocoded' | 'pincode' | 'unresolved';
+  coordsSource: 'saved';
   error?: string;
 }> {
-  // STEP 1: Resolve coordinates with fallback chain
-  const coordsResult = await resolveCoordinates(userAddress);
+  // STEP 1: Validate saved coordinates (NO re-geocoding)
+  const coordValidation = validateAddressCoordinates(userAddress);
   
-  // Check if coordinate resolution failed completely
-  if (coordsResult.coordsSource === 'unresolved') {
-    console.error('❌ [Backend] Coordinate resolution failed - cannot calculate delivery fee');
-    return {
-      distance: 0,
-      baseFee: 0,
-      distanceFee: 0,
-      totalFee: 0,
-      isFreeDelivery: false,
-      finalFee: 0,
-      distanceFrom: 'Unknown location',
-      coordsSource: 'unresolved',
-      error: 'ADDRESS_COORDINATES_UNRESOLVED'
-    };
+  if (!coordValidation.isValid) {
+    const err: any = new Error(coordValidation.error || 'Invalid address coordinates');
+    err.statusCode = 400;
+    throw err;
   }
 
-  // Create resolved address for distance calculation
-  const resolvedAddress: IAddress = {
-    ...userAddress,
-    lat: coordsResult.lat,
-    lng: coordsResult.lng
-  };
-
-  // STEP 2: Calculate distance using resolved coordinates
-  const distance = await getRoadDistance(resolvedAddress);
+  // STEP 2: Calculate distance using saved coordinates (Haversine formula)
+  const distance = calculateHaversineDistance(
+    ADMIN_ADDRESS.lat,
+    ADMIN_ADDRESS.lng,
+    userAddress.lat,
+    userAddress.lng
+  );
 
   // Debug logs for verification
-  console.log('🚚 [Backend] Delivery Fee Calculation:', {
+  console.log('🚚 [Backend] Delivery Fee Calculation (Using Saved Coordinates):', {
     warehouseCoords: { lat: ADMIN_ADDRESS.lat, lng: ADMIN_ADDRESS.lng, location: ADMIN_ADDRESS.addressLine },
-    userCoords: { lat: coordsResult.lat, lng: coordsResult.lng, location: `${userAddress.city}, ${userAddress.state}` },
-    coordsSource: coordsResult.coordsSource,
+    userCoords: { lat: userAddress.lat, lng: userAddress.lng, location: `${userAddress.city}, ${userAddress.state}` },
+    coordsSource: 'saved',
     calculatedDistance: `${distance.toFixed(2)} km`,
     orderAmount: `₹${orderAmount}`,
   });
 
   // STEP 3: Validate distance
   if (isNaN(distance) || distance < 0) {
-    console.error('❌ [Backend] CRITICAL: Invalid distance after coordinate resolution!');
-    return {
-      distance: 0,
-      baseFee: 0,
-      distanceFee: 0,
-      totalFee: 0,
-      isFreeDelivery: false,
-      finalFee: 0,
-      distanceFrom: 'Invalid distance calculation',
-      coordsSource: coordsResult.coordsSource,
-      error: 'INVALID_DISTANCE_CALCULATION'
-    };
+    const err: any = new Error('Invalid distance calculation');
+    err.statusCode = 500;
+    throw err;
   }
 
   // Check if order qualifies for free delivery
@@ -284,8 +173,8 @@ export async function calculateDeliveryFee(
       totalFee: 0,
       isFreeDelivery: true,
       finalFee: 0,
-      distanceFrom: `${distance} km from Tiruvuru`,
-      coordsSource: coordsResult.coordsSource,
+      distanceFrom: `${distance.toFixed(2)} km from Tiruvuru`,
+      coordsSource: 'saved',
     };
   }
 
@@ -323,8 +212,8 @@ export async function calculateDeliveryFee(
     totalFee: deliveryFee,
     isFreeDelivery: false,
     finalFee: deliveryFee,
-    distanceFrom: `${distance} km from Tiruvuru`,
-    coordsSource: coordsResult.coordsSource,
+    distanceFrom: `${distance.toFixed(2)} km from Tiruvuru`,
+    coordsSource: 'saved',
   };
 }
 

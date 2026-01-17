@@ -15,9 +15,11 @@ const Payment_1 = require("../../../models/Payment");
 const Otp_1 = __importDefault(require("../../../models/Otp"));
 const Notification_1 = __importDefault(require("../../../models/Notification"));
 const geocoding_1 = require("../../../utils/geocoding");
-const Pincode_1 = require("../../../models/Pincode");
-const pincodes_ap_ts_json_1 = __importDefault(require("../../../../data/pincodes_ap_ts.json"));
-const pincodeIndex = new Map(pincodes_ap_ts_json_1.default.map((item) => [String(item.pincode), item]));
+const authoritativePincodeResolver_1 = require("../../../utils/authoritativePincodeResolver");
+const pincodeResolver_1 = require("../../../utils/pincodeResolver");
+const eventBus_1 = require("../../events/eventBus");
+const eventId_1 = require("../../events/eventId");
+const account_events_1 = require("../../events/account.events");
 // Get user profile
 const getUserProfile = async (req, res) => {
     try {
@@ -74,6 +76,17 @@ const updateUserProfile = async (req, res) => {
             res.status(404).json({ error: "User not found" });
             return;
         }
+        try {
+            await (0, eventBus_1.publish)((0, account_events_1.createAccountProfileUpdatedEvent)({
+                source: "identity",
+                actor: { type: "user", id: String(userId) },
+                eventId: (0, eventId_1.stableEventId)(`account:${String(userId)}:profileUpdated:${String(name || "")}::${String(phone || "")}::${String(email || "")}`),
+                userId: String(userId),
+            }));
+        }
+        catch (e) {
+            console.error("[userController] failed to publish ACCOUNT_PROFILE_UPDATED", e);
+        }
         res.json(result);
     }
     catch (error) {
@@ -109,7 +122,12 @@ exports.getUserAddresses = getUserAddresses;
 // Add user address
 const addUserAddress = async (req, res) => {
     try {
+        console.error("🔥 addUserAddress controller HIT");
         const userId = req.userId || req.user?._id;
+        console.info("[addUserAddress] Incoming payload:", {
+            userId,
+            body: req.body,
+        });
         if (!userId) {
             res.status(401).json({
                 success: false,
@@ -117,32 +135,57 @@ const addUserAddress = async (req, res) => {
             });
             return;
         }
-        const { name, label, pincode, city: _city, state: _state, addressLine, phone, isDefault } = req.body;
+        const { name, label, pincode, city, state, addressLine: addressLineFromBody, address_line: addressLineSnake, phone, isDefault, } = req.body;
+        const addressLine = addressLineFromBody || addressLineSnake;
+        if (typeof authoritativePincodeResolver_1.resolvePincodeAuthoritatively !== "function") {
+            throw new Error("resolvePincodeAuthoritatively is undefined");
+        }
+        if (!pincode || typeof pincode !== "string" || pincode.length !== 6 || !/^\d{6}$/.test(pincode)) {
+            console.warn("[addUserAddress] Invalid pincode:", pincode);
+            res.status(400).json({
+                success: false,
+                message: "Invalid pincode",
+            });
+            return;
+        }
+        if (!city || typeof city !== "string" || !city.trim()) {
+            console.warn("[addUserAddress] Missing/invalid city:", city);
+            res.status(400).json({
+                success: false,
+                message: "City is required",
+            });
+            return;
+        }
+        if (!name || typeof name !== "string" || !name.trim()) {
+            console.warn("[addUserAddress] Missing/invalid name:", name);
+            res.status(400).json({
+                success: false,
+                message: "Name is required",
+            });
+            return;
+        }
+        const cleanedPhone = typeof phone === "string" ? phone.trim() : "";
+        if (!cleanedPhone || !/^[6-9]\d{9}$/.test(cleanedPhone)) {
+            console.warn("[addUserAddress] Missing/invalid phone:", phone);
+            res.status(400).json({
+                success: false,
+                message: "Phone is required",
+            });
+            return;
+        }
+        if (!addressLine || typeof addressLine !== "string" || !addressLine.trim()) {
+            console.warn("[addUserAddress] Missing/invalid addressLine:", addressLine);
+            res.status(400).json({
+                success: false,
+                message: "Address line is required",
+            });
+            return;
+        }
         // Validate required fields
-        if (!label || !pincode || !addressLine) {
+        if (!label) {
             res.status(400).json({
                 success: false,
                 message: "Missing required fields",
-            });
-            return;
-        }
-        const canonicalPincode = String(pincode);
-        const pincodeData = await Pincode_1.Pincode.findOne({ pincode: canonicalPincode });
-        const fallback = pincodeData ? null : pincodeIndex.get(String(canonicalPincode));
-        if (!pincodeData && !fallback) {
-            res.status(400).json({
-                success: false,
-                message: "Enter a valid pincode to continue",
-            });
-            return;
-        }
-        const canonicalState = pincodeData?.state || fallback?.state || "";
-        const canonicalCity = (pincodeData?.taluka || pincodeData?.district || "") ||
-            (fallback?.taluka || fallback?.district || "");
-        if (!canonicalCity) {
-            res.status(400).json({
-                success: false,
-                message: "Enter a valid pincode to continue",
             });
             return;
         }
@@ -154,16 +197,59 @@ const addUserAddress = async (req, res) => {
             });
             return;
         }
+        // Backfill existing addresses that might be missing required district fields.
+        // Without this, user.save() can fail validation even if the NEW address is valid.
+        for (const addr of user.addresses || []) {
+            const needsBackfill = !addr.postal_district || !addr.admin_district;
+            if (!needsBackfill)
+                continue;
+            const addrPincode = (addr.pincode || "").toString();
+            if (!/^\d{6}$/.test(addrPincode)) {
+                console.error("[addUserAddress] Existing address has invalid pincode; cannot backfill", {
+                    addressId: addr._id?.toString?.(),
+                    pincode: addrPincode,
+                });
+                res.status(400).json({
+                    success: false,
+                    message: "Invalid address payload",
+                    details: {
+                        reason: "Existing address has invalid pincode; cannot backfill districts",
+                        addressId: addr._id?.toString?.(),
+                        pincode: addrPincode,
+                    },
+                });
+                return;
+            }
+            const backfill = await (0, authoritativePincodeResolver_1.resolvePincodeAuthoritatively)(addrPincode);
+            if (!backfill) {
+                console.error("[addUserAddress] Failed to backfill existing address districts", {
+                    addressId: addr._id?.toString?.(),
+                    pincode: addrPincode,
+                });
+                res.status(400).json({
+                    success: false,
+                    message: "Invalid address payload",
+                    details: {
+                        reason: "Failed to resolve pincode for existing address; cannot backfill districts",
+                        addressId: addr._id?.toString?.(),
+                        pincode: addrPincode,
+                    },
+                });
+                return;
+            }
+            addr.state = backfill.state;
+            addr.postal_district = backfill.postal_district;
+            addr.admin_district = backfill.admin_district;
+        }
         // AUTO-GEOCODE: Convert address to GPS coordinates with fallback chain
         console.log(`\n🌍 Auto-geocoding address for user ${userId}...`);
         // Try full address geocoding first
-        let geocodeResult = await (0, geocoding_1.smartGeocode)(addressLine, canonicalCity, canonicalState, canonicalPincode);
+        let geocodeResult = await (0, geocoding_1.smartGeocode)(addressLine, city, state, pincode);
         let coordsSource = 'geocoded';
         if (!geocodeResult) {
             // Full geocoding failed, try pincode fallback
-            console.warn(`⚠️ Full address geocoding failed, trying pincode fallback for ${canonicalPincode}...`);
-            const { geocodeByPincode } = require('../utils/geocoding');
-            geocodeResult = await geocodeByPincode(canonicalPincode);
+            console.warn(`⚠️ Full address geocoding failed, trying pincode fallback for ${pincode}...`);
+            geocodeResult = await (0, geocoding_1.geocodeByPincode)(pincode);
             if (geocodeResult) {
                 console.log(`✅ Pincode geocoding successful: lat=${geocodeResult.lat}, lng=${geocodeResult.lng}`);
                 console.warn(`⚠️ Using PINCODE CENTROID - delivery fee will be ESTIMATED`);
@@ -171,10 +257,10 @@ const addUserAddress = async (req, res) => {
             }
             else {
                 // Both geocoding attempts failed
-                console.error(`❌ All geocoding failed for: ${addressLine}, ${canonicalCity}, ${canonicalState} - ${canonicalPincode}`);
+                console.error(`❌ All geocoding failed for: ${addressLine}, ${city}, ${state} - ${pincode}`);
                 res.status(400).json({
                     success: false,
-                    message: "Unable to locate this address or pincode. Please check:\n• Address has specific details (street name, landmark)\n• Pincode is correct",
+                    message: "Unable to locate this address or pincode. Please check:\n• Address has specific details (street name, landmark)\n• Pincode is correct\n• City and state are correct",
                 });
                 return;
             }
@@ -188,15 +274,30 @@ const addUserAddress = async (req, res) => {
                 addr.isDefault = false;
             });
         }
+        const resolved = await (0, authoritativePincodeResolver_1.resolvePincodeAuthoritatively)(pincode);
+        console.error("🔥 Resolver output:", resolved);
+        if (!resolved) {
+            res.status(400).json({
+                success: false,
+                message: "Invalid pincode",
+                details: { reason: "Pincode not supported" },
+            });
+            return;
+        }
+        const resolvedState = resolved.state;
+        const postalDistrict = resolved.postal_district;
+        const adminDistrict = resolved.admin_district;
         const newAddress = {
             _id: new mongoose_1.default.Types.ObjectId(),
-            name: name || "",
+            name: name.trim(),
             label,
-            pincode: canonicalPincode,
-            city: canonicalCity,
-            state: canonicalState,
+            pincode,
+            city: city.trim(),
+            state: resolvedState,
+            postal_district: postalDistrict || "",
+            admin_district: adminDistrict || "",
             addressLine,
-            phone: phone || "",
+            phone: cleanedPhone,
             lat: geocodeResult.lat, // Auto-geocoded latitude
             lng: geocodeResult.lng, // Auto-geocoded longitude
             isDefault: isDefault || false,
@@ -204,7 +305,13 @@ const addUserAddress = async (req, res) => {
             coordsSource: coordsSource, // 'geocoded' or 'pincode' based on which method worked
         };
         user.addresses.push(newAddress);
-        await user.save();
+        try {
+            await user.save();
+        }
+        catch (dbErr) {
+            console.error("🔥 Mongo save failed", dbErr);
+            throw dbErr;
+        }
         // Get the saved address from the user document
         const savedAddress = user.addresses[user.addresses.length - 1];
         res.status(201).json({
@@ -217,10 +324,19 @@ const addUserAddress = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Error adding user address:", error);
+        console.error("🔥 addUserAddress CRASH", error, error?.stack);
+        if (error?.name === "ValidationError") {
+            res.status(400).json({
+                success: false,
+                message: "Invalid address payload",
+                details: error?.errors || error,
+            });
+            return;
+        }
         res.status(500).json({
             success: false,
-            message: "Internal server error",
+            message: "Address save crashed",
+            error: error?.message,
         });
     }
 };
@@ -253,47 +369,35 @@ const updateUserAddress = async (req, res) => {
             });
             return;
         }
-        const { name, label, pincode, city: _city, state: _state, addressLine, phone, isDefault, } = req.body;
-        let canonicalPincode = address.pincode;
-        if (pincode) {
-            canonicalPincode = String(pincode);
-        }
-        const pincodeData = await Pincode_1.Pincode.findOne({ pincode: canonicalPincode });
-        const fallback = pincodeData ? null : pincodeIndex.get(String(canonicalPincode));
-        if (!pincodeData && !fallback) {
-            res.status(400).json({
-                success: false,
-                message: "Enter a valid pincode to continue",
-            });
-            return;
-        }
-        const canonicalState = pincodeData?.state || fallback?.state || "";
-        const canonicalCity = (pincodeData?.taluka || pincodeData?.district || "") ||
-            (fallback?.taluka || fallback?.district || "");
-        if (!canonicalCity) {
-            res.status(400).json({
-                success: false,
-                message: "Enter a valid pincode to continue",
-            });
-            return;
+        const { name, label, pincode, city, state, addressLine, phone, isDefault } = req.body;
+        if (pincode !== undefined) {
+            const p = String(pincode);
+            if (p.length !== 6 || !/^\d{6}$/.test(p)) {
+                res.status(400).json({
+                    success: false,
+                    message: "Invalid pincode",
+                });
+                return;
+            }
         }
         // Check if address components changed (requires re-geocoding)
         const addressChanged = (addressLine && addressLine !== address.addressLine) ||
-            (pincode && String(pincode) !== address.pincode);
+            (city && city !== address.city) ||
+            (state && state !== address.state) ||
+            (pincode && pincode !== address.pincode);
         // If address changed, re-geocode with fallback
         if (addressChanged) {
             const finalAddressLine = addressLine || address.addressLine;
-            const finalCity = canonicalCity;
-            const finalState = canonicalState;
-            const finalPincode = canonicalPincode;
+            const finalCity = city || address.city;
+            const finalState = state || address.state;
+            const finalPincode = pincode || address.pincode;
             console.log(`\n🌍 Re-geocoding updated address for user ${userId}...`);
             let geocodeResult = await (0, geocoding_1.smartGeocode)(finalAddressLine, finalCity, finalState, finalPincode);
             let coordsSource = 'geocoded';
             if (!geocodeResult) {
                 // Full geocoding failed, try pincode fallback
                 console.warn(`⚠️ Full address geocoding failed, trying pincode fallback for ${finalPincode}...`);
-                const { geocodeByPincode } = require('../utils/geocoding');
-                geocodeResult = await geocodeByPincode(finalPincode);
+                geocodeResult = await (0, geocoding_1.geocodeByPincode)(finalPincode);
                 if (geocodeResult) {
                     console.log(`✅ Pincode geocoding successful: lat=${geocodeResult.lat}, lng=${geocodeResult.lng}`);
                     console.warn(`⚠️ Using PINCODE CENTROID - delivery fee will be ESTIMATED`);
@@ -322,9 +426,12 @@ const updateUserAddress = async (req, res) => {
             address.name = name || "";
         if (label)
             address.label = label;
-        address.pincode = canonicalPincode;
-        address.city = canonicalCity;
-        address.state = canonicalState;
+        if (pincode)
+            address.pincode = pincode;
+        if (city)
+            address.city = String(city).trim();
+        if (state)
+            address.state = state;
         if (addressLine)
             address.addressLine = addressLine;
         if (phone !== undefined)
@@ -340,6 +447,45 @@ const updateUserAddress = async (req, res) => {
             }
             address.isDefault = isDefault;
         }
+        const finalPincode = (pincode || address.pincode || "").toString();
+        const finalCity = (city || address.city || "").toString();
+        const resolved = await (0, pincodeResolver_1.resolvePincodeForAddressSave)(finalPincode);
+        if (!resolved) {
+            res.status(400).json({
+                success: false,
+                message: "Invalid pincode",
+            });
+            return;
+        }
+        if (!finalCity || !finalCity.trim()) {
+            res.status(400).json({
+                success: false,
+                message: "City is required",
+            });
+            return;
+        }
+        const finalName = (name !== undefined ? String(name) : String(address.name || "")).trim();
+        if (!finalName) {
+            res.status(400).json({
+                success: false,
+                message: "Name is required",
+            });
+            return;
+        }
+        const finalPhone = (phone !== undefined ? String(phone) : String(address.phone || "")).trim();
+        if (!finalPhone || !/^[6-9]\d{9}$/.test(finalPhone)) {
+            res.status(400).json({
+                success: false,
+                message: "Phone is required",
+            });
+            return;
+        }
+        address.name = finalName;
+        address.phone = finalPhone;
+        address.city = finalCity.trim();
+        address.state = resolved.state;
+        address.postal_district = resolved.postal_district;
+        address.admin_district = resolved.admin_district;
         await user.save();
         res.status(200).json({
             success: true,

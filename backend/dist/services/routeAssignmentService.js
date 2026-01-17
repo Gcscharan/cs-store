@@ -9,6 +9,7 @@ const Order_1 = require("../models/Order");
 const DeliveryBoy_1 = require("../models/DeliveryBoy");
 const User_1 = require("../models/User");
 const deliveryPartnerLoadService_1 = require("../domains/operations/services/deliveryPartnerLoadService");
+const orderAssignmentController_1 = require("../controllers/orderAssignmentController");
 /**
  * Route-based batch assignment service (Amazon/Flipkart style)
  * Groups orders by pincode and assigns to delivery boys based on:
@@ -35,12 +36,10 @@ class RouteAssignmentService {
             session = null;
         }
         try {
-            // 1. Fetch all orders awaiting delivery assignment (created or confirmed with unassigned delivery status)
+            // 1. Fetch PACKED orders awaiting delivery assignment (assignment must be a PACKED -> ASSIGNED transition)
             const query = Order_1.Order.find({
-                $or: [
-                    { orderStatus: "created", deliveryBoyId: null },
-                    { orderStatus: "confirmed", deliveryStatus: "unassigned" }
-                ]
+                orderStatus: { $in: ["PACKED", "packed"] },
+                $or: [{ deliveryBoyId: { $exists: false } }, { deliveryBoyId: null }],
             });
             const pendingOrders = session ? await query.session(session) : await query;
             if (pendingOrders.length === 0) {
@@ -331,35 +330,16 @@ class RouteAssignmentService {
      * Assign orders to a delivery boy and update database
      */
     async assignOrdersToDeliveryBoy(deliveryBoyId, orders, session) {
-        const orderIds = orders.map((o) => o._id);
-        // Update orders
-        const updateQuery = Order_1.Order.updateMany({ _id: { $in: orderIds } }, {
-            $set: {
-                deliveryBoyId: deliveryBoyId,
-                deliveryStatus: "assigned",
-                orderStatus: "assigned",
-            },
-        });
-        if (session) {
-            await updateQuery.session(session);
+        // Assign each order atomically. If another worker already assigned it, this becomes a safe no-op/409.
+        for (const o of orders) {
+            await (0, orderAssignmentController_1.assignPackedOrderToDeliveryBoy)({
+                orderId: String(o._id),
+                deliveryBoyId: String(deliveryBoyId),
+                actorId: "SYSTEM_ROUTE_ASSIGNER",
+            });
         }
-        else {
-            await updateQuery;
-        }
-        // Update delivery boy in MongoDB
-        const updateBoyQuery = DeliveryBoy_1.DeliveryBoy.findByIdAndUpdate(deliveryBoyId, {
-            $push: { assignedOrders: { $each: orderIds } },
-            $inc: { currentLoad: orders.length },
-        });
-        if (session) {
-            await updateBoyQuery.session(session);
-        }
-        else {
-            await updateBoyQuery;
-        }
-        // Update load in Redis ZSET for O(1) performance
+        // Keep load service call for backward compatibility (it is Mongo-backed today).
         await deliveryPartnerLoadService_1.deliveryPartnerLoadService.incrementLoad(deliveryBoyId.toString(), orders.length);
-        console.log(`📈 Updated Redis load for delivery partner ${deliveryBoyId} (+${orders.length} orders)`);
     }
 }
 exports.RouteAssignmentService = RouteAssignmentService;

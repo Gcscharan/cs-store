@@ -8,19 +8,26 @@ const crypto_1 = __importDefault(require("crypto"));
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const helmet_1 = __importDefault(require("helmet"));
 const express_validator_1 = require("express-validator");
+const isTestEnv = process.env.NODE_ENV === "test";
+const noOpMiddleware = (req, res, next) => next();
 // Global API rate limiter
-exports.apiLimiter = (0, express_rate_limit_1.default)({
-    windowMs: 60 * 1000, // 1 minute
-    max: 120,
-    standardHeaders: true,
-    legacyHeaders: false,
-});
+exports.apiLimiter = isTestEnv
+    ? noOpMiddleware
+    : (0, express_rate_limit_1.default)({
+        windowMs: 60 * 1000, // 1 minute
+        max: 120,
+        standardHeaders: true,
+        legacyHeaders: false,
+    });
 /**
  * Security Middleware for CS Store
  * Implements security best practices and input validation
  */
 // Rate limiting configurations
 const createRateLimit = (windowMs, max, message) => {
+    if (isTestEnv) {
+        return noOpMiddleware;
+    }
     return (0, express_rate_limit_1.default)({
         windowMs,
         max,
@@ -283,11 +290,17 @@ exports.requestSizeLimit = requestSizeLimit;
 exports.corsOptions = {
     origin: (origin, callback) => {
         const allowedOrigins = [
-            "http://localhost:5173",
-            "http://localhost:3000",
+            ...(process.env.NODE_ENV === "production"
+                ? []
+                : ["http://localhost:5173", "http://localhost:3000"]),
             "https://cpsstore.com",
             "https://www.cpsstore.com",
-        ];
+            process.env.FRONTEND_URL || "",
+            ...String(process.env.CORS_ORIGIN || "")
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean),
+        ].filter(Boolean);
         // Allow requests with no origin (mobile apps, Postman, etc.)
         if (!origin)
             return callback(null, true);

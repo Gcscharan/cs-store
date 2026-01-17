@@ -29,7 +29,7 @@ interface User {
 
 const AdminUsersPage: React.FC = () => {
   const navigate = useNavigate();
-  const { tokens, isAuthenticated, user } = useSelector(
+  const { tokens, isAuthenticated, user, loading } = useSelector(
     (state: RootState) => state.auth
   );
   const [users, setUsers] = useState<User[]>([]);
@@ -44,12 +44,18 @@ const AdminUsersPage: React.FC = () => {
 
   // Check authentication
   useEffect(() => {
-    if (!isAuthenticated || !user?.isAdmin) {
-      navigate("/login");
+    if (loading) {
       return;
     }
+
+    const isAdmin = !!(user?.isAdmin || user?.role === "admin");
+    if (!isAuthenticated || !isAdmin) {
+      navigate("/login", { replace: true });
+      return;
+    }
+
     fetchUsers();
-  }, [isAuthenticated, user, navigate]);
+  }, [loading, isAuthenticated, user, navigate]);
 
   const fetchUsers = async () => {
     try {
@@ -73,9 +79,7 @@ const AdminUsersPage: React.FC = () => {
 
         // Handle token expiration
         if (response.status === 401 || response.status === 403) {
-          // Clear invalid auth data and redirect to login
-          localStorage.removeItem("auth");
-          window.location.href = "/login";
+          navigate("/login", { replace: true });
           return;
         }
 
@@ -319,7 +323,7 @@ const AdminUsersPage: React.FC = () => {
                 <button
                   onClick={() => {
                     localStorage.removeItem("auth");
-                    window.location.href = "/login";
+                    navigate("/login", { replace: true });
                   }}
                   className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700"
                 >

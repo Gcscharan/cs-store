@@ -9,9 +9,17 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  test: {
+    environment: "node",
+    include: ["src/**/*.test.ts"],
+  },
   server: {
     port: 3000,
     host: true,
+    watch: {
+      usePolling: false,
+      ignored: ["**/node_modules/**", "**/.git/**", "**/dist/**"],
+    },
     proxy: {
       "/api": {
         target: "http://localhost:5001",

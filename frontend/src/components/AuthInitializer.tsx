@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState } from "../store";
-import { logout } from "../store/slices/authSlice";
+import { logout, setUser, setLoading, setAuthState } from "../store/slices/authSlice";
 import { useGetProfileQuery } from "../store/api";
 
 /**
@@ -17,8 +17,15 @@ import { useGetProfileQuery } from "../store/api";
  */
 export default function AuthInitializer() {
   const dispatch = useDispatch();
-  const { isAuthenticated, tokens } = useSelector((state: RootState) => state.auth);
+  const { isAuthenticated, tokens, authState } = useSelector((state: RootState) => state.auth);
   const hasValidated = useRef(false);
+
+  useEffect(() => {
+    if (!isAuthenticated || !tokens.accessToken) {
+      dispatch(setLoading(false));
+      hasValidated.current = true;
+    }
+  }, [isAuthenticated, tokens.accessToken, dispatch]);
 
   // Only attempt profile fetch if authenticated and token exists
   const shouldFetch = isAuthenticated && tokens.accessToken && !hasValidated.current;
@@ -27,6 +34,7 @@ export default function AuthInitializer() {
     error,
     isError,
     isFetching,
+    data,
   } = useGetProfileQuery(undefined, {
     skip: !shouldFetch,
   });
@@ -36,6 +44,14 @@ export default function AuthInitializer() {
     if (shouldFetch && isError && !isFetching) {
       const status = (error as any)?.status;
       const originalStatus = (error as any)?.originalStatus;
+
+      // GOOGLE_AUTH_ONLY sessions do not have a user record yet and use an onboarding-only token.
+      // /api/auth/me may return 401/403/404; do NOT force logout. Route guards will redirect to onboarding.
+      if (authState === "GOOGLE_AUTH_ONLY") {
+        hasValidated.current = true;
+        dispatch(setLoading(false));
+        return;
+      }
       
       // Only logout on actual authentication failures
       const isAuthError = status === 401 || status === 403 || status === 404 ||
@@ -66,15 +82,20 @@ export default function AuthInitializer() {
           originalStatus,
         });
         hasValidated.current = true; // Still mark as validated to prevent retries
+        dispatch(setLoading(false));
       }
     }
 
-    // If fetch succeeded, mark as validated
-    if (shouldFetch && !isError && !isFetching) {
+    // If fetch succeeded, store authoritative user data and mark as validated
+    if (shouldFetch && !isError && !isFetching && data) {
       console.log('✅ AUTH INITIALIZER: Token validated successfully');
       hasValidated.current = true;
+      // Store authoritative user object including profileCompleted
+      dispatch(setUser(data));
+      dispatch(setAuthState("ACTIVE"));
+      dispatch(setLoading(false));
     }
-  }, [shouldFetch, isError, isFetching, error, dispatch]);
+  }, [shouldFetch, isError, isFetching, error, data, dispatch, authState]);
 
   // This component doesn't render anything - it's just for side effects
   return null;

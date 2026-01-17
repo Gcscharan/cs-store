@@ -1,7 +1,8 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import { getApiBaseUrl } from "../config/runtime";
 
 const baseQuery = fetchBaseQuery({
-  baseUrl: `${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api`,
+  baseUrl: getApiBaseUrl(),
   credentials: "include",
   prepareHeaders: (headers, { getState }) => {
     const token = (getState() as any).auth?.tokens?.accessToken;

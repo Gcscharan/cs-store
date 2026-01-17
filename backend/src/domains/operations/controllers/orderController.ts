@@ -8,6 +8,11 @@ import { dispatchNotification } from "../../communication/services/notificationS
 import { createOrderFromCart } from "../services/orderBuilder";
 import { orderStateService } from "../../orders/services/orderStateService";
 import { OrderStatus } from "../../orders/enums/OrderStatus";
+import { publish } from "../../events/eventBus";
+import { stableEventId } from "../../events/eventId";
+import { createPaymentSuccessEvent } from "../../events/payment.events";
+import { inventoryReservationService } from "../../orders/services/inventoryReservationService";
+import { buildOrderTimeline } from "../../orders/services/orderTimeline";
 
 export const getOrders = async (
   req: Request,
@@ -60,6 +65,10 @@ export const getOrderById = async (
     const userId = (req as any).user._id;
     const userRole = (req as any).user.role;
 
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid order ID" });
+    }
+
     const query: any = { _id: id };
 
     // If not admin, only show user's own orders
@@ -75,11 +84,39 @@ export const getOrderById = async (
       return res.status(404).json({ message: "Order not found" });
     }
 
-    res.json({ 
-      order: {
-        ...order.toObject(),
-        status: order.orderStatus, // Map orderStatus to status for test compatibility
+    const orderObj: any = {
+      ...order.toObject(),
+      status: (order as any).orderStatus, // Map orderStatus to status for test compatibility
+    };
+
+    orderObj.timeline = buildOrderTimeline(orderObj);
+
+    const currentTimelineStep = Array.isArray(orderObj.timeline)
+      ? orderObj.timeline.find((s: any) => String(s?.state || "") === "current")
+      : null;
+    const isCustomerOutForDelivery = String(currentTimelineStep?.key || "") === "ORDER_IN_TRANSIT";
+
+    // Customer-safe delivery partner exposure: only during Out for delivery stage, hidden after delivered.
+    if (userRole !== "admin") {
+      if (isCustomerOutForDelivery && (order as any).deliveryBoyId) {
+        const d: any = (order as any).deliveryBoyId;
+        orderObj.deliveryPartner = {
+          name: d?.name,
+          phone: d?.phone,
+          vehicleType: d?.vehicleType,
+        };
+      } else {
+        orderObj.deliveryPartner = null;
+        orderObj.estimatedDeliveryWindow = null;
       }
+
+      // Never expose internal delivery partner identifiers/records to customers.
+      orderObj.deliveryBoyId = null;
+      orderObj.deliveryPartnerId = null;
+    }
+
+    res.json({
+      order: orderObj,
     });
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch order" });
@@ -160,11 +197,15 @@ export const createOrder = async (req: Request, res: Response) => {
       created: result.created,
     });
   } catch (error: any) {
+    console.error("Create order error:", {
+      message: error.message,
+      statusCode: error.statusCode,
+      stack: error.stack,
+    });
     const statusCode = Number(error?.statusCode) || 500;
     if (statusCode >= 400 && statusCode < 500) {
       return res.status(statusCode).json({ message: error.message || "Bad request" });
     }
-    console.error("Create order error:", error);
     return res.status(500).json({ message: "Failed to create order" });
   }
 };
@@ -298,44 +339,22 @@ export const updatePaymentStatus = async (req: Request, res: Response) => {
             throw err;
           }
 
-          if (fresh.orderStatus !== "PENDING_PAYMENT") {
+          const orderStatusUpper = String((fresh as any).orderStatus || "").toUpperCase();
+          if (!["PENDING_PAYMENT", "CREATED", "PENDING"].includes(orderStatusUpper)) {
             const err: any = new Error("Order is not awaiting payment");
             err.statusCode = 400;
             throw err;
-          }
-
-          // Re-check and decrement stock atomically at payment confirmation time
-          for (const item of (fresh.items || []) as any[]) {
-            const qty = Number(item.qty ?? item.quantity ?? 0);
-            if (!item.productId || qty <= 0) {
-              const err: any = new Error("Invalid order item");
-              err.statusCode = 400;
-              throw err;
-            }
-
-            const updated = await Product.findByIdAndUpdate(
-              item.productId,
-              { $inc: { stock: -qty } },
-              { new: true, session }
-            );
-
-            if (!updated) {
-              const err: any = new Error("Product not found");
-              err.statusCode = 409;
-              throw err;
-            }
-
-            if (updated.stock < 0) {
-              const err: any = new Error(`Insufficient stock for ${updated.name}`);
-              err.statusCode = 409;
-              throw err;
-            }
           }
 
           fresh.paymentStatus = "PAID" as any;
           fresh.paymentReceivedAt = new Date();
 
           await fresh.save({ session });
+
+          await inventoryReservationService.commitReservationsForOrder({
+            session,
+            orderId: (fresh as any)._id,
+          });
 
           await Cart.findOneAndUpdate(
             { userId: fresh.userId },
@@ -347,15 +366,62 @@ export const updatePaymentStatus = async (req: Request, res: Response) => {
         session.endSession();
       }
     } else if (order.paymentMethod === "cod") {
-      // COD: allow marking paid (e.g. at delivery). Cart was already cleared at order creation.
-      order.paymentStatus = "PAID" as any;
-      order.paymentReceivedAt = new Date();
-      await order.save();
+      // COD: allow marking paid (e.g. at delivery). Commit inventory reservation now.
+      const session = await mongoose.startSession();
+      try {
+        await session.withTransaction(async () => {
+          const fresh = await Order.findById(orderId).session(session);
+          if (!fresh) {
+            const err: any = new Error("Order not found");
+            err.statusCode = 404;
+            throw err;
+          }
+
+          const ps = String((fresh as any).paymentStatus || "").toUpperCase();
+          if (ps === "PAID") {
+            return;
+          }
+
+          (fresh as any).paymentStatus = "PAID" as any;
+          (fresh as any).paymentReceivedAt = new Date();
+          await fresh.save({ session });
+
+          await inventoryReservationService.commitReservationsForOrder({
+            session,
+            orderId: (fresh as any)._id,
+          });
+        });
+      } finally {
+        session.endSession();
+      }
     } else {
       return res.status(400).json({ message: "Unsupported payment method" });
     }
 
     console.log(`💰 Payment status updated for order ${orderId}: ${order.paymentStatus}`);
+
+    try {
+      const finalOrder = await Order.findById(orderId).select("userId _id totalAmount paymentStatus");
+      if (finalOrder && String((finalOrder as any).paymentStatus || "").toUpperCase() === "PAID") {
+        const actorType: "admin" | "user" = userRole === "admin" ? "admin" : "user";
+        await publish(
+          createPaymentSuccessEvent({
+            source: "operations",
+            actor: {
+              type: actorType,
+              id: String(userId),
+            },
+            eventId: stableEventId(`payment:order:${String(finalOrder._id)}:paid`),
+            occurredAt: new Date().toISOString(),
+            userId: String((finalOrder as any).userId),
+            orderId: String(finalOrder._id),
+            amount: Number((finalOrder as any).totalAmount),
+          })
+        );
+      }
+    } catch (e) {
+      console.error("[orderController] failed to publish PAYMENT_SUCCESS", e);
+    }
 
     // Send payment success notification
     try {

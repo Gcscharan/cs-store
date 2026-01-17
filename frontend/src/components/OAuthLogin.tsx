@@ -1,4 +1,5 @@
 import React from "react";
+import { toApiUrl } from "../config/runtime";
 import { motion } from "framer-motion";
 
 interface OAuthLoginProps {
@@ -9,7 +10,7 @@ interface OAuthLoginProps {
 const OAuthLogin: React.FC<OAuthLoginProps> = () => {
   const handleGoogleLogin = () => {
     // Redirect to Google OAuth endpoint
-    window.location.href = `${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/auth/google`;
+    window.location.href = toApiUrl("/auth/google");
   };
 
   return (

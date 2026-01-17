@@ -8,6 +8,11 @@ dotenv.config();
 // Environment variable validation
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+const GOOGLE_CALLBACK_URL =
+  process.env.GOOGLE_CALLBACK_URL ||
+  (process.env.BACKEND_URL
+    ? `${String(process.env.BACKEND_URL).replace(/\/+$/, "")}/api/auth/google/callback`
+    : undefined);
 
 console.log("Google OAuth credentials:", {
   clientId: GOOGLE_CLIENT_ID ? "Present" : "Missing",
@@ -15,13 +20,17 @@ console.log("Google OAuth credentials:", {
 });
 
 // Google OAuth Strategy (only if credentials are provided)
-if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
+const callbackURL =
+  GOOGLE_CALLBACK_URL ||
+  undefined;
+
+if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && callbackURL) {
   passport.use(
     new GoogleStrategy(
       {
         clientID: GOOGLE_CLIENT_ID,
         clientSecret: GOOGLE_CLIENT_SECRET,
-        callbackURL: "http://localhost:5001/api/auth/google/callback",
+        callbackURL,
       },
       async (accessToken, refreshToken, profile, done) => {
         try {
@@ -80,6 +89,12 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
  else {
   console.warn(
     "⚠️  Google OAuth credentials not found. Google login will be disabled."
+  );
+}
+
+if (process.env.NODE_ENV === "production" && GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && !callbackURL) {
+  console.warn(
+    "⚠️  GOOGLE_CALLBACK_URL (or BACKEND_URL) is not set. Google OAuth will be disabled in production."
   );
 }
 

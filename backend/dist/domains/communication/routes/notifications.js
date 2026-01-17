@@ -9,6 +9,8 @@ const notificationController_1 = require("../controllers/notificationController"
 const router = express_1.default.Router();
 // All routes require authentication
 router.use(auth_1.authenticateToken);
+// Canonical cursor-paginated notifications endpoint
+router.get("/v2", notificationController_1.getNotificationsV2);
 // Get all notifications for user (newest first)
 router.get("/", notificationController_1.getNotifications);
 // Get unread notification count

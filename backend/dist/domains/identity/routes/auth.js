@@ -26,6 +26,8 @@ router.post("/oauth", authController_1.oauth);
 router.post("/refresh", authController_1.refresh);
 router.post("/logout", auth_1.authenticateToken, authController_1.logout);
 router.post("/change-password", auth_1.authenticateToken, authController_1.changePassword);
+router.post("/complete-onboarding", auth_1.authenticateGoogleAuthOnly, authController_1.completeOnboarding);
+router.post("/verify-onboarding-otp", auth_1.authenticateGoogleAuthOnly, authController_1.verifyOnboardingOtp);
 router.post("/complete-profile", auth_1.authenticateToken, authController_1.completeProfile);
 router.put("/complete-profile", auth_1.authenticateToken, authController_1.completeProfile);
 router.get("/me", auth_1.authenticateToken, authController_1.getMe);

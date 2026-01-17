@@ -6,11 +6,13 @@ import {
   User,
   ShoppingCart,
   Store,
+  Bell,
   ChevronDown,
   MoreVertical,
   MapPin,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { io, Socket } from "socket.io-client";
 import BottomNav from "./BottomNav";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
@@ -19,12 +21,23 @@ import { useLogout } from "../hooks/useLogout";
 import { logout } from "../store/slices/authSlice";
 import { useOtpModal } from "../contexts/OtpModalContext";
 import { getDisplayName } from "../utils/nameUtils";
-import { useGetSearchSuggestionsQuery, useGetAddressesQuery, useSetDefaultAddressMutation, useGetProfileQuery } from "../store/api";
+import { formatNotificationCopy } from "../utils/notificationFormatter";
+import toast from "react-hot-toast";
+import api, {
+  useGetSearchSuggestionsQuery,
+  useGetAddressesQuery,
+  useSetDefaultAddressMutation,
+  useGetProfileQuery,
+  useGetUnreadNotificationCountQuery,
+  useGetNotificationsV2Query,
+  useMarkAsReadMutation,
+} from "../store/api";
 import SearchSuggestions from "./SearchSuggestions";
 import ChooseLocation from "./ChooseLocation";
 import CartConfirmationBar from "./CartConfirmationBar";
 import GlobalCartConfirmationBar from "./GlobalCartConfirmationBar";
 import { CartFeedbackProvider } from "../contexts/CartFeedbackContext";
+import { getApiOrigin } from "../config/runtime";
 
 interface LayoutProps {
   children: ReactNode;
@@ -43,7 +56,7 @@ const Layout: React.FC<LayoutProps> = ({
 
   // Hide bottom navigation on cart page
   const shouldHideBottomNav =
-    hideBottomNav || currentLocation.pathname === "/cart";
+    hideBottomNav || currentLocation.pathname === "/cart" || currentLocation.pathname.startsWith("/admin");
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
@@ -67,6 +80,115 @@ const Layout: React.FC<LayoutProps> = ({
   const { data: profileData } = useGetProfileQuery(undefined, {
     skip: !auth.isAuthenticated,
   });
+
+  const { data: unreadCountData } = useGetUnreadNotificationCountQuery(undefined, {
+    skip: !auth.isAuthenticated,
+    pollingInterval: 8000,
+    refetchOnFocus: true,
+    refetchOnReconnect: true,
+  });
+  const unreadCount = Number((unreadCountData as any)?.count || 0);
+
+  const [markAsRead] = useMarkAsReadMutation();
+
+  const appStartRef = React.useRef<number>(Date.now());
+  const lastToastIdRef = React.useRef<string>(
+    typeof window !== "undefined"
+      ? String(window.localStorage.getItem("lastOrderNotifToastId") || "")
+      : ""
+  );
+
+  const { data: latestNotifications } = useGetNotificationsV2Query(
+    { limit: 1 },
+    {
+      skip: !auth.isAuthenticated,
+      pollingInterval: 8000,
+      refetchOnFocus: true,
+      refetchOnReconnect: true,
+    }
+  );
+
+  useEffect(() => {
+    const n = (latestNotifications as any)?.notifications?.[0];
+    if (!n) return;
+
+    const id = String(n?.id || n?._id || "");
+    if (!id) return;
+
+    const createdAtMs = n?.createdAt ? new Date(String(n.createdAt)).getTime() : NaN;
+    if (!Number.isFinite(createdAtMs)) return;
+
+    if (createdAtMs <= appStartRef.current) return;
+    if (n?.isRead) return;
+    if (String(n?.category || "") !== "order") return;
+
+    if (id === lastToastIdRef.current) return;
+    lastToastIdRef.current = id;
+    try {
+      window.localStorage.setItem("lastOrderNotifToastId", id);
+    } catch {
+      // ignore
+    }
+
+    dispatch(api.util.invalidateTags(["NotificationUnreadCount"]));
+
+    const formatted = formatNotificationCopy({
+      eventType: (n as any)?.eventType,
+      meta: (n as any)?.meta,
+      fallbackTitle: String(n?.title || "Order update"),
+      fallbackBody: String(n?.body || n?.message || "").trim(),
+    });
+
+    const title = formatted.title;
+    const body = formatted.body;
+    const deepLink = typeof n?.deepLink === "string" ? n.deepLink : undefined;
+
+    toast.custom(
+      (t) => (
+        <div
+          className={`pointer-events-auto w-full max-w-sm rounded-xl border border-gray-200 bg-white shadow-xl transition-all ${
+            t.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"
+          }`}
+          onClick={async () => {
+            try {
+              await markAsRead(id).unwrap();
+            } catch {
+              // ignore
+            }
+            toast.dismiss(t.id);
+            if (deepLink) {
+              navigate(deepLink);
+            }
+          }}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="flex items-start gap-3 p-4">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+              <ShoppingCart className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-semibold text-gray-900">{title}</div>
+              {body && <div className="mt-0.5 text-sm text-gray-600 line-clamp-2">{body}</div>}
+              <div className="mt-2 text-xs font-medium text-blue-600">View order</div>
+            </div>
+            <button
+              className="ml-2 rounded-md p-1 text-gray-400 hover:text-gray-600"
+              onClick={(e) => {
+                e.stopPropagation();
+                toast.dismiss(t.id);
+              }}
+              aria-label="Dismiss"
+              type="button"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      ),
+      { duration: 5000, position: "top-right" }
+    );
+  }, [dispatch, latestNotifications, markAsRead, navigate]);
   
   const [setDefaultAddressMutation] = useSetDefaultAddressMutation();
   
@@ -143,10 +265,40 @@ const Layout: React.FC<LayoutProps> = ({
   };
   const { showOtpModal } = useOtpModal();
 
-  const isAdmin = auth.user?.isAdmin;
+  const isAdmin = !!(auth.user?.isAdmin || auth.user?.role === "admin");
   const isDelivery = auth.user?.role === "delivery";
   const isAdminPage = location.pathname.startsWith("/admin");
   const isDeliveryPage = location.pathname.startsWith("/delivery");
+
+  const notifSocketRef = useRef<Socket | null>(null);
+
+  useEffect(() => {
+    if (!auth.isAuthenticated) return;
+    if (isAdminPage || isDeliveryPage) return;
+
+    const token = auth.tokens?.accessToken || "";
+    if (!token) return;
+
+    const socket = io(getApiOrigin() || "/", {
+      auth: { token },
+      transports: ["websocket", "polling"],
+    });
+
+    notifSocketRef.current = socket;
+
+    socket.on("notification:refresh", () => {
+      dispatch(api.util.invalidateTags(["Notification", "NotificationUnreadCount"]));
+    });
+
+    return () => {
+      try {
+        socket.off("notification:refresh");
+        socket.disconnect();
+      } catch {
+      }
+      notifSocketRef.current = null;
+    };
+  }, [auth.isAuthenticated, auth.tokens?.accessToken, dispatch, isAdminPage, isDeliveryPage]);
 
   useEffect(() => {
     document.title = title;
@@ -155,11 +307,6 @@ const Layout: React.FC<LayoutProps> = ({
       metaDescription.setAttribute("content", description);
     }
   }, [title, description]);
-
-  // Don't render header/footer for delivery pages
-  if (isDeliveryPage) {
-    return <main id="main-content">{children}</main>;
-  }
 
   // Sync search bar with URL parameters when on search page
   useEffect(() => {
@@ -241,12 +388,11 @@ const suggestions = suggestionList || [];
   // Note: Search functionality moved to button click and Enter key handling
 
   const handleLogoClick = () => {
-    // If already on Home page, reload the page
-    if (location.pathname === "/") {
+    const targetPath = isAdmin ? "/admin" : "/";
+    if (location.pathname === targetPath) {
       window.location.reload();
     } else {
-      // Navigate to Home page if on any other page
-      navigate("/");
+      navigate(targetPath);
     }
   };
 
@@ -398,6 +544,10 @@ const suggestions = suggestionList || [];
   const handleCartClick = () => {
     navigate("/cart");
   };
+
+  if (isDeliveryPage) {
+    return <main id="main-content">{children}</main>;
+  }
 
   return (
     <ToastProvider>
@@ -735,6 +885,20 @@ const suggestions = suggestionList || [];
                             </div>
                           )}
                         </div>
+                        <button
+                          onClick={() => navigate("/account/notifications")}
+                          className="relative flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-600 transition-colors duration-200 px-2 py-1"
+                          aria-label="Notifications"
+                        >
+                          <Bell className="h-6 w-6" />
+                          <span className="text-xs font-medium">Alerts</span>
+                          {/* Bell badge driven purely by unreadCount API; hide if zero */}
+                          {unreadCount > 0 && (
+                            <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center font-bold">
+                              {unreadCount > 99 ? "99+" : unreadCount}
+                            </div>
+                          )}
+                        </button>
                         <button
                           onClick={handleCartClick}
                           className={`relative flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-600 transition-colors duration-200 px-2 py-1 ${

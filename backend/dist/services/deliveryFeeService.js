@@ -19,7 +19,8 @@ const googleMapsClient = new google_maps_services_js_1.Client({});
 // Initialize cache (TTL in seconds)
 const distanceCache = new node_cache_1.default({
     stdTTL: deliveryFeeConfig_1.DELIVERY_CONFIG.CACHE_TTL_MINUTES * 60,
-    checkperiod: 120,
+    // Test-only behavior: avoid background intervals that can keep Jest open
+    checkperiod: process.env.NODE_ENV === "test" ? 0 : 120,
 });
 /**
  * Calculate delivery fee for a user's address
@@ -119,6 +120,29 @@ async function findNearestWarehouse(userAddress) {
  * Calculate distance using Google Maps API with fallback to Haversine
  */
 async function calculateDistance(warehouse, userAddress) {
+    // Test-only behavior: avoid any external Google API calls for deterministic tests
+    if (process.env.NODE_ENV === "test") {
+        const cacheKey = `${warehouse.id}_${userAddress.lat}_${userAddress.lng}`;
+        if (deliveryFeeConfig_1.DELIVERY_CONFIG.ENABLE_DISTANCE_CACHE) {
+            const cached = distanceCache.get(cacheKey);
+            if (cached !== undefined) {
+                return {
+                    distance: cached,
+                    method: "HAVERSINE",
+                    cached: true,
+                };
+            }
+        }
+        const distance = calculateHaversineDistance(warehouse.lat, warehouse.lng, userAddress.lat || 0, userAddress.lng || 0);
+        if (deliveryFeeConfig_1.DELIVERY_CONFIG.ENABLE_DISTANCE_CACHE) {
+            distanceCache.set(cacheKey, distance);
+        }
+        return {
+            distance,
+            method: "HAVERSINE",
+            cached: false,
+        };
+    }
     // Generate cache key
     const cacheKey = `${warehouse.id}_${userAddress.lat}_${userAddress.lng}`;
     // Check cache first

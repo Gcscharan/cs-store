@@ -32,7 +32,50 @@ const DeliveryListItem = ({
   onStatusUpdate,
   showActions = false,
 }: DeliveryListItemProps) => {
+  const toCustomerStatus = (status: string) => {
+    switch (String(status || "").toLowerCase()) {
+      case "created":
+      case "pending":
+        return "Order placed";
+      case "confirmed":
+        return "Order confirmed";
+      case "packed":
+      case "assigned":
+      case "picked_up":
+        return "Shipped";
+      case "in_transit":
+        return "Out for delivery";
+      case "delivered":
+        return "Delivered";
+      case "cancelled":
+      case "failed":
+        return "Cancelled";
+      default:
+        return "Order update";
+    }
+  };
+
   const getStatusColor = (status: string) => {
+    if (!showActions) {
+      const customer = toCustomerStatus(status);
+      switch (customer) {
+        case "Order placed":
+          return "bg-gray-100 text-gray-800";
+        case "Order confirmed":
+          return "bg-blue-100 text-blue-800";
+        case "Shipped":
+          return "bg-indigo-100 text-indigo-800";
+        case "Out for delivery":
+          return "bg-purple-100 text-purple-800";
+        case "Delivered":
+          return "bg-green-100 text-green-800";
+        case "Cancelled":
+          return "bg-red-100 text-red-800";
+        default:
+          return "bg-gray-100 text-gray-800";
+      }
+    }
+
     switch (status) {
       case "created":
         return "bg-gray-100 text-gray-800";
@@ -52,6 +95,10 @@ const DeliveryListItem = ({
   };
 
   const getStatusText = (status: string) => {
+    if (!showActions) {
+      return toCustomerStatus(status);
+    }
+
     switch (status) {
       case "created":
         return "Order Created";

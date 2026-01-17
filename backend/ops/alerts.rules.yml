@@ -1,0 +1,38 @@
+groups:
+  - name: commerce-backend
+    rules:
+      - alert: OutboxFailuresPresent
+        expr: ops_outbox_failed_events > 0
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "Outbox has FAILED events"
+          description: "Outbox contains FAILED events. Check /api/admin/ops/outbox/failures."
+
+      - alert: OutboxBacklogHigh
+        expr: ops_outbox_backlog_size > 1000
+        for: 10m
+        labels:
+          severity: warn
+        annotations:
+          summary: "Outbox backlog high"
+          description: "Pending outbox backlog is high; may indicate dispatcher slowdown."
+
+      - alert: InventoryReservedStockDrift
+        expr: ops_inventory_reserved_stock_drift_products > 0
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: "Inventory reservedStock drift detected"
+          description: "reservedStock differs from sum(ACTIVE reservations). Check /api/admin/ops/inventory/drift."
+
+      - alert: AssignmentConflictSpike
+        expr: rate(ops_assignment_conflicts_total[5m]) > 5
+        for: 5m
+        labels:
+          severity: warn
+        annotations:
+          summary: "Delivery assignment conflicts spiking"
+          description: "High contention in assignment claims; investigate multiple assigners or repeated retries."

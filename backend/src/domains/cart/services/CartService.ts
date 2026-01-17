@@ -103,7 +103,10 @@ export class CartService {
       throw new Error("Product not found");
     }
 
-    if (product.stock < quantity) {
+    const stock = Number((product as any).stock || 0);
+    const reservedStock = Number((product as any).reservedStock || 0);
+    const availableStock = stock - reservedStock;
+    if (availableStock < quantity) {
       throw new Error("Insufficient stock");
     }
 
@@ -165,7 +168,10 @@ export class CartService {
         throw new Error("Product not found");
       }
 
-      if (product.stock < quantity) {
+      const stock = Number((product as any).stock || 0);
+      const reservedStock = Number((product as any).reservedStock || 0);
+      const availableStock = stock - reservedStock;
+      if (availableStock < quantity) {
         throw new Error("Insufficient stock");
       }
     }

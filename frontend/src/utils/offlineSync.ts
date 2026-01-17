@@ -279,10 +279,8 @@ class OfflineSync {
           break;
 
         case "order_complete":
-          url = `/api/delivery/orders/${action.orderId}/complete`;
-          method = "POST";
-          body = action.payload;
-          break;
+          console.warn("Dropping unsupported offline action: order_complete");
+          return true;
 
         default:
           console.error("Unknown action type:", action.type);

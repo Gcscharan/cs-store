@@ -15,6 +15,7 @@ import { OtpModalProvider } from "./contexts/OtpModalContext";
 import { CurrencyProvider } from "./contexts/CurrencyContext";
 import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
+import RoleProtectedRoute from "./components/RoleProtectedRoute";
 import GlobalErrorBoundary from "./components/GlobalErrorBoundary";
 import HomePage from "./pages/HomePage";
 import DashboardPage from "./pages/DashboardPage";
@@ -36,6 +37,11 @@ import ProductCreatePage from "./pages/Admin/ProductCreatePage";
 import AdminUsersPage from "./pages/AdminUsersPage";
 import AdminOrdersPage from "./pages/AdminOrdersPage";
 import AdminOrderDetailsPage from "./pages/AdminOrderDetailsPage";
+import AdminRoutesPage from "./pages/AdminRoutesPage";
+import AdminRoutesPreviewPage from "./pages/AdminRoutesPreviewPage";
+import AdminRecentRoutesPage from "./pages/AdminRecentRoutesPage";
+import AdminRouteDetailPage from "./pages/AdminRouteDetailPage";
+import AdminRouteMapPage from "./pages/AdminRouteMapPage";
 import AdminDeliveryBoysPage from "./pages/AdminDeliveryBoysPage";
 import AdminAnalyticsPage from "./pages/AdminAnalyticsPage";
 import AdminProfilePage from "./pages/AdminProfilePage";
@@ -72,35 +78,26 @@ import CorporateInformationPage from "./pages/CorporateInformationPage";
 import CustomerCarePage from "./pages/CustomerCarePage";
 import NotificationPreferencesPage from "./pages/NotificationPreferencesPage";
 import SettingsPage from "./pages/SettingsPage";
-import { useGetProfileQuery } from "./store/api";
 import { ReactNode } from "react";
 import CartInitializer from "./components/CartInitializer";
+import AuthInitializer from "./components/AuthInitializer";
+import { authRedirect } from "./utils/authRedirect";
 
-// Wrapper component to check profile completion for non-admin users
-function ProfileCompletionWrapper({ children }: { children: ReactNode }) {
-  const { user, isAuthenticated } = useSelector((state: RootState) => state.auth);
+// Centralized auth guard using Redux auth state (authoritative)
+function AuthGuard({ children }: { children: ReactNode }) {
+  const { isAuthenticated, loading, user, authState } = useSelector((state: RootState) => state.auth);
   const location = useLocation();
 
-  // Fetch profile to check completion status
-  const {
-    data: profile,
-    isLoading,
-    isFetching,
-    isUninitialized,
-  } = useGetProfileQuery(undefined, {
-    skip: !isAuthenticated,
+  const role = user?.isAdmin || user?.role === "admin" ? "admin" : (user?.role || "customer");
+  const canonical = authRedirect({
+    authState: (authState ?? null) as any,
+    pathname: location.pathname,
+    role: role as any,
+    isProtected: true,
   });
 
-  // If user is admin, bypass profile check
-  if (user?.isAdmin || user?.role === "admin") {
-    return <>{children}</>;
-  }
-
-  // While authenticated user's profile data is not yet ready, block redirects
-  const isProfileDataPending =
-    isAuthenticated && (isLoading || isFetching || isUninitialized);
-
-  if (isProfileDataPending) {
+  // 1) While loading, show spinner
+  if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -111,70 +108,55 @@ function ProfileCompletionWrapper({ children }: { children: ReactNode }) {
     );
   }
 
-  // Explicit, tolerant profile completion check
-  const hasName = typeof profile?.name === "string" && profile.name.trim().length > 0 || 
-                  typeof profile?.fullName === "string" && profile.fullName.trim().length > 0;
-  const hasPhone = typeof profile?.phone === "string" && profile.phone.trim().length > 0;
-  const isProfileComplete = hasName && hasPhone;
-
-  // Route classifications
-  const isOnboardingRoute = location.pathname.startsWith("/onboarding");
-  const isAuthCallbackRoute = location.pathname.startsWith("/auth/callback");
-  const isPublicRoute =
-    location.pathname === "/" ||
-    location.pathname === "/signup" ||
-    location.pathname === "/login" ||
-    location.pathname === "/download-app" ||
-    location.pathname === "/contact-us" ||
-    location.pathname === "/about-us" ||
-    location.pathname === "/careers" ||
-    location.pathname === "/cs-store-stories" ||
-    location.pathname === "/corporate-information" ||
-    location.pathname.startsWith("/auth/callback");
-
-  // Only redirect authenticated, non-admin users with clearly incomplete profiles
-  // away from non-onboarding, non-public routes
-  if (
-    isAuthenticated &&
-    !isProfileComplete &&
-    !isOnboardingRoute &&
-    !isPublicRoute &&
-    !isAuthCallbackRoute
-  ) {
-    return <Navigate to="/onboarding/complete-profile" replace />;
+  if (canonical) {
+    return <Navigate to={canonical} state={{ from: location }} replace />;
   }
 
-  // Profile is complete or user is on onboarding/public/auth callback page, render children
+  // 2) If not authenticated, redirect to login (preserve intended destination)
+  if (!isAuthenticated) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // 3) Admins bypass profile check
+  if (user?.isAdmin || user?.role === "admin") {
+    return <>{children}</>;
+  }
+
+  // All checks passed: render children
   return <>{children}</>;
 }
 
 // Component to handle authentication-based routing with role and profile checks
 function AuthRouter() {
-  const { isAuthenticated, user } = useSelector((state: RootState) => state.auth);
+  const { user, authState, loading } = useSelector((state: RootState) => state.auth);
   const location = useLocation();
-  
-  // Check if user is in logout process (check for logout flag in localStorage)
-  const isLoggingOut = typeof window !== 'undefined' && localStorage.getItem('isLoggingOut') === 'true';
 
-  // PRIORITY 1: Check for Admin Role FIRST - bypass onboarding checks and send admins to /admin
-  if (isAuthenticated && (user?.isAdmin || user?.role === "admin") && !isLoggingOut) {
-    // If admin is trying to access onboarding, redirect to admin dashboard
-    if (location.pathname === "/onboarding/complete-profile") {
-      return <Navigate to="/admin" replace />;
-    }
-    // Allow admin to access admin routes, dashboard, or auth callbacks
-    // Don't force redirect to admin if user explicitly wants to see user dashboard
-    if (!location.pathname.startsWith("/admin") && 
-        !location.pathname.startsWith("/auth/callback") && 
-        location.pathname !== "/dashboard") {
-      return <Navigate to="/admin" replace />;
+  if (!loading) {
+    const role = user?.isAdmin || user?.role === "admin" ? "admin" : (user?.role || "customer");
+
+    const isPublicRoute =
+      location.pathname === "/" ||
+      location.pathname === "/signup" ||
+      location.pathname === "/login" ||
+      location.pathname === "/download-app" ||
+      location.pathname === "/contact-us" ||
+      location.pathname === "/about-us" ||
+      location.pathname === "/careers" ||
+      location.pathname.startsWith("/cs-store-stories") ||
+      location.pathname === "/corporate-information" ||
+      location.pathname.startsWith("/auth/callback");
+
+    const redirect = authRedirect({
+      authState: (authState ?? null) as any,
+      pathname: location.pathname,
+      role: role as any,
+      isProtected: !isPublicRoute,
+    });
+
+    if (redirect && redirect !== location.pathname) {
+      return <Navigate to={redirect} replace />;
     }
   }
-
-  // PRIORITY 2: For non-admin authenticated users, profile completion is enforced
-  // only on specific routes (e.g. /dashboard via ProfileCompletionWrapper).
-  // The root ("/") route should always show the public home page instead of
-  // forcing a redirect to /dashboard, so users are not locked into onboarding.
 
   return (
     <Routes>
@@ -202,20 +184,12 @@ function AuthRouter() {
       <Route
         path="/dashboard"
         element={
-          isAuthenticated ? (
-            // Check admin first
-            (user?.isAdmin || user?.role === "admin") ? (
-              <Navigate to="/admin" replace />
-            ) : (
-              <ProfileCompletionWrapper>
-                <Layout hideBottomNav={true}>
-                  <DashboardPage />
-                </Layout>
-              </ProfileCompletionWrapper>
-            )
-          ) : (
-            <Navigate to="/" replace />
-          )
+          // AuthGuard is the single entry for auth redirect decisions.
+          <AuthGuard>
+            <Layout hideBottomNav={true}>
+              <DashboardPage />
+            </Layout>
+          </AuthGuard>
         }
       />
 
@@ -227,6 +201,8 @@ function AuthRouter() {
 
 // Component for all other routes
 function OtherRoutes() {
+  const { authState } = useSelector((state: RootState) => state.auth);
+
   return (
     <Layout>
       <Routes>
@@ -360,6 +336,46 @@ function OtherRoutes() {
           }
         />
         <Route
+          path="/admin/routes"
+          element={
+            <AdminRoute>
+              <AdminRoutesPage />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/routes/recent"
+          element={
+            <AdminRoute>
+              <AdminRecentRoutesPage />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/routes/preview"
+          element={
+            <AdminRoute>
+              <AdminRoutesPreviewPage />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/routes/:routeId"
+          element={
+            <AdminRoute>
+              <AdminRouteDetailPage />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/routes/:routeId/map"
+          element={
+            <AdminRoute>
+              <AdminRouteMapPage />
+            </AdminRoute>
+          }
+        />
+        <Route
           path="/admin/orders/:orderId"
           element={
             <AdminRoute>
@@ -399,66 +415,190 @@ function OtherRoutes() {
             </AdminRoute>
           }
         />
-        {/* Delivery Partner Routes */}
+        {/* Delivery Partner Routes - Protected for delivery role only */}
         <Route path="/delivery/signup" element={<DeliverySignup />} />
         <Route path="/delivery/login" element={<DeliveryLogin />} />
-        <Route path="/delivery" element={<DeliveryDashboard />} />
-        <Route path="/delivery/dashboard" element={<DeliveryDashboard />} />
-        <Route path="/delivery-selfie" element={<DeliverySelfiePage />} />
-        <Route path="/delivery-profile" element={<DeliveryProfilePage />} />
-        <Route path="/delivery/emergency" element={<DeliveryEmergencyPage />} />
+        <Route 
+          path="/delivery" 
+          element={
+            <RoleProtectedRoute allowedRoles={["delivery"]} unauthenticatedRedirectTo="/delivery/login">
+              <DeliveryDashboard />
+            </RoleProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/delivery/dashboard" 
+          element={
+            <RoleProtectedRoute allowedRoles={["delivery"]} unauthenticatedRedirectTo="/delivery/login">
+              <DeliveryDashboard />
+            </RoleProtectedRoute>
+          } 
+        />
+        <Route
+          path="/delivery/profile"
+          element={
+            <RoleProtectedRoute allowedRoles={["delivery"]} unauthenticatedRedirectTo="/delivery/login">
+              <DeliveryProfilePage />
+            </RoleProtectedRoute>
+          }
+        />
+        <Route
+          path="/delivery/earnings-info"
+          element={
+            <RoleProtectedRoute allowedRoles={["delivery"]} unauthenticatedRedirectTo="/delivery/login">
+              <WaysToEarnPage />
+            </RoleProtectedRoute>
+          }
+        />
+        <Route
+          path="/delivery/refer"
+          element={
+            <RoleProtectedRoute allowedRoles={["delivery"]} unauthenticatedRedirectTo="/delivery/login">
+              <ReferAndEarnPage />
+            </RoleProtectedRoute>
+          }
+        />
+        <Route
+          path="/delivery/support"
+          element={
+            <RoleProtectedRoute allowedRoles={["delivery"]} unauthenticatedRedirectTo="/delivery/login">
+              <HelpSupportPage />
+            </RoleProtectedRoute>
+          }
+        />
+        <Route
+          path="/delivery/messages"
+          element={
+            <RoleProtectedRoute allowedRoles={["delivery"]} unauthenticatedRedirectTo="/delivery/login">
+              <MessageCenterPage />
+            </RoleProtectedRoute>
+          }
+        />
+        <Route
+          path="/delivery/settings"
+          element={
+            <RoleProtectedRoute allowedRoles={["delivery"]} unauthenticatedRedirectTo="/delivery/login">
+              <DeliverySettingsPage />
+            </RoleProtectedRoute>
+          }
+        />
+        <Route 
+          path="/delivery-selfie" 
+          element={
+            <RoleProtectedRoute allowedRoles={["delivery"]} unauthenticatedRedirectTo="/delivery/login">
+              <DeliverySelfiePage />
+            </RoleProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/delivery-profile" 
+          element={
+            <RoleProtectedRoute allowedRoles={["delivery"]} unauthenticatedRedirectTo="/delivery/login">
+              <DeliveryProfilePage />
+            </RoleProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/delivery/emergency" 
+          element={
+            <RoleProtectedRoute allowedRoles={["delivery"]} unauthenticatedRedirectTo="/delivery/login">
+              <DeliveryEmergencyPage />
+            </RoleProtectedRoute>
+          } 
+        />
         <Route
           path="/delivery/help-center"
-          element={<DeliveryHelpCenterPage />}
+          element={
+            <RoleProtectedRoute allowedRoles={["delivery"]} unauthenticatedRedirectTo="/delivery/login">
+              <DeliveryHelpCenterPage />
+            </RoleProtectedRoute>
+          }
         />
-        <Route path="/ways-to-earn" element={<WaysToEarnPage />} />
-        <Route path="/refer-and-earn" element={<ReferAndEarnPage />} />
+        <Route 
+          path="/delivery-settings" 
+          element={
+            <RoleProtectedRoute allowedRoles={["delivery"]} unauthenticatedRedirectTo="/delivery/login">
+              <DeliverySettingsPage />
+            </RoleProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/ways-to-earn" 
+          element={
+            <RoleProtectedRoute allowedRoles={["customer", "admin", "delivery"]} unauthenticatedRedirectTo="/login">
+              <WaysToEarnPage />
+            </RoleProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/refer-and-earn" 
+          element={
+            <RoleProtectedRoute allowedRoles={["customer", "admin", "delivery"]} unauthenticatedRedirectTo="/login">
+              <ReferAndEarnPage />
+            </RoleProtectedRoute>
+          } 
+        />
         <Route path="/help-support" element={<HelpSupportPage />} />
-        <Route path="/message-center" element={<MessageCenterPage />} />
-        <Route path="/delivery-settings" element={<DeliverySettingsPage />} />
+        <Route 
+          path="/message-center" 
+          element={
+            <RoleProtectedRoute allowedRoles={["customer", "admin", "delivery"]}>
+              <MessageCenterPage />
+            </RoleProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/delivery-settings" 
+          element={
+            <RoleProtectedRoute allowedRoles={["delivery"]}>
+              <DeliverySettingsPage />
+            </RoleProtectedRoute>
+          } 
+        />
         {/* Redirect old admin-login route to main login */}
         <Route path="/admin-login" element={<Navigate to="/login" replace />} />
         {/* Admin login route */}
         <Route path="/admin/login" element={<Navigate to="/login" replace />} />
         <Route path="/categories" element={<CategoriesPage />} />
+        {/* Account Routes - Protected for customer role only (not delivery) */}
         <Route
           path="/account"
           element={
-            <ProtectedRoute>
+            <RoleProtectedRoute allowedRoles={["customer", "admin"]}>
               <AccountPage />
-            </ProtectedRoute>
+            </RoleProtectedRoute>
           }
         />
         <Route
           path="/account/profile"
           element={
-            <ProtectedRoute>
+            <RoleProtectedRoute allowedRoles={["customer", "admin"]}>
               <AccountPage />
-            </ProtectedRoute>
+            </RoleProtectedRoute>
           }
         />
         <Route
           path="/account/profile/edit"
           element={
-            <ProtectedRoute>
+            <RoleProtectedRoute allowedRoles={["customer", "admin"]}>
               <EditProfilePage />
-            </ProtectedRoute>
+            </RoleProtectedRoute>
           }
         />
         <Route
           path="/account/settings"
           element={
-            <ProtectedRoute>
+            <RoleProtectedRoute allowedRoles={["customer", "admin"]}>
               <SettingsPage />
-            </ProtectedRoute>
+            </RoleProtectedRoute>
           }
         />
         <Route
           path="/account/notifications"
           element={
-            <ProtectedRoute>
+            <RoleProtectedRoute allowedRoles={["customer", "admin"]}>
               <NotificationsPage />
-            </ProtectedRoute>
+            </RoleProtectedRoute>
           }
         />
         <Route
@@ -476,15 +616,7 @@ function OtherRoutes() {
         <Route
           path="*"
           element={
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-              <div className="text-center">
-                <h1 className="text-4xl font-bold text-gray-900 mb-4">404</h1>
-                <p className="text-gray-600 mb-4">Page not found</p>
-                <a href="/" className="text-blue-600 hover:text-blue-700 underline">
-                  Go to Home
-                </a>
-              </div>
-            </div>
+            <Navigate to={authState ? "/dashboard" : "/login"} replace />
           }
         />
       </Routes>
@@ -520,6 +652,9 @@ function App() {
 
                 {/* Hydrate cart from backend for authenticated users */}
                 <CartInitializer />
+
+                {/* Hydrate auth/profileCompleted from backend for authenticated users */}
+                <AuthInitializer />
 
                 <Routes>
                   {/* Main app routes with authentication-based routing */}

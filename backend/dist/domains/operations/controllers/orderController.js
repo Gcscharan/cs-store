@@ -3,16 +3,20 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updatePaymentStatus = exports.getPaymentStatus = exports.placeOrderCOD = exports.cancelOrder = exports.getOrderById = exports.getOrders = void 0;
+exports.updatePaymentStatus = exports.getPaymentStatus = exports.placeOrderCOD = exports.createOrder = exports.cancelOrder = exports.getOrderById = exports.getOrders = void 0;
 const mongoose_1 = __importDefault(require("mongoose"));
 const Order_1 = require("../../../models/Order");
-const Pincode_1 = require("../../../models/Pincode");
 const DeliveryBoy_1 = require("../../../models/DeliveryBoy");
-const Product_1 = require("../../../models/Product");
 const Cart_1 = require("../../../models/Cart");
-const User_1 = require("../../../models/User");
-const deliveryFeeCalculator_1 = require("../../../utils/deliveryFeeCalculator");
 const notificationService_1 = require("../../communication/services/notificationService");
+const orderBuilder_1 = require("../services/orderBuilder");
+const orderStateService_1 = require("../../orders/services/orderStateService");
+const OrderStatus_1 = require("../../orders/enums/OrderStatus");
+const eventBus_1 = require("../../events/eventBus");
+const eventId_1 = require("../../events/eventId");
+const payment_events_1 = require("../../events/payment.events");
+const inventoryReservationService_1 = require("../../orders/services/inventoryReservationService");
+const orderTimeline_1 = require("../../orders/services/orderTimeline");
 const getOrders = async (req, res) => {
     try {
         const { page = 1, limit = 20, status } = req.query;
@@ -53,6 +57,9 @@ const getOrderById = async (req, res) => {
         const { id } = req.params;
         const userId = req.user._id;
         const userRole = req.user.role;
+        if (!mongoose_1.default.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ message: "Invalid order ID" });
+        }
         const query = { _id: id };
         // If not admin, only show user's own orders
         if (userRole !== "admin") {
@@ -64,11 +71,35 @@ const getOrderById = async (req, res) => {
         if (!order) {
             return res.status(404).json({ message: "Order not found" });
         }
-        res.json({
-            order: {
-                ...order.toObject(),
-                status: order.orderStatus, // Map orderStatus to status for test compatibility
+        const orderObj = {
+            ...order.toObject(),
+            status: order.orderStatus, // Map orderStatus to status for test compatibility
+        };
+        orderObj.timeline = (0, orderTimeline_1.buildOrderTimeline)(orderObj);
+        const currentTimelineStep = Array.isArray(orderObj.timeline)
+            ? orderObj.timeline.find((s) => String(s?.state || "") === "current")
+            : null;
+        const isCustomerOutForDelivery = String(currentTimelineStep?.key || "") === "ORDER_IN_TRANSIT";
+        // Customer-safe delivery partner exposure: only during Out for delivery stage, hidden after delivered.
+        if (userRole !== "admin") {
+            if (isCustomerOutForDelivery && order.deliveryBoyId) {
+                const d = order.deliveryBoyId;
+                orderObj.deliveryPartner = {
+                    name: d?.name,
+                    phone: d?.phone,
+                    vehicleType: d?.vehicleType,
+                };
             }
+            else {
+                orderObj.deliveryPartner = null;
+                orderObj.estimatedDeliveryWindow = null;
+            }
+            // Never expose internal delivery partner identifiers/records to customers.
+            orderObj.deliveryBoyId = null;
+            orderObj.deliveryPartnerId = null;
+        }
+        res.json({
+            order: orderObj,
         });
     }
     catch (error) {
@@ -76,206 +107,108 @@ const getOrderById = async (req, res) => {
     }
 };
 exports.getOrderById = getOrderById;
-const cancelOrder = async (req, res) => {
+const cancelOrder = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const userId = req.user._id;
-        const order = await Order_1.Order.findOne({ _id: id, userId });
-        if (!order) {
-            return res.status(404).json({ message: "Order not found" });
-        }
-        // Check if order can be cancelled
-        if (order.orderStatus === "delivered") {
-            return res.status(400).json({ message: "Cannot cancel delivered order" });
-        }
-        if (order.orderStatus === "cancelled") {
-            return res.status(400).json({ message: "Order already cancelled" });
-        }
-        if (order.orderStatus === "confirmed") {
-            return res.status(400).json({ message: "Cannot cancel confirmed order" });
-        }
-        // Update order status
-        order.orderStatus = "cancelled";
-        await order.save();
-        // Restore product stock
-        for (const item of order.items) {
-            await Product_1.Product.findByIdAndUpdate(item.productId, {
-                $inc: { stock: item.qty },
-            });
-        }
-        // Send cancellation notification
-        try {
-            await (0, notificationService_1.dispatchNotification)(userId.toString(), 'ORDER_CANCELLED', {
-                orderId: order._id.toString(),
-                orderNumber: order._id.toString(),
-                amount: order.totalAmount
-            });
-        }
-        catch (notificationError) {
-            console.error("Failed to send order cancellation notification:", notificationError);
-        }
-        res.json({
-            message: "Order cancelled successfully",
-            order: {
-                ...order.toObject(),
-                status: order.orderStatus, // Map orderStatus to status for test compatibility
-            },
-        });
-    }
-    catch (error) {
-        res.status(500).json({ message: "Failed to cancel order" });
-    }
-};
-exports.cancelOrder = cancelOrder;
-const placeOrderCOD = async (req, res) => {
-    try {
-        const userId = req.user?._id;
-        const { items, address, totalAmount } = req.body;
-        if (!userId) {
+        const actorId = String(req.user?._id || "");
+        if (!actorId) {
             return res.status(401).json({ message: "User not authenticated" });
         }
-        if (!items || !Array.isArray(items) || items.length === 0) {
-            return res.status(400).json({ message: "Items are required" });
-        }
-        if (!address) {
-            return res.status(400).json({ message: "Delivery address is required" });
-        }
-        if (!totalAmount || totalAmount <= 0) {
-            return res.status(400).json({ message: "Invalid total amount" });
-        }
-        // Validate required address fields
-        if (!address.label || !address.addressLine || !address.pincode || !address.city || !address.state) {
-            return res.status(400).json({ message: "Address is missing required fields (label, addressLine, pincode, city, state)" });
-        }
-        // Validate that address has valid coordinates (from auto-geocoding)
-        // With auto-geocoding, we no longer need strict pincode validation
-        if (!address.lat || !address.lng || address.lat === 0 || address.lng === 0) {
-            console.error('❌ Order blocked: Invalid address coordinates', {
-                pincode: address.pincode,
-                lat: address.lat,
-                lng: address.lng
-            });
-            return res.status(400).json({
-                error: "Address coordinates are missing. Please update your address with complete details."
-            });
-        }
-        // Optional: Check pincode in database (for logging only, not blocking)
-        const pincodeExists = await Pincode_1.Pincode.findOne({ pincode: address.pincode });
-        if (!pincodeExists) {
-            console.warn(`⚠️ Pincode ${address.pincode} not in database, but allowing order with geocoded coordinates`);
-        }
-        // Fetch user to get complete address details (name, phone)
-        const user = await User_1.User.findById(userId);
-        if (!user) {
-            return res.status(404).json({ message: "User not found" });
-        }
-        // Enrich address with user's name and phone from saved addresses
-        const enrichedAddress = { ...address };
-        // Try to find matching address from user's saved addresses to get name and phone
-        const savedAddress = user.addresses.find((addr) => addr.pincode === address.pincode &&
-            addr.label === address.label);
-        if (savedAddress) {
-            enrichedAddress.name = savedAddress.name || user.name;
-            enrichedAddress.phone = savedAddress.phone || user.phone;
-        }
-        else {
-            // Fallback to user's profile name and phone
-            enrichedAddress.name = user.name;
-            enrichedAddress.phone = user.phone;
-        }
-        // Convert productId strings to ObjectIds and validate items
-        const formattedItems = items.map((item) => {
-            if (!item.productId) {
-                throw new Error("Item missing productId");
-            }
-            return {
-                productId: typeof item.productId === 'string' ? new mongoose_1.default.Types.ObjectId(item.productId) : item.productId,
-                name: item.name || "Product",
-                price: Number(item.price) || 0,
-                qty: Number(item.qty) || 1,
-            };
+        const role = String(req.user?.role || "").toLowerCase();
+        const actorRole = role === "admin" ? "ADMIN" : "CUSTOMER";
+        const order = await orderStateService_1.orderStateService.transition({
+            orderId: id,
+            toStatus: OrderStatus_1.OrderStatus.CANCELLED,
+            actorRole,
+            actorId,
         });
-        // Calculate delivery fee based on user's address
-        // Note: totalAmount from frontend already includes delivery fee
-        // We need to extract cart subtotal to calculate actual delivery fee
-        const cartSubtotal = formattedItems.reduce((sum, item) => sum + (item.price * item.qty), 0);
-        // Calculate delivery fee using user's address coordinates
-        const deliveryFeeDetails = await (0, deliveryFeeCalculator_1.calculateDeliveryFee)(enrichedAddress, cartSubtotal);
-        console.log('💾 Storing Order with Delivery Fee:', {
-            orderId: 'pending',
-            cartSubtotal: `₹${cartSubtotal}`,
-            deliveryFee: `₹${deliveryFeeDetails.finalFee}`,
-            totalAmount: `₹${totalAmount}`,
-            isFreeDelivery: deliveryFeeDetails.isFreeDelivery,
-        });
-        // Create order with pending payment (COD)
-        const order = new Order_1.Order({
-            userId,
-            items: formattedItems,
-            totalAmount,
-            address: enrichedAddress, // Use enriched address with name and phone
-            paymentMethod: "cod",
-            paymentStatus: "pending",
-            orderStatus: "created",
-            earnings: {
-                deliveryFee: deliveryFeeDetails.finalFee,
-                tip: 0,
-                commission: 0,
-            },
-        });
-        await order.save();
-        // Decrease product stock for each ordered item
-        try {
-            for (const item of formattedItems) {
-                // Use $inc with negative qty, Mongo will prevent race conditions at document level
-                const updateResult = await Product_1.Product.findByIdAndUpdate(item.productId, { $inc: { stock: -item.qty } }, { new: true });
-                if (updateResult && updateResult.stock < 0) {
-                    // Ensure stock never goes below 0
-                    updateResult.stock = 0;
-                    await updateResult.save();
-                }
-            }
-        }
-        catch (stockError) {
-            console.error("Failed to decrement product stock on COD order", stockError);
-        }
-        // Optionally auto-assign a delivery boy if available
-        const availableDeliveryBoy = await DeliveryBoy_1.DeliveryBoy.findOne({
-            availability: "available",
-            isActive: true,
-        });
-        if (availableDeliveryBoy) {
-            order.deliveryBoyId = availableDeliveryBoy._id;
-            order.orderStatus = "assigned";
-            availableDeliveryBoy.assignedOrders.push(order._id);
-            availableDeliveryBoy.availability = "busy";
-            await availableDeliveryBoy.save();
-            await order.save();
-        }
-        // Clear user's cart after successful order placement
-        await Cart_1.Cart.findOneAndUpdate({ userId }, { items: [], total: 0, itemCount: 0 }, { new: true });
-        // Send order confirmation notification
-        try {
-            await (0, notificationService_1.dispatchNotification)(userId.toString(), 'ORDER_CONFIRMED', {
-                orderId: order._id.toString(),
-                orderNumber: order._id.toString(),
-                amount: order.totalAmount
-            });
-        }
-        catch (notificationError) {
-            console.error("Failed to send order confirmation notification:", notificationError);
-        }
-        return res.status(200).json({
-            message: "Order placed with Cash on Delivery",
+        return res.json({
+            message: "Order cancelled",
             order,
         });
     }
     catch (error) {
-        console.error("COD order placement error:", error);
-        return res.status(500).json({
-            error: "Failed to place order (COD)",
-            message: error.message || "Unknown error occurred"
+        return next(error);
+    }
+};
+exports.cancelOrder = cancelOrder;
+const createOrder = async (req, res) => {
+    try {
+        const userId = req.user?._id;
+        const paymentMethod = String(req.body?.paymentMethod || "").toLowerCase();
+        if (!userId) {
+            return res.status(401).json({ message: "User not authenticated" });
+        }
+        if (paymentMethod !== "cod" && paymentMethod !== "upi") {
+            return res.status(400).json({ message: "Unsupported payment method" });
+        }
+        const upiVpa = paymentMethod === "upi" ? String(req.body?.upiVpa || "").trim() : undefined;
+        if (paymentMethod === "upi" && !upiVpa) {
+            return res.status(400).json({ message: "UPI ID required" });
+        }
+        const idempotencyKeyHeader = String(req.header("Idempotency-Key") || "").trim();
+        const idempotencyKeyBody = String(req.body?.idempotencyKey || "").trim();
+        const idempotencyKey = idempotencyKeyHeader || idempotencyKeyBody || undefined;
+        const result = await (0, orderBuilder_1.createOrderFromCart)({
+            userId,
+            paymentMethod,
+            upiVpa,
+            idempotencyKey,
         });
+        if (paymentMethod === "cod") {
+            return res.status(201).json({
+                message: "Order placed with Cash on Delivery",
+                order: result.order,
+                created: result.created,
+            });
+        }
+        return res.status(201).json({
+            message: "Order created. Awaiting UPI payment",
+            order: result.order,
+            created: result.created,
+        });
+    }
+    catch (error) {
+        console.error("Create order error:", {
+            message: error.message,
+            statusCode: error.statusCode,
+            stack: error.stack,
+        });
+        const statusCode = Number(error?.statusCode) || 500;
+        if (statusCode >= 400 && statusCode < 500) {
+            return res.status(statusCode).json({ message: error.message || "Bad request" });
+        }
+        return res.status(500).json({ message: "Failed to create order" });
+    }
+};
+exports.createOrder = createOrder;
+const placeOrderCOD = async (req, res) => {
+    try {
+        const userId = req.user?._id;
+        if (!userId) {
+            return res.status(401).json({ message: "User not authenticated" });
+        }
+        const idempotencyKeyHeader = String(req.header("Idempotency-Key") || "").trim();
+        const idempotencyKeyBody = String(req.body?.idempotencyKey || "").trim();
+        const idempotencyKey = idempotencyKeyHeader || idempotencyKeyBody || undefined;
+        const result = await (0, orderBuilder_1.createOrderFromCart)({
+            userId,
+            paymentMethod: "cod",
+            idempotencyKey,
+        });
+        return res.status(200).json({
+            message: "Order placed with Cash on Delivery",
+            order: result.order,
+            created: result.created,
+        });
+    }
+    catch (error) {
+        const statusCode = Number(error?.statusCode) || 500;
+        if (statusCode >= 400 && statusCode < 500) {
+            return res.status(statusCode).json({ message: error.message || "Bad request" });
+        }
+        console.error("COD order placement error:", error);
+        return res.status(500).json({ message: "Failed to place order (COD)" });
     }
 };
 exports.placeOrderCOD = placeOrderCOD;
@@ -325,6 +258,7 @@ const updatePaymentStatus = async (req, res) => {
     try {
         const { orderId } = req.params;
         const userId = req.user?._id;
+        const userRole = req.user?.role;
         if (!userId) {
             return res.status(401).json({ message: "User not authenticated" });
         }
@@ -333,22 +267,106 @@ const updatePaymentStatus = async (req, res) => {
         if (!order) {
             return res.status(404).json({ message: "Order not found" });
         }
-        // Verify the order belongs to the authenticated delivery boy or user
+        // Verify the order belongs to the authenticated delivery boy or user (admin allowed)
         const deliveryBoy = await DeliveryBoy_1.DeliveryBoy.findOne({ userId, isActive: true });
         const isDeliveryBoy = deliveryBoy && order.deliveryBoyId?.toString() === deliveryBoy._id.toString();
         const isOrderOwner = order.userId.toString() === userId.toString();
-        if (!isDeliveryBoy && !isOrderOwner) {
+        const isAdmin = userRole === "admin";
+        if (!isDeliveryBoy && !isOrderOwner && !isAdmin) {
             return res.status(403).json({ message: "You are not authorized to update this order" });
         }
-        // Only allow updating payment status for COD orders
-        if (order.paymentMethod !== "cod") {
-            return res.status(400).json({ message: "Payment status can only be updated for COD orders" });
+        if (order.paymentMethod === "upi") {
+            // UPI: confirm payment and clear cart atomically
+            const session = await mongoose_1.default.startSession();
+            try {
+                await session.withTransaction(async () => {
+                    const fresh = await Order_1.Order.findById(orderId).session(session);
+                    if (!fresh) {
+                        const err = new Error("Order not found");
+                        err.statusCode = 404;
+                        throw err;
+                    }
+                    if (fresh.paymentStatus === "PAID" || fresh.paymentStatus === "paid") {
+                        return;
+                    }
+                    if (fresh.paymentStatus !== "AWAITING_UPI_APPROVAL") {
+                        const err = new Error("Order is not awaiting payment");
+                        err.statusCode = 400;
+                        throw err;
+                    }
+                    const orderStatusUpper = String(fresh.orderStatus || "").toUpperCase();
+                    if (!["PENDING_PAYMENT", "CREATED", "PENDING"].includes(orderStatusUpper)) {
+                        const err = new Error("Order is not awaiting payment");
+                        err.statusCode = 400;
+                        throw err;
+                    }
+                    fresh.paymentStatus = "PAID";
+                    fresh.paymentReceivedAt = new Date();
+                    await fresh.save({ session });
+                    await inventoryReservationService_1.inventoryReservationService.commitReservationsForOrder({
+                        session,
+                        orderId: fresh._id,
+                    });
+                    await Cart_1.Cart.findOneAndUpdate({ userId: fresh.userId }, { items: [], total: 0, itemCount: 0 }, { new: true, session });
+                });
+            }
+            finally {
+                session.endSession();
+            }
         }
-        // Update payment status to paid with timestamp
-        order.paymentStatus = "paid";
-        order.paymentReceivedAt = new Date();
-        await order.save();
+        else if (order.paymentMethod === "cod") {
+            // COD: allow marking paid (e.g. at delivery). Commit inventory reservation now.
+            const session = await mongoose_1.default.startSession();
+            try {
+                await session.withTransaction(async () => {
+                    const fresh = await Order_1.Order.findById(orderId).session(session);
+                    if (!fresh) {
+                        const err = new Error("Order not found");
+                        err.statusCode = 404;
+                        throw err;
+                    }
+                    const ps = String(fresh.paymentStatus || "").toUpperCase();
+                    if (ps === "PAID") {
+                        return;
+                    }
+                    fresh.paymentStatus = "PAID";
+                    fresh.paymentReceivedAt = new Date();
+                    await fresh.save({ session });
+                    await inventoryReservationService_1.inventoryReservationService.commitReservationsForOrder({
+                        session,
+                        orderId: fresh._id,
+                    });
+                });
+            }
+            finally {
+                session.endSession();
+            }
+        }
+        else {
+            return res.status(400).json({ message: "Unsupported payment method" });
+        }
         console.log(`💰 Payment status updated for order ${orderId}: ${order.paymentStatus}`);
+        try {
+            const finalOrder = await Order_1.Order.findById(orderId).select("userId _id totalAmount paymentStatus");
+            if (finalOrder && String(finalOrder.paymentStatus || "").toUpperCase() === "PAID") {
+                const actorType = userRole === "admin" ? "admin" : "user";
+                await (0, eventBus_1.publish)((0, payment_events_1.createPaymentSuccessEvent)({
+                    source: "operations",
+                    actor: {
+                        type: actorType,
+                        id: String(userId),
+                    },
+                    eventId: (0, eventId_1.stableEventId)(`payment:order:${String(finalOrder._id)}:paid`),
+                    occurredAt: new Date().toISOString(),
+                    userId: String(finalOrder.userId),
+                    orderId: String(finalOrder._id),
+                    amount: Number(finalOrder.totalAmount),
+                }));
+            }
+        }
+        catch (e) {
+            console.error("[orderController] failed to publish PAYMENT_SUCCESS", e);
+        }
         // Send payment success notification
         try {
             await (0, notificationService_1.dispatchNotification)(order.userId.toString(), 'PAYMENT_SUCCESS', {
@@ -361,10 +379,11 @@ const updatePaymentStatus = async (req, res) => {
         catch (notificationError) {
             console.error("Failed to send payment success notification:", notificationError);
         }
+        const updatedOrder = await Order_1.Order.findById(orderId);
         return res.status(200).json({
             success: true,
             message: "Payment status updated successfully",
-            order,
+            order: updatedOrder || order,
         });
     }
     catch (error) {

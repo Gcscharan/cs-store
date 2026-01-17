@@ -20,10 +20,14 @@ import deliveryAuthRoutes from "./routes/deliveryAuth";
 import pincodeRoutes from "./routes/pincode";
 import locationRoutes from "./routes/locationRoutes";
 import adminRoutes from "./routes/admin";
+import adminOpsRoutes from "./routes/adminOps";
+import adminTrackingRoutes from "./routes/adminTracking";
+import internalTrackingRoutes from "./routes/internalTracking";
 import userRoutes from "./domains/identity/routes/user";
 import otpRoutes from "./domains/security/routes/otpRoutes";
 import mobileVerifyRoutes from "./domains/security/routes/mobileVerifyRoutes";
 import notificationRoutes from "./domains/communication/routes/notifications";
+import devNotificationRoutes from "./domains/communication/routes/devNotifications";
 import uploadRoutes from "./domains/uploads/routes/uploads";
 
 console.log("App.ts loaded successfully");
@@ -31,15 +35,27 @@ console.log("App.ts loaded successfully");
 const app: Application = express();
 
 // Middleware
+const corsOriginFromEnv = String(process.env.CORS_ORIGIN || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+const corsOrigins = [
+  ...(process.env.NODE_ENV === "production"
+    ? []
+    : [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+      ]),
+  process.env.FRONTEND_URL || "",
+  ...corsOriginFromEnv,
+].filter(Boolean);
+
 app.use(
   cors({
-    origin: [
-      "http://localhost:3000",
-      "http://127.0.0.1:3000",
-      "http://localhost:5173",
-      "http://127.0.0.1:5173",
-      process.env.FRONTEND_URL || "",
-    ].filter(Boolean),
+    origin: corsOrigins,
     credentials: true,
   })
 );
@@ -54,9 +70,9 @@ app.use(express.urlencoded({ extended: true }));
 // Health check route
 app.get("/health", (req, res) => {
   res.status(200).json({
-    status: "OK",
-    timestamp: new Date().toISOString(),
     uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+    status: "ok",
   });
 });
 
@@ -74,9 +90,17 @@ app.use("/api/delivery", deliveryAuthRoutes); // Delivery auth & order managemen
 app.use("/api/pincode", pincodeRoutes);
 app.use("/api/location", locationRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/admin/ops", adminOpsRoutes);
 app.use("/api/otp", otpRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/dev/notifications", devNotificationRoutes);
 app.use("/api/uploads", uploadRoutes);
+
+// Admin tracking (Phase 4)
+app.use("/admin/tracking", adminTrackingRoutes);
+
+// Internal (non-customer) routes
+app.use("/internal/tracking", internalTrackingRoutes);
 
 console.log("OTP routes registered successfully");
 console.log("Notification routes registered successfully");

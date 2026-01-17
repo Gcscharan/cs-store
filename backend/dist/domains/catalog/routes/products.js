@@ -20,11 +20,11 @@ router.get("/search/suggestions", searchController_1.getSearchSuggestions);
 // ------------------------------------
 // PRODUCT CRUD ROUTES
 // ------------------------------------
+router.get("/categories", productController_1.getCategories);
+router.get("/:id/similar", productController_1.getSimilarProducts);
 router.get("/:id", productController_1.getProductById);
 router.put("/:id", auth_1.authenticateToken, (0, auth_1.requireRole)(["admin"]), productController_1.updateProduct);
 router.delete("/:id", auth_1.authenticateToken, (0, auth_1.requireRole)(["admin"]), productController_1.deleteProduct);
 router.post("/", auth_1.authenticateToken, (0, auth_1.requireRole)(["admin"]), upload.array("images"), productController_1.createProduct);
 router.get("/", productController_1.getProducts);
-router.get("/categories", productController_1.getCategories);
-router.get("/:id/similar", productController_1.getSimilarProducts);
 exports.default = router;

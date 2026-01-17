@@ -9,8 +9,13 @@ const razorpay_1 = __importDefault(require("../../../config/razorpay"));
 const Order_1 = require("../../../models/Order");
 const Payment_1 = require("../../../models/Payment");
 const User_1 = require("../../../models/User");
-const Product_1 = require("../../../models/Product");
 const deliveryFeeCalculator_1 = require("../../../utils/deliveryFeeCalculator");
+const eventBus_1 = require("../../events/eventBus");
+const eventId_1 = require("../../events/eventId");
+const order_events_1 = require("../../events/order.events");
+const payment_events_1 = require("../../events/payment.events");
+const mongoose_1 = __importDefault(require("mongoose"));
+const inventoryReservationService_1 = require("../../orders/services/inventoryReservationService");
 // Create Razorpay order for cart checkout
 const createOrder = async (req, res) => {
     try {
@@ -75,21 +80,53 @@ const createOrder = async (req, res) => {
             totalAmount: `₹${totalAmount}`,
             isFreeDelivery: deliveryFeeDetails.isFreeDelivery,
         });
-        // Create order in database first
-        const order = new Order_1.Order({
-            userId,
-            items,
-            totalAmount,
-            address: enrichedAddress, // Use enriched address with name and phone
-            paymentStatus: "pending",
-            orderStatus: "created",
-            earnings: {
-                deliveryFee: deliveryFeeDetails.finalFee,
-                tip: 0,
-                commission: 0,
-            },
-        });
-        await order.save();
+        const session = await mongoose_1.default.startSession();
+        let order;
+        try {
+            await session.withTransaction(async () => {
+                // Create order in database first
+                order = new Order_1.Order({
+                    userId,
+                    items,
+                    totalAmount,
+                    address: enrichedAddress, // Use enriched address with name and phone
+                    paymentStatus: "pending",
+                    orderStatus: "created",
+                    earnings: {
+                        deliveryFee: deliveryFeeDetails.finalFee,
+                        tip: 0,
+                        commission: 0,
+                    },
+                });
+                await order.save({ session });
+                await inventoryReservationService_1.inventoryReservationService.reserveForOrder({
+                    session,
+                    orderId: order._id,
+                    ttlMs: 20 * 60000,
+                    items: (items || []).map((it) => ({
+                        productId: it.productId,
+                        qty: Number(it.qty ?? it.quantity ?? 0),
+                    })),
+                });
+            });
+        }
+        finally {
+            session.endSession();
+        }
+        try {
+            const orderId = String(order._id);
+            await (0, eventBus_1.publish)((0, order_events_1.createOrderCreatedEvent)({
+                source: "finance",
+                actor: { type: "user", id: String(userId) },
+                eventId: (0, eventId_1.stableEventId)(`order:${orderId}:created`),
+                occurredAt: new Date(order.createdAt || Date.now()).toISOString(),
+                userId: String(userId),
+                orderId,
+            }));
+        }
+        catch (e) {
+            console.error("[paymentController] failed to publish ORDER_CREATED", e);
+        }
         // Convert amount to paise (Razorpay expects amount in smallest currency unit)
         const amountInPaise = Math.round(totalAmount * 100);
         const razorpayOptions = {
@@ -101,7 +138,31 @@ const createOrder = async (req, res) => {
                 userId: userId,
             },
         };
-        const razorpayOrder = await razorpay_1.default.orders.create(razorpayOptions);
+        let razorpayOrder;
+        try {
+            razorpayOrder = await razorpay_1.default.orders.create(razorpayOptions);
+        }
+        catch (e) {
+            try {
+                const cleanupSession = await mongoose_1.default.startSession();
+                try {
+                    await cleanupSession.withTransaction(async () => {
+                        await inventoryReservationService_1.inventoryReservationService.releaseActiveReservationsForOrder({
+                            session: cleanupSession,
+                            orderId: order._id,
+                        });
+                        await Order_1.Order.deleteOne({ _id: order._id }).session(cleanupSession);
+                    });
+                }
+                finally {
+                    cleanupSession.endSession();
+                }
+            }
+            catch (cleanupErr) {
+                console.error("[paymentController] failed to cleanup order after Razorpay create failure", cleanupErr);
+            }
+            throw e;
+        }
         // Update order with Razorpay order ID
         order.razorpayOrderId = razorpayOrder.id;
         await order.save();
@@ -212,52 +273,74 @@ const verifyPayment = async (req, res) => {
                 wallet_name: acquirerData.wallet?.wallet_name,
             };
         }
-        // Create payment record
-        const payment = new Payment_1.Payment({
-            orderId: order._id,
-            paymentId: `pay_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            razorpayOrderId: razorpay_order_id,
-            razorpayPaymentId: razorpay_payment_id,
-            amount: Number(paymentDetails.amount) / 100, // Convert from paise to rupees
-            currency: paymentDetails.currency,
-            status: paymentDetails.status === "captured" ? "captured" : "pending",
-            method: paymentMethod,
-            methodDetails,
-            userId,
-            userDetails: {
-                name: user.name,
-                email: user.email,
-                phone: user.phone,
-            },
-            orderDetails: {
-                items: order.items,
-                totalAmount: order.totalAmount,
-                address: order.address,
-            },
-            razorpayResponse: paymentDetails,
-        });
-        await payment.save();
-        // Update order status - set to pending for admin review after successful payment
-        order.paymentStatus =
-            paymentDetails.status === "captured" ? "paid" : "pending";
-        order.razorpayPaymentId = razorpay_payment_id;
-        // Move order to pending status so admin can accept/decline
-        if (paymentDetails.status === "captured") {
-            order.orderStatus = "pending";
-        }
-        await order.save();
-        // Decrease product stock for each ordered item after successful payment capture/pending record
+        const session = await mongoose_1.default.startSession();
+        let payment;
         try {
-            for (const item of order.items) {
-                const updateResult = await Product_1.Product.findByIdAndUpdate(item.productId, { $inc: { stock: -item.qty } }, { new: true });
-                if (updateResult && updateResult.stock < 0) {
-                    updateResult.stock = 0;
-                    await updateResult.save();
+            await session.withTransaction(async () => {
+                // Create payment record
+                payment = new Payment_1.Payment({
+                    orderId: order._id,
+                    paymentId: `pay_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                    razorpayOrderId: razorpay_order_id,
+                    razorpayPaymentId: razorpay_payment_id,
+                    amount: Number(paymentDetails.amount) / 100, // Convert from paise to rupees
+                    currency: paymentDetails.currency,
+                    status: paymentDetails.status === "captured" ? "captured" : "pending",
+                    method: paymentMethod,
+                    methodDetails,
+                    userId,
+                    userDetails: {
+                        name: user.name,
+                        email: user.email,
+                        phone: user.phone,
+                    },
+                    orderDetails: {
+                        items: order.items,
+                        totalAmount: order.totalAmount,
+                        address: order.address,
+                    },
+                    razorpayResponse: paymentDetails,
+                });
+                await payment.save({ session });
+                // Update order payment status
+                order.paymentStatus =
+                    paymentDetails.status === "captured" ? "paid" : "pending";
+                order.razorpayPaymentId = razorpay_payment_id;
+                await order.save({ session });
+                if (paymentDetails.status === "captured") {
+                    await inventoryReservationService_1.inventoryReservationService.commitReservationsForOrder({
+                        session,
+                        orderId: order._id,
+                    });
                 }
+            });
+        }
+        finally {
+            session.endSession();
+        }
+        try {
+            const orderId = String(order._id);
+            const paymentEventId = (0, eventId_1.stableEventId)(`payment:${String(razorpay_payment_id)}:status:${String(paymentDetails.status)}`);
+            const occurredAt = new Date().toISOString();
+            const eventBase = {
+                source: "finance",
+                actor: { type: "user", id: String(userId) },
+                eventId: paymentEventId,
+                occurredAt,
+                userId: String(userId),
+                orderId,
+                paymentId: String(razorpay_payment_id),
+                amount: Number(payment.amount),
+            };
+            if (paymentDetails.status === "captured") {
+                await (0, eventBus_1.publish)((0, payment_events_1.createPaymentSuccessEvent)(eventBase));
+            }
+            else {
+                await (0, eventBus_1.publish)((0, payment_events_1.createPaymentPendingEvent)(eventBase));
             }
         }
-        catch (stockError) {
-            console.error("Failed to decrement product stock on online payment", stockError);
+        catch (e) {
+            console.error("[paymentController] failed to publish PAYMENT_*", e);
         }
         // Emit socket event to notify admin of new order
         if (paymentDetails.status === "captured") {
