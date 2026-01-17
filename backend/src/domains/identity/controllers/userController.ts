@@ -11,9 +11,10 @@ import Otp from "../../../models/Otp";
 import Notification from "../../../models/Notification";
 import { geocodeByPincode, smartGeocode } from "../../../utils/geocoding";
 import { resolvePincodeAuthoritatively } from "../../../utils/authoritativePincodeResolver";
-import {
-  resolvePincodeForAddressSave,
-} from "../../../utils/pincodeResolver";
+import { resolvePincodeForAddressSave } from "../../../utils/pincodeResolver";
+import { publish } from "../../events/eventBus";
+import { stableEventId } from "../../events/eventId";
+import { createAccountProfileUpdatedEvent } from "../../events/account.events";
 
 // Get user profile
 export const getUserProfile = async (
@@ -90,6 +91,21 @@ export const updateUserProfile = async (
       return;
     }
     
+    try {
+      await publish(
+        createAccountProfileUpdatedEvent({
+          source: "identity",
+          actor: { type: "user", id: String(userId) },
+          eventId: stableEventId(
+            `account:${String(userId)}:profileUpdated:${String(name || "")}::${String(phone || "")}::${String(email || "")}`
+          ),
+          userId: String(userId),
+        })
+      );
+    } catch (e) {
+      console.error("[userController] failed to publish ACCOUNT_PROFILE_UPDATED", e);
+    }
+
     res.json(result);
   } catch (error) {
     console.error("❌ Error updating user profile:", error);

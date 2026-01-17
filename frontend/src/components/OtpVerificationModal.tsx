@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { X, ShieldCheck, Loader2, RefreshCcw } from "lucide-react";
 import { useDispatch } from "react-redux";
 import { setUser, setTokens } from "../store/slices/authSlice";
+import { toApiUrl } from "../config/runtime";
 
 interface OtpVerificationModalProps {
   isOpen: boolean;
@@ -67,7 +68,7 @@ const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
         requestBody.pendingUserId = pendingUserId;
       }
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/users/verify-mobile`, {
+      const response = await fetch(toApiUrl("/users/verify-mobile"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -132,7 +133,7 @@ const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
     setInfo(null);
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/otp/verification/generate`, {
+      const response = await fetch(toApiUrl("/otp/verification/generate"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

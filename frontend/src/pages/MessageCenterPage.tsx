@@ -1,103 +1,136 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
   ArrowLeft,
   MessageSquare,
   Bell,
   AlertCircle,
-  CheckCircle,
   Clock,
-  Star,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
+import { useSelector } from "react-redux";
+import { RootState } from "../store";
+import DeliveryBottomNav from "../components/DeliveryBottomNav";
+import { formatNotificationCopy } from "../utils/notificationFormatter";
 
 const MessageCenterPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const isDeliveryRoute = location.pathname.startsWith("/delivery/");
+  const { tokens } = useSelector((state: RootState) => state.auth);
+
+  const [activeTab, setActiveTab] = useState("more");
   const [selectedTab, setSelectedTab] = useState<"all" | "updates" | "alerts">(
     "all"
   );
 
-  const messages = [
-    {
-      id: 1,
-      type: "update",
-      title: "New Feature: Real-time Navigation",
-      content:
-        "We've added real-time navigation to help you find delivery addresses more easily. Update your app to access this feature.",
-      timestamp: "2 hours ago",
-      read: false,
-      icon: Bell,
-      color: "text-blue-600",
-      bgColor: "bg-blue-50",
-    },
-    {
-      id: 2,
-      type: "alert",
-      title: "Peak Hours Bonus Active",
-      content:
-        "Earn extra ₹15 per delivery during peak hours (6-9 PM) today. Make sure to stay online!",
-      timestamp: "4 hours ago",
-      read: false,
-      icon: AlertCircle,
-      color: "text-orange-600",
-      bgColor: "bg-orange-50",
-    },
-    {
-      id: 3,
-      type: "update",
-      title: "Weekly Performance Report",
-      content:
-        "Great job this week! You completed 25 deliveries with a 98% on-time rate. Keep up the excellent work!",
-      timestamp: "1 day ago",
-      read: true,
-      icon: Star,
-      color: "text-green-600",
-      bgColor: "bg-green-50",
-    },
-    {
-      id: 4,
-      type: "alert",
-      title: "Weather Alert",
-      content:
-        "Heavy rain expected in your area. Please drive safely and consider taking breaks if needed.",
-      timestamp: "2 days ago",
-      read: true,
-      icon: AlertCircle,
-      color: "text-red-600",
-      bgColor: "bg-red-50",
-    },
-    {
-      id: 5,
-      type: "update",
-      title: "Payment Processed",
-      content:
-        "Your weekly earnings of ₹1,250 have been processed and will reflect in your account within 24 hours.",
-      timestamp: "3 days ago",
-      read: true,
-      icon: CheckCircle,
-      color: "text-green-600",
-      bgColor: "bg-green-50",
-    },
-  ];
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [messages, setMessages] = useState<any[]>([]);
 
-  const filteredMessages = messages.filter((message) => {
+  useEffect(() => {
+    const fetchMessages = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        if (!tokens?.accessToken) {
+          setMessages([]);
+          setError("Authentication required");
+          return;
+        }
+
+        const endpoint = isDeliveryRoute ? "/api/delivery/messages" : "/api/notifications";
+        const response = await fetch(endpoint, {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${tokens.accessToken}`,
+          },
+        });
+
+        if (!response.ok) {
+          const text = await response.text();
+          let message = `Failed to load messages (${response.status})`;
+          try {
+            const parsed = JSON.parse(text);
+            message = parsed.error || parsed.message || message;
+          } catch {
+            // ignore
+          }
+          throw new Error(message);
+        }
+
+        const data = await response.json();
+        const list =
+          (isDeliveryRoute ? data.messages : data.notifications) || [];
+        setMessages(Array.isArray(list) ? list : []);
+      } catch (e) {
+        setMessages([]);
+        setError(e instanceof Error ? e.message : "Failed to load messages");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchMessages();
+  }, [isDeliveryRoute, tokens?.accessToken]);
+
+  const normalizedMessages = useMemo(() => {
+    return messages.map((m) => {
+      const createdAt = m.createdAt ? new Date(m.createdAt) : null;
+      const type =
+        m.type === "delivery_otp" ? "alert" :
+        m.type === "order_update" ? "update" :
+        "update";
+
+      const icon =
+        type === "alert" ? AlertCircle :
+        type === "update" ? Bell :
+        Bell;
+
+      const color = type === "alert" ? "text-orange-600" : "text-blue-600";
+      const bgColor = type === "alert" ? "bg-orange-50" : "bg-blue-50";
+
+      const formatted = formatNotificationCopy({
+        eventType: m?.eventType,
+        meta: m?.meta,
+        fallbackTitle: m?.title || "Message",
+        fallbackBody: m?.body || m?.message || m?.content || "",
+      });
+
+      return {
+        id: m._id || m.id,
+        type,
+        title: formatted.title,
+        content: formatted.body,
+        timestamp: createdAt ? createdAt.toLocaleString() : "",
+        read: Boolean(m.isRead ?? m.read),
+        icon,
+        color,
+        bgColor,
+      };
+    });
+  }, [messages]);
+
+  const filteredMessages = normalizedMessages.filter((message) => {
     if (selectedTab === "all") return true;
     return message.type === selectedTab;
   });
 
-  const unreadCount = messages.filter((msg) => !msg.read).length;
+  const unreadCount = normalizedMessages.filter((msg) => !msg.read).length;
 
   const tabs = [
-    { id: "all", label: "All Messages", count: messages.length },
+    { id: "all", label: "All Messages", count: normalizedMessages.length },
     {
       id: "updates",
       label: "Updates",
-      count: messages.filter((m) => m.type === "update").length,
+      count: normalizedMessages.filter((m) => m.type === "update").length,
     },
     {
       id: "alerts",
       label: "Alerts",
-      count: messages.filter((m) => m.type === "alert").length,
+      count: normalizedMessages.filter((m) => m.type === "alert").length,
     },
   ];
 
@@ -163,7 +196,27 @@ const MessageCenterPage: React.FC = () => {
 
         {/* Messages */}
         <div className="space-y-4">
-          {filteredMessages.length === 0 ? (
+          {isLoading ? (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white rounded-2xl shadow-lg border border-gray-100 p-8 text-center"
+            >
+              <p className="text-gray-600">Loading messages...</p>
+            </motion.div>
+          ) : error ? (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white rounded-2xl shadow-lg border border-gray-100 p-8 text-center"
+            >
+              <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Failed to Load Messages
+              </h3>
+              <p className="text-gray-600">{error}</p>
+            </motion.div>
+          ) : filteredMessages.length === 0 ? (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -258,6 +311,16 @@ const MessageCenterPage: React.FC = () => {
           </div>
         </motion.div>
       </div>
+
+      {isDeliveryRoute && (
+        <DeliveryBottomNav
+          activeTab={activeTab}
+          setActiveTab={(tab) => {
+            setActiveTab(tab);
+            navigate("/delivery");
+          }}
+        />
+      )}
     </div>
   );
 };

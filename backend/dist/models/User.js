@@ -42,6 +42,8 @@ const AddressSchema = new mongoose_1.Schema({
     pincode: { type: String, required: true },
     city: { type: String, required: true },
     state: { type: String, required: true },
+    postal_district: { type: String, required: true },
+    admin_district: { type: String, required: true },
     addressLine: { type: String, required: true },
     phone: { type: String, required: false, default: "" },
     lat: { type: Number, required: true },
@@ -50,7 +52,7 @@ const AddressSchema = new mongoose_1.Schema({
     isGeocoded: { type: Boolean, default: false },
     coordsSource: {
         type: String,
-        enum: ['manual', 'geocoded', 'pincode', 'unresolved'],
+        enum: ['manual', 'saved', 'geocoded', 'pincode', 'unresolved'],
         default: 'unresolved'
     },
 });

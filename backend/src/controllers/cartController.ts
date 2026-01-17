@@ -111,7 +111,10 @@ export const addToCart = async (
       return res.status(404).json({ message: "Product not found" });
     }
 
-    if (product.stock < quantity) {
+    const stock = Number((product as any).stock || 0);
+    const reservedStock = Number((product as any).reservedStock || 0);
+    const availableStock = stock - reservedStock;
+    if (availableStock < quantity) {
       return res.status(400).json({ message: "Insufficient stock" });
     }
 
@@ -212,7 +215,10 @@ export const updateCartItem = async (
         return res.status(404).json({ message: "Product not found" });
       }
 
-      if (product.stock < quantity) {
+      const stock = Number((product as any).stock || 0);
+      const reservedStock = Number((product as any).reservedStock || 0);
+      const availableStock = stock - reservedStock;
+      if (availableStock < quantity) {
         return res.status(400).json({ message: "Insufficient stock" });
       }
     }
@@ -351,60 +357,8 @@ export const createOrder = async (
   res: Response
 ): Promise<Response | void> => {
   try {
-    const { items, address, totalAmount } = req.body;
-    const userId = (req as any).user._id;
-
-    // Removed minimum order requirement - delivery charges will apply for all orders
-
-    // Validate pincode
-    const pincodeExists = await Pincode.findOne({ pincode: address.pincode });
-    if (!pincodeExists) {
-      return res.status(400).json({
-        error: "Unable to deliver to this location.",
-      });
-    }
-
-    // Create order
-    const order = new Order({
-      userId,
-      items,
-      totalAmount,
-      address,
-      orderStatus: "created",
-      paymentStatus: "pending",
-    });
-
-    await order.save();
-
-    // Create Razorpay order
-    const razorpayOrder = await razorpay.orders.create({
-      amount: totalAmount * 100, // Convert to paise
-      currency: "INR",
-      receipt: order._id.toString(),
-    });
-
-    // Update order with Razorpay order ID
-    order.razorpayOrderId = razorpayOrder.id;
-    await order.save();
-
-    // Auto-assign delivery boy
-    const availableDeliveryBoy = await DeliveryBoy.findOne({
-      availability: "available",
-      isActive: true,
-    });
-
-    if (availableDeliveryBoy) {
-      order.deliveryBoyId = availableDeliveryBoy._id;
-      availableDeliveryBoy.assignedOrders.push(order._id);
-      availableDeliveryBoy.availability = "busy";
-      await availableDeliveryBoy.save();
-      await order.save();
-    }
-
-    res.json({
-      message: "Order created successfully",
-      order,
-      razorpayOrderId: razorpayOrder.id,
+    return res.status(410).json({
+      message: "Deprecated endpoint. Use /api/orders (canonical order flow) instead.",
     });
   } catch (error) {
     res.status(500).json({ message: "Failed to create order" });

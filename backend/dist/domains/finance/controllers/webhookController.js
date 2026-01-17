@@ -28,11 +28,6 @@ const razorpayWebhook = async (req, res) => {
                     razorpayPaymentId: payload.payment.entity.id,
                 }, { new: true });
                 if (order1 && io) {
-                    // Emit payment success event
-                    io.to(`order_${order1._id}`).emit("order:payment:success", {
-                        orderId: order1._id,
-                        paymentId: payload.payment.entity.id,
-                    });
                     // Emit to admin room
                     io.to("admin_room").emit("order:payment:success", {
                         orderId: order1._id,
@@ -44,8 +39,8 @@ const razorpayWebhook = async (req, res) => {
                 // Update order payment status
                 const order2 = await Order_1.Order.findOneAndUpdate({ razorpayOrderId: payload.payment.entity.order_id }, { paymentStatus: "failed" }, { new: true });
                 if (order2 && io) {
-                    // Emit payment failure event
-                    io.to(`order_${order2._id}`).emit("order:payment:failed", {
+                    // Emit to admin room
+                    io.to("admin_room").emit("order:payment:failed", {
                         orderId: order2._id,
                         reason: payload.payment.entity.error_description,
                     });
@@ -55,8 +50,8 @@ const razorpayWebhook = async (req, res) => {
                 // Update order payment status
                 const order3 = await Order_1.Order.findOneAndUpdate({ razorpayOrderId: payload.order.entity.id }, { paymentStatus: "paid" }, { new: true });
                 if (order3 && io) {
-                    // Emit order paid event
-                    io.to(`order_${order3._id}`).emit("order:payment:success", {
+                    // Emit to admin room
+                    io.to("admin_room").emit("order:payment:success", {
                         orderId: order3._id,
                     });
                 }

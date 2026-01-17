@@ -11,9 +11,11 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import DeliveryBottomNav from "../components/DeliveryBottomNav";
 
 const DeliverySettingsPage: React.FC = () => {
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState("more");
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [notifications, setNotifications] = useState({
     newOrders: true,
@@ -126,7 +128,7 @@ const DeliverySettingsPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100 pb-20">
       {/* Header */}
       <div className="bg-white shadow-sm border-b border-gray-200 px-4 py-4">
         <div className="flex items-center space-x-4">
@@ -251,6 +253,14 @@ const DeliverySettingsPage: React.FC = () => {
           </div>
         </motion.div>
       </div>
+
+      <DeliveryBottomNav
+        activeTab={activeTab}
+        setActiveTab={(tab) => {
+          setActiveTab(tab);
+          navigate("/delivery");
+        }}
+      />
     </div>
   );
 };

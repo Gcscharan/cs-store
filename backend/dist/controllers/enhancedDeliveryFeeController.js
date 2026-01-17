@@ -261,6 +261,8 @@ const estimateDeliveryFee = async (req, res) => {
             pincode: pincode,
             city: pincodeData.district || "Unknown",
             state: pincodeData.state || "Unknown",
+            postal_district: pincodeData.district || "Unknown",
+            admin_district: pincodeData.district || "Unknown",
             addressLine: `${pincodeData.taluka || ""}, ${pincodeData.district || ""}`,
             phone: "0000000000",
             lat: 17.385, // Default to approximate location - in production, geocode this

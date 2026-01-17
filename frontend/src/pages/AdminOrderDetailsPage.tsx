@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { RootState } from "../store";
+import { useOrderWebSocket } from "../hooks/useOrderWebSocket";
+import { toast } from "react-hot-toast";
 import {
   ArrowLeft,
   User,
@@ -74,6 +76,21 @@ interface Order {
   updatedAt: string;
 }
 
+type CodCollection = {
+  _id: string;
+  orderId: string;
+  mode: "CASH" | "UPI";
+  amount: number;
+  currency: string;
+  collectedAt: string;
+  collectedBy?: {
+    _id: string;
+    name: string;
+    phone: string;
+    email?: string | null;
+  } | null;
+};
+
 const AdminOrderDetailsPage: React.FC = () => {
   const navigate = useNavigate();
   const { orderId } = useParams<{ orderId: string }>();
@@ -86,6 +103,7 @@ const AdminOrderDetailsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
+  const [codCollection, setCodCollection] = useState<CodCollection | null>(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
 
   // Check authentication
@@ -98,6 +116,36 @@ const AdminOrderDetailsPage: React.FC = () => {
       fetchOrderDetails();
     }
   }, [isAuthenticated, user, navigate, orderId]);
+
+  // Real-time order status updates via WebSocket
+  const handleOrderStatusChanged = useCallback((payload: any) => {
+    console.log("🔄 [Admin Order Details] Received status update:", payload);
+    
+    // Only update if this is the current order
+    if (payload.orderId === orderId) {
+      setOrder(prevOrder => {
+        if (!prevOrder) return null;
+        return {
+          ...prevOrder,
+          orderStatus: payload.to,
+          status: payload.to,
+          updatedAt: payload.timestamp,
+        };
+      });
+
+      toast.success(
+        `Order status updated to ${payload.to}`,
+        { duration: 3000 }
+      );
+    }
+  }, [orderId]);
+
+  useOrderWebSocket({
+    userId: user?.id,
+    userRole: user?.isAdmin ? 'admin' : 'customer',
+    onOrderStatusChanged: handleOrderStatusChanged,
+    enabled: isAuthenticated && user?.isAdmin,
+  });
 
   const fetchOrderDetails = async () => {
     try {
@@ -123,6 +171,49 @@ const AdminOrderDetailsPage: React.FC = () => {
       }
 
       setOrder(foundOrder);
+
+      const method = String(foundOrder?.paymentMethod || "").toLowerCase();
+      if (method === "cod") {
+        try {
+          const resp = await fetch(`/api/admin/orders/${orderId}/cod-collection`, {
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${tokens?.accessToken}`,
+            },
+          });
+
+          if (resp.ok) {
+            const payload = await resp.json();
+            const raw = payload?.codCollection;
+            setCodCollection(
+              raw
+                ? {
+                    _id: String(raw._id),
+                    orderId: String(raw.orderId),
+                    mode: String(raw.mode).toUpperCase() === "UPI" ? "UPI" : "CASH",
+                    amount: Number(raw.amount),
+                    currency: String(raw.currency || "INR"),
+                    collectedAt: String(raw.collectedAt),
+                    collectedBy: raw.collectedBy
+                      ? {
+                          _id: String(raw.collectedBy._id),
+                          name: String(raw.collectedBy.name || ""),
+                          phone: String(raw.collectedBy.phone || ""),
+                          email: raw.collectedBy.email ? String(raw.collectedBy.email) : null,
+                        }
+                      : null,
+                  }
+                : null
+            );
+          } else {
+            setCodCollection(null);
+          }
+        } catch {
+          setCodCollection(null);
+        }
+      } else {
+        setCodCollection(null);
+      }
     } catch (err) {
       console.error("Error fetching order details:", err);
       setError("Failed to load order details. Please try again later.");
@@ -131,15 +222,23 @@ const AdminOrderDetailsPage: React.FC = () => {
     }
   };
 
-  // Map database statuses to user-friendly names
+  // Map database statuses to user-friendly names (display only, no semantic transformation)
   const mapDatabaseStatusToUserFriendly = (status: string): string => {
     const mapping: { [key: string]: string } = {
-      created: "pending",
-      assigned: "accepted",
-      picked_up: "in_progress",
-      in_transit: "in_progress",
-      delivered: "completed",
-      cancelled: "cancelled",
+      created: "Created",
+      pending: "Created",
+      confirmed: "Confirmed",
+      packed: "Packed",
+      out_for_delivery: "Out for Delivery",
+      delivered: "Delivered",
+      failed: "Failed",
+      returned: "Returned",
+      cancelled: "Cancelled",
+      // Legacy statuses (for backward compatibility)
+      assigned: "Assigned",
+      picked_up: "Picked Up",
+      in_transit: "In Transit",
+      arrived: "Arrived",
     };
     return mapping[status.toLowerCase()] || status;
   };
@@ -149,7 +248,7 @@ const AdminOrderDetailsPage: React.FC = () => {
     const upper = String(currentStatus || "").toUpperCase();
     const canonical = upper === "PENDING" ? "CREATED" : upper;
     
-    // Pending orders: Admin can ONLY Accept or Cancel
+    // Created orders: Admin can Confirm or Cancel
     if (canonical === "CREATED") {
       return [
         { value: "CONFIRMED", label: "Confirm Order", color: "bg-green-600 hover:bg-green-700" },
@@ -157,13 +256,15 @@ const AdminOrderDetailsPage: React.FC = () => {
       ];
     }
 
+    // Confirmed orders: Admin can Confirm (move to packed) or Cancel
     if (canonical === "CONFIRMED") {
       return [
+        { value: "PACKED", label: "Confirm Order", color: "bg-blue-600 hover:bg-blue-700" },
         { value: "CANCELLED", label: "Cancel Order", color: "bg-red-600 hover:bg-red-700" },
       ];
     }
     
-    // Once accepted or cancelled: No further admin actions
+    // Once packed or cancelled: No further admin actions
     // Delivery partner updates will happen via their own interface
     return [];
   };
@@ -178,6 +279,14 @@ const AdminOrderDetailsPage: React.FC = () => {
       let response: Response;
       if (newStatus === "CONFIRMED") {
         response = await fetch(`/api/admin/orders/${orderId}/confirm`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${tokens?.accessToken}`,
+          },
+        });
+      } else if (newStatus === "PACKED") {
+        response = await fetch(`/api/admin/orders/${orderId}/pack`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -213,7 +322,13 @@ const AdminOrderDetailsPage: React.FC = () => {
       } else {
         await fetchOrderDetails();
       }
-      setSuccessMessage(newStatus === "CANCELLED" ? "Order cancelled successfully!" : "Order confirmed successfully!");
+      setSuccessMessage(
+        newStatus === "CANCELLED" 
+          ? "Order cancelled successfully!" 
+          : newStatus === "PACKED"
+          ? "Order packed successfully!"
+          : "Order confirmed successfully!"
+      );
       setTimeout(() => setSuccessMessage(""), 3000);
       
       // Refresh order details
@@ -229,16 +344,30 @@ const AdminOrderDetailsPage: React.FC = () => {
   const getStatusBadgeColor = (status: string) => {
     const mappedStatus = mapDatabaseStatusToUserFriendly(status);
     switch (mappedStatus.toLowerCase()) {
-      case "pending":
+      case "created":
         return "bg-yellow-100 text-yellow-800 border-yellow-300";
-      case "accepted":
+      case "confirmed":
         return "bg-blue-100 text-blue-800 border-blue-300";
-      case "in_progress":
+      case "packed":
+        return "bg-indigo-100 text-indigo-800 border-indigo-300";
+      case "out for delivery":
         return "bg-purple-100 text-purple-800 border-purple-300";
-      case "completed":
+      case "delivered":
         return "bg-green-100 text-green-800 border-green-300";
+      case "failed":
+        return "bg-orange-100 text-orange-800 border-orange-300";
+      case "returned":
+        return "bg-pink-100 text-pink-800 border-pink-300";
       case "cancelled":
         return "bg-red-100 text-red-800 border-red-300";
+      // Legacy statuses
+      case "assigned":
+        return "bg-indigo-100 text-indigo-800 border-indigo-300";
+      case "picked up":
+      case "in transit":
+        return "bg-purple-100 text-purple-800 border-purple-300";
+      case "arrived":
+        return "bg-teal-100 text-teal-800 border-teal-300";
       default:
         return "bg-gray-100 text-gray-800 border-gray-300";
     }
@@ -602,6 +731,8 @@ const AdminOrderDetailsPage: React.FC = () => {
                         <p className="text-xs text-gray-500 text-center">
                           {currentStatus === "created" || currentStatus === "pending"
                             ? "Confirm to process the order or cancel it."
+                            : currentStatus === "confirmed"
+                            ? "Confirm the order for delivery or cancel it."
                             : currentStatus === "assigned"
                             ? "Move to In Progress when delivery starts."
                             : "Mark as completed when delivery is done."}
@@ -660,6 +791,34 @@ const AdminOrderDetailsPage: React.FC = () => {
                     {formatPaymentInfo(order)}
                   </p>
                 </div>
+
+                {String(order.paymentMethod || "").toLowerCase() === "cod" && (
+                  <div className="pt-3 border-t border-gray-200">
+                    <p className="text-sm text-gray-500 mb-2">COD Collection</p>
+                    {codCollection ? (
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <p className="font-semibold text-gray-900">
+                          Collected via {codCollection.mode === "UPI" ? "UPI" : "Cash"}
+                        </p>
+                        <p className="text-sm text-gray-700">
+                          Amount: ₹{Number(codCollection.amount || 0).toLocaleString("en-IN")}
+                        </p>
+                        <p className="text-sm text-gray-700">
+                          Collected at: {new Date(codCollection.collectedAt).toLocaleString()}
+                        </p>
+                        {codCollection.collectedBy && (
+                          <p className="text-sm text-gray-700">
+                            Collected by: {codCollection.collectedBy.name} ({codCollection.collectedBy.phone})
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <p className="text-sm text-gray-700">Not collected yet</p>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div>
                   <p className="text-sm text-gray-500">Order Date</p>
                   <p className="font-semibold text-gray-900">

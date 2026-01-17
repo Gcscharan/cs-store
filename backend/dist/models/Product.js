@@ -87,6 +87,11 @@ const ProductSchema = new mongoose_1.Schema({
         min: [0, "Stock cannot be negative"],
         default: 0,
     },
+    reservedStock: {
+        type: Number,
+        min: [0, "Reserved stock cannot be negative"],
+        default: 0,
+    },
     weight: {
         type: Number,
         required: [true, "Weight is required"],

@@ -1,11 +1,19 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.makeDeliveryBoy = exports.deleteProduct = exports.updateProduct = exports.getDashboardStats = exports.exportOrders = exports.getAdminDeliveryBoys = exports.getAdminOrders = exports.getAdminProducts = exports.getUsers = exports.getAdminProfile = exports.getStats = void 0;
+exports.purgeOrders = exports.assignComputedCluster = exports.computeRoutes = exports.makeDeliveryBoy = exports.deleteProduct = exports.updateProduct = exports.getDashboardStats = exports.exportOrders = exports.approveDeliveryBoy = exports.getAdminDeliveryBoys = exports.getAdminOrders = exports.getAdminProducts = exports.getUsers = exports.getAdminProfile = exports.getRouteDetail = exports.listRecentAssignedRoutes = exports.getRouteStatus = exports.assignRoute = exports.listRoutes = exports.getStats = void 0;
+const mongoose_1 = __importDefault(require("mongoose"));
+const crypto_1 = __importDefault(require("crypto"));
 const Order_1 = require("../models/Order");
 const User_1 = require("../models/User");
 const Product_1 = require("../models/Product");
 const DeliveryBoy_1 = require("../models/DeliveryBoy");
+const Route_1 = require("../models/Route");
+const liveLocationStore_1 = require("../services/liveLocationStore");
 const csv_writer_1 = require("csv-writer");
+const cvrpRouteAssignmentService_1 = require("../services/cvrpRouteAssignmentService");
 const getStats = async (req, res) => {
     try {
         const { period = "month", from, to } = req.query;
@@ -179,6 +187,339 @@ const getStats = async (req, res) => {
     }
 };
 exports.getStats = getStats;
+const listRoutes = async (req, res) => {
+    try {
+        const limit = Math.max(1, Math.min(200, Number(req.query.limit || 50)));
+        const routes = await Route_1.Route.find({})
+            .sort({ computedAt: -1 })
+            .limit(limit)
+            .lean();
+        res.json({
+            success: true,
+            routes: routes.map((r) => ({
+                routeId: r.routeId,
+                vehicleType: r.vehicleType,
+                totalDistanceKm: r.totalDistanceKm,
+                estimatedTimeMin: r.estimatedTimeMin,
+                status: r.status,
+                deliveryBoyId: r.deliveryBoyId ? String(r.deliveryBoyId) : null,
+                orderIds: Array.isArray(r.orderIds) ? r.orderIds.map((id) => String(id)) : [],
+                routePath: Array.isArray(r.routePath) ? r.routePath.map((id) => String(id)) : [],
+                totalOrders: Array.isArray(r.orderIds) ? r.orderIds.length : 0,
+                deliveredCount: Number(r.deliveredCount || 0),
+                failedCount: Number(r.failedCount || 0),
+                computedAt: r.computedAt,
+                assignedAt: r.assignedAt || null,
+                startedAt: r.startedAt || null,
+                completedAt: r.completedAt || null,
+            })),
+        });
+    }
+    catch (error) {
+        res.status(500).json({ error: "Failed to list routes", message: error?.message || "Unknown error" });
+    }
+};
+exports.listRoutes = listRoutes;
+const assignRoute = async (req, res) => {
+    try {
+        const routeId = String(req.params.routeId || "").trim();
+        const deliveryBoyId = String(req.body?.deliveryBoyId || "").trim();
+        if (!routeId) {
+            return res.status(400).json({ error: "routeId is required" });
+        }
+        if (!deliveryBoyId) {
+            return res.status(400).json({ error: "deliveryBoyId is required" });
+        }
+        const route = await Route_1.Route.findOne({ routeId });
+        if (!route) {
+            return res.status(404).json({ error: "Route not found" });
+        }
+        if (String(route.status) !== "CREATED" || route.deliveryBoyId) {
+            return res.status(409).json({ error: "Route already assigned or locked" });
+        }
+        const deliveryBoy = await DeliveryBoy_1.DeliveryBoy.findById(deliveryBoyId).select("_id userId vehicleType isActive");
+        if (!deliveryBoy) {
+            return res.status(404).json({ error: "Delivery boy not found" });
+        }
+        const vt = String(deliveryBoy.vehicleType || "");
+        if (vt.toUpperCase() !== "AUTO") {
+            return res.status(400).json({
+                error: "Delivery boy vehicleType must be AUTO",
+                message: `vehicleType must be AUTO, got ${vt}`,
+            });
+        }
+        if (!deliveryBoy.isActive) {
+            return res.status(400).json({ error: "Delivery boy is not active" });
+        }
+        const existingActive = await Route_1.Route.findOne({
+            deliveryBoyId: deliveryBoy._id,
+            status: { $in: ["ASSIGNED", "IN_PROGRESS"] },
+        }).select("routeId status");
+        if (existingActive) {
+            return res.status(409).json({
+                error: "Delivery boy already has an active route",
+                message: `Delivery boy already has active route ${String(existingActive.routeId)} (${String(existingActive.status)})`,
+            });
+        }
+        const now = new Date();
+        route.deliveryBoyId = deliveryBoy._id;
+        route.status = "ASSIGNED";
+        route.assignedAt = now;
+        await route.save();
+        const dpUserId = deliveryBoy.userId ? new mongoose_1.default.Types.ObjectId(String(deliveryBoy.userId)) : null;
+        await Order_1.Order.updateMany({ _id: { $in: route.orderIds } }, {
+            $set: {
+                deliveryBoyId: deliveryBoy._id,
+                deliveryPartnerId: dpUserId,
+                deliveryStatus: "in_transit",
+                orderStatus: "OUT_FOR_DELIVERY",
+                outForDeliveryAt: now,
+            },
+        });
+        res.json({
+            success: true,
+            route: {
+                routeId: route.routeId,
+                status: route.status,
+                deliveryBoyId: String(deliveryBoy._id),
+                totalOrders: route.orderIds?.length || 0,
+            },
+        });
+    }
+    catch (error) {
+        res.status(500).json({ error: "Failed to assign route", message: error?.message || "Unknown error" });
+    }
+};
+exports.assignRoute = assignRoute;
+const getRouteStatus = async (req, res) => {
+    try {
+        const routeId = String(req.params.routeId || "").trim();
+        if (!routeId) {
+            return res.status(400).json({ error: "routeId is required" });
+        }
+        const route = await Route_1.Route.findOne({ routeId }).lean();
+        if (!route) {
+            return res.status(404).json({ error: "Route not found" });
+        }
+        const totalOrders = Array.isArray(route.orderIds) ? route.orderIds.length : 0;
+        const deliveredCount = Number(route.deliveredCount || 0);
+        const failedCount = Number(route.failedCount || 0);
+        const pendingCount = Math.max(0, totalOrders - deliveredCount - failedCount);
+        const start = route.startedAt || route.assignedAt || route.computedAt;
+        const elapsedMs = start ? Date.now() - new Date(start).getTime() : 0;
+        const elapsedTimeMin = Math.max(0, Math.round(elapsedMs / 60000));
+        const estimatedTimeMin = Number(route.estimatedTimeMin || 0);
+        const delay = estimatedTimeMin > 0 ? elapsedTimeMin > estimatedTimeMin : false;
+        res.json({
+            success: true,
+            routeId: route.routeId,
+            status: route.status,
+            deliveredCount,
+            failedCount,
+            pendingCount,
+            elapsedTimeMin,
+            estimatedTimeMin,
+            delay,
+        });
+    }
+    catch (error) {
+        res.status(500).json({ error: "Failed to get route status", message: error?.message || "Unknown error" });
+    }
+};
+exports.getRouteStatus = getRouteStatus;
+const listRecentAssignedRoutes = async (req, res) => {
+    try {
+        const limit = Math.max(1, Math.min(200, Number(req.query.limit || 50)));
+        const routes = await Route_1.Route.find({ assignedAt: { $exists: true, $ne: null } })
+            .sort({ assignedAt: -1 })
+            .limit(limit)
+            .populate("deliveryBoyId", "name phone currentLocation")
+            .lean();
+        res.json({
+            success: true,
+            generatedAt: new Date().toISOString(),
+            routes: routes.map((r) => {
+                const total = Array.isArray(r.orderIds) ? r.orderIds.length : 0;
+                const delivered = Number(r.deliveredCount || 0);
+                const failed = Number(r.failedCount || 0);
+                const pending = Math.max(0, total - delivered - failed);
+                const completed = delivered + failed;
+                const progressPct = total > 0 ? Math.round((completed / total) * 100) : 0;
+                const db = r.deliveryBoyId && typeof r.deliveryBoyId === "object" ? r.deliveryBoyId : null;
+                return {
+                    routeId: r.routeId,
+                    status: r.status,
+                    assignedAt: r.assignedAt || null,
+                    updatedAt: r.updatedAt || null,
+                    deliveryBoy: db
+                        ? {
+                            id: String(db._id),
+                            name: String(db.name || ""),
+                            phone: String(db.phone || ""),
+                        }
+                        : null,
+                    counts: {
+                        total,
+                        delivered,
+                        failed,
+                        pending,
+                        completed,
+                    },
+                    progressPct,
+                };
+            }),
+        });
+    }
+    catch (error) {
+        res.status(500).json({ error: "Failed to list recent assigned routes", message: error?.message || "Unknown error" });
+    }
+};
+exports.listRecentAssignedRoutes = listRecentAssignedRoutes;
+function normalizeOrderStatusForOpsDashboard(raw) {
+    const upper = String(raw || "").trim().toUpperCase();
+    if (!upper)
+        return "";
+    if (upper === "OUT_FOR_DELIVERY")
+        return "IN_TRANSIT";
+    if (upper === "PENDING" || upper === "PENDING_PAYMENT")
+        return "CREATED";
+    return upper;
+}
+function validateLatLng(latRaw, lngRaw) {
+    const lat = Number(latRaw);
+    const lng = Number(lngRaw);
+    const ok = Number.isFinite(lat) &&
+        Number.isFinite(lng) &&
+        lat >= -90 &&
+        lat <= 90 &&
+        lng >= -180 &&
+        lng <= 180 &&
+        !(lat === 0 && lng === 0);
+    return ok ? { lat, lng, invalid: false } : { lat: null, lng: null, invalid: true };
+}
+const getRouteDetail = async (req, res) => {
+    try {
+        const routeId = String(req.params.routeId || "").trim();
+        if (!routeId) {
+            return res.status(400).json({ error: "routeId is required" });
+        }
+        const route = await Route_1.Route.findOne({ routeId })
+            .populate("deliveryBoyId", "name phone")
+            .lean();
+        if (!route) {
+            return res.status(404).json({ error: "Route not found" });
+        }
+        const orderedIds = (Array.isArray(route.routePath) ? route.routePath : [])
+            .filter((x) => String(x || "").toUpperCase() !== "WAREHOUSE")
+            .map((x) => String(x));
+        const sequenceById = new Map();
+        orderedIds.forEach((id, idx) => sequenceById.set(String(id), idx + 1));
+        const orderIds = Array.isArray(route.orderIds) ? route.orderIds : [];
+        const orderDocs = await Order_1.Order.find({ _id: { $in: orderIds } })
+            .select("_id orderStatus deliveredAt address.lat address.lng")
+            .lean();
+        const byId = new Map();
+        for (const o of orderDocs) {
+            byId.set(String(o._id), o);
+        }
+        const mappedOrders = orderedIds.map((id) => {
+            const o = byId.get(id);
+            const status = normalizeOrderStatusForOpsDashboard(o ? o.orderStatus : "");
+            const { lat, lng, invalid } = validateLatLng(o?.address?.lat, o?.address?.lng);
+            return {
+                orderId: id,
+                sequence: sequenceById.get(id) || null,
+                status: status || "UNKNOWN",
+                deliveredAt: o?.deliveredAt ? new Date(o.deliveredAt).toISOString() : null,
+                invalidLocation: invalid,
+                _lat: lat,
+                _lng: lng,
+            };
+        });
+        const sortedOrders = mappedOrders.slice().sort((a, b) => {
+            const as = typeof a.sequence === "number" ? a.sequence : Number.POSITIVE_INFINITY;
+            const bs = typeof b.sequence === "number" ? b.sequence : Number.POSITIVE_INFINITY;
+            return as - bs;
+        });
+        const orders = sortedOrders.map(({ _lat, _lng, ...rest }) => rest);
+        const checkpoints = sortedOrders
+            .filter((o) => typeof o._lat === "number" && typeof o._lng === "number" && Number.isFinite(o._lat) && Number.isFinite(o._lng))
+            .map((o) => ({
+            orderId: o.orderId,
+            sequence: o.sequence,
+            lat: o._lat,
+            lng: o._lng,
+            status: o.status,
+        }));
+        const total = orderedIds.length;
+        const delivered = Number(route.deliveredCount || 0);
+        const failed = Number(route.failedCount || 0);
+        const pending = Math.max(0, total - delivered - failed);
+        const completed = delivered + failed;
+        const progressPct = total > 0 ? Math.round((completed / total) * 100) : 0;
+        const warehouse = { lat: 17.094, lng: 80.598 };
+        const db = route.deliveryBoyId && typeof route.deliveryBoyId === "object" ? route.deliveryBoyId : null;
+        const driverIdStr = db?._id ? String(db._id) : "";
+        const mem = driverIdStr ? liveLocationStore_1.liveLocationStore.get(driverIdStr) : null;
+        // liveLocation is STRICTLY sourced from memory store (single source of truth)
+        // and only when it matches this route.
+        const useMemForLiveLocation = Boolean(mem && String(mem.routeId || "") === String(routeId));
+        const liveLocationLastUpdatedAtMs = useMemForLiveLocation
+            ? Number(mem?.receivedAt || Date.now())
+            : null;
+        const liveLocationIsStale = typeof liveLocationLastUpdatedAtMs === "number" && Number.isFinite(liveLocationLastUpdatedAtMs)
+            ? Date.now() - liveLocationLastUpdatedAtMs > 20000
+            : true;
+        res.json({
+            success: true,
+            generatedAt: new Date().toISOString(),
+            liveLocation: useMemForLiveLocation && mem && Number.isFinite(Number(mem?.lat)) && Number.isFinite(Number(mem?.lng))
+                ? {
+                    driverId: driverIdStr,
+                    routeId: mem?.routeId ? String(mem.routeId) : null,
+                    lat: Number(mem?.lat),
+                    lng: Number(mem?.lng),
+                    lastUpdatedAt: typeof liveLocationLastUpdatedAtMs === "number" && Number.isFinite(liveLocationLastUpdatedAtMs)
+                        ? new Date(liveLocationLastUpdatedAtMs).toISOString()
+                        : null,
+                    stale: liveLocationIsStale,
+                }
+                : null,
+            route: {
+                routeId: route.routeId,
+                status: route.status,
+                computedAt: route.computedAt || null,
+                assignedAt: route.assignedAt || null,
+                startedAt: route.startedAt || null,
+                completedAt: route.completedAt || null,
+                updatedAt: route.updatedAt || null,
+                deliveryBoyId: driverIdStr || null,
+                deliveryBoy: db
+                    ? {
+                        id: String(db._id),
+                        name: String(db.name || ""),
+                        phone: String(db.phone || ""),
+                    }
+                    : null,
+                counts: {
+                    total,
+                    delivered,
+                    failed,
+                    pending,
+                    completed,
+                },
+                progressPct,
+                warehouse,
+            },
+            orders,
+            checkpoints,
+        });
+    }
+    catch (error) {
+        res.status(500).json({ error: "Failed to get route detail", message: error?.message || "Unknown error" });
+    }
+};
+exports.getRouteDetail = getRouteDetail;
 const getAdminProfile = async (req, res) => {
     try {
         // Get admin user from authenticated request
@@ -291,11 +632,46 @@ const getAdminDeliveryBoys = async (req, res) => {
                 .status(403)
                 .json({ error: "Access denied. Admin role required." });
         }
-        // Fetch all delivery boys
         const deliveryBoys = await DeliveryBoy_1.DeliveryBoy.find({})
             .populate("assignedOrders", "orderStatus totalAmount createdAt")
+            .populate("userId", "name email phone status deliveryProfile createdAt")
             .sort({ createdAt: -1 });
-        return res.json({ deliveryBoys });
+        const normalizedDeliveryBoys = await Promise.all(deliveryBoys.map(async (deliveryBoy) => {
+            let userDoc = deliveryBoy.userId && deliveryBoy.userId._id ? deliveryBoy.userId : null;
+            if (!userDoc) {
+                userDoc = await User_1.User.findOne({
+                    phone: deliveryBoy.phone,
+                    role: "delivery",
+                }).select("name email phone status deliveryProfile createdAt");
+            }
+            return {
+                user: userDoc
+                    ? {
+                        _id: userDoc._id,
+                        name: userDoc.name,
+                        email: userDoc.email,
+                        phone: userDoc.phone,
+                        status: userDoc.status,
+                        deliveryProfile: userDoc.deliveryProfile,
+                        createdAt: userDoc.createdAt,
+                    }
+                    : null,
+                deliveryBoy: {
+                    _id: deliveryBoy._id,
+                    availability: deliveryBoy.availability,
+                    isActive: deliveryBoy.isActive,
+                    vehicleType: deliveryBoy.vehicleType,
+                    earnings: deliveryBoy.earnings,
+                    completedOrdersCount: deliveryBoy.completedOrdersCount,
+                    currentLoad: deliveryBoy.currentLoad,
+                    lastAssignedAt: deliveryBoy.lastAssignedAt,
+                    currentLocation: deliveryBoy.currentLocation,
+                },
+            };
+        }));
+        return res.json({
+            deliveryBoys: normalizedDeliveryBoys.filter((b) => b.user),
+        });
     }
     catch (error) {
         console.error("Admin delivery boys error:", error);
@@ -303,6 +679,64 @@ const getAdminDeliveryBoys = async (req, res) => {
     }
 };
 exports.getAdminDeliveryBoys = getAdminDeliveryBoys;
+const approveDeliveryBoy = async (req, res) => {
+    try {
+        const adminUser = req.user;
+        if (!adminUser) {
+            return res.status(401).json({ error: "User not authenticated" });
+        }
+        if (adminUser.role !== "admin") {
+            return res
+                .status(403)
+                .json({ error: "Access denied. Admin role required." });
+        }
+        const { id } = req.params;
+        const user = await User_1.User.findById(id);
+        if (!user) {
+            return res.status(404).json({ error: "User not found" });
+        }
+        if (user.role !== "delivery") {
+            return res.status(400).json({ error: "User is not a delivery partner" });
+        }
+        user.status = "active";
+        await user.save();
+        const deliveryBoy = (await DeliveryBoy_1.DeliveryBoy.findOne({ userId: user._id })) ||
+            (user.phone ? await DeliveryBoy_1.DeliveryBoy.findOne({ phone: user.phone }) : null);
+        if (!deliveryBoy) {
+            return res.status(404).json({ error: "DeliveryBoy profile not found" });
+        }
+        deliveryBoy.isActive = true;
+        deliveryBoy.availability = "offline";
+        if (!deliveryBoy.userId) {
+            deliveryBoy.userId = user._id;
+        }
+        await deliveryBoy.save();
+        return res.json({
+            success: true,
+            message: "Delivery partner approved successfully",
+            user: {
+                _id: user._id,
+                name: user.name,
+                email: user.email,
+                phone: user.phone,
+                role: user.role,
+                status: user.status,
+            },
+            deliveryBoy: {
+                _id: deliveryBoy._id,
+                isActive: deliveryBoy.isActive,
+                availability: deliveryBoy.availability,
+            },
+        });
+    }
+    catch (error) {
+        console.error("Approve delivery boy error:", error);
+        return res
+            .status(500)
+            .json({ error: "Failed to approve delivery partner" });
+    }
+};
+exports.approveDeliveryBoy = approveDeliveryBoy;
 const exportOrders = async (req, res) => {
     try {
         const { from, to, format = "csv" } = req.query;
@@ -563,11 +997,14 @@ const makeDeliveryBoy = async (req, res) => {
         }
         // Update user role to delivery
         user.role = "delivery";
+        user.status = "pending";
         await user.save();
         // Create delivery boy record
         const deliveryBoy = new DeliveryBoy_1.DeliveryBoy({
             name: user.name,
             phone: user.phone,
+            email: user.email,
+            userId: user._id,
             vehicleType: "bike", // Default vehicle type
             currentLocation: {
                 lat: 0,
@@ -575,7 +1012,7 @@ const makeDeliveryBoy = async (req, res) => {
                 lastUpdatedAt: new Date(),
             },
             availability: "offline",
-            isActive: true,
+            isActive: false,
             earnings: 0,
             completedOrdersCount: 0,
             assignedOrders: [],
@@ -605,3 +1042,403 @@ const makeDeliveryBoy = async (req, res) => {
     }
 };
 exports.makeDeliveryBoy = makeDeliveryBoy;
+/**
+ * Compute optimized routes for pending orders using CVRP algorithm
+ * POST /api/admin/routes/compute
+ *
+ * Request body:
+ * {
+ *   orderIds?: string[],  // Optional: specific order IDs. If not provided, fetches all PACKED orders
+ *   vehicle?: { type: string }  // Optional: defaults to AUTO
+ * }
+ *
+ * Returns optimized routes that can be assigned to delivery boys
+ */
+const computeRoutes = async (req, res) => {
+    try {
+        const mode = String((req.query?.mode || "")).toLowerCase();
+        const { orderIds, vehicle } = req.body;
+        // Default vehicle type is AUTO
+        const vehicleInput = vehicle || { type: "AUTO" };
+        const isPreview = mode === "preview";
+        // This endpoint is intentionally read-only (preview-only). Do not add persistence here.
+        if (!isPreview) {
+            return res.status(400).json({
+                error: "Route computation is preview-only. Use assignment endpoint to persist routes.",
+            });
+        }
+        if (isPreview) {
+            vehicleInput.capacity = 1;
+            vehicleInput.maxDistanceKm = 1000000;
+        }
+        // Fetch orders
+        let orders;
+        if (orderIds && Array.isArray(orderIds) && orderIds.length > 0) {
+            // Fetch specific orders
+            orders = await Order_1.Order.find({
+                _id: { $in: orderIds },
+                orderStatus: { $in: ["PACKED", "packed"] },
+            }).lean();
+        }
+        else {
+            // Preview: no assignment checks. Commit-mode compute: only unassigned PACKED.
+            orders = await Order_1.Order.find(isPreview
+                ? {
+                    orderStatus: { $in: ["PACKED", "packed"] },
+                }
+                : {
+                    orderStatus: { $in: ["PACKED", "packed"] },
+                    $or: [
+                        { deliveryBoyId: { $exists: false } },
+                        { deliveryBoyId: null },
+                    ],
+                }).lean();
+        }
+        if (orders.length === 0) {
+            return res.json({
+                success: true,
+                mode: isPreview ? "PREVIEW" : "COMMIT",
+                clusters: [],
+                routes: [],
+                vehicleType: vehicleInput.type || "AUTO",
+                metadata: {
+                    totalOrders: 0,
+                    totalRoutes: 0,
+                    averageOrdersPerRoute: 0,
+                    computationTimeMs: 0,
+                },
+            });
+        }
+        // Transform orders to CVRP input format
+        const orderInputs = orders.map((order) => {
+            const latRaw = order?.address?.lat;
+            const lngRaw = order?.address?.lng;
+            const isMissing = latRaw === null ||
+                latRaw === undefined ||
+                (typeof latRaw === "string" && latRaw.trim() === "") ||
+                lngRaw === null ||
+                lngRaw === undefined ||
+                (typeof lngRaw === "string" && lngRaw.trim() === "");
+            if (isMissing) {
+                throw new Error(`Order ${String(order._id)} missing delivery address coordinates`);
+            }
+            return {
+                orderId: String(order._id),
+                lat: Number(latRaw),
+                lng: Number(lngRaw),
+                pincode: order.address.pincode,
+                locality: order.address.city || order.address.admin_district,
+            };
+        });
+        // Compute routes using CVRP service
+        const result = cvrpRouteAssignmentService_1.cvrpRouteAssignmentService.computeRoutes(orderInputs, vehicleInput);
+        const orderSummaryById = new Map();
+        const isMissingCoordValue = (v) => {
+            return v === null || v === undefined || (typeof v === "string" && v.trim() === "");
+        };
+        const classifyLocation = (latRaw, lngRaw) => {
+            if (isMissingCoordValue(latRaw) || isMissingCoordValue(lngRaw)) {
+                return {
+                    lat: null,
+                    lng: null,
+                    locationStatus: "MISSING",
+                    locationSource: "NONE",
+                };
+            }
+            const lat = Number(latRaw);
+            const lng = Number(lngRaw);
+            const inRange = Number.isFinite(lat) &&
+                Number.isFinite(lng) &&
+                lat >= -90 &&
+                lat <= 90 &&
+                lng >= -180 &&
+                lng <= 180;
+            const isZeroZero = lat === 0 && lng === 0;
+            if (!inRange || isZeroZero) {
+                return {
+                    lat: null,
+                    lng: null,
+                    locationStatus: "INVALID",
+                    locationSource: "ORDER_ADDRESS",
+                };
+            }
+            return {
+                lat,
+                lng,
+                locationStatus: "OK",
+                locationSource: "ORDER_ADDRESS",
+            };
+        };
+        for (const o of orders) {
+            const orderId = String(o._id);
+            const items = Array.isArray(o.items) ? o.items : [];
+            const latRaw = o?.address?.lat;
+            const lngRaw = o?.address?.lng;
+            const loc = classifyLocation(latRaw, lngRaw);
+            const itemsQty = items.reduce((sum, it) => {
+                const q = typeof it?.quantity === "number"
+                    ? it.quantity
+                    : typeof it?.qty === "number"
+                        ? it.qty
+                        : 0;
+                return sum + (Number.isFinite(q) ? q : 0);
+            }, 0);
+            const grossAmount = typeof o.grossAmount === "number"
+                ? o.grossAmount
+                : typeof o.totalAmount === "number"
+                    ? o.totalAmount
+                    : typeof o.subtotal === "number"
+                        ? o.subtotal
+                        : typeof o.grandTotal === "number"
+                            ? o.grandTotal
+                            : 0;
+            const discountAmount = typeof o.discountAmount === "number"
+                ? o.discountAmount
+                : typeof o.discount === "number"
+                    ? o.discount
+                    : 0;
+            const netAmount = Math.max(0, (Number.isFinite(grossAmount) ? grossAmount : 0) -
+                (Number.isFinite(discountAmount) ? discountAmount : 0));
+            orderSummaryById.set(orderId, {
+                orderId,
+                lat: loc.lat,
+                lng: loc.lng,
+                locationStatus: loc.locationStatus,
+                locationSource: loc.locationSource,
+                itemsQty,
+                grossAmount: Number.isFinite(grossAmount) ? grossAmount : 0,
+                discountAmount: Number.isFinite(discountAmount) ? discountAmount : 0,
+                netAmount,
+            });
+        }
+        return res.json({
+            success: true,
+            mode: "PREVIEW",
+            clusters: (result.routes || []).map((r, idx) => ({
+                tempClusterId: `TMP-${idx + 1}`,
+                orderCount: r.orderCount,
+                distanceKm: r.totalDistanceKm,
+                estimatedTimeMin: r.estimatedTimeMin,
+                orders: (r.orders || []).map((id) => {
+                    const orderId = String(id);
+                    return (orderSummaryById.get(orderId) || {
+                        orderId,
+                        lat: null,
+                        lng: null,
+                        locationStatus: "MISSING",
+                        locationSource: "NONE",
+                        itemsQty: 0,
+                        grossAmount: 0,
+                        discountAmount: 0,
+                        netAmount: 0,
+                    });
+                }),
+                routePath: r.routePath,
+            })),
+            vehicleType: result.vehicleType,
+            metadata: result.metadata,
+        });
+    }
+    catch (error) {
+        console.error("Route computation error:", error);
+        res.status(400).json({
+            error: "Route computation failed",
+            message: error.message || "Unknown error occurred",
+        });
+    }
+};
+exports.computeRoutes = computeRoutes;
+const assignComputedCluster = async (req, res) => {
+    try {
+        const deliveryBoyId = String(req.body?.deliveryBoyId || "").trim();
+        const orderIds = Array.isArray(req.body?.orderIds) ? req.body.orderIds : [];
+        const routePath = Array.isArray(req.body?.routePath) ? req.body.routePath : [];
+        if (!deliveryBoyId) {
+            return res.status(400).json({ error: "deliveryBoyId is required" });
+        }
+        if (!orderIds || orderIds.length === 0) {
+            return res.status(400).json({ error: "orderIds is required" });
+        }
+        const deliveryBoy = await DeliveryBoy_1.DeliveryBoy.findById(deliveryBoyId).select("_id userId vehicleType isActive availability");
+        if (!deliveryBoy) {
+            return res.status(404).json({ error: "Delivery boy not found" });
+        }
+        const vt = String(deliveryBoy.vehicleType || "");
+        if (vt.toUpperCase() !== "AUTO") {
+            return res.status(400).json({
+                error: "Delivery boy vehicleType must be AUTO",
+                message: `vehicleType must be AUTO, got ${vt}`,
+            });
+        }
+        if (!deliveryBoy.isActive) {
+            return res.status(400).json({ error: "Delivery boy is not active" });
+        }
+        if (String(deliveryBoy.availability || "").toLowerCase() !== "available") {
+            return res.status(409).json({ error: "Delivery boy is not available" });
+        }
+        const existingActive = await Route_1.Route.findOne({
+            deliveryBoyId: deliveryBoy._id,
+            status: { $in: ["ASSIGNED", "IN_PROGRESS"] },
+        }).select("routeId status");
+        if (existingActive) {
+            return res.status(409).json({
+                error: "Delivery boy already has an active route",
+                message: `Delivery boy already has active route ${String(existingActive.routeId)} (${String(existingActive.status)})`,
+            });
+        }
+        const orders = await Order_1.Order.find({ _id: { $in: orderIds } }).select("_id orderStatus deliveryBoyId address");
+        if (orders.length !== orderIds.length) {
+            return res.status(400).json({
+                error: "Some orders not found",
+                message: `Found ${orders.length}/${orderIds.length} orders`,
+            });
+        }
+        const notPacked = orders.filter((o) => !["PACKED", "packed"].includes(String(o.orderStatus)));
+        if (notPacked.length > 0) {
+            return res.status(409).json({
+                error: "Some orders are not PACKED",
+                message: `Orders must be PACKED before assignment (bad count: ${notPacked.length})`,
+            });
+        }
+        const alreadyAssigned = orders.filter((o) => !!o.deliveryBoyId);
+        if (alreadyAssigned.length > 0) {
+            return res.status(409).json({
+                error: "Some orders are already assigned",
+                message: `Orders must be unassigned before assignment (bad count: ${alreadyAssigned.length})`,
+            });
+        }
+        const orderInputs = orders.map((order) => {
+            if (!order.address?.lat || !order.address?.lng) {
+                throw new Error(`Order ${order._id} missing delivery address coordinates`);
+            }
+            return {
+                orderId: String(order._id),
+                lat: order.address.lat,
+                lng: order.address.lng,
+                pincode: order.address.pincode,
+                locality: order.address.city || order.address.admin_district,
+            };
+        });
+        const result = cvrpRouteAssignmentService_1.cvrpRouteAssignmentService.computeRoutes(orderInputs, {
+            type: "AUTO",
+            capacity: 1,
+            maxDistanceKm: 1000000,
+        });
+        const inputSet = new Set(orderIds.map((x) => String(x)));
+        const matching = (result.routes || []).find((r) => {
+            if (!Array.isArray(r.orders))
+                return false;
+            if (r.orders.length !== inputSet.size)
+                return false;
+            for (const id of r.orders) {
+                if (!inputSet.has(String(id)))
+                    return false;
+            }
+            return true;
+        });
+        if (!matching) {
+            return res.status(400).json({
+                error: "Selected cluster is not valid for current orders",
+                message: "Recompute preview and try again",
+            });
+        }
+        const ordersJoined = (matching.orders || []).join(",");
+        const digest = crypto_1.default.createHash("sha1").update(ordersJoined).digest("hex").slice(0, 12);
+        const stableRouteId = `AUTO-${digest}`;
+        const now = new Date();
+        const dpUserId = deliveryBoy.userId
+            ? new mongoose_1.default.Types.ObjectId(String(deliveryBoy.userId))
+            : null;
+        const persisted = await Route_1.Route.create({
+            routeId: stableRouteId,
+            orderIds: (matching.orders || []).map((id) => new mongoose_1.default.Types.ObjectId(String(id))),
+            routePath: Array.isArray(routePath) && routePath.length > 0
+                ? routePath
+                : Array.isArray(matching.routePath) && matching.routePath.length > 0
+                    ? matching.routePath
+                    : ["WAREHOUSE", ...(matching.orders || [])],
+            vehicleType: "AUTO",
+            totalDistanceKm: Number(matching.totalDistanceKm) || 0,
+            estimatedTimeMin: Number(matching.estimatedTimeMin) || 0,
+            status: "ASSIGNED",
+            deliveryBoyId: deliveryBoy._id,
+            deliveredCount: 0,
+            failedCount: 0,
+            computedAt: now,
+            assignedAt: now,
+        });
+        await Order_1.Order.updateMany({ _id: { $in: (matching.orders || []).map((id) => new mongoose_1.default.Types.ObjectId(String(id))) } }, {
+            $set: {
+                deliveryBoyId: deliveryBoy._id,
+                deliveryPartnerId: dpUserId,
+                deliveryStatus: "in_transit",
+                orderStatus: "OUT_FOR_DELIVERY",
+                outForDeliveryAt: now,
+            },
+        });
+        res.json({
+            success: true,
+            route: {
+                routeId: persisted.routeId,
+                status: persisted.status,
+                deliveryBoyId: String(deliveryBoy._id),
+                totalOrders: (matching.orders || []).length,
+            },
+        });
+    }
+    catch (error) {
+        res.status(500).json({ error: "Failed to assign route", message: error?.message || "Unknown error" });
+    }
+};
+exports.assignComputedCluster = assignComputedCluster;
+/**
+ * Purge all orders and optionally persisted routes (admin-only, requires confirmation)
+ * POST /api/admin/orders/purge
+ *
+ * Expected body:
+ * {
+ *   confirm: "DELETE_ALL_ORDERS",
+ *   alsoDeleteRoutes?: boolean (default: true)
+ * }
+ */
+const purgeOrders = async (req, res) => {
+    try {
+        const { confirm, alsoDeleteRoutes = true } = req.body || {};
+        if (confirm !== "DELETE_ALL_ORDERS") {
+            return res.status(400).json({
+                error: "Invalid confirmation",
+                message: 'You must include { "confirm": "DELETE_ALL_ORDERS" } in the request body.',
+            });
+        }
+        // Count before deletion
+        const ordersCount = await Order_1.Order.countDocuments();
+        let routesCount = 0;
+        if (alsoDeleteRoutes) {
+            routesCount = await Route_1.Route.countDocuments();
+        }
+        // Delete orders
+        const deleteOrdersResult = await Order_1.Order.deleteMany({});
+        const deletedOrders = deleteOrdersResult.deletedCount || 0;
+        // Optionally delete persisted routes
+        let deletedRoutes = 0;
+        if (alsoDeleteRoutes) {
+            const deleteRoutesResult = await Route_1.Route.deleteMany({});
+            deletedRoutes = deleteRoutesResult.deletedCount || 0;
+        }
+        res.json({
+            success: true,
+            deletedOrders,
+            deletedRoutes,
+            beforeCounts: { orders: ordersCount, routes: routesCount },
+            afterCounts: { orders: 0, routes: alsoDeleteRoutes ? 0 : routesCount },
+        });
+    }
+    catch (error) {
+        console.error("Purge orders error:", error);
+        res.status(500).json({
+            error: "Failed to purge orders",
+            message: error.message || "Unknown error occurred",
+        });
+    }
+};
+exports.purgeOrders = purgeOrders;

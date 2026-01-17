@@ -6,17 +6,20 @@ import { useGetCartQuery } from "../store/api";
 
 export const useCartPersistence = () => {
   const dispatch = useDispatch();
-  const { isAuthenticated } = useSelector(
+  const { isAuthenticated, user } = useSelector(
     (state: RootState) => state.auth
   );
 
-  // Fetch cart from backend for authenticated users
+  // Only fetch cart for customer and admin roles, not delivery
+  const shouldFetchCart = isAuthenticated && user?.role === "customer" && !user?.isAdmin;
+
+  // Fetch cart from backend for authenticated users (not delivery users)
   const {
     data: backendCart,
     isLoading: isLoadingCart,
     error: cartError,
   } = useGetCartQuery(undefined, {
-    skip: !isAuthenticated,
+    skip: !shouldFetchCart,
   });
 
   // Load cart from backend when data is available

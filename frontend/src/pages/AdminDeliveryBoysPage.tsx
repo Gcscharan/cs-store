@@ -54,7 +54,6 @@ const AdminDeliveryBoysPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedBoy, setSelectedBoy] = useState<DeliveryBoy | null>(null);
   const [showApprovalModal, setShowApprovalModal] = useState(false);
-  const [assignedAreas, setAssignedAreas] = useState("");
 
   useEffect(() => {
     fetchDeliveryBoys();
@@ -85,7 +84,8 @@ const AdminDeliveryBoysPage: React.FC = () => {
       }
 
       const data = await response.json();
-      setDeliveryBoys(data.deliveryBoys || []);
+      const list = Array.isArray(data.deliveryBoys) ? data.deliveryBoys : [];
+      setDeliveryBoys(list.filter((b: any) => b && b.user && b.user._id));
     } catch (error: any) {
       console.error("Error fetching delivery boys:", error);
       toast.error(error.message || "Failed to load delivery partners");
@@ -95,28 +95,28 @@ const AdminDeliveryBoysPage: React.FC = () => {
   };
 
   const filterDeliveryBoys = () => {
-    let filtered = [...deliveryBoys];
+    let filtered = [...deliveryBoys].filter((b: any) => b && b.user);
 
     // Filter by status
     if (statusFilter !== "all") {
-      filtered = filtered.filter((boy) => boy.user.status === statusFilter);
+      filtered = filtered.filter((boy: any) => boy?.user?.status === statusFilter);
     }
 
     // Filter by search term
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(
-        (boy) =>
-          boy.user.name.toLowerCase().includes(term) ||
-          boy.user.email.toLowerCase().includes(term) ||
-          boy.user.phone.includes(term)
+        (boy: any) =>
+          String(boy?.user?.name || "").toLowerCase().includes(term) ||
+          String(boy?.user?.email || "").toLowerCase().includes(term) ||
+          String(boy?.user?.phone || "").includes(term)
       );
     }
 
     setFilteredBoys(filtered);
   };
 
-  const handleApprove = async (userId: string, areas?: string[]) => {
+  const handleApprove = async (userId: string) => {
     try {
       if (!tokens?.accessToken) {
         throw new Error("No authentication token available");
@@ -125,12 +125,8 @@ const AdminDeliveryBoysPage: React.FC = () => {
       const response = await fetch(`/api/admin/delivery-boys/${userId}/approve`, {
         method: "PUT",
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${tokens.accessToken}`,
         },
-        body: JSON.stringify({
-          assignedAreas: areas || [],
-        }),
       });
 
       if (!response.ok) {
@@ -141,7 +137,6 @@ const AdminDeliveryBoysPage: React.FC = () => {
       toast.success("Delivery partner approved successfully!");
       setShowApprovalModal(false);
       setSelectedBoy(null);
-      setAssignedAreas("");
       fetchDeliveryBoys();
     } catch (error: any) {
       console.error("Error approving delivery boy:", error);
@@ -241,7 +236,10 @@ const AdminDeliveryBoysPage: React.FC = () => {
               <div>
                 <p className="text-sm text-gray-600 mb-1">Pending Approval</p>
                 <p className="text-2xl font-bold text-yellow-600">
-                  {deliveryBoys.filter((b) => b.user.status === "pending").length}
+                  {
+                    deliveryBoys.filter((b: any) => b?.user?.status === "pending")
+                      .length
+                  }
                 </p>
               </div>
               <Clock className="h-8 w-8 text-yellow-600" />
@@ -253,7 +251,7 @@ const AdminDeliveryBoysPage: React.FC = () => {
               <div>
                 <p className="text-sm text-gray-600 mb-1">Active Partners</p>
                 <p className="text-2xl font-bold text-green-600">
-                  {deliveryBoys.filter((b) => b.user.status === "active").length}
+                  {deliveryBoys.filter((b: any) => b?.user?.status === "active").length}
                 </p>
               </div>
               <CheckCircle className="h-8 w-8 text-green-600" />
@@ -453,30 +451,12 @@ const AdminDeliveryBoysPage: React.FC = () => {
                 <strong>Vehicle:</strong>{" "}
                 {selectedBoy.user.deliveryProfile?.vehicleType}
               </p>
-
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Assign Delivery Areas (Pincodes)
-              </label>
-              <input
-                type="text"
-                value={assignedAreas}
-                onChange={(e) => setAssignedAreas(e.target.value)}
-                placeholder="e.g., 500001, 500002, 500003"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Enter comma-separated pincodes
-              </p>
             </div>
 
             <div className="flex gap-3">
               <button
                 onClick={() => {
-                  const areas = assignedAreas
-                    .split(",")
-                    .map((a) => a.trim())
-                    .filter((a) => a);
-                  handleApprove(selectedBoy.user._id, areas);
+                  handleApprove(selectedBoy.user._id);
                 }}
                 className="flex-1 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors"
               >
@@ -486,7 +466,6 @@ const AdminDeliveryBoysPage: React.FC = () => {
                 onClick={() => {
                   setShowApprovalModal(false);
                   setSelectedBoy(null);
-                  setAssignedAreas("");
                 }}
                 className="flex-1 py-3 bg-gray-200 text-gray-800 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
               >

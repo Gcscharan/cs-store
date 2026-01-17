@@ -31,12 +31,12 @@ const TopNav = () => {
   };
 
   const handleLogoClick = () => {
-    // If already on Home page, reload the page
-    if (location.pathname === "/") {
+    const isAdmin = !!(user?.isAdmin || user?.role === "admin");
+    const targetPath = isAdmin ? "/admin" : "/";
+    if (location.pathname === targetPath) {
       window.location.reload();
     } else {
-      // Navigate to Home page if on any other page
-      navigate("/");
+      navigate(targetPath);
     }
   };
 
@@ -84,7 +84,7 @@ const TopNav = () => {
 
   const isCartPage = location.pathname === "/cart";
   const isAdminPage = location.pathname.startsWith("/admin");
-  const isAdmin = user?.isAdmin;
+  const isAdmin = !!(user?.isAdmin || user?.role === "admin");
 
   const cartUniqueCount = cart.items.length;
 

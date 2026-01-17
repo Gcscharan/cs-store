@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { RootState } from "../store";
+import { toApiUrl } from "../config/runtime";
 import {
   ArrowLeft,
   User,
@@ -91,7 +92,7 @@ const AdminProfilePage: React.FC = () => {
     try {
       setIsChangingPassword(true);
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/auth/change-password`, {
+      const response = await fetch(toApiUrl("/auth/change-password"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

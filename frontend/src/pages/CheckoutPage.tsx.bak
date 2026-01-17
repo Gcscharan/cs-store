@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "../store";
+import { toApiUrl } from "../config/runtime";
 import { clearCart } from "../store/slices/cartSlice";
 import { useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
@@ -344,9 +345,7 @@ const CheckoutPage = () => {
     try {
       // Call the real backend API
       const response = await fetch(
-        `${
-          import.meta.env.VITE_API_URL || "http://localhost:5001"
-        }/api/payment/verify-upi`,
+        toApiUrl("/payment/verify-upi"),
         {
           method: "POST",
           headers: {
@@ -421,9 +420,7 @@ const CheckoutPage = () => {
     try {
       const token = localStorage.getItem("token");
       const response = await fetch(
-        `${
-          import.meta.env.VITE_API_URL || "http://localhost:5001"
-        }/api/otp/payment/generate`,
+        toApiUrl("/otp/payment/generate"),
         {
           method: "POST",
           headers: {
@@ -464,9 +461,7 @@ const CheckoutPage = () => {
     try {
       const token = localStorage.getItem("token");
       const response = await fetch(
-        `${
-          import.meta.env.VITE_API_URL || "http://localhost:5001"
-        }/api/otp/payment/verify`,
+        toApiUrl("/otp/payment/verify"),
         {
           method: "POST",
           headers: {
@@ -712,7 +707,7 @@ const CheckoutPage = () => {
 
       // Create Razorpay order
       const createOrderResponse = await fetch(
-        `${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/razorpay/create-order`,
+        toApiUrl("/razorpay/create-order"),
         {
           method: "POST",
           headers: {

@@ -7,8 +7,49 @@ interface AuthRequest extends Request {
   file?: any; // For multer file uploads
 }
 
+interface GoogleAuthOnlyClaims {
+  authState: "GOOGLE_AUTH_ONLY";
+  email: string;
+  provider?: string;
+  providerId?: string;
+  name?: string;
+}
+
 // Export the interface for use in other files
 export { AuthRequest };
+
+export const authenticateGoogleAuthOnly = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<Response | void> => {
+  try {
+    const authHeader = req.headers.authorization;
+    const token = authHeader && authHeader.split(" ")[1];
+
+    if (!token) {
+      return res.status(401).json({ message: "Authentication required" });
+    }
+
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET || "your-secret-key"
+    ) as any;
+
+    if (decoded?.authState !== "GOOGLE_AUTH_ONLY" || !decoded?.email) {
+      return res.status(403).json({ message: "Invalid onboarding session" });
+    }
+
+    (req as any).googleAuthOnly = decoded as GoogleAuthOnlyClaims;
+    next();
+  } catch (error) {
+    if (error instanceof jwt.JsonWebTokenError) {
+      return res.status(401).json({ message: "Invalid or expired token" });
+    }
+
+    return res.status(401).json({ message: "Invalid or expired token" });
+  }
+};
 
 export const authenticateToken = async (
   req: AuthRequest,

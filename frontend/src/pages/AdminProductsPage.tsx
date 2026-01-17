@@ -35,7 +35,7 @@ interface Product {
 
 const AdminProductsPage: React.FC = () => {
   const navigate = useNavigate();
-  const { tokens, isAuthenticated, user } = useSelector(
+  const { tokens, isAuthenticated, user, loading } = useSelector(
     (state: RootState) => state.auth
   );
   const [updateProductMutation] = useUpdateProductMutation();
@@ -60,12 +60,17 @@ const AdminProductsPage: React.FC = () => {
 
   // Check authentication
   useEffect(() => {
-    if (!isAuthenticated || !user?.isAdmin) {
-      navigate("/login");
+    if (loading) {
+      return;
+    }
+
+    const isAdmin = !!(user?.isAdmin || user?.role === "admin");
+    if (!isAuthenticated || !isAdmin) {
+      navigate("/login", { replace: true });
       return;
     }
     fetchProducts();
-  }, [isAuthenticated, user, navigate]);
+  }, [loading, isAuthenticated, user, navigate]);
 
   const fetchProducts = async () => {
     try {
@@ -91,7 +96,7 @@ const AdminProductsPage: React.FC = () => {
         if (response.status === 401 || response.status === 403) {
           // Clear invalid auth data and redirect to login
           localStorage.removeItem("auth");
-          window.location.href = "/login";
+          navigate("/login", { replace: true });
           return;
         }
 

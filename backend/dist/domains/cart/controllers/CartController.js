@@ -86,6 +86,9 @@ const updateCartItem = async (req, res) => {
         if (message === "Cart not found") {
             return res.status(404).json({ message });
         }
+        if (message === "Item not found in cart") {
+            return res.status(404).json({ message });
+        }
         res.status(500).json({ message });
     }
 };
@@ -111,6 +114,9 @@ const removeFromCart = async (req, res) => {
             return res.status(400).json({ message });
         }
         if (message === "Cart not found") {
+            return res.status(404).json({ message });
+        }
+        if (message === "Item not found in cart") {
             return res.status(404).json({ message });
         }
         res.status(500).json({ message });

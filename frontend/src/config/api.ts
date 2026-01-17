@@ -1,7 +1,9 @@
 import axios from "axios";
 import { store } from "../store";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5001";
+import { getApiOrigin } from "./runtime";
+
+const API_URL = getApiOrigin();
 
 export const api = axios.create({
   baseURL: API_URL,

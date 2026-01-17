@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { logout, resetAppState } from '../store/slices/authSlice';
 import { api } from '../store/api';
 import { auditLocalStorage, checkForContamination } from '../utils/storageDebug';
+import { toApiUrl } from '../config/runtime';
 
 /**
  * Enhanced logout hook that performs complete state cleanup
@@ -48,7 +49,7 @@ export const useLogout = () => {
         console.warn('⚠️ No access token found, cannot call secure logout endpoint');
       } else {
         // Call PROTECTED backend logout endpoint
-        const response = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/auth/logout`, {
+        const response = await fetch(toApiUrl('/auth/logout'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

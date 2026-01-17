@@ -3,6 +3,7 @@ import { X, Phone, Mail, User } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { setUser, setTokens } from "../store/slices/authSlice";
 import { RootState } from "../store";
+import { toApiUrl } from "../config/runtime";
 
 interface OtpLoginModalProps {
   isOpen: boolean;
@@ -88,7 +89,7 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
       console.log("🔍 Sending OTP request payload:", payload);
 
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/auth/send-otp`,
+        toApiUrl("/auth/send-otp"),
         {
           method: "POST",
           headers: {
@@ -147,7 +148,7 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
 
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/auth/verify-otp`,
+        toApiUrl("/auth/verify-otp"),
         {
           method: "POST",
           headers: {
@@ -211,7 +212,7 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
 
   const handleGoogleAuth = () => {
     // Redirect to Google OAuth
-    window.location.href = `${import.meta.env.VITE_API_URL || "http://localhost:5001"}/api/auth/google`;
+    window.location.href = toApiUrl("/auth/google");
   };
 
   // Don't render modal if modal is not open

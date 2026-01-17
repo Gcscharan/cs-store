@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Loader } from "@googlemaps/js-api-loader";
+import { loadGoogleMapsOnce } from "../utils/googleMapsLoader";
 
 // Google Maps can load at runtime; relax types for build-time safety
 declare const google: any;
@@ -44,20 +44,38 @@ const MapView = ({
         setIsLoading(true);
         setError(null);
 
-        const loader = new Loader({
-          apiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "",
-          version: "weekly",
-          libraries: ["places", "geometry"],
-        });
+        const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
+        if (!apiKey) {
+          throw new Error("Missing VITE_GOOGLE_MAPS_API_KEY");
+        }
 
-        const google = await (loader as any).load();
+        const mapId = import.meta.env.VITE_GOOGLE_MAPS_MAP_ID || "";
+        if (!mapId) {
+          throw new Error(
+            "Missing VITE_GOOGLE_MAPS_MAP_ID. A Map ID is required for Advanced Markers (AdvancedMarkerElement)."
+          );
+        }
+
+        await loadGoogleMapsOnce(apiKey);
 
         if (!mapRef.current) return;
 
         const mapInstance = new google.maps.Map(mapRef.current, {
           center,
           zoom,
+          mapId,
           mapTypeId: google.maps.MapTypeId.ROADMAP,
+          clickableIcons: false,
+          disableDefaultUI: false,
+          zoomControl: true,
+          fullscreenControl: true,
+          streetViewControl: false,
+          mapTypeControl: false,
+          keyboardShortcuts: true,
+          gestureHandling: "greedy",
+          draggable: true,
+          scrollwheel: true,
+          disableDoubleClickZoom: false,
           styles: [
             {
               featureType: "poi",

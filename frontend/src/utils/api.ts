@@ -1,11 +1,11 @@
+import { getApiBaseUrl, toApiUrl } from "../config/runtime";
+
 // Centralized API configuration
-export const API_BASE_URL = process.env.NODE_ENV === 'production' 
-  ? 'https://your-backend-domain.com/api'  // Replace with actual production URL
-  : 'http://localhost:5001/api';
+export const API_BASE_URL = getApiBaseUrl();
 
 // Helper function to make API calls with proper base URL
 export const apiCall = async (endpoint: string, options?: RequestInit) => {
-  const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
+  const url = toApiUrl(endpoint);
   return fetch(url, options);
 };
 

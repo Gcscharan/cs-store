@@ -76,6 +76,12 @@ export interface IEarnings {
   commission: number;
 }
 
+export interface IEstimatedDeliveryWindow {
+  start: Date;
+  end: Date;
+  confidence: "high" | "medium";
+}
+
 export interface IOrder extends Document {
   _id: mongoose.Types.ObjectId;
   userId: mongoose.Types.ObjectId;
@@ -83,6 +89,8 @@ export interface IOrder extends Document {
   items: IOrderItem[];
   itemsTotal?: number;
   deliveryFee?: number;
+  distanceKm?: number; // Distance in kilometers (calculated at order time)
+  coordsSource?: 'saved'; // Source of coordinates used for calculation
   discount?: number;
   grandTotal?: number;
   totalAmount: number;
@@ -127,7 +135,9 @@ export interface IOrder extends Document {
   razorpaySignature?: string;
   deliveryProof?: IDeliveryProof;
   deliveryOtp?: string; // 4-digit OTP for verification
+  deliveryOtpGeneratedAt?: Date;
   deliveryOtpExpiresAt?: Date;
+  deliveryOtpIssuedTo?: mongoose.Types.ObjectId;
   failureReasonCode?: string;
   failureNotes?: string;
   returnReason?: string;
@@ -146,6 +156,7 @@ export interface IOrder extends Document {
   inTransitAt?: Date;
   arrivedAt?: Date;
   deliveredAt?: Date;
+  estimatedDeliveryWindow?: IEstimatedDeliveryWindow;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -259,6 +270,15 @@ const EarningsSchema = new Schema<IEarnings>({
   commission: { type: Number, default: 0 },
 });
 
+const EstimatedDeliveryWindowSchema = new Schema<IEstimatedDeliveryWindow>(
+  {
+    start: { type: Date, required: true },
+    end: { type: Date, required: true },
+    confidence: { type: String, enum: ["high", "medium"], required: true },
+  },
+  { _id: false }
+);
+
 const OrderSchema = new Schema<IOrder>(
   {
     userId: {
@@ -278,6 +298,15 @@ const OrderSchema = new Schema<IOrder>(
     deliveryFee: {
       type: Number,
       min: 0,
+    },
+    distanceKm: {
+      type: Number,
+      min: 0,
+    },
+    coordsSource: {
+      type: String,
+      enum: ['saved'],
+      default: 'saved',
     },
     discount: {
       type: Number,
@@ -319,6 +348,9 @@ const OrderSchema = new Schema<IOrder>(
         "PENDING_PAYMENT",
         "CONFIRMED",
         "PACKED",
+        "ASSIGNED",
+        "PICKED_UP",
+        "IN_TRANSIT",
         "OUT_FOR_DELIVERY",
         "DELIVERED",
         "FAILED",
@@ -366,9 +398,11 @@ const OrderSchema = new Schema<IOrder>(
       type: String,
       length: 4,
     },
+    deliveryOtpGeneratedAt: { type: Date },
     deliveryOtpExpiresAt: {
       type: Date,
     },
+    deliveryOtpIssuedTo: { type: Schema.Types.ObjectId, ref: "DeliveryBoy" },
     failureReasonCode: {
       type: String,
       trim: true,
@@ -403,6 +437,7 @@ const OrderSchema = new Schema<IOrder>(
     inTransitAt: { type: Date },
     arrivedAt: { type: Date },
     deliveredAt: { type: Date },
+    estimatedDeliveryWindow: { type: EstimatedDeliveryWindowSchema, required: false },
   },
   {
     timestamps: true,

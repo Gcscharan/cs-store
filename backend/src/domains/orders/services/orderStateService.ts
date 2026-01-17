@@ -3,6 +3,19 @@ import { Order } from "../../../models/Order";
 import { OrderEvent } from "../../../models/OrderEvent";
 import { OrderStatus } from "../enums/OrderStatus";
 import { inventoryService } from "./inventoryService";
+import { inventoryReservationService } from "./inventoryReservationService";
+import { publish } from "../../events/eventBus";
+import { stableEventId } from "../../events/eventId";
+import {
+  createDeliveryAssignedEvent,
+  createOrderCancelledEvent,
+  createOrderConfirmedEvent,
+  createOrderDeliveredEvent,
+  createOrderFailedEvent,
+  createOrderInTransitEvent,
+  createOrderPackedEvent,
+  createOrderPickedUpEvent,
+} from "../../events/order.events";
 
 export type OrderActorRole = "CUSTOMER" | "DELIVERY_PARTNER" | "ADMIN";
 
@@ -36,8 +49,11 @@ export class OtpVerificationError extends Error {
 const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   [OrderStatus.CREATED]: [OrderStatus.CONFIRMED, OrderStatus.CANCELLED],
   [OrderStatus.CONFIRMED]: [OrderStatus.PACKED, OrderStatus.CANCELLED],
-  [OrderStatus.PACKED]: [OrderStatus.OUT_FOR_DELIVERY],
-  [OrderStatus.OUT_FOR_DELIVERY]: [OrderStatus.DELIVERED, OrderStatus.FAILED],
+  [OrderStatus.PACKED]: [OrderStatus.ASSIGNED, OrderStatus.CANCELLED],
+  [OrderStatus.ASSIGNED]: [OrderStatus.PICKED_UP, OrderStatus.PACKED],
+  [OrderStatus.PICKED_UP]: [OrderStatus.IN_TRANSIT],
+  [OrderStatus.IN_TRANSIT]: [OrderStatus.DELIVERED, OrderStatus.FAILED],
+  [OrderStatus.OUT_FOR_DELIVERY]: [],
   [OrderStatus.FAILED]: [OrderStatus.RETURNED],
   [OrderStatus.DELIVERED]: [],
   [OrderStatus.RETURNED]: [],
@@ -50,26 +66,32 @@ type TransitionInput = {
   actorRole: OrderActorRole;
   actorId: string;
   meta?: unknown;
+  session?: mongoose.ClientSession;
 };
 
 function normalizeOrderStatus(raw: any): OrderStatus | null {
-  const v = String(raw || "").trim();
+  const v = String(raw || "").trim().toUpperCase();
   if (!v) return null;
+
+  if (v === "PENDING" || v === "PENDING_PAYMENT") return OrderStatus.CREATED;
 
   if (v === OrderStatus.CREATED) return OrderStatus.CREATED;
   if (v === OrderStatus.CONFIRMED) return OrderStatus.CONFIRMED;
   if (v === OrderStatus.PACKED) return OrderStatus.PACKED;
-  if (v === OrderStatus.OUT_FOR_DELIVERY) return OrderStatus.OUT_FOR_DELIVERY;
+  if (v === OrderStatus.ASSIGNED) return OrderStatus.ASSIGNED;
+  if (v === OrderStatus.PICKED_UP) return OrderStatus.PICKED_UP;
+  if (v === OrderStatus.IN_TRANSIT) return OrderStatus.IN_TRANSIT;
+  if (v === OrderStatus.OUT_FOR_DELIVERY) return OrderStatus.IN_TRANSIT;
   if (v === OrderStatus.DELIVERED) return OrderStatus.DELIVERED;
   if (v === OrderStatus.FAILED) return OrderStatus.FAILED;
   if (v === OrderStatus.RETURNED) return OrderStatus.RETURNED;
   if (v === OrderStatus.CANCELLED) return OrderStatus.CANCELLED;
 
   // legacy values (best-effort, no new states)
-  if (v === "pending" || v === "created") return OrderStatus.CREATED;
-  if (v === "confirmed") return OrderStatus.CONFIRMED;
-  if (v === "delivered") return OrderStatus.DELIVERED;
-  if (v === "cancelled") return OrderStatus.CANCELLED;
+  if (v === "CREATED") return OrderStatus.CREATED;
+  if (v === "CONFIRMED") return OrderStatus.CONFIRMED;
+  if (v === "DELIVERED") return OrderStatus.DELIVERED;
+  if (v === "CANCELLED") return OrderStatus.CANCELLED;
 
   return null;
 }
@@ -104,7 +126,7 @@ function assertAllowedByRole(params: {
   if (actorRole === "CUSTOMER") {
     const canCancel =
       to === OrderStatus.CANCELLED &&
-      (from === OrderStatus.CREATED || from === OrderStatus.CONFIRMED);
+      from === OrderStatus.CREATED;
     if (!canCancel) {
       throw new ForbiddenTransitionError(
         `Role CUSTOMER cannot transition ${from} -> ${to}`
@@ -115,8 +137,9 @@ function assertAllowedByRole(params: {
 
   if (actorRole === "DELIVERY_PARTNER") {
     const allowed =
-      (from === OrderStatus.PACKED && to === OrderStatus.OUT_FOR_DELIVERY) ||
-      (from === OrderStatus.OUT_FOR_DELIVERY &&
+      (from === OrderStatus.ASSIGNED && to === OrderStatus.PICKED_UP) ||
+      (from === OrderStatus.PICKED_UP && to === OrderStatus.IN_TRANSIT) ||
+      (from === OrderStatus.IN_TRANSIT &&
         (to === OrderStatus.DELIVERED || to === OrderStatus.FAILED));
     if (!allowed) {
       throw new ForbiddenTransitionError(
@@ -130,9 +153,13 @@ function assertAllowedByRole(params: {
     const allowed =
       (from === OrderStatus.CREATED && to === OrderStatus.CONFIRMED) ||
       (from === OrderStatus.CONFIRMED && to === OrderStatus.PACKED) ||
+      (from === OrderStatus.PACKED && to === OrderStatus.ASSIGNED) ||
+      (from === OrderStatus.ASSIGNED && to === OrderStatus.PACKED) ||
       (from === OrderStatus.FAILED && to === OrderStatus.RETURNED) ||
       (to === OrderStatus.CANCELLED &&
-        (from === OrderStatus.CREATED || from === OrderStatus.CONFIRMED));
+        (from === OrderStatus.CREATED ||
+          from === OrderStatus.CONFIRMED ||
+          from === OrderStatus.PACKED));
 
     if (!allowed) {
       throw new ForbiddenTransitionError(`Role ADMIN cannot transition ${from} -> ${to}`);
@@ -146,6 +173,8 @@ function assertAllowedByRole(params: {
 function getTimestampField(to: OrderStatus):
   | "confirmedAt"
   | "packedAt"
+  | "pickedUpAt"
+  | "inTransitAt"
   | "outForDeliveryAt"
   | "deliveredAt"
   | "failedAt"
@@ -157,6 +186,10 @@ function getTimestampField(to: OrderStatus):
       return "confirmedAt";
     case OrderStatus.PACKED:
       return "packedAt";
+    case OrderStatus.PICKED_UP:
+      return "pickedUpAt";
+    case OrderStatus.IN_TRANSIT:
+      return "inTransitAt";
     case OrderStatus.OUT_FOR_DELIVERY:
       return "outForDeliveryAt";
     case OrderStatus.DELIVERED:
@@ -174,15 +207,19 @@ function getTimestampField(to: OrderStatus):
 
 export const orderStateService = {
   async transition(input: TransitionInput) {
-    const session = await mongoose.startSession();
+    const ownsSession = !input.session;
+    const session = input.session || (await mongoose.startSession());
 
     try {
       let updatedOrder: any = null;
+      let fromStatus: OrderStatus | null = null;
+      let toStatus: OrderStatus | null = null;
+      let transitionOccurredAt: string | null = null;
 
       const maxAttempts = 3;
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
-          await session.withTransaction(async () => {
+          const runOnce = async () => {
             const order = await Order.findById(input.orderId).session(session);
             if (!order) {
               const err: any = new Error("Order not found");
@@ -197,9 +234,11 @@ export const orderStateService = {
               );
             }
 
-            const to = input.toStatus;
+            fromStatus = fromCanonical;
 
-            // Idempotency (including legacy casing)
+            const to = input.toStatus;
+            toStatus = to;
+
             if (fromCanonical === to) {
               updatedOrder = order;
               return;
@@ -212,10 +251,14 @@ export const orderStateService = {
               actorRole: input.actorRole,
             });
 
-            // Ownership enforcement
             if (input.actorRole === "DELIVERY_PARTNER") {
-              const assigned = (order as any).deliveryPartnerId || (order as any).deliveryBoyId;
-              if (!assigned || String(assigned) !== String(input.actorId)) {
+              const assignedPartnerId = (order as any).deliveryPartnerId;
+              const assignedBoyId = (order as any).deliveryBoyId;
+              const actorId = String(input.actorId);
+              const matchesPartner = assignedPartnerId && String(assignedPartnerId) === actorId;
+              const matchesBoy = assignedBoyId && String(assignedBoyId) === actorId;
+
+              if (!matchesPartner && !matchesBoy) {
                 throw new ForbiddenTransitionError(
                   "Delivery partner is not assigned to this order"
                 );
@@ -231,48 +274,50 @@ export const orderStateService = {
             }
 
             const now = new Date();
+            transitionOccurredAt = now.toISOString();
             const meta: any = input.meta || {};
 
-            // OTP enforcement for prepaid deliveries
-            if (fromCanonical === OrderStatus.OUT_FOR_DELIVERY && to === OrderStatus.DELIVERED) {
-              const paymentMethod = String((order as any).paymentMethod || "").toLowerCase();
-              const paymentStatus = String((order as any).paymentStatus || "").toUpperCase();
-              const isPrepaid = paymentMethod === "upi" || paymentStatus === "PAID";
-
-              if (isPrepaid) {
-                const providedOtp = String(meta?.otp || "").trim();
-                if (!providedOtp) {
-                  throw new OtpVerificationError("OTP is required to complete delivery");
-                }
-
-                const expectedOtp = String((order as any).deliveryOtp || "").trim();
-                const expiresAt = (order as any).deliveryOtpExpiresAt as Date | undefined;
-
-                if (!expectedOtp || !expiresAt || !(expiresAt instanceof Date)) {
-                  throw new OtpVerificationError("Delivery OTP is not available");
-                }
-
-                if (expiresAt.getTime() <= Date.now()) {
-                  throw new OtpVerificationError("Delivery OTP expired");
-                }
-
-                if (providedOtp !== expectedOtp) {
-                  throw new OtpVerificationError("Invalid delivery OTP");
-                }
-
-                (order as any).deliveryProof = {
-                  type: "otp",
-                  verifiedAt: now,
-                  otpVerifiedAt: now,
-                  photoUrl: meta?.photoUrl,
-                  signature: meta?.signature,
-                  geo: meta?.geo,
-                  deviceId: meta?.deviceId,
-                };
+            if (fromCanonical === OrderStatus.IN_TRANSIT && to === OrderStatus.DELIVERED) {
+              const providedOtp = String(meta?.otp || "").trim();
+              if (!providedOtp) {
+                throw new OtpVerificationError("OTP is required to complete delivery");
               }
+
+              const expectedOtp = String((order as any).deliveryOtp || "").trim();
+              const expiresAt = (order as any).deliveryOtpExpiresAt as Date | undefined;
+              const issuedTo = (order as any).deliveryOtpIssuedTo;
+
+              if (!expectedOtp || !expiresAt || !(expiresAt instanceof Date)) {
+                throw new OtpVerificationError("Delivery OTP is not available");
+              }
+
+              if (expiresAt.getTime() <= Date.now()) {
+                throw new OtpVerificationError("Delivery OTP expired");
+              }
+
+              if (issuedTo && String(issuedTo) !== String(input.actorId)) {
+                throw new OtpVerificationError("Delivery OTP is not issued for this delivery partner");
+              }
+
+              if (providedOtp !== expectedOtp) {
+                throw new OtpVerificationError("Invalid delivery OTP");
+              }
+
+              (order as any).deliveryProof = {
+                type: "otp",
+                verifiedAt: now,
+                otpVerifiedAt: now,
+                photoUrl: meta?.photoUrl,
+                signature: meta?.signature,
+                geo: meta?.geo,
+                deviceId: meta?.deviceId,
+                deliveredBy: mongoose.Types.ObjectId.isValid(String(input.actorId))
+                  ? new mongoose.Types.ObjectId(String(input.actorId))
+                  : undefined,
+              };
             }
 
-            if (fromCanonical === OrderStatus.OUT_FOR_DELIVERY && to === OrderStatus.FAILED) {
+            if (fromCanonical === OrderStatus.IN_TRANSIT && to === OrderStatus.FAILED) {
               (order as any).failureReasonCode = meta?.failureReasonCode;
               (order as any).failureNotes = meta?.failureNotes;
             }
@@ -281,7 +326,30 @@ export const orderStateService = {
               (order as any).returnReason = meta?.returnReason;
             }
 
-            // Mutate status (ONLY here)
+            if (to === OrderStatus.IN_TRANSIT) {
+              const incoming = (meta as any)?.estimatedDeliveryWindow;
+              const hasIncoming = incoming?.start && incoming?.end;
+
+              if (hasIncoming) {
+                (order as any).estimatedDeliveryWindow = {
+                  start: new Date(incoming.start),
+                  end: new Date(incoming.end),
+                  confidence: incoming?.confidence === "high" ? "high" : "medium",
+                };
+              } else if (!(order as any).estimatedDeliveryWindow?.start || !(order as any).estimatedDeliveryWindow?.end) {
+                const distanceKm = Number((order as any).distanceKm);
+                const confidence = Number.isFinite(distanceKm) && distanceKm > 0 && distanceKm <= 5 ? "high" : "medium";
+                const startMinutes = confidence === "high" ? 30 : 60;
+                const endMinutes = confidence === "high" ? 90 : 150;
+
+                (order as any).estimatedDeliveryWindow = {
+                  start: new Date(now.getTime() + startMinutes * 60 * 1000),
+                  end: new Date(now.getTime() + endMinutes * 60 * 1000),
+                  confidence,
+                };
+              }
+            }
+
             (order as any).orderStatus = to as any;
 
             const tsField = getTimestampField(to);
@@ -289,48 +357,45 @@ export const orderStateService = {
               (order as any)[tsField] = now;
             }
 
-            // Inventory restoration (exactly-once, transactional)
             let inventoryRestored = false;
             if (
               to === OrderStatus.CANCELLED &&
               (fromCanonical === OrderStatus.CREATED || fromCanonical === OrderStatus.CONFIRMED)
             ) {
-              const items = ((order as any).items || []) as any[];
-              const restoreItems = items
-                .map((it) => ({
-                  productId: it.productId,
-                  qty: Number(it.qty ?? it.quantity ?? 0),
-                }))
-                .filter((it) => it.productId && Number.isFinite(it.qty) && it.qty > 0);
+              await inventoryReservationService.releaseActiveReservationsForOrder({
+                session,
+                orderId: (order as any)._id,
+              });
 
-              const result = await inventoryService.restoreOnce({
+              const result = await inventoryReservationService.restoreCommittedReservationsOnce({
                 session,
                 orderId: (order as any)._id,
                 reason: "CANCELLED",
-                items: restoreItems,
               });
               inventoryRestored = result.restored;
+            }
+
+            if (to === OrderStatus.FAILED && fromCanonical === OrderStatus.IN_TRANSIT) {
+              await inventoryReservationService.releaseActiveReservationsForOrder({
+                session,
+                orderId: (order as any)._id,
+              });
             }
 
             if (to === OrderStatus.RETURNED && fromCanonical === OrderStatus.FAILED) {
-              const items = ((order as any).items || []) as any[];
-              const restoreItems = items
-                .map((it) => ({
-                  productId: it.productId,
-                  qty: Number(it.qty ?? it.quantity ?? 0),
-                }))
-                .filter((it) => it.productId && Number.isFinite(it.qty) && it.qty > 0);
+              await inventoryReservationService.releaseActiveReservationsForOrder({
+                session,
+                orderId: (order as any)._id,
+              });
 
-              const result = await inventoryService.restoreOnce({
+              const result = await inventoryReservationService.restoreCommittedReservationsOnce({
                 session,
                 orderId: (order as any)._id,
                 reason: "RETURNED",
-                items: restoreItems,
               });
               inventoryRestored = result.restored;
             }
 
-            // Append history
             (order as any).history = (order as any).history || [];
             (order as any).history.push({
               from: fromCanonical,
@@ -341,7 +406,6 @@ export const orderStateService = {
               meta: input.meta,
             });
 
-            // Outbox event insert (same transaction)
             await OrderEvent.create(
               [
                 {
@@ -362,20 +426,203 @@ export const orderStateService = {
 
             await order.save({ session });
             updatedOrder = order;
-          });
+          };
+
+          if (ownsSession) {
+            await session.withTransaction(runOnce);
+          } else {
+            await runOnce();
+          }
 
           break;
         } catch (e: any) {
-          if (attempt < maxAttempts && isTransientTransactionError(e)) {
+          if (ownsSession && attempt < maxAttempts && isTransientTransactionError(e)) {
             continue;
           }
           throw e;
         }
       }
 
+      try {
+        const userId = updatedOrder?.userId ? String(updatedOrder.userId) : "";
+        const orderId = updatedOrder?._id ? String(updatedOrder._id) : "";
+        if (userId && orderId && toStatus) {
+          const items = Array.isArray((updatedOrder as any)?.items) ? (updatedOrder as any).items : [];
+          const itemCount = items.reduce(
+            (sum: number, it: any) => sum + Number(it?.qty ?? it?.quantity ?? 0),
+            0
+          );
+          const primaryProductName =
+            typeof items?.[0]?.name === "string" && String(items[0].name).trim()
+              ? String(items[0].name)
+              : undefined;
+          const totalAmount = Number(
+            (updatedOrder as any)?.totalAmount ?? (updatedOrder as any)?.grandTotal ?? 0
+          );
+
+          const metaFromInput: any = (input as any)?.meta || {};
+          const deliveryPartnerName =
+            typeof metaFromInput?.deliveryPartnerName === "string" && metaFromInput.deliveryPartnerName.trim()
+              ? String(metaFromInput.deliveryPartnerName)
+              : undefined;
+
+          const actorType =
+            input.actorRole === "ADMIN"
+              ? "admin"
+              : input.actorRole === "DELIVERY_PARTNER"
+              ? "delivery"
+              : "user";
+
+          const actorId = input.actorId ? String(input.actorId) : undefined;
+          const actor = { type: actorType as any, ...(actorId ? { id: actorId } : {}) };
+          const source = "orders";
+          const occurredAt = transitionOccurredAt || new Date().toISOString();
+          const eventId = stableEventId(`order:${orderId}:status:${String(toStatus)}`);
+
+          const publishWithSession = async (evt: any) => {
+            if (ownsSession) {
+              await publish(evt);
+              return;
+            }
+
+            await publish(evt, { session });
+          };
+
+          switch (toStatus) {
+            case OrderStatus.CONFIRMED:
+              await publishWithSession(
+                createOrderConfirmedEvent({
+                  source,
+                  actor,
+                  eventId,
+                  occurredAt,
+                  userId,
+                  orderId,
+                  itemCount: Number.isFinite(itemCount) ? itemCount : undefined,
+                  totalAmount: Number.isFinite(totalAmount) ? totalAmount : undefined,
+                  primaryProductName,
+                })
+              );
+              break;
+            case OrderStatus.PACKED:
+              await publishWithSession(
+                createOrderPackedEvent({
+                  source,
+                  actor,
+                  eventId,
+                  occurredAt,
+                  userId,
+                  orderId,
+                  itemCount: Number.isFinite(itemCount) ? itemCount : undefined,
+                  totalAmount: Number.isFinite(totalAmount) ? totalAmount : undefined,
+                  primaryProductName,
+                })
+              );
+              break;
+            case OrderStatus.ASSIGNED:
+              await publishWithSession(
+                createDeliveryAssignedEvent({
+                  source,
+                  actor,
+                  eventId,
+                  occurredAt,
+                  userId,
+                  orderId,
+                  itemCount: Number.isFinite(itemCount) ? itemCount : undefined,
+                  totalAmount: Number.isFinite(totalAmount) ? totalAmount : undefined,
+                  primaryProductName,
+                  ...(deliveryPartnerName ? { deliveryPartnerName } : {}),
+                })
+              );
+              break;
+            case OrderStatus.PICKED_UP:
+              await publishWithSession(
+                createOrderPickedUpEvent({
+                  source,
+                  actor,
+                  eventId,
+                  occurredAt,
+                  userId,
+                  orderId,
+                  itemCount: Number.isFinite(itemCount) ? itemCount : undefined,
+                  totalAmount: Number.isFinite(totalAmount) ? totalAmount : undefined,
+                  primaryProductName,
+                })
+              );
+              break;
+            case OrderStatus.IN_TRANSIT:
+              await publishWithSession(
+                createOrderInTransitEvent({
+                  source,
+                  actor,
+                  eventId,
+                  occurredAt,
+                  userId,
+                  orderId,
+                  itemCount: Number.isFinite(itemCount) ? itemCount : undefined,
+                  totalAmount: Number.isFinite(totalAmount) ? totalAmount : undefined,
+                  primaryProductName,
+                })
+              );
+              break;
+            case OrderStatus.DELIVERED:
+              await publishWithSession(
+                createOrderDeliveredEvent({
+                  source,
+                  actor,
+                  eventId,
+                  occurredAt,
+                  userId,
+                  orderId,
+                  itemCount: Number.isFinite(itemCount) ? itemCount : undefined,
+                  totalAmount: Number.isFinite(totalAmount) ? totalAmount : undefined,
+                  primaryProductName,
+                })
+              );
+              break;
+            case OrderStatus.FAILED:
+              await publishWithSession(
+                createOrderFailedEvent({
+                  source,
+                  actor,
+                  eventId,
+                  occurredAt,
+                  userId,
+                  orderId,
+                  itemCount: Number.isFinite(itemCount) ? itemCount : undefined,
+                  totalAmount: Number.isFinite(totalAmount) ? totalAmount : undefined,
+                  primaryProductName,
+                })
+              );
+              break;
+            case OrderStatus.CANCELLED:
+              await publishWithSession(
+                createOrderCancelledEvent({
+                  source,
+                  actor,
+                  eventId,
+                  occurredAt,
+                  userId,
+                  orderId,
+                  itemCount: Number.isFinite(itemCount) ? itemCount : undefined,
+                  totalAmount: Number.isFinite(totalAmount) ? totalAmount : undefined,
+                  primaryProductName,
+                })
+              );
+              break;
+            default:
+              break;
+          }
+        }
+      } catch (e) {
+        console.error("[orderStateService] failed to publish event", e);
+      }
+
       return updatedOrder;
     } finally {
-      session.endSession();
+      if (ownsSession) {
+        session.endSession();
+      }
     }
   },
 

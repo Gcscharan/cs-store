@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { RootState } from "../store";
-import { toast } from "react-hot-toast";
+import toast from "react-hot-toast";
+import { useOrderWebSocket } from "../hooks/useOrderWebSocket";
 import {
   Search,
   ArrowLeft,
@@ -13,8 +14,18 @@ import {
   Package,
   Clock,
   CheckCircle,
-  Truck,
+  Trash2,
+  AlertTriangle,
 } from "lucide-react";
+
+function canonicalizeOrderStatus(raw: string): string {
+  const v = String(raw || "").trim();
+  if (!v) return "";
+  const upper = v.toUpperCase();
+  if (upper === "PENDING" || upper === "PENDING_PAYMENT") return "CREATED";
+  if (upper === "OUT_FOR_DELIVERY") return "IN_TRANSIT";
+  return upper;
+}
 
 interface Order {
   _id: string;
@@ -73,7 +84,7 @@ interface Order {
 
 const AdminOrdersPage: React.FC = () => {
   const navigate = useNavigate();
-  const { tokens, isAuthenticated, user } = useSelector(
+  const { tokens, isAuthenticated, user, loading } = useSelector(
     (state: RootState) => state.auth
   );
   const [orders, setOrders] = useState<Order[]>([]);
@@ -81,24 +92,104 @@ const AdminOrdersPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("");
-  const [isAssigning, setIsAssigning] = useState(false);
   const [showAcceptModal, setShowAcceptModal] = useState(false);
   const [showDeclineModal, setShowDeclineModal] = useState(false);
-  const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [deliveryBoys, setDeliveryBoys] = useState<any[]>([]);
-  const [selectedDeliveryBoy, setSelectedDeliveryBoy] = useState<string>("");
-  const [loadingDeliveryBoys, setLoadingDeliveryBoys] = useState(false);
+  const [showPurgeModal, setShowPurgeModal] = useState(false);
+  const [purgeConfirmText, setPurgeConfirmText] = useState("");
+  const [alsoDeleteRoutes, setAlsoDeleteRoutes] = useState(true);
 
   // Check authentication
   useEffect(() => {
-    if (!isAuthenticated || !user?.isAdmin) {
-      navigate("/login");
+    if (loading) {
+      return;
+    }
+
+    const isAdmin = !!(user?.isAdmin || user?.role === "admin");
+    if (!isAuthenticated || !isAdmin) {
+      navigate("/login", { replace: true });
       return;
     }
     fetchOrders();
-  }, [isAuthenticated, user, navigate]);
+  }, [loading, isAuthenticated, user, navigate]);
+
+  const handleClusterOrders = () => {
+    navigate("/admin/routes/preview");
+  };
+
+  const handleRecentClusters = () => {
+    navigate("/admin/routes/recent");
+  };
+
+  const purgeOrders = async () => {
+    if (purgeConfirmText !== "DELETE_ALL_ORDERS") {
+      toast.error("You must type DELETE_ALL_ORDERS exactly.");
+      return;
+    }
+
+    try {
+      setIsProcessing(true);
+      const response = await fetch("/api/admin/orders/purge", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${tokens?.accessToken}`,
+        },
+        body: JSON.stringify({ confirm: purgeConfirmText, alsoDeleteRoutes }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error((data as any).message || (data as any).error || "Failed to purge orders");
+      }
+
+      toast.success(
+        `Deleted ${(data as any).deletedOrders} orders${alsoDeleteRoutes ? ` and ${(data as any).deletedRoutes} routes` : ""}`
+      );
+      setShowPurgeModal(false);
+      setPurgeConfirmText("");
+      fetchOrders(); // Refresh list
+    } catch (error: any) {
+      console.error("Purge orders error:", error);
+      toast.error(error.message || "Failed to purge orders");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Real-time order status updates via WebSocket
+  const handleOrderStatusChanged = useCallback((payload: any) => {
+    console.log("🔄 [Admin UI] Received order status update:", payload);
+    
+    // Update the order in local state
+    setOrders(prevOrders => 
+      prevOrders.map(order => {
+        if (order._id === payload.orderId) {
+          return {
+            ...order,
+            orderStatus: payload.to,
+            status: payload.to,
+            updatedAt: payload.timestamp,
+          };
+        }
+        return order;
+      })
+    );
+
+    // Show toast notification
+    toast.success(
+      `Order #${payload.orderId.substring(0, 8)} status changed to ${payload.to}`,
+      { duration: 3000 }
+    );
+  }, []);
+
+  useOrderWebSocket({
+    userId: user?.id,
+    userRole: user?.isAdmin ? 'admin' : 'customer',
+    onOrderStatusChanged: handleOrderStatusChanged,
+    enabled: isAuthenticated && user?.isAdmin,
+  });
 
   const fetchOrders = async () => {
     try {
@@ -126,10 +217,11 @@ const AdminOrdersPage: React.FC = () => {
     }
   };
 
-  const handleAutoAssign = async () => {
+  const packOrder = async (order: Order, e: React.MouseEvent) => {
+    e.stopPropagation();
     try {
-      setIsAssigning(true);
-      const response = await fetch("/api/admin/assign-deliveries", {
+      setIsProcessing(true);
+      const response = await fetch(`/api/admin/orders/${order._id}/pack`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -137,39 +229,24 @@ const AdminOrdersPage: React.FC = () => {
         },
       });
 
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to assign deliveries");
+        throw new Error((data as any).message || (data as any).error || "Failed to pack order");
       }
 
-      const data = await response.json();
-      toast.success(
-        `Successfully assigned ${data.data.assignedCount} orders to delivery partners!`
-      );
-
-      // Show details if available
-      if (data.data.details && data.data.details.length > 0) {
-        data.data.details.forEach((detail: any) => {
-          console.log(
-            `Pincode ${detail.pincode}: ${detail.ordersAssigned} orders → ${detail.deliveryBoys.join(", ")}`
-          );
-        });
+      toast.success((data as any).message || "Order packed");
+      if ((data as any).order) {
+        setOrders((prevOrders) =>
+          prevOrders.map((o) => (o._id === (data as any).order._id ? { ...(data as any).order } : o))
+        );
+      } else {
+        fetchOrders();
       }
-
-      // Show any errors
-      if (data.data.errors && data.data.errors.length > 0) {
-        data.data.errors.forEach((error: string) => {
-          toast.error(error);
-        });
-      }
-
-      // Refresh orders
-      fetchOrders();
     } catch (error: any) {
-      console.error("Auto-assign error:", error);
-      toast.error(error.message || "Failed to auto-assign deliveries");
+      console.error("Pack order error:", error);
+      toast.error(error.message || "Failed to pack order");
     } finally {
-      setIsAssigning(false);
+      setIsProcessing(false);
     }
   };
 
@@ -183,29 +260,6 @@ const AdminOrdersPage: React.FC = () => {
     e.stopPropagation();
     setSelectedOrder(order);
     setShowDeclineModal(true);
-  };
-
-  const fetchDeliveryBoys = async () => {
-    try {
-      setLoadingDeliveryBoys(true);
-      const response = await fetch("/api/admin/delivery-boys-list?status=active", {
-        headers: {
-          Authorization: `Bearer ${tokens?.accessToken}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch delivery partners");
-      }
-
-      const data = await response.json();
-      setDeliveryBoys(data.deliveryBoys || []);
-    } catch (error: any) {
-      console.error("Fetch delivery boys error:", error);
-      toast.error("Failed to load delivery partners");
-    } finally {
-      setLoadingDeliveryBoys(false);
-    }
   };
 
   const confirmAccept = async () => {
@@ -243,84 +297,6 @@ const AdminOrdersPage: React.FC = () => {
       console.error("Accept order error:", error);
       toast.error(error.message || "Failed to accept order");
       setIsProcessing(false);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const assignDeliveryBoy = async () => {
-    if (!selectedOrder || !selectedDeliveryBoy) {
-      toast.error("Please select a delivery partner");
-      return;
-    }
-
-    try {
-      setIsProcessing(true);
-      const response = await fetch(`/api/admin/orders/${selectedOrder._id}/assign`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${tokens?.accessToken}`,
-        },
-        body: JSON.stringify({ deliveryBoyId: selectedDeliveryBoy }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to assign delivery partner");
-      }
-
-      const data = await response.json();
-      toast.success(data.message);
-      
-      // Update the local orders state with the updated order immediately
-      if (data.order) {
-        console.log("✅ Assignment successful - updating UI with:", {
-          orderId: data.order._id,
-          deliveryBoy: data.order.deliveryBoyId,
-          fullOrder: data.order
-        });
-        
-        // Find the selected delivery boy's full details from the deliveryBoys array
-        const selectedDeliveryBoyDetails = deliveryBoys.find(
-          db => db._id === selectedDeliveryBoy
-        );
-        
-        // Populate the deliveryBoyId with full object (name, phone, _id) for UI display
-        const updatedOrder = {
-          ...data.order,
-          deliveryBoyId: selectedDeliveryBoyDetails 
-            ? {
-                _id: selectedDeliveryBoyDetails._id,
-                name: selectedDeliveryBoyDetails.name,
-                phone: selectedDeliveryBoyDetails.phone
-              }
-            : data.order.deliveryBoyId // Fallback to backend value if not found
-        };
-        
-        console.log("🔄 Populating deliveryBoyId with full details:", updatedOrder.deliveryBoyId);
-        
-        // Force a complete state replacement to ensure React detects the change
-        setOrders(prevOrders => {
-          const updatedOrders = prevOrders.map(order => {
-            if (order._id === data.order._id) {
-              console.log("🔄 Replacing order:", order._id, "with populated deliveryBoyId:", updatedOrder.deliveryBoyId);
-              return updatedOrder;
-            }
-            return order;
-          });
-          
-          console.log("📋 New orders state:", updatedOrders.find(o => o._id === data.order._id)?.deliveryBoyId);
-          return [...updatedOrders]; // Force new array reference
-        });
-      }
-      
-      setShowAssignModal(false);
-      setSelectedOrder(null);
-      setSelectedDeliveryBoy("");
-    } catch (error: any) {
-      console.error("Assign delivery boy error:", error);
-      toast.error(error.message || "Failed to assign delivery partner");
     } finally {
       setIsProcessing(false);
     }
@@ -374,20 +350,26 @@ const AdminOrdersPage: React.FC = () => {
       (order.userId?.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       (order.userId?.email || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       order._id.toLowerCase().includes(searchQuery.toLowerCase());
-    const status = order.status || order.orderStatus || "";
-    const matchesStatus = !selectedStatus || status.toLowerCase() === selectedStatus.toLowerCase();
+    const status = canonicalizeOrderStatus(order.status || order.orderStatus || "");
+    const matchesStatus = !selectedStatus || status === canonicalizeOrderStatus(selectedStatus);
     return matchesSearch && matchesStatus;
   });
 
-  const statuses = [...new Set(orders.map((o) => o.status || o.orderStatus || "").filter(Boolean))];
+  const statuses = [
+    ...new Set(
+      orders
+        .map((o) => canonicalizeOrderStatus(o.status || o.orderStatus || ""))
+        .filter(Boolean)
+    ),
+  ];
   const totalOrders = orders.length;
   const pendingOrders = orders.filter((o) => {
-    const status = o.status || o.orderStatus || "";
-    return status.toLowerCase() === "pending" || status.toLowerCase() === "created";
+    const status = canonicalizeOrderStatus(o.status || o.orderStatus || "");
+    return status === "CREATED" || status === "CONFIRMED";
   }).length;
   const completedOrders = orders.filter((o) => {
-    const status = o.status || o.orderStatus || "";
-    return status.toLowerCase() === "delivered";
+    const status = canonicalizeOrderStatus(o.status || o.orderStatus || "");
+    return status === "DELIVERED";
   }).length;
   const totalRevenue = orders.reduce(
     (sum, order) => sum + order.totalAmount,
@@ -395,27 +377,48 @@ const AdminOrdersPage: React.FC = () => {
   );
 
   const mapDatabaseStatusToUserFriendly = (status: string): string => {
+    const canonical = canonicalizeOrderStatus(status);
     const mapping: { [key: string]: string } = {
-      created: "Pending",
-      pending: "Pending",
-      confirmed: "Processing",
+      // Map backend enum to display labels (no semantic transformation)
+      created: "Created",
+      pending: "Created",
+      confirmed: "Confirmed",
+      packed: "Packed",
+      out_for_delivery: "Out for Delivery",
+      delivered: "Delivered",
+      failed: "Failed",
+      returned: "Returned",
+      cancelled: "Cancelled",
+      // Legacy statuses (for backward compatibility)
       assigned: "Assigned",
       picked_up: "Picked Up",
       in_transit: "In Transit",
       arrived: "Arrived",
-      delivered: "Delivered",
-      cancelled: "Cancelled",
     };
-    return mapping[status.toLowerCase()] || status;
+    return mapping[canonical.toLowerCase()] || canonical || status;
   };
 
   const getStatusBadgeColor = (status: string) => {
-    switch (status.toLowerCase()) {
+    const canonical = canonicalizeOrderStatus(status).toLowerCase();
+    switch (canonical) {
       case "created":
       case "pending":
         return "bg-yellow-100 text-yellow-800";
       case "confirmed":
         return "bg-blue-100 text-blue-800";
+      case "packed":
+        return "bg-indigo-100 text-indigo-800";
+      case "out_for_delivery":
+        return "bg-purple-100 text-purple-800";
+      case "delivered":
+        return "bg-green-100 text-green-800";
+      case "failed":
+        return "bg-orange-100 text-orange-800";
+      case "returned":
+        return "bg-pink-100 text-pink-800";
+      case "cancelled":
+        return "bg-red-100 text-red-800";
+      // Legacy statuses
       case "assigned":
         return "bg-indigo-100 text-indigo-800";
       case "picked_up":
@@ -423,29 +426,29 @@ const AdminOrdersPage: React.FC = () => {
         return "bg-purple-100 text-purple-800";
       case "arrived":
         return "bg-teal-100 text-teal-800";
-      case "delivered":
-        return "bg-green-100 text-green-800";
-      case "cancelled":
-        return "bg-red-100 text-red-800";
       default:
         return "bg-gray-100 text-gray-800";
     }
   };
 
   const getStatusIcon = (status: string) => {
-    switch (status.toLowerCase()) {
+    const canonical = canonicalizeOrderStatus(status).toLowerCase();
+    switch (canonical) {
       case "pending":
+      case "created":
         return <Clock className="h-4 w-4" />;
-      case "processing":
-        return <Package className="h-4 w-4" />;
-      case "shipped":
+      case "confirmed":
+      case "packed":
+      case "assigned":
+      case "picked_up":
+      case "in_transit":
+      case "out_for_delivery":
+      case "arrived":
         return <Package className="h-4 w-4" />;
       case "delivered":
         return <CheckCircle className="h-4 w-4" />;
-      case "cancelled":
-        return <Clock className="h-4 w-4" />;
       default:
-        return <Clock className="h-4 w-4" />;
+        return <ShoppingCart className="h-4 w-4" />;
     }
   };
 
@@ -536,14 +539,30 @@ const AdminOrdersPage: React.FC = () => {
               ))}
             </select>
 
-            {/* Auto Assign Button */}
             <button
-              onClick={handleAutoAssign}
-              disabled={isAssigning || pendingOrders === 0}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+              onClick={handleClusterOrders}
+              title="Preview route clusters (no changes until you assign)"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg transition-colors bg-emerald-600 text-white hover:bg-emerald-700"
             >
-              <Truck className="h-4 w-4" />
-              {isAssigning ? "Assigning..." : "Auto Assign Deliveries"}
+              <span className="text-base">🔁</span>
+              Cluster Orders
+            </button>
+
+            <button
+              onClick={handleRecentClusters}
+              title="Monitor recently assigned delivery clusters"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg transition-colors bg-indigo-600 text-white hover:bg-indigo-700"
+            >
+              Recent Clusters
+            </button>
+
+            <button
+              onClick={() => setShowPurgeModal(true)}
+              title="Delete all orders (requires confirmation)"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg transition-colors bg-red-600 text-white hover:bg-red-700"
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete Orders
             </button>
           </div>
         </div>
@@ -764,40 +783,13 @@ const AdminOrdersPage: React.FC = () => {
                                 // Show "Assigned" if we only have ID
                                 <p className="text-xs font-medium text-gray-900 mb-2">Assigned</p>
                               )}
-                              {!["delivered", "cancelled"].includes((order.status || order.orderStatus || "").toLowerCase()) && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedOrder(order);
-                                    fetchDeliveryBoys();
-                                    setShowAssignModal(true);
-                                  }}
-                                  className="inline-flex items-center px-2 py-1 border border-orange-300 text-xs font-medium rounded text-orange-700 bg-orange-50 hover:bg-orange-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
-                                >
-                                  <Truck className="h-3 w-3 mr-1" />
-                                  Reassign
-                                </button>
-                              )}
                             </div>
                           ) : (
                             // No delivery boy assigned yet
                             <div onClick={(e) => e.stopPropagation()}>
-                              {["confirmed", "processing", "assigned", "accepted"].includes((order.status || order.orderStatus || "").toLowerCase()) ? (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedOrder(order);
-                                    fetchDeliveryBoys();
-                                    setShowAssignModal(true);
-                                  }}
-                                  className="inline-flex items-center px-2 py-1 border border-blue-300 text-xs font-medium rounded text-blue-700 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                                >
-                                  <Truck className="h-3 w-3 mr-1" />
-                                  Assign
-                                </button>
-                              ) : (
-                                <span className="text-xs text-gray-400">Not assigned</span>
-                              )}
+                              <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-gray-100 text-gray-700">
+                                Unassigned
+                              </span>
                             </div>
                           )}
                         </div>
@@ -820,51 +812,46 @@ const AdminOrdersPage: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         {(() => {
-                          const raw = String(order.orderStatus || order.status || "");
-                          const upper = raw.toUpperCase();
-                          const canonical = upper === "PENDING" ? "CREATED" : upper;
-                          const isEarlyState = ["CREATED", "CONFIRMED", "PROCESSING", "PENDING", "PLACED"].includes(canonical);
-                          console.debug("AdminOrdersPage action visibility", {
-                            orderId: order._id,
-                            rawStatus: raw,
-                            canonical,
-                            isAdmin: user?.isAdmin,
-                            isEarlyState,
-                            allowed: ["CREATED", "CONFIRMED"].includes(canonical)
-                          });
-                          // Primary logic:窃 CREATED/CONFIRMED get Confirm+Cancel
-                          if (["CREATED", "CONFIRMED"].includes(canonical)) {
-                            return (
-                              <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                          const canonical = canonicalizeOrderStatus(order.orderStatus || order.status || "");
+
+                          const canConfirm = canonical === "CREATED";
+                          const canPack = canonical === "CONFIRMED";
+                          const canCancel = ["CREATED", "CONFIRMED", "PACKED"].includes(canonical);
+
+                          if (!canConfirm && !canPack && !canCancel) {
+                            return <span className="text-gray-400 text-xs">—</span>;
+                          }
+
+                          return (
+                            <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                              {canConfirm && (
                                 <button
                                   onClick={(e) => handleAcceptClick(order, e)}
                                   className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
                                 >
                                   Confirm
                                 </button>
+                              )}
+
+                              {canPack && (
+                                <button
+                                  onClick={(e) => packOrder(order, e)}
+                                  className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                                >
+                                  Pack
+                                </button>
+                              )}
+
+                              {canCancel && (
                                 <button
                                   onClick={(e) => handleDeclineClick(order, e)}
                                   className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
                                 >
-                                  Cancel Order
+                                  Cancel
                                 </button>
-                              </div>
-                            );
-                          }
-                          // Fallback: for other early states, only show Confirm
-                          if (isEarlyState) {
-                            return (
-                              <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-                                <button
-                                  onClick={(e) => handleAcceptClick(order, e)}
-                                  className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-                                >
-                                  Confirm Order
-                                </button>
-                              </div>
-                            );
-                          }
-                          return <span className="text-gray-400 text-xs">—</span>;
+                              )}
+                            </div>
+                          );
                         })()}
                       </td>
                     </tr>
@@ -885,9 +872,6 @@ const AdminOrdersPage: React.FC = () => {
               <p className="text-gray-600 mb-6">
                 Confirm order #{selectedOrder.orderNumber || selectedOrder._id.substring(0, 8)} to start processing?
                 <br />
-                <span className="text-sm text-gray-500 mt-2 block">
-                  The system will automatically try to assign this order to an available delivery partner.
-                </span>
               </p>
               <div className="flex gap-3 justify-end">
                 <button
@@ -949,86 +933,47 @@ const AdminOrdersPage: React.FC = () => {
           </div>
         )}
 
-        {/* Assign Delivery Boy Modal */}
-        {showAssignModal && selectedOrder && (
+        {/* Purge Orders Confirmation Modal */}
+        {showPurgeModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                Assign Delivery Partner
-              </h3>
+            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+              <div className="flex items-center mb-4">
+                <AlertTriangle className="h-6 w-6 text-red-600 mr-2" />
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Delete All Orders
+                </h3>
+              </div>
               <p className="text-gray-600 mb-4">
-                Order #{selectedOrder.orderNumber || selectedOrder._id.substring(0, 8)} has been accepted.
-                <br />
-                <span className="text-sm text-gray-500 mt-1 block">
-                  Select a delivery partner to assign this order.
-                </span>
+                This will permanently delete all orders{alsoDeleteRoutes ? " and persisted routes" : ""}. This action cannot be undone.
               </p>
-
-              {loadingDeliveryBoys ? (
-                <div className="text-center py-8">
-                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
-                  <p className="text-gray-500 mt-2">Loading delivery partners...</p>
-                </div>
-              ) : deliveryBoys.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-gray-500">No active delivery partners available.</p>
-                </div>
-              ) : (
-                <div className="space-y-2 mb-6">
-                  {deliveryBoys.map((item) => {
-                    const user = item.user;
-                    const deliveryBoy = item.deliveryBoy;
-                    return (
-                      <label
-                        key={deliveryBoy?._id || user._id}
-                        className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors ${
-                          selectedDeliveryBoy === deliveryBoy?._id
-                            ? "border-green-500 bg-green-50"
-                            : "border-gray-200 hover:border-green-300 hover:bg-gray-50"
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="deliveryBoy"
-                          value={deliveryBoy?._id}
-                          checked={selectedDeliveryBoy === deliveryBoy?._id}
-                          onChange={(e) => setSelectedDeliveryBoy(e.target.value)}
-                          className="h-4 w-4 text-green-600 focus:ring-green-500"
-                        />
-                        <div className="ml-3 flex-1">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm font-medium text-gray-900">{user.name || 'Unknown Name'}</p>
-                              <p className="text-xs text-gray-500">{user.phone || 'No Phone'}</p>
-                            </div>
-                            <div className="text-right">
-                              {deliveryBoy?.vehicleType && (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 capitalize">
-                                  {deliveryBoy.vehicleType}
-                                </span>
-                              )}
-                              {user.deliveryProfile?.assignedAreas && user.deliveryProfile.assignedAreas.length > 0 && (
-                                <p className="text-xs text-gray-500 mt-1">
-                                  Areas: {user.deliveryProfile.assignedAreas.slice(0, 3).join(", ")}
-                                  {user.deliveryProfile.assignedAreas.length > 3 && ` +${user.deliveryProfile.assignedAreas.length - 3}`}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </label>
-                    );
-                  })}
-                </div>
-              )}
-
+              <div className="mb-4">
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={alsoDeleteRoutes}
+                    onChange={(e) => setAlsoDeleteRoutes(e.target.checked)}
+                    className="mr-2"
+                  />
+                  Also delete persisted routes
+                </label>
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Type <code className="bg-gray-100 px-1 rounded">DELETE_ALL_ORDERS</code> to confirm:
+                </label>
+                <input
+                  type="text"
+                  value={purgeConfirmText}
+                  onChange={(e) => setPurgeConfirmText(e.target.value)}
+                  placeholder="DELETE_ALL_ORDERS"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                />
+              </div>
               <div className="flex gap-3 justify-end">
                 <button
                   onClick={() => {
-                    setShowAssignModal(false);
-                    setSelectedOrder(null);
-                    setSelectedDeliveryBoy("");
-                    fetchOrders();
+                    setShowPurgeModal(false);
+                    setPurgeConfirmText("");
                   }}
                   disabled={isProcessing}
                   className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md disabled:opacity-50"
@@ -1036,16 +981,17 @@ const AdminOrdersPage: React.FC = () => {
                   Cancel
                 </button>
                 <button
-                  onClick={assignDeliveryBoy}
-                  disabled={isProcessing || !selectedDeliveryBoy}
-                  className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md disabled:opacity-50"
+                  onClick={purgeOrders}
+                  disabled={isProcessing || purgeConfirmText !== "DELETE_ALL_ORDERS"}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md disabled:opacity-50"
                 >
-                  {isProcessing ? "Assigning..." : "Assign Delivery Partner"}
+                  {isProcessing ? "Deleting..." : "Delete All Orders"}
                 </button>
               </div>
             </div>
           </div>
         )}
+
       </div>
     </div>
   );

@@ -7,7 +7,7 @@ exports.UserAddressService = void 0;
 const UserRepository_1 = require("../repositories/UserRepository");
 const mongoose_1 = __importDefault(require("mongoose"));
 const geocoding_1 = require("../../../utils/geocoding");
-const Pincode_1 = require("../../../models/Pincode");
+const pincodeResolver_1 = require("../../../utils/pincodeResolver");
 class UserAddressService {
     constructor() {
         this.userRepository = new UserRepository_1.UserRepository();
@@ -37,29 +37,18 @@ class UserAddressService {
     }
     async addUserAddress(userId, addressData) {
         try {
-            const { name, label, pincode, city: _city, state: _state, addressLine, phone, isDefault } = addressData;
-            if (!label || !pincode || !addressLine) {
+            const { name, label, pincode, city, state, addressLine, phone, isDefault } = addressData;
+            if (!label || !pincode || !city || !addressLine) {
                 throw new Error("Missing required fields");
-            }
-            const canonicalPincode = String(pincode);
-            const pincodeData = await Pincode_1.Pincode.findOne({ pincode: canonicalPincode });
-            if (!pincodeData) {
-                throw new Error("Enter a valid pincode to continue");
-            }
-            const canonicalState = pincodeData.state;
-            const canonicalCity = pincodeData.taluka || pincodeData.district || "";
-            if (!canonicalCity) {
-                throw new Error("Enter a valid pincode to continue");
             }
             const user = await this.userRepository.findById(userId);
             if (!user) {
                 throw new Error("User not found");
             }
-            let geocodeResult = await (0, geocoding_1.smartGeocode)(addressLine, canonicalCity, canonicalState, canonicalPincode);
+            let geocodeResult = await (0, geocoding_1.smartGeocode)(addressLine, city, state, pincode);
             let coordsSource = 'geocoded';
             if (!geocodeResult) {
-                const { geocodeByPincode } = require('../../../../utils/geocoding');
-                geocodeResult = await geocodeByPincode(canonicalPincode);
+                geocodeResult = await (0, geocoding_1.geocodeByPincode)(pincode);
                 if (geocodeResult) {
                     coordsSource = 'pincode';
                 }
@@ -76,9 +65,11 @@ class UserAddressService {
                 _id: new mongoose_1.default.Types.ObjectId(),
                 name: name || "",
                 label,
-                pincode: canonicalPincode,
-                city: canonicalCity,
-                state: canonicalState,
+                pincode,
+                city,
+                state,
+                postal_district: "",
+                admin_district: "",
                 addressLine,
                 phone: phone || "",
                 lat: geocodeResult.lat,
@@ -87,6 +78,13 @@ class UserAddressService {
                 isGeocoded: true,
                 coordsSource: coordsSource,
             };
+            const resolved = await (0, pincodeResolver_1.resolvePincodeForAddressSave)(pincode);
+            if (!resolved) {
+                throw new Error("Invalid pincode");
+            }
+            newAddress.state = resolved.state;
+            newAddress.postal_district = resolved.postal_district;
+            newAddress.admin_district = resolved.admin_district;
             user.addresses.push(newAddress);
             await this.userRepository.save(user);
             const savedAddress = user.addresses[user.addresses.length - 1];
@@ -110,32 +108,20 @@ class UserAddressService {
             if (!address) {
                 throw new Error("Address not found");
             }
-            const { name, label, pincode, city: _city, state: _state, addressLine, phone, isDefault } = updateData;
-            let canonicalPincode = address.pincode;
-            if (pincode) {
-                canonicalPincode = String(pincode);
-            }
-            const pincodeData = await Pincode_1.Pincode.findOne({ pincode: canonicalPincode });
-            if (!pincodeData) {
-                throw new Error("Enter a valid pincode to continue");
-            }
-            const canonicalState = pincodeData.state;
-            const canonicalCity = pincodeData.district || pincodeData.taluka || "";
-            if (!canonicalCity) {
-                throw new Error("Enter a valid pincode to continue");
-            }
+            const { name, label, pincode, city, state, addressLine, phone, isDefault } = updateData;
             const addressChanged = (addressLine && addressLine !== address.addressLine) ||
+                (city && city !== address.city) ||
+                (state && state !== address.state) ||
                 (pincode && pincode !== address.pincode);
             if (addressChanged) {
                 const finalAddressLine = addressLine || address.addressLine;
-                const finalCity = canonicalCity;
-                const finalState = canonicalState;
-                const finalPincode = canonicalPincode;
+                const finalCity = city || address.city;
+                const finalState = state || address.state;
+                const finalPincode = pincode || address.pincode;
                 let geocodeResult = await (0, geocoding_1.smartGeocode)(finalAddressLine, finalCity, finalState, finalPincode);
                 let coordsSource = 'geocoded';
                 if (!geocodeResult) {
-                    const { geocodeByPincode } = require('../../../../utils/geocoding');
-                    geocodeResult = await geocodeByPincode(finalPincode);
+                    geocodeResult = await (0, geocoding_1.geocodeByPincode)(finalPincode);
                     if (geocodeResult) {
                         coordsSource = 'pincode';
                     }
@@ -152,9 +138,12 @@ class UserAddressService {
                 address.name = name || "";
             if (label)
                 address.label = label;
-            address.pincode = canonicalPincode;
-            address.city = canonicalCity;
-            address.state = canonicalState;
+            if (pincode)
+                address.pincode = pincode;
+            if (city)
+                address.city = city;
+            if (state)
+                address.state = state;
             if (addressLine)
                 address.addressLine = addressLine;
             if (phone !== undefined)
@@ -169,6 +158,18 @@ class UserAddressService {
                 }
                 address.isDefault = isDefault;
             }
+            const finalPincode = (pincode || address.pincode || "").toString();
+            const finalCity = (city || address.city || "").toString();
+            const resolved = await (0, pincodeResolver_1.resolvePincodeForAddressSave)(finalPincode);
+            if (!resolved) {
+                throw new Error("Invalid pincode");
+            }
+            if (!finalCity || !finalCity.trim()) {
+                throw new Error("City is required");
+            }
+            address.state = resolved.state;
+            address.postal_district = resolved.postal_district;
+            address.admin_district = resolved.admin_district;
             await this.userRepository.save(user);
             return {
                 ...address,

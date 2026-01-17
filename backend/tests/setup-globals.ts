@@ -36,6 +36,15 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
+  try {
+    const g = globalThis as any;
+    if (typeof g.__resetRedisMockStore === "function") {
+      g.__resetRedisMockStore();
+    }
+  } catch {
+    // ignore
+  }
+
   // Clear all collections
   const collections = mongoose.connection.collections;
   for (const key in collections) {

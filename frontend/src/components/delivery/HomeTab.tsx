@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { RootState } from "../../store";
+import { toApiUrl } from "../../config/runtime";
 import { motion } from "framer-motion";
 import {
   CheckCircle,
@@ -59,7 +60,7 @@ const HomeTab: React.FC<HomeTabProps> = () => {
         throw new Error("No authentication token available");
       }
 
-      const response = await fetch("http://localhost:5001/api/delivery/orders", {
+      const response = await fetch(toApiUrl("/delivery/orders"), {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${tokens.accessToken}`,
@@ -67,10 +68,21 @@ const HomeTab: React.FC<HomeTabProps> = () => {
       });
 
       if (!response.ok) {
-        if (response.status === 403 || response.status === 401) {
+        if (response.status === 401) {
           console.log("Authentication failed, redirecting to login");
           localStorage.removeItem("auth");
-          window.location.href = "/login";
+          window.location.href = "/delivery/login";
+          return;
+        }
+
+        if (response.status === 403) {
+          let errorMessage = "Access denied";
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData?.error || errorData?.message || errorMessage;
+          } catch {
+          }
+          setError(errorMessage);
           return;
         }
 
@@ -100,7 +112,7 @@ const HomeTab: React.FC<HomeTabProps> = () => {
       }
 
       const response = await fetch(
-        `http://localhost:5001/api/delivery/orders/${orderId}/${action}`,
+        toApiUrl(`/delivery/orders/${orderId}/${action}`),
         {
           method: "PUT",
           headers: {

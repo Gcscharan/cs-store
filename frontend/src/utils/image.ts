@@ -2,6 +2,8 @@
  * Image utility functions for handling product images
  */
 
+import { getApiOrigin } from "../config/runtime";
+
 /**
  * Extracts a usable image URL from ANY image format:
  * - Cloudinary variant format (new)
@@ -32,15 +34,13 @@ function extractImageUrl(img: any): string {
   if (typeof img === "string") {
     // If relative path: prepend backend URL
     if (!img.startsWith("http") && !img.startsWith("/")) {
-      return `${
-        import.meta.env.VITE_API_URL || "http://localhost:5001"
-      }/uploads/${img}`;
+      const origin = getApiOrigin();
+      return origin ? `${origin}/uploads/${img}` : `/uploads/${img}`;
     }
 
     if (img.startsWith("/uploads")) {
-      return `${
-        import.meta.env.VITE_API_URL || "http://localhost:5001"
-      }${img}`;
+      const origin = getApiOrigin();
+      return origin ? `${origin}${img}` : img;
     }
 
     return img;

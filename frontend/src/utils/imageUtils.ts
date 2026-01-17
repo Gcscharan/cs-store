@@ -2,6 +2,8 @@
  * Image utility functions for handling product images
  */
 
+import { getApiOrigin } from "../config/runtime";
+
 /**
  * Gets the primary image URL for a product
  * Backend uses `images: string[]` field
@@ -24,12 +26,14 @@ export function getProductImage(product: any): string {
       
       // If the image URL is relative (doesn't start with http), prepend backend URL
       if (imageUrl && !imageUrl.startsWith('http') && !imageUrl.startsWith('/')) {
-        return `${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/uploads/${imageUrl}`;
+        const origin = getApiOrigin();
+        return origin ? `${origin}/uploads/${imageUrl}` : `/uploads/${imageUrl}`;
       }
       
       // If it starts with /uploads, ensure it has the full backend URL
       if (imageUrl && imageUrl.startsWith('/uploads')) {
-        return `${import.meta.env.VITE_API_URL || 'http://localhost:5001'}${imageUrl}`;
+        const origin = getApiOrigin();
+        return origin ? `${origin}${imageUrl}` : imageUrl;
       }
       
       return imageUrl || '/placeholder-product.svg';
@@ -42,11 +46,13 @@ export function getProductImage(product: any): string {
     
     // Apply same URL transformation
     if (imageUrl && !imageUrl.startsWith('http') && !imageUrl.startsWith('/')) {
-      return `${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/uploads/${imageUrl}`;
+      const origin = getApiOrigin();
+      return origin ? `${origin}/uploads/${imageUrl}` : `/uploads/${imageUrl}`;
     }
     
     if (imageUrl && imageUrl.startsWith('/uploads')) {
-      return `${import.meta.env.VITE_API_URL || 'http://localhost:5001'}${imageUrl}`;
+      const origin = getApiOrigin();
+      return origin ? `${origin}${imageUrl}` : imageUrl;
     }
     
     return imageUrl;
@@ -72,10 +78,12 @@ export function getProductImages(product: any): string[] {
       // Handle legacy string format
       if (typeof img === 'string') {
         if (img && !img.startsWith('http') && !img.startsWith('/')) {
-          return `${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/uploads/${img}`;
+          const origin = getApiOrigin();
+          return origin ? `${origin}/uploads/${img}` : `/uploads/${img}`;
         }
         if (img && img.startsWith('/uploads')) {
-          return `${import.meta.env.VITE_API_URL || 'http://localhost:5001'}${img}`;
+          const origin = getApiOrigin();
+          return origin ? `${origin}${img}` : img;
         }
         return img;
       }
@@ -88,10 +96,12 @@ export function getProductImages(product: any): string[] {
   if (product?.image) {
     const img = product.image;
     if (img && !img.startsWith('http') && !img.startsWith('/')) {
-      return [`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/uploads/${img}`];
+      const origin = getApiOrigin();
+      return [origin ? `${origin}/uploads/${img}` : `/uploads/${img}`];
     }
     if (img && img.startsWith('/uploads')) {
-      return [`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}${img}`];
+      const origin = getApiOrigin();
+      return [origin ? `${origin}${img}` : img];
     }
     return [img];
   }

@@ -1,0 +1,22 @@
+<testsuites id="" name="" tests="9" failures="0" skipped="0" errors="0" time="6.225839">
+<testsuite name="e2e/auth.spec.ts" timestamp="2026-01-09T12:11:22.734Z" hostname="chromium" tests="9" failures="0" skipped="0" time="15.701" errors="0">
+<testcase name="Authentication Flow › should signup a new user" classname="e2e/auth.spec.ts" time="1.718">
+</testcase>
+<testcase name="Authentication Flow › should login with valid credentials" classname="e2e/auth.spec.ts" time="3.099">
+</testcase>
+<testcase name="Authentication Flow › should show error for invalid credentials" classname="e2e/auth.spec.ts" time="2.442">
+</testcase>
+<testcase name="Authentication Flow › should handle OTP reset" classname="e2e/auth.spec.ts" time="2.361">
+</testcase>
+<testcase name="Authentication Flow › should logout successfully" classname="e2e/auth.spec.ts" time="2.054">
+</testcase>
+<testcase name="Authentication Flow › should validate form inputs" classname="e2e/auth.spec.ts" time="1.35">
+</testcase>
+<testcase name="Authentication Flow › should handle social login" classname="e2e/auth.spec.ts" time="1.009">
+</testcase>
+<testcase name="Authentication Flow › should handle session persistence" classname="e2e/auth.spec.ts" time="1.068">
+</testcase>
+<testcase name="Authentication Flow › should handle token expiration" classname="e2e/auth.spec.ts" time="0.6">
+</testcase>
+</testsuite>
+</testsuites>

@@ -19,6 +19,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useRefreshTokenMutation } from "../store/api";
 import { setUser, setTokens, logout } from "../store/slices/authSlice";
+import DeliveryBottomNav from "../components/DeliveryBottomNav";
 
 interface DeliveryProfile {
   id: string;
@@ -39,6 +40,7 @@ const DeliveryProfilePage: React.FC = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { user, tokens } = useSelector((state: RootState) => state.auth);
+  const [activeTab, setActiveTab] = useState("more");
   const [refreshToken] = useRefreshTokenMutation();
   const [profile, setProfile] = useState<DeliveryProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -46,6 +48,9 @@ const DeliveryProfilePage: React.FC = () => {
   const [_isUploadingSelfie, _setIsUploadingSelfie] = useState(false);
   const [_selfieError, _setSelfieError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isUsingCachedData, setIsUsingCachedData] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
 
   // Editing state
   const [editingField, setEditingField] = useState<string | null>(null);
@@ -115,7 +120,7 @@ const DeliveryProfilePage: React.FC = () => {
       console.error("Token refresh failed:", error);
       // If refresh fails, logout the user
       dispatch(logout());
-      navigate("/login");
+      navigate("/delivery/login");
       return null;
     }
   };
@@ -185,7 +190,7 @@ const DeliveryProfilePage: React.FC = () => {
       console.log(
         "User not authenticated or not delivery role, redirecting to login"
       );
-      navigate("/login");
+      navigate("/delivery/login");
       return;
     }
 
@@ -258,6 +263,8 @@ const DeliveryProfilePage: React.FC = () => {
       const data = await response.json();
       console.log("Profile data:", data);
       setProfile(data);
+      setIsUsingCachedData(false);
+      setLastUpdated(new Date());
 
       // Set language preferences if available
       if (data.appLanguage) {
@@ -268,13 +275,18 @@ const DeliveryProfilePage: React.FC = () => {
       }
     } catch (err) {
       console.error("Error fetching profile:", err);
-      setError(
-        `Failed to load profile: ${
-          err instanceof Error ? err.message : "Unknown error"
-        }`
-      );
-      // Fallback to mock data
-      setProfile(mockProfile);
+      const errorMessage = err instanceof Error ? err.message : "Unknown error";
+      setError(`Failed to load profile: ${errorMessage}`);
+      
+      // Only use mock data if we have no cached data
+      if (!profile) {
+        setProfile(mockProfile);
+        setIsUsingCachedData(true);
+        setLastUpdated(new Date());
+      } else {
+        // We have cached data, indicate it's stale
+        setIsUsingCachedData(true);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -360,8 +372,23 @@ const DeliveryProfilePage: React.FC = () => {
     });
   };
 
+  const validatePhone = (phone: string): boolean => {
+    const cleaned = phone.replace(/\D/g, "");
+    if (cleaned.length < 10 || cleaned.length > 13) {
+      setPhoneError("Phone number must be 10-13 digits");
+      return false;
+    }
+    setPhoneError(null);
+    return true;
+  };
+
   const handleSave = async (field: string) => {
     if (!tokens?.accessToken) return;
+
+    // Validate phone number
+    if (field === "phone" && !validatePhone(editValues.phone)) {
+      return;
+    }
 
     setIsUpdating(true);
     try {
@@ -370,7 +397,13 @@ const DeliveryProfilePage: React.FC = () => {
       // Map field names to API format
       switch (field) {
         case "phone":
-          updateData.mobile = editValues.phone.replace(/\D/g, ""); // Remove non-digits
+          const cleaned = editValues.phone.replace(/\D/g, "");
+          if (cleaned.length < 10 || cleaned.length > 13) {
+            setPhoneError("Phone number must be 10-13 digits");
+            setIsUpdating(false);
+            return;
+          }
+          updateData.mobile = cleaned;
           break;
         case "joiningDate":
           updateData.joiningDate = editValues.joiningDate;
@@ -709,6 +742,13 @@ const DeliveryProfilePage: React.FC = () => {
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto"></div>
           <p className="mt-4 text-gray-600">Loading profile...</p>
         </div>
+        <DeliveryBottomNav
+          activeTab={activeTab}
+          setActiveTab={(tab) => {
+            setActiveTab(tab);
+            navigate("/delivery");
+          }}
+        />
       </div>
     );
   }
@@ -748,7 +788,7 @@ const DeliveryProfilePage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white pb-20">
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-4 py-4">
         <div className="flex items-center justify-between">
@@ -765,6 +805,36 @@ const DeliveryProfilePage: React.FC = () => {
       </div>
 
       <div className="px-3 py-4">
+        {/* Cached Data Warning */}
+        {isUsingCachedData && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-4 mb-4"
+          >
+            <div className="flex items-start space-x-3">
+              <AlertTriangle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-semibold text-yellow-900 mb-1">Using Cached Data</p>
+                <p className="text-sm text-yellow-800 mb-2">
+                  Unable to load latest profile. Showing cached data.
+                </p>
+                {lastUpdated && (
+                  <p className="text-xs text-yellow-700">
+                    Last updated: {lastUpdated.toLocaleString()}
+                  </p>
+                )}
+                <button
+                  onClick={fetchProfile}
+                  className="mt-2 px-4 py-1.5 bg-yellow-600 text-white rounded-lg text-sm font-semibold hover:bg-yellow-700 transition-colors"
+                >
+                  Retry
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {/* Profile Section */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -826,18 +896,37 @@ const DeliveryProfilePage: React.FC = () => {
                     <p className="text-xs text-gray-500 mb-1">Mobile Number</p>
                     {editingField === "phone" ? (
                       <div className="flex items-center space-x-2">
-                        <input
-                          type="tel"
-                          value={editValues.phone}
-                          onChange={(e) =>
-                            setEditValues((prev) => ({
-                              ...prev,
-                              phone: e.target.value,
-                            }))
-                          }
-                          className="text-sm font-semibold text-gray-900 border border-gray-300 rounded px-2 py-1 w-full"
-                          placeholder="Enter mobile number"
-                        />
+                        <div className="flex-1">
+                          <input
+                            type="tel"
+                            value={editValues.phone}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              // Auto-format: +91 98765 43210
+                              const cleaned = value.replace(/\D/g, "");
+                              let formatted = cleaned;
+                              if (cleaned.length > 0) {
+                                if (cleaned.startsWith("91") && cleaned.length > 2) {
+                                  formatted = `+91 ${cleaned.slice(2, 7)} ${cleaned.slice(7, 11)}`.trim();
+                                } else if (cleaned.length > 5) {
+                                  formatted = `${cleaned.slice(0, 5)} ${cleaned.slice(5, 10)}`;
+                                }
+                              }
+                              setEditValues((prev) => ({
+                                ...prev,
+                                phone: formatted,
+                              }));
+                              setPhoneError(null);
+                            }}
+                            className={`text-sm font-semibold text-gray-900 border rounded px-2 py-1 w-full ${
+                              phoneError ? "border-red-300 bg-red-50" : "border-gray-300"
+                            }`}
+                            placeholder="+91 98765 43210"
+                          />
+                          {phoneError && (
+                            <p className="text-xs text-red-600 mt-1">{phoneError}</p>
+                          )}
+                        </div>
                         <button
                           onClick={() => handleSave("phone")}
                           disabled={isUpdating}

@@ -9,10 +9,14 @@ import {
   Clock,
   Target,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
+import DeliveryBottomNav from "../components/DeliveryBottomNav";
 
 const WaysToEarnPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const isDeliveryRoute = location.pathname.startsWith("/delivery/");
+  const [activeTab, setActiveTab] = React.useState("more");
 
   const earningMethods = [
     {
@@ -147,6 +151,16 @@ const WaysToEarnPage: React.FC = () => {
           </div>
         </motion.div>
       </div>
+
+      {isDeliveryRoute && (
+        <DeliveryBottomNav
+          activeTab={activeTab}
+          setActiveTab={(tab) => {
+            setActiveTab(tab);
+            navigate("/delivery");
+          }}
+        />
+      )}
     </div>
   );
 };

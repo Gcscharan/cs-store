@@ -66,7 +66,7 @@ const DeliveryBoySchema = new mongoose_1.Schema({
     vehicleType: {
         type: String,
         required: [true, "Vehicle type is required"],
-        enum: ["bike", "scooter", "cycle", "car", "walking"],
+        enum: ["AUTO", "auto", "bike", "scooter", "cycle", "car", "walking"],
     },
     isActive: {
         type: Boolean,
@@ -99,6 +99,14 @@ const DeliveryBoySchema = new mongoose_1.Schema({
         type: Number,
         default: 0,
         min: 0,
+    },
+    rejectionsToday: {
+        type: Number,
+        default: 0,
+        min: 0,
+    },
+    lastAssignedAt: {
+        type: Date,
     },
     email: {
         type: String,

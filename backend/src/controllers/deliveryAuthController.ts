@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { User } from "../models/User";
 import { DeliveryBoy } from "../models/DeliveryBoy";
+import Notification from "../models/Notification";
 import * as bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
@@ -115,6 +116,67 @@ export const deliverySignup = async (
 };
 
 /**
+ * Get Delivery Referral Info
+ * GET /api/delivery/referral
+ */
+export const getDeliveryReferral = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const user = (req as any).user;
+
+    if (!user) {
+      res.status(401).json({ error: "Authentication required" });
+      return;
+    }
+
+    const id = String(user._id || "");
+    const suffix = id.replace(/[^a-fA-F0-9]/g, "").slice(-6).toUpperCase();
+    const referralCode = suffix ? `DEL${suffix}` : "";
+
+    res.json({
+      success: true,
+      referralCode,
+    });
+  } catch (error) {
+    console.error("Get delivery referral error:", error);
+    res.status(500).json({ error: "Failed to get referral info" });
+  }
+};
+
+/**
+ * Get Delivery Messages
+ * GET /api/delivery/messages
+ */
+export const getDeliveryMessages = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const user = (req as any).user;
+
+    if (!user) {
+      res.status(401).json({ error: "Authentication required" });
+      return;
+    }
+
+    const messages = await Notification.find({ userId: user._id })
+      .sort({ createdAt: -1 })
+      .limit(50);
+
+    res.json({
+      success: true,
+      messages,
+      count: messages.length,
+    });
+  } catch (error) {
+    console.error("Get delivery messages error:", error);
+    res.status(500).json({ error: "Failed to fetch messages" });
+  }
+};
+
+/**
  * Delivery Boy Login
  * POST /api/delivery/auth/login
  */
@@ -177,12 +239,28 @@ export const deliveryLogin = async (
       return;
     }
 
+    if (user.status !== "active") {
+      res.status(403).json({
+        error: "Your account is not approved yet.",
+        status: user.status,
+      });
+      return;
+    }
+
     // Get delivery boy record
     const deliveryBoy = await DeliveryBoy.findOne({ userId: user._id });
 
     if (!deliveryBoy) {
       res.status(404).json({
         error: "Delivery profile not found",
+      });
+      return;
+    }
+
+    if (!deliveryBoy.isActive) {
+      res.status(403).json({
+        error: "Your delivery profile is not active yet. Please wait for activation.",
+        status: "inactive",
       });
       return;
     }

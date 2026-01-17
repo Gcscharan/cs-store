@@ -6,6 +6,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 // Load environment variables FIRST before any other imports
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
+const NODE_ENV = process.env.NODE_ENV || "development";
+const DEV_LOW_POWER = String(process.env.DEV_LOW_POWER || "").toLowerCase() === "true";
+const verboseLoggingEnabled = NODE_ENV === "production" ? true : !DEV_LOW_POWER;
 // Comprehensive Environment Variable Validation
 function validateEnvironmentVariables() {
     const errors = [];
@@ -32,11 +35,21 @@ function validateEnvironmentVariables() {
     }
     // Redis
     if (!process.env.REDIS_URL) {
-        errors.push("⚠️  REDIS_URL is recommended (using localhost fallback)");
+        if (NODE_ENV === "production") {
+            errors.push("❌ REDIS_URL is required in production");
+        }
+        else {
+            errors.push("⚠️  REDIS_URL is recommended");
+        }
     }
     // Frontend
     if (!process.env.FRONTEND_URL) {
-        errors.push("⚠️  FRONTEND_URL is recommended (using localhost fallback)");
+        if (NODE_ENV === "production") {
+            errors.push("❌ FRONTEND_URL is required in production");
+        }
+        else {
+            errors.push("⚠️  FRONTEND_URL is recommended");
+        }
     }
     // Razorpay
     if (!process.env.RAZORPAY_KEY_ID) {
@@ -67,27 +80,33 @@ function validateEnvironmentVariables() {
         warnings.forEach(warn => console.warn(warn));
         console.warn("⚠️  Consider adding these variables for full functionality.\n");
     }
-    console.log("✅ Environment variables validated successfully");
+    if (verboseLoggingEnabled) {
+        console.log("✅ Environment variables validated successfully");
+    }
 }
 // Run validation immediately after dotenv config
 validateEnvironmentVariables();
 // Validate critical environment variables immediately
-console.log("\n========================================");
-console.log("🔧 Environment Variables Check");
-console.log("========================================");
-console.log(`🌍 NODE_ENV: ${process.env.NODE_ENV || "development"}`);
-console.log(`🚪 PORT: ${process.env.PORT || "5001"}`);
-console.log(`🔗 MONGODB_URI present: ${process.env.MONGODB_URI ? "✅ Yes" : "❌ NO"}`);
-console.log(`🔑 JWT_SECRET present: ${process.env.JWT_SECRET ? "✅ Yes" : "❌ NO"}`);
-console.log(`🔑 JWT_REFRESH_SECRET present: ${process.env.JWT_REFRESH_SECRET ? "✅ Yes" : "❌ NO"}`);
-console.log(`☁️ CLOUDINARY_CLOUD_NAME present: ${process.env.CLOUDINARY_CLOUD_NAME ? "✅ Yes" : "❌ NO"}`);
-console.log(`📧 MOCK_OTP: ${process.env.MOCK_OTP || "false"}`);
-console.log("[ENV][SMS] FAST2SMS key loaded:", !!process.env.FAST2SMS_API_KEY);
+if (verboseLoggingEnabled) {
+    console.log("\n========================================");
+    console.log("🔧 Environment Variables Check");
+    console.log("========================================");
+    console.log(`🌍 NODE_ENV: ${process.env.NODE_ENV || "development"}`);
+    console.log(`🚪 PORT: ${process.env.PORT || "5001"}`);
+    console.log(`🔗 MONGODB_URI present: ${process.env.MONGODB_URI ? "✅ Yes" : "❌ NO"}`);
+    console.log(`🔑 JWT_SECRET present: ${process.env.JWT_SECRET ? "✅ Yes" : "❌ NO"}`);
+    console.log(`🔑 JWT_REFRESH_SECRET present: ${process.env.JWT_REFRESH_SECRET ? "✅ Yes" : "❌ NO"}`);
+    console.log(`☁️ CLOUDINARY_CLOUD_NAME present: ${process.env.CLOUDINARY_CLOUD_NAME ? "✅ Yes" : "❌ NO"}`);
+    console.log(`📧 MOCK_OTP: ${process.env.MOCK_OTP || "false"}`);
+    console.log("[ENV][SMS] FAST2SMS key loaded:", !!process.env.FAST2SMS_API_KEY);
+}
 // Check FAST2SMS API key validity
 if (process.env.FAST2SMS_API_KEY && process.env.FAST2SMS_API_KEY.length < 20) {
     console.warn("[SMS][WARN] FAST2SMS_API_KEY appears invalid.");
 }
-console.log("========================================\n");
+if (verboseLoggingEnabled) {
+    console.log("========================================\n");
+}
 const http_1 = require("http");
 const socket_io_1 = require("socket.io");
 const app_1 = __importDefault(require("./app"));
@@ -96,100 +115,157 @@ const bootstrapDevAdmin_1 = require("./scripts/bootstrapDevAdmin");
 // import SocketService from "./services/socketService";
 const child_process_1 = require("child_process");
 const util_1 = require("util");
-const locationSmoothing_1 = require("./utils/locationSmoothing");
-const DeliveryBoy_1 = require("./models/DeliveryBoy");
+const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
+const liveLocationStore_1 = require("./services/liveLocationStore");
+const User_1 = require("./models/User");
 const deliveryPartnerLoadService_1 = require("./domains/operations/services/deliveryPartnerLoadService");
+const orderEventBroadcaster_1 = require("./domains/orders/services/orderEventBroadcaster");
+const notificationWriter_1 = require("./domains/communication/services/notificationWriter");
+const outboxDispatcher_1 = require("./domains/events/outboxDispatcher");
+const inventoryReservationSweeper_1 = require("./domains/orders/services/inventoryReservationSweeper");
 const execAsync = (0, util_1.promisify)(child_process_1.exec);
-// Initialize live location store for smooth tracking
-const liveLocationStore = new locationSmoothing_1.LiveLocationStore();
 // Create HTTP server
 const server = (0, http_1.createServer)(app_1.default);
 // Initialize Socket.io
+const socketCorsOriginFromEnv = String(process.env.CORS_ORIGIN || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+const socketCorsOrigins = [
+    ...(NODE_ENV === "production" ? [] : ["http://localhost:3000", "http://localhost:3001", "http://localhost:5173"]),
+    process.env.FRONTEND_URL || "",
+    ...socketCorsOriginFromEnv,
+].filter(Boolean);
 const io = new socket_io_1.Server(server, {
     cors: {
-        origin: [
-            "http://localhost:3000",
-            "http://localhost:3001",
-            "http://localhost:5173", // Vite default port
-            process.env.FRONTEND_URL || "http://localhost:3000",
-        ],
+        origin: socketCorsOrigins,
         methods: ["GET", "POST"],
         credentials: true,
     },
 });
+io.use(async (socket, next) => {
+    try {
+        const provided = (typeof socket.handshake?.auth?.token === "string" && String(socket.handshake.auth.token).trim()) ||
+            (typeof socket.handshake.headers?.authorization === "string" && String(socket.handshake.headers.authorization).replace(/^Bearer\s+/i, "").trim()) ||
+            "";
+        if (!provided) {
+            return next();
+        }
+        const decoded = jsonwebtoken_1.default.verify(provided, process.env.JWT_SECRET || "your-secret-key");
+        const userId = String(decoded?.userId || "");
+        if (!userId) {
+            return next();
+        }
+        const u = await User_1.User.findById(userId).select("_id role").lean();
+        if (!u) {
+            return next();
+        }
+        socket.data.userId = userId;
+        socket.data.role = String(u.role || "");
+        return next();
+    }
+    catch (e) {
+        console.warn("[Socket] auth middleware failed", e);
+        return next();
+    }
+});
 // Initialize Socket Service for OTP (disabled for now)
 // const socketService = new SocketService(server);
+// Initialize OrderEventBroadcaster for real-time order status updates
+const orderEventBroadcaster = new orderEventBroadcaster_1.OrderEventBroadcaster(io);
 // Store socket.io instance in app for webhook access
 app_1.default.set("io", io);
+app_1.default.set("orderEventBroadcaster", orderEventBroadcaster);
 // app.set("socketService", socketService);
+// Fan-out for accepted HTTP location updates (Phase 1B)
+liveLocationStore_1.liveLocationEvents.on("location", (loc) => {
+    try {
+        const driverId = String(loc?.driverId || "");
+        if (!driverId)
+            return;
+        const payload = {
+            driverId,
+            routeId: String(loc?.routeId || ""),
+            lat: Number(loc?.lat),
+            lng: Number(loc?.lng),
+            lastUpdatedAt: new Date(Number(loc?.receivedAt || Date.now())).toISOString(),
+        };
+        io.to("admin_room").emit("driver:location:update", payload);
+    }
+    catch (e) {
+        console.error("[LiveLocation][socket] fan-out error:", e);
+    }
+});
 // Socket.io connection handling
 io.on("connection", (socket) => {
-    console.log("Client connected:", socket.id);
+    if (verboseLoggingEnabled) {
+        console.log("Client connected:", socket.id);
+    }
+    try {
+        const userId = String(socket.data?.userId || "");
+        if (userId) {
+            socket.join(`user_${userId}`);
+        }
+    }
+    catch (e) {
+        console.warn("[Socket] personal room join failed", e);
+    }
     // Join rooms based on user role
     socket.on("join_room", (data) => {
-        const { room, userId, userRole } = data;
-        socket.join(room);
-        console.log(`User ${userId} (${userRole}) joined room: ${room}`);
-        // Join admin room if user is admin
-        if (userRole === "admin") {
-            socket.join("admin_room");
+        const { room, userId, userRole, token } = data || {};
+        const roomStr = String(room || "");
+        // Admin-only: joining admin_room requires a valid admin JWT.
+        if (roomStr === "admin_room") {
+            try {
+                const provided = (typeof token === "string" && token.trim()) ||
+                    (typeof socket.handshake?.auth?.token === "string" && String(socket.handshake.auth.token).trim()) ||
+                    (typeof socket.handshake.headers?.authorization === "string" && String(socket.handshake.headers.authorization).replace(/^Bearer\s+/i, "").trim()) ||
+                    "";
+                if (!provided) {
+                    console.warn("[Socket] Admin join denied: missing token", { socketId: socket.id });
+                    return;
+                }
+                const decoded = jsonwebtoken_1.default.verify(provided, process.env.JWT_SECRET || "your-secret-key");
+                const adminId = String(decoded?.userId || "");
+                if (!adminId) {
+                    console.warn("[Socket] Admin join denied: invalid token payload", { socketId: socket.id });
+                    return;
+                }
+                // Role check must be server authoritative.
+                User_1.User.findById(adminId)
+                    .select("role")
+                    .then((u) => {
+                    if (!u || String(u.role) !== "admin") {
+                        console.warn("[Socket] Admin join denied: role mismatch", { socketId: socket.id, adminId });
+                        return;
+                    }
+                    socket.join("admin_room");
+                    if (verboseLoggingEnabled) {
+                        console.log(`✅ Admin ${adminId} joined admin_room`);
+                    }
+                })
+                    .catch((e) => {
+                    console.warn("[Socket] Admin join denied: user lookup failed", e);
+                });
+            }
+            catch (e) {
+                console.warn("[Socket] Admin join denied: token verify failed", e);
+            }
+            return;
         }
+        // Security hard rule: only admin_room is joinable.
+        console.warn("[Socket] join_room denied: only admin_room is allowed", {
+            socketId: socket.id,
+            room: roomStr,
+            userId,
+            userRole,
+        });
+        return;
     });
     // Handle order status updates
     socket.on("order_status_update", (data) => {
         const { orderId, status } = data;
-        io.to(`order_${orderId}`).emit("order:status:update", { orderId, status });
         io.to("admin_room").emit("order:status:update", { orderId, status });
-    });
-    // Handle driver location updates with smooth tracking
-    socket.on("driver_location_update", async (data) => {
-        const { driverId, lat, lng } = data;
-        try {
-            // Update location in live store with smoothing and throttling
-            const smoothedLocation = liveLocationStore.updateLocation(driverId, {
-                lat,
-                lng,
-                timestamp: Date.now(),
-            });
-            // Only broadcast if throttle allows (every 3 seconds)
-            if (smoothedLocation) {
-                // Get delivery boy's active route
-                const deliveryBoy = await DeliveryBoy_1.DeliveryBoy.findById(driverId)
-                    .select("activeRoute currentLocation assignedOrders")
-                    .lean();
-                // Generate smooth path for animation
-                const oldLocation = deliveryBoy?.currentLocation || { lat, lng };
-                const smoothPath = (0, locationSmoothing_1.smoothMarkerMovement)(oldLocation, { lat: smoothedLocation.lat, lng: smoothedLocation.lng }, 10 // 10 interpolation steps
-                );
-                const updateData = {
-                    driverId,
-                    lat: smoothedLocation.lat,
-                    lng: smoothedLocation.lng,
-                    speed: smoothedLocation.speed || 0,
-                    heading: smoothedLocation.heading || 0,
-                    smoothPath, // Array of intermediate positions for smooth animation
-                    activeRoute: deliveryBoy?.activeRoute?.polyline || null,
-                    destination: deliveryBoy?.activeRoute?.destination || null,
-                    eta: deliveryBoy?.activeRoute?.estimatedArrival || null,
-                    timestamp: smoothedLocation.timestamp,
-                };
-                // Emit to driver's room
-                io.to(`driver_${driverId}`).emit("driver:location:update", updateData);
-                // Emit to admin room for tracking
-                io.to("admin_room").emit("driver:location:update", updateData);
-                // Emit to order rooms for customers tracking their delivery
-                if (deliveryBoy?.assignedOrders) {
-                    deliveryBoy.assignedOrders.forEach((orderId) => {
-                        io.to(`order_${orderId}`).emit("driver:location:update", updateData);
-                    });
-                }
-                // Update database every 30 seconds (batch update to reduce DB writes)
-                // This is handled by a separate periodic task
-            }
-        }
-        catch (error) {
-            console.error("Error processing driver location update:", error);
-        }
     });
     // Handle order creation events
     socket.on("order_created", (data) => {
@@ -206,38 +282,18 @@ io.on("connection", (socket) => {
         });
     });
     socket.on("disconnect", () => {
-        console.log("Client disconnected:", socket.id);
+        if (verboseLoggingEnabled) {
+            console.log("Client disconnected:", socket.id);
+        }
     });
 });
-// Periodic task to batch update delivery boy locations in database
-// Runs every 30 seconds to reduce DB write load
-setInterval(async () => {
-    try {
-        const activeDeliveryBoys = liveLocationStore.getActiveDeliveryBoys();
-        for (const deliveryBoyId of activeDeliveryBoys) {
-            const location = liveLocationStore.getLocation(deliveryBoyId);
-            if (location) {
-                await DeliveryBoy_1.DeliveryBoy.findByIdAndUpdate(deliveryBoyId, {
-                    $set: {
-                        "currentLocation.lat": location.lat,
-                        "currentLocation.lng": location.lng,
-                        "currentLocation.lastUpdatedAt": new Date(location.timestamp || Date.now()),
-                    },
-                }, { new: false });
-            }
-        }
-        if (activeDeliveryBoys.length > 0) {
-            console.log(`✅ Batch updated ${activeDeliveryBoys.length} delivery boy locations`);
-        }
-    }
-    catch (error) {
-        console.error("Error in batch location update:", error);
-    }
-}, 30000); // 30 seconds
 // Start server
 const PORT = process.env.PORT || 5001;
-// Function to gracefully close existing server instances on a port
+// Function to gracefully close existing server instances on a port (development only)
 const closeExistingServer = async (port) => {
+    if (NODE_ENV === "production") {
+        return;
+    }
     try {
         // Find processes using the port
         const { stdout } = await execAsync(`lsof -ti:${port}`);
@@ -282,22 +338,28 @@ const closeExistingServer = async (port) => {
             catch (err) {
                 // No processes found, port is free
             }
-            console.log(`✅ Port ${port} is now available`);
         }
     }
     catch (err) {
-        // No processes found on this port, which is fine
-        console.log(`✅ Port ${port} is available`);
+        console.warn(`⚠️  closeExistingServer failed for port ${port}`);
     }
 };
 const startServer = async () => {
     try {
         await (0, database_1.connectDB)();
+        // Start in-memory live location store timers (flush + TTL cleanup)
+        liveLocationStore_1.liveLocationStore.start();
+        (0, notificationWriter_1.initializeNotificationWriter)();
+        (0, outboxDispatcher_1.initializeOutboxDispatcher)();
+        (0, inventoryReservationSweeper_1.initializeInventoryReservationSweeper)();
         // Bootstrap dev admin user in development
         await (0, bootstrapDevAdmin_1.bootstrapDevAdmin)();
         // Initialize Redis ZSET for delivery partner load tracking
         console.log("🚚 Initializing delivery partner load tracking...");
         await deliveryPartnerLoadService_1.deliveryPartnerLoadService.initializeLoads();
+        // Start OrderEventBroadcaster polling for real-time sync
+        console.log("📡 Starting OrderEventBroadcaster polling...");
+        orderEventBroadcaster.startPolling(5000); // Poll every 5 seconds
         // Function to try starting server on a specific port
         const tryStartServer = (port) => {
             return new Promise((resolve, reject) => {
@@ -309,7 +371,7 @@ const startServer = async () => {
                 }
                 const serverInstance = server.listen(port, () => {
                     console.log(`🚀 Server running on port ${port}`);
-                    console.log(`🏥 Health check: http://localhost:${port}/health`);
+                    console.log(`🏥 Health check: /health`);
                     resolve();
                 });
                 serverInstance.on("error", (err) => {
@@ -323,7 +385,13 @@ const startServer = async () => {
                 });
             });
         };
-        // Try to start server on the specified port, then try next ports if needed
+        // In production (Railway), bind ONLY to process.env.PORT (no port hopping / no lsof/kill)
+        if (NODE_ENV === "production") {
+            const port = Number(PORT);
+            await tryStartServer(port);
+            return;
+        }
+        // In development, try to start server on the specified port, then try next ports if needed
         let currentPort = parseInt(PORT.toString());
         const maxAttempts = 5; // Reduced attempts to prevent too many servers
         let attempts = 0;

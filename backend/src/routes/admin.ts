@@ -11,12 +11,24 @@ import {
   updateProduct,
   deleteProduct,
   makeDeliveryBoy,
+  approveDeliveryBoy,
+  computeRoutes,
+  listRoutes,
+  assignRoute,
+  assignComputedCluster,
+  getRouteStatus,
+  listRecentAssignedRoutes,
+  getRouteDetail,
+  purgeOrders,
 } from "../controllers/adminController";
+import { assignDeliveryBoyToOrder } from "../controllers/orderAssignmentController";
 import { authenticateToken, requireRole } from "../middleware/auth";
 import { auditLog } from "../middleware/auditLog";
 import jwt from "jsonwebtoken";
 import { orderStateService } from "../domains/orders/services/orderStateService";
 import { OrderStatus } from "../domains/orders/enums/OrderStatus";
+import { enqueueAutoAssignment } from "../domains/delivery/services/autoAssignmentRunner";
+import { getAdminCodCollection, getAdminOrderAttempt } from "../domains/operations/controllers/deliveryOrderController";
 
 const router = express.Router();
 
@@ -90,12 +102,33 @@ router.get(
   requireRole(["admin"]),
   getAdminOrders
 );
+
+router.get(
+  "/orders/:orderId/attempt",
+  authenticateToken,
+  requireRole(["admin"]),
+  auditLog,
+  getAdminOrderAttempt
+);
+
+router.get(
+  "/orders/:orderId/cod-collection",
+  authenticateToken,
+  requireRole(["admin"]),
+  auditLog,
+  getAdminCodCollection
+);
 // Note: Order status updates, accept/decline, and assignment are handled by other routes
 // These routes are commented out as the functions don't exist in adminController
 // router.patch("/orders/:orderId", authenticateToken, requireRole(["admin"]), updateOrderStatus);
 // router.post("/orders/:orderId/accept", authenticateToken, requireRole(["admin"]), acceptOrder);
 // router.post("/orders/:orderId/decline", authenticateToken, requireRole(["admin"]), declineOrder);
-// router.patch("/orders/:orderId/assign", authenticateToken, requireRole(["admin"]), manualAssignOrder);
+router.patch(
+  "/orders/:orderId/assign",
+  authenticateToken,
+  requireRole(["admin"]),
+  assignDeliveryBoyToOrder
+);
 router.get(
   "/delivery-boys",
   authenticateToken,
@@ -108,15 +141,84 @@ router.get(
   requireRole(["admin"]),
   getAdminDeliveryBoys // Using getAdminDeliveryBoys instead of getDeliveryBoysList
 );
-// Note: Delivery boy approval, suspension, and auto-assignment functions don't exist in adminController
-// router.put("/delivery-boys/:id/approve", authenticateToken, requireRole(["admin"]), approveDeliveryBoy);
+router.put(
+  "/delivery-boys/:id/approve",
+  authenticateToken,
+  requireRole(["admin"]),
+  approveDeliveryBoy
+);
 // router.put("/delivery-boys/:id/suspend", authenticateToken, requireRole(["admin"]), suspendDeliveryBoy);
 // router.post("/assign-deliveries", authenticateToken, requireRole(["admin"]), autoAssignDeliveries);
+router.post(
+  "/orders/purge",
+  authenticateToken,
+  requireRole(["admin"]),
+  auditLog,
+  purgeOrders
+);
+
 router.get(
   "/orders/export",
   authenticateToken,
   requireRole(["admin"]),
   exportOrders
+);
+
+// CVRP Route Assignment
+router.post(
+  "/routes/compute",
+  authenticateToken,
+  requireRole(["admin"]),
+  auditLog,
+  computeRoutes
+);
+
+router.post(
+  "/routes/assign",
+  authenticateToken,
+  requireRole(["admin"]),
+  auditLog,
+  assignComputedCluster
+);
+
+router.get(
+  "/routes",
+  authenticateToken,
+  requireRole(["admin"]),
+  auditLog,
+  listRoutes
+);
+
+router.get(
+  "/routes/recent",
+  authenticateToken,
+  requireRole(["admin"]),
+  auditLog,
+  listRecentAssignedRoutes
+);
+
+router.post(
+  "/routes/:routeId/assign",
+  authenticateToken,
+  requireRole(["admin"]),
+  auditLog,
+  assignRoute
+);
+
+router.get(
+  "/routes/:routeId/status",
+  authenticateToken,
+  requireRole(["admin"]),
+  auditLog,
+  getRouteStatus
+);
+
+router.get(
+  "/routes/:routeId/detail",
+  authenticateToken,
+  requireRole(["admin"]),
+  auditLog,
+  getRouteDetail
 );
 
 router.post(

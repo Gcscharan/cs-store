@@ -2,6 +2,7 @@ import express from "express";
 import { authenticateToken } from "../../../middleware/auth";
 import {
   getNotifications,
+  getNotificationsV2,
   markAsRead,
   markAllAsRead,
   deleteNotification,
@@ -13,6 +14,9 @@ const router = express.Router();
 
 // All routes require authentication
 router.use(authenticateToken);
+
+// Canonical cursor-paginated notifications endpoint
+router.get("/v2", getNotificationsV2);
 
 // Get all notifications for user (newest first)
 router.get("/", getNotifications);

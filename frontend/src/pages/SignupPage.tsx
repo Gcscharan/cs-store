@@ -24,7 +24,7 @@ const SignupPage: React.FC = () => {
   
   // Extract passed credentials from URL parameters (since modal is outside Router context)
   const urlParams = new URLSearchParams(location.search);
-  const prefilledCredential = urlParams.get('prefill');
+  const prefilledCredential = urlParams.get('prefill') || urlParams.get('identifier');
   const fromLogin = urlParams.get('fromLogin') === 'true';
   
   const passedCredentials = prefilledCredential ? {

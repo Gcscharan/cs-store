@@ -13,8 +13,10 @@ import {
   unassignDeliveryBoyFromOrder,
   getOptimalDeliveryBoy,
 } from "../controllers/orderAssignmentController";
-import { authenticateToken } from "../middleware/auth";
+import { authenticateToken, requireRole } from "../middleware/auth";
 import { Order } from "../models/Order";
+import { getTrackingKillSwitchMode } from "../domains/tracking/services/trackingKillSwitch";
+import { getTrackingProjection } from "../domains/tracking/services/trackingProjectionStore";
 
 const router = express.Router();
 
@@ -39,23 +41,25 @@ router.get("/:id/tracking", authenticateToken, async (req, res) => {
       return res.status(404).json({ message: "Order not found" });
     }
 
-    // Mock tracking data for test compatibility
-    const tracking = {
-      currentStatus: order.orderStatus === "confirmed" ? "Order confirmed" : "Order placed",
-      updates: [
-        {
-          status: "Order placed",
-          timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
-        },
-        {
-          status: "Order confirmed",
-          timestamp: new Date(Date.now() - 1 * 60 * 60 * 1000), // 1 hour ago
-        },
-      ],
-      estimatedDelivery: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days from now
-    };
+    const mode = await getTrackingKillSwitchMode();
+    if (mode !== "CUSTOMER_READ_ENABLED") {
+      return res.json({ trackingState: "HIDDEN" });
+    }
 
-    res.json({ tracking });
+    const projection = await getTrackingProjection(String(order._id));
+    if (!projection) {
+      return res.json({
+        trackingState: "OFFLINE",
+        lastUpdatedAt: null,
+        freshnessState: "OFFLINE",
+      });
+    }
+
+    return res.json({
+      trackingState: "AVAILABLE",
+      lastUpdatedAt: projection.lastUpdatedAt,
+      freshnessState: projection.freshnessState,
+    });
   } catch (error) {
     res.status(500).json({ message: "Failed to get tracking information" });
   }
@@ -64,7 +68,12 @@ router.get("/:orderId/payment-status", authenticateToken, getPaymentStatus);
 router.put("/:orderId/payment-status", authenticateToken, updatePaymentStatus);
 
 // Order assignment routes
-router.post("/:orderId/assign", authenticateToken, assignDeliveryBoyToOrder);
+router.post(
+  "/:orderId/assign",
+  authenticateToken,
+  requireRole(["admin"]),
+  assignDeliveryBoyToOrder
+);
 router.delete(
   "/:orderId/assign",
   authenticateToken,

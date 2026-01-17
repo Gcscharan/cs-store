@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { MapPin, Loader2 } from "lucide-react";
 import { useToast } from "./AccessibleToast";
 import { isPincodeDeliverable } from "../utils/pincodeValidation";
+import { toApiUrl } from "../config/runtime";
 
 interface LocationData {
   pincode: string;
@@ -55,8 +56,7 @@ const UseCurrentLocationButton: React.FC<UseCurrentLocationButtonProps> = ({
             console.log("📍 GPS Coordinates:", { latitude, longitude });
 
             // Call backend reverse geocoding API
-            const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
-            const apiUrl = `${baseUrl}/api/location/reverse-geocode?lat=${latitude}&lng=${longitude}`;
+            const apiUrl = toApiUrl(`/location/reverse-geocode?lat=${latitude}&lng=${longitude}`);
             console.log("🌐 Calling API:", apiUrl);
 
             const response = await fetch(apiUrl);

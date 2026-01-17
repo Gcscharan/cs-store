@@ -105,7 +105,7 @@ describe("OTP Endpoints", () => {
         orderId: order._id,
         cardNumber: "4111111111111111",
         cardHolderName: "John Doe",
-        expiryDate: "12/25",
+        expiryDate: "12/99",
         cvv: "123",
       };
 
@@ -134,7 +134,7 @@ describe("OTP Endpoints", () => {
         orderId: otherOrder._id,
         cardNumber: "4111111111111111",
         cardHolderName: "John Doe",
-        expiryDate: "12/25",
+        expiryDate: "12/99",
         cvv: "123",
       };
 
@@ -163,7 +163,7 @@ describe("OTP Endpoints", () => {
         orderId: order._id,
         cardNumber: "invalid-card",
         cardHolderName: "John Doe",
-        expiryDate: "12/25",
+        expiryDate: "12/99",
         cvv: "123",
       };
 

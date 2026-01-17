@@ -6,8 +6,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.verifyPayment = exports.createOrder = exports.clearCart = exports.removeFromCart = exports.updateCartItem = exports.addToCart = exports.getCart = void 0;
 const Product_1 = require("../models/Product");
 const Order_1 = require("../models/Order");
-const DeliveryBoy_1 = require("../models/DeliveryBoy");
-const Pincode_1 = require("../models/Pincode");
 const Cart_1 = require("../models/Cart");
 const razorpay_1 = __importDefault(require("razorpay"));
 const crypto_1 = __importDefault(require("crypto"));
@@ -86,7 +84,10 @@ const addToCart = async (req, res) => {
         if (!product) {
             return res.status(404).json({ message: "Product not found" });
         }
-        if (product.stock < quantity) {
+        const stock = Number(product.stock || 0);
+        const reservedStock = Number(product.reservedStock || 0);
+        const availableStock = stock - reservedStock;
+        if (availableStock < quantity) {
             return res.status(400).json({ message: "Insufficient stock" });
         }
         // Get or create cart
@@ -165,7 +166,10 @@ const updateCartItem = async (req, res) => {
             if (!product) {
                 return res.status(404).json({ message: "Product not found" });
             }
-            if (product.stock < quantity) {
+            const stock = Number(product.stock || 0);
+            const reservedStock = Number(product.reservedStock || 0);
+            const availableStock = stock - reservedStock;
+            if (availableStock < quantity) {
                 return res.status(400).json({ message: "Insufficient stock" });
             }
         }
@@ -268,52 +272,8 @@ const clearCart = async (req, res) => {
 exports.clearCart = clearCart;
 const createOrder = async (req, res) => {
     try {
-        const { items, address, totalAmount } = req.body;
-        const userId = req.user._id;
-        // Removed minimum order requirement - delivery charges will apply for all orders
-        // Validate pincode
-        const pincodeExists = await Pincode_1.Pincode.findOne({ pincode: address.pincode });
-        if (!pincodeExists) {
-            return res.status(400).json({
-                error: "Unable to deliver to this location.",
-            });
-        }
-        // Create order
-        const order = new Order_1.Order({
-            userId,
-            items,
-            totalAmount,
-            address,
-            orderStatus: "created",
-            paymentStatus: "pending",
-        });
-        await order.save();
-        // Create Razorpay order
-        const razorpayOrder = await razorpay.orders.create({
-            amount: totalAmount * 100, // Convert to paise
-            currency: "INR",
-            receipt: order._id.toString(),
-        });
-        // Update order with Razorpay order ID
-        order.razorpayOrderId = razorpayOrder.id;
-        await order.save();
-        // Auto-assign delivery boy
-        const availableDeliveryBoy = await DeliveryBoy_1.DeliveryBoy.findOne({
-            availability: "available",
-            isActive: true,
-        });
-        if (availableDeliveryBoy) {
-            order.deliveryBoyId = availableDeliveryBoy._id;
-            order.orderStatus = "assigned";
-            availableDeliveryBoy.assignedOrders.push(order._id);
-            availableDeliveryBoy.availability = "busy";
-            await availableDeliveryBoy.save();
-            await order.save();
-        }
-        res.json({
-            message: "Order created successfully",
-            order,
-            razorpayOrderId: razorpayOrder.id,
+        return res.status(410).json({
+            message: "Deprecated endpoint. Use /api/orders (canonical order flow) instead.",
         });
     }
     catch (error) {
@@ -338,7 +298,6 @@ const verifyPayment = async (req, res) => {
         const order = await Order_1.Order.findOneAndUpdate({ razorpayOrderId: razorpay_order_id }, {
             paymentStatus: "paid",
             razorpayPaymentId: razorpay_payment_id,
-            orderStatus: "pending", // Move to pending so admin can accept/decline
         }, { new: true });
         if (!order) {
             return res.status(404).json({ message: "Order not found" });

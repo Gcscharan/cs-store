@@ -3,8 +3,6 @@ import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { RootState } from "../store";
 import { motion } from "framer-motion";
-import { io, Socket } from "socket.io-client";
-import toast from "react-hot-toast";
 import {
   ShoppingCart,
   Package,
@@ -66,14 +64,13 @@ interface Order {
 
 const OrdersPage: React.FC = () => {
   const navigate = useNavigate();
-  const { tokens, isAuthenticated, user } = useSelector(
+  const { tokens, isAuthenticated } = useSelector(
     (state: RootState) => state.auth
   );
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedStatus, setSelectedStatus] = useState("");
-  const [_socket, _setSocket] = useState<Socket | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -82,46 +79,6 @@ const OrdersPage: React.FC = () => {
     }
     fetchOrders();
   }, [isAuthenticated]);
-
-  // Socket.IO for real-time updates
-  useEffect(() => {
-    if (!isAuthenticated || !tokens?.accessToken || !user?.id) return;
-
-    const newSocket = io("http://localhost:5001", {
-      auth: {
-        token: tokens.accessToken,
-      },
-    });
-
-    newSocket.on("connect", () => {
-      console.log("[ORDERS] Socket connected");
-      // Join user-specific room for order updates
-      newSocket.emit("join_room", {
-        room: `user_${user.id}`,
-        userId: user.id,
-        userRole: "user",
-      });
-    });
-
-    // Listen for order status updates
-    newSocket.on("order:statusUpdate", (data: any) => {
-      console.log("[ORDERS] Received status update:", data);
-      toast.success(`Order status updated: ${data.message || data.status}`);
-      
-      // Refetch orders to get fresh data
-      fetchOrders();
-    });
-
-    newSocket.on("disconnect", () => {
-      console.log("[ORDERS] Socket disconnected");
-    });
-
-    _setSocket(newSocket);
-
-    return () => {
-      newSocket.disconnect();
-    };
-  }, [isAuthenticated, tokens, user]);
 
   const fetchOrders = async () => {
     try {

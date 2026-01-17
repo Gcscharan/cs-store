@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useSelector } from "react-redux";
 import { RootState } from "../../store";
 import { toast } from "react-hot-toast";
@@ -10,7 +10,9 @@ import {
   Clock,
   Award,
   BarChart3,
+  RefreshCw,
 } from "lucide-react";
+import { EarningsCardSkeleton } from "./DeliverySkeletons";
 
 interface EarningsData {
   total: number;
@@ -46,6 +48,9 @@ const EnhancedEarningsTab: React.FC = () => {
     "today"
   );
   const [isLoading, setIsLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [pullToRefreshY, setPullToRefreshY] = useState(0);
+  const touchStartY = useRef<number | null>(null);
 
   useEffect(() => {
     fetchEarnings();
@@ -72,9 +77,13 @@ const EnhancedEarningsTab: React.FC = () => {
     return from ? from.toISOString() : undefined;
   };
 
-  const fetchEarnings = async () => {
+  const fetchEarnings = async (isRefresh = false) => {
     try {
-      setIsLoading(true);
+      if (!isRefresh) {
+        setIsLoading(true);
+      } else {
+        setIsRefreshing(true);
+      }
 
       if (!tokens?.accessToken) {
         throw new Error("No authentication token available");
@@ -103,10 +112,35 @@ const EnhancedEarningsTab: React.FC = () => {
       calculateDailyEarnings(data.orders || []);
     } catch (error: any) {
       console.error("Error fetching earnings:", error);
-      toast.error(error.message || "Failed to load earnings");
+      toast.error(error.message || "Failed to load earnings", { duration: 5000 });
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
+  };
+
+  // Pull-to-refresh handlers
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (touchStartY.current === null) return;
+    const currentY = e.touches[0].clientY;
+    const deltaY = currentY - touchStartY.current;
+    
+    if (deltaY > 0 && window.scrollY === 0) {
+      setPullToRefreshY(Math.min(deltaY, 80));
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (pullToRefreshY > 50 && !isRefreshing) {
+      setIsRefreshing(true);
+      fetchEarnings(true);
+    }
+    setPullToRefreshY(0);
+    touchStartY.current = null;
   };
 
   const calculateDailyEarnings = (orderList: OrderRecord[]) => {
@@ -143,9 +177,37 @@ const EnhancedEarningsTab: React.FC = () => {
   const maxEarning = Math.max(...dailyEarnings.map((d) => d.amount), 1);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100 p-4 pb-24">
+    <div 
+      className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100 p-4 pb-24"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* Pull-to-Refresh Indicator */}
+      {pullToRefreshY > 0 && (
+        <div 
+          className="fixed top-0 left-0 right-0 flex items-center justify-center bg-green-600 text-white py-2 z-50 transition-transform"
+          style={{ transform: `translateY(${pullToRefreshY - 50}px)` }}
+        >
+          <RefreshCw className={`h-5 w-5 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+          <span className="text-sm font-semibold">
+            {isRefreshing ? 'Refreshing...' : 'Pull to refresh'}
+          </span>
+        </div>
+      )}
+
       {/* Time Range Selector */}
       <div className="bg-white rounded-2xl shadow-lg p-4 mb-6">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-lg font-bold text-gray-900">Earnings</h3>
+          <button
+            onClick={() => fetchEarnings(true)}
+            className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+            aria-label="Refresh earnings"
+          >
+            <RefreshCw className={`h-5 w-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
         <div className="flex items-center gap-2 overflow-x-auto">
           {(["today", "week", "month", "all"] as const).map((range) => (
             <button
@@ -153,7 +215,7 @@ const EnhancedEarningsTab: React.FC = () => {
               onClick={() => setTimeRange(range)}
               className={`px-4 py-2 rounded-lg font-semibold whitespace-nowrap transition-colors ${
                 timeRange === range
-                  ? "bg-blue-600 text-white"
+                  ? "bg-green-600 text-white"
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
               }`}
             >
@@ -163,10 +225,16 @@ const EnhancedEarningsTab: React.FC = () => {
         </div>
       </div>
 
-      {isLoading ? (
-        <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading earnings...</p>
+      {isLoading && !earnings ? (
+        <div className="space-y-6">
+          <EarningsCardSkeleton />
+          <div className="grid grid-cols-2 gap-4">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="bg-white rounded-xl shadow-lg p-4">
+                <div className="h-20 bg-gray-200 animate-pulse rounded-lg"></div>
+              </div>
+            ))}
+          </div>
         </div>
       ) : (
         <>
@@ -176,8 +244,13 @@ const EnhancedEarningsTab: React.FC = () => {
               <div>
                 <p className="text-sm opacity-90 mb-1">Total Earnings</p>
                 <p className="text-4xl font-bold">
-                  ₹{earnings?.total.toLocaleString() || 0}
+                  ₹{earnings?.total.toLocaleString("en-IN") || 0}
                 </p>
+                {earnings && earnings.total > 0 && (
+                  <p className="text-xs opacity-75 mt-1">
+                    Before deductions
+                  </p>
+                )}
               </div>
               <div className="bg-white/20 p-4 rounded-full backdrop-blur-sm">
                 <DollarSign className="h-8 w-8" />
@@ -330,13 +403,22 @@ const EnhancedEarningsTab: React.FC = () => {
 
           {orders.length === 0 && (
             <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
-              <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <div className="p-4 bg-gradient-to-br from-green-100 to-emerald-100 rounded-full w-fit mx-auto mb-4">
+                <Calendar className="h-12 w-12 text-green-600" />
+              </div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
                 No Earnings Yet
               </h3>
-              <p className="text-gray-600">
+              <p className="text-gray-600 mb-4">
                 Complete deliveries to start earning
               </p>
+              <button
+                onClick={() => fetchEarnings(true)}
+                className="px-6 py-2.5 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors flex items-center mx-auto"
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </button>
             </div>
           )}
         </>

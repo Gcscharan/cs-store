@@ -1,6 +1,6 @@
 import express from "express";
 import passport from "passport";
-import { authenticateToken } from "../../../middleware/auth";
+import { authenticateGoogleAuthOnly, authenticateToken } from "../../../middleware/auth";
 import {
   signup,
   login,
@@ -11,6 +11,8 @@ import {
   changePassword,
   sendAuthOTP,
   verifyAuthOTP,
+  verifyOnboardingOtp,
+  completeOnboarding,
   completeProfile,
   checkPhoneExists,
   getMe,
@@ -44,6 +46,8 @@ router.post("/oauth", oauth);
 router.post("/refresh", refresh);
 router.post("/logout", authenticateToken, logout);
 router.post("/change-password", authenticateToken, changePassword);
+router.post("/complete-onboarding", authenticateGoogleAuthOnly, completeOnboarding);
+router.post("/verify-onboarding-otp", authenticateGoogleAuthOnly, verifyOnboardingOtp);
 router.post("/complete-profile", authenticateToken, completeProfile);
 router.put("/complete-profile", authenticateToken, completeProfile);
 router.get("/me", authenticateToken, getMe);

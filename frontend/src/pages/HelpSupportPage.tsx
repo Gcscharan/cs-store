@@ -9,10 +9,14 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
+import DeliveryBottomNav from "../components/DeliveryBottomNav";
 
 const HelpSupportPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const isDeliveryRoute = location.pathname.startsWith("/delivery/");
+  const [activeTab, setActiveTab] = useState("more");
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
 
   const faqs = [
@@ -225,6 +229,16 @@ const HelpSupportPage: React.FC = () => {
           </div>
         </motion.div>
       </div>
+
+      {isDeliveryRoute && (
+        <DeliveryBottomNav
+          activeTab={activeTab}
+          setActiveTab={(tab) => {
+            setActiveTab(tab);
+            navigate("/delivery");
+          }}
+        />
+      )}
     </div>
   );
 };

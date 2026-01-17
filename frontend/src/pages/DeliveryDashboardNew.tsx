@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { RootState } from "../store";
+import { toApiUrl } from "../config/runtime";
+import { useOrderWebSocket } from "../hooks/useOrderWebSocket";
+import { toast } from "react-hot-toast";
 import DeliveryBottomNav from "../components/DeliveryBottomNav";
 import HomeTab from "../components/delivery/HomeTab";
 import EarningsTab from "../components/delivery/EarningsTab";
@@ -17,26 +20,49 @@ const DeliveryDashboardNew: React.FC = () => {
 
   const [deliveryBoy, setDeliveryBoy] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [gateError, setGateError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("home");
 
   // Check authentication and role
   useEffect(() => {
     if (!isAuthenticated || user?.role !== "delivery") {
-      navigate("/login");
+      navigate("/delivery/login");
       return;
     }
     fetchDeliveryBoyInfo();
   }, [isAuthenticated, user, navigate]);
 
+  // Real-time order status updates via WebSocket
+  const handleOrderStatusChanged = useCallback((payload: any) => {
+    console.log("🔄 [Delivery UI] Received order status update:", payload);
+    
+    // Refresh delivery info to get updated orders
+    fetchDeliveryBoyInfo();
+
+    // Show toast notification
+    toast.success(
+      `Order #${payload.orderId.substring(0, 8)} status changed to ${payload.to}`,
+      { duration: 3000 }
+    );
+  }, []);
+
+  useOrderWebSocket({
+    userId: user?.id,
+    userRole: 'delivery',
+    onOrderStatusChanged: handleOrderStatusChanged,
+    enabled: isAuthenticated && user?.role === 'delivery',
+  });
+
   const fetchDeliveryBoyInfo = async () => {
     try {
       setIsLoading(true);
+      setGateError(null);
 
       if (!tokens?.accessToken) {
         throw new Error("No authentication token available");
       }
 
-      const response = await fetch("http://localhost:5001/api/delivery/orders", {
+      const response = await fetch(toApiUrl("/delivery/orders"), {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${tokens.accessToken}`,
@@ -44,6 +70,23 @@ const DeliveryDashboardNew: React.FC = () => {
       });
 
       if (!response.ok) {
+        if (response.status === 401) {
+          localStorage.removeItem("auth");
+          window.location.href = "/delivery/login";
+          return;
+        }
+
+        if (response.status === 403) {
+          let errorMessage = "Access denied";
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData?.error || errorData?.message || errorMessage;
+          } catch {
+          }
+          setGateError(errorMessage);
+          return;
+        }
+
         const errorData = await response.json();
         throw new Error(errorData.message || "Failed to fetch delivery info");
       }
@@ -63,7 +106,7 @@ const DeliveryDashboardNew: React.FC = () => {
         throw new Error("No authentication token available");
       }
 
-      const response = await fetch("http://localhost:5001/api/delivery/status", {
+      const response = await fetch(toApiUrl("/delivery/status"), {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -93,7 +136,7 @@ const DeliveryDashboardNew: React.FC = () => {
       }
 
       const response = await fetch(
-        `http://localhost:5001/api/delivery/orders/${orderId}/${action}`,
+        toApiUrl(`/delivery/orders/${orderId}/${action}`),
         {
           method: "PUT",
           headers: {
@@ -146,6 +189,26 @@ const DeliveryDashboardNew: React.FC = () => {
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading dashboard...</p>
         </div>
+      </div>
+    );
+  }
+
+  if (gateError) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="p-6">
+          <div className="bg-white rounded-2xl shadow-lg p-6 max-w-xl mx-auto">
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Account not ready</h2>
+            <p className="text-gray-700 mb-4">{gateError}</p>
+            <button
+              onClick={fetchDeliveryBoyInfo}
+              className="w-full py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+        <DeliveryBottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
       </div>
     );
   }

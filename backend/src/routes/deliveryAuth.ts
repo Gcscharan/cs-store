@@ -6,6 +6,8 @@ import {
   updateDeliveryProfile,
   getSelfieUrl,
   updateSelfie,
+  getDeliveryReferral,
+  getDeliveryMessages,
 } from "../controllers/deliveryAuthController";
 import {
   getDeliveryBoyInfo,
@@ -15,8 +17,14 @@ import {
   pickupOrder,
   startDelivery,
   markArrived,
+  getCodCollection,
+  createCodCollection,
+  deliverAttempt,
+  verifyDeliveryOtp,
   completeDelivery,
   failDelivery,
+  recordDeliveryAttempt,
+  getCurrentRoute,
   updateLocation,
   toggleStatus,
   getEarnings,
@@ -38,8 +46,15 @@ router.put("/profile", authenticateToken, requireDeliveryRole, updateDeliveryPro
 router.get("/selfie-url", authenticateToken, requireDeliveryRole, getSelfieUrl);
 router.put("/update-selfie", authenticateToken, requireDeliveryRole, updateSelfie);
 
+// Referral + messages
+router.get("/referral", authenticateToken, requireDeliveryRole, getDeliveryReferral);
+router.get("/messages", authenticateToken, requireDeliveryRole, getDeliveryMessages);
+
 // Delivery boy info
 router.get("/info", authenticateToken, requireDeliveryRole, getDeliveryBoyInfo);
+
+// Route consumption (read-only)
+router.get("/routes/current", authenticateToken, requireDeliveryRole, getCurrentRoute);
 
 // Order management
 router.get("/orders", authenticateToken, requireDeliveryRole, getDeliveryOrders);
@@ -49,8 +64,13 @@ router.post("/orders/:orderId/reject", authenticateToken, requireDeliveryRole, r
 router.post("/orders/:orderId/pickup", authenticateToken, requireDeliveryRole, pickupOrder);
 router.post("/orders/:orderId/start-delivery", authenticateToken, requireDeliveryRole, startDelivery);
 router.post("/orders/:orderId/arrived", authenticateToken, requireDeliveryRole, markArrived);
+router.get("/orders/:orderId/cod-collection", authenticateToken, requireDeliveryRole, getCodCollection);
+router.post("/orders/:orderId/cod-collection", authenticateToken, requireDeliveryRole, createCodCollection);
+router.post("/orders/:orderId/deliver", authenticateToken, requireDeliveryRole, deliverAttempt);
+router.post("/orders/:orderId/verify-otp", authenticateToken, requireDeliveryRole, verifyDeliveryOtp);
 router.post("/orders/:orderId/complete", authenticateToken, requireDeliveryRole, completeDelivery);
 router.post("/orders/:orderId/fail", authenticateToken, requireDeliveryRole, failDelivery);
+router.post("/orders/:orderId/attempt", authenticateToken, requireDeliveryRole, recordDeliveryAttempt);
 
 // Location and status
 router.put("/location", authenticateToken, requireDeliveryRole, updateLocation);

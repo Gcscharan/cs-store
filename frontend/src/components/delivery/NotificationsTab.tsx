@@ -8,13 +8,19 @@ import {
   AlertCircle,
   CheckCircle,
   Clock,
+  Filter,
+  CheckCheck,
 } from "lucide-react";
+
+import { formatNotificationCopy } from "../../utils/notificationFormatter";
 
 interface Notification {
   _id: string;
   type: "order_assigned" | "order_completed" | "payment_received" | "system";
   title: string;
   message: string;
+  eventType?: string;
+  meta?: Record<string, any>;
   isRead: boolean;
   createdAt: string;
   orderId?: string;
@@ -24,6 +30,7 @@ const NotificationsTab: React.FC = () => {
   const { tokens } = useSelector((state: RootState) => state.auth);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [filter, setFilter] = useState<"all" | "orders" | "payments" | "system">("all");
 
   useEffect(() => {
     fetchNotifications();
@@ -51,16 +58,15 @@ const NotificationsTab: React.FC = () => {
             _id: "1",
             type: "order_assigned",
             title: "New Order Assigned",
-            message: "You have been assigned Order #12345 for delivery",
+            message: "You have a new delivery assignment.",
             isRead: false,
             createdAt: new Date().toISOString(),
-            orderId: "12345",
           },
           {
             _id: "2",
             type: "payment_received",
             title: "Payment Received",
-            message: "₹150 has been credited to your account for Order #12344",
+            message: "Payment of ₹150 received successfully.",
             isRead: true,
             createdAt: new Date(Date.now() - 3600000).toISOString(),
           },
@@ -87,10 +93,9 @@ const NotificationsTab: React.FC = () => {
           _id: "1",
           type: "order_assigned",
           title: "New Order Assigned",
-          message: "You have been assigned Order #12345 for delivery",
+          message: "You have a new delivery assignment.",
           isRead: false,
           createdAt: new Date().toISOString(),
-          orderId: "12345",
         },
       ];
       setNotifications(mockNotifications);
@@ -124,6 +129,34 @@ const NotificationsTab: React.FC = () => {
     );
   };
 
+  const markAllAsRead = () => {
+    setNotifications((prev) =>
+      prev.map((notification) => ({ ...notification, isRead: true }))
+    );
+  };
+
+  const handleNotificationClick = (notification: Notification) => {
+    markAsRead(notification._id);
+    
+    // Navigate based on notification type
+    // Note: Since we're in a tab system, we'll use window events to communicate with parent
+    if (notification.orderId || notification.type === "order_assigned" || notification.type === "order_completed") {
+      // Trigger navigation to home tab via custom event
+      window.dispatchEvent(new CustomEvent("delivery-tab-change", { detail: { tab: "home", orderId: notification.orderId } }));
+    } else if (notification.type === "payment_received") {
+      // Trigger navigation to earnings tab
+      window.dispatchEvent(new CustomEvent("delivery-tab-change", { detail: { tab: "earnings" } }));
+    }
+  };
+
+  const filteredNotifications = notifications.filter((notification) => {
+    if (filter === "all") return true;
+    if (filter === "orders") return notification.type === "order_assigned" || notification.type === "order_completed";
+    if (filter === "payments") return notification.type === "payment_received";
+    if (filter === "system") return notification.type === "system";
+    return true;
+  });
+
   if (isLoading) {
     return (
       <div className="p-4 pb-20">
@@ -143,62 +176,102 @@ const NotificationsTab: React.FC = () => {
         className="bg-white rounded-lg shadow-sm border border-gray-200"
       >
         <div className="p-6 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900 flex items-center">
-            <Bell className="h-6 w-6 mr-2 text-blue-600" />
-            Notifications
-          </h2>
-          <p className="text-sm text-gray-600 mt-1">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-xl font-semibold text-gray-900 flex items-center">
+              <Bell className="h-6 w-6 mr-2 text-blue-600" />
+              Notifications
+            </h2>
+            {notifications.some(n => !n.isRead) && (
+              <button
+                onClick={markAllAsRead}
+                className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium"
+              >
+                <CheckCheck className="h-4 w-4" />
+                Mark all read
+              </button>
+            )}
+          </div>
+          <p className="text-sm text-gray-600 mb-4">
             Stay updated with your delivery assignments and earnings
           </p>
+          
+          {/* Filter Tabs */}
+          <div className="flex items-center gap-2 overflow-x-auto">
+            <Filter className="h-4 w-4 text-gray-500 flex-shrink-0" />
+            {(["all", "orders", "payments", "system"] as const).map((filterType) => (
+              <button
+                key={filterType}
+                onClick={() => setFilter(filterType)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
+                  filter === filterType
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                {filterType.charAt(0).toUpperCase() + filterType.slice(1)}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="divide-y divide-gray-200">
-          {notifications.length === 0 ? (
+          {filteredNotifications.length === 0 ? (
             <div className="text-center py-8">
               <Bell className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-600">No notifications yet</p>
+              <p className="text-gray-600">
+                {filter === "all" ? "No notifications yet" : `No ${filter} notifications`}
+              </p>
             </div>
           ) : (
-            notifications.map((notification) => (
-              <div
-                key={notification._id}
-                className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors ${
-                  !notification.isRead ? "bg-blue-50" : ""
-                }`}
-                onClick={() => markAsRead(notification._id)}
-              >
-                <div className="flex items-start space-x-3">
-                  <div className="flex-shrink-0 mt-1">
-                    {getNotificationIcon(notification.type)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <p
-                        className={`font-medium ${
-                          !notification.isRead
-                            ? "text-gray-900"
-                            : "text-gray-700"
-                        }`}
-                      >
-                        {notification.title}
-                      </p>
-                      <div className="flex items-center text-xs text-gray-500">
-                        <Clock className="h-3 w-3 mr-1" />
-                        {new Date(notification.createdAt).toLocaleTimeString()}
-                      </div>
+            filteredNotifications.map((notification) => {
+              const formatted = formatNotificationCopy({
+                eventType: (notification as any)?.eventType,
+                meta: (notification as any)?.meta,
+                fallbackTitle: (notification as any)?.title,
+                fallbackBody: (notification as any)?.message,
+              });
+
+              return (
+                <div
+                  key={notification._id}
+                  className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors ${
+                    !notification.isRead ? "bg-blue-50" : ""
+                  }`}
+                  onClick={() => handleNotificationClick(notification)}
+                >
+                  <div className="flex items-start space-x-3">
+                    <div className="flex-shrink-0 mt-1">
+                      {getNotificationIcon(notification.type)}
                     </div>
-                    <p className="text-sm text-gray-600 mt-1">
-                      {notification.message}
-                    </p>
-                    {!notification.isRead && (
-                      <div className="mt-2">
-                        <span className="inline-block w-2 h-2 bg-blue-600 rounded-full"></span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <p
+                          className={`font-medium ${
+                            !notification.isRead
+                              ? "text-gray-900"
+                              : "text-gray-700"
+                          }`}
+                        >
+                          {formatted.title}
+                        </p>
+                        <div className="flex items-center text-xs text-gray-500">
+                          <Clock className="h-3 w-3 mr-1" />
+                          {new Date(notification.createdAt).toLocaleTimeString()}
+                        </div>
                       </div>
-                    )}
+                      <p className="text-sm text-gray-600 mt-1">
+                        {formatted.body}
+                      </p>
+                      {!notification.isRead && (
+                        <div className="mt-2">
+                          <span className="inline-block w-2 h-2 bg-blue-600 rounded-full"></span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </motion.div>

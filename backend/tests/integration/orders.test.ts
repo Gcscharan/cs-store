@@ -63,6 +63,13 @@ describe("Orders Endpoints", () => {
         .set(authHeaders)
         .send({ paymentMethod: "cod" });
 
+      if (response.status !== 200) {
+        console.error("Order creation failed:", {
+          status: response.status,
+          body: response.body,
+        });
+      }
+
       expect(response.status).toBe(200);
 
       expect(response.body).toHaveProperty("message", "Order placed with Cash on Delivery");
@@ -74,7 +81,7 @@ describe("Orders Endpoints", () => {
       expect(response.body.order.items[0].subtotal).toBe(200);
       expect(response.body.order.itemsTotal).toBe(200);
       expect(response.body.order.totalAmount).toBeGreaterThanOrEqual(200);
-      expect(response.body.order.orderStatus).toBe("CONFIRMED");
+      expect(response.body.order.orderStatus).toBe("CREATED");
       expect(response.body.order.address).toHaveProperty("pincode", "500001");
       expect(response.body.order.address).toHaveProperty("postal_district");
       expect(response.body.order.address).toHaveProperty("admin_district");
@@ -244,6 +251,8 @@ describe("Orders Endpoints", () => {
       expect(response.body).toHaveProperty("order");
       expect(response.body.order._id).toBe(order._id.toString());
       expect(response.body.order.userId).toBe(user._id.toString());
+      expect(response.body.order).toHaveProperty("timeline");
+      expect(Array.isArray(response.body.order.timeline)).toBe(true);
     });
 
     it("should not get order of another user", async () => {
@@ -266,6 +275,15 @@ describe("Orders Endpoints", () => {
         .expect(404);
 
       expect(response.body).toHaveProperty("message", "Order not found");
+    });
+
+    it("should return 400 for invalid order ID", async () => {
+      const response = await request(app)
+        .get("/api/orders/not-a-valid-objectid")
+        .set(authHeaders)
+        .expect(400);
+
+      expect(response.body).toHaveProperty("message", "Invalid order ID");
     });
 
     it("should not get order without authentication", async () => {
@@ -335,37 +353,44 @@ describe("Orders Endpoints", () => {
 
   describe("GET /api/orders/:id/tracking", () => {
     let order: any;
+    const prevMode = process.env.TRACKING_KILL_SWITCH_MODE;
 
     beforeEach(async () => {
+      process.env.TRACKING_KILL_SWITCH_MODE = "OFF";
       order = await global.createTestOrder(user._id, {
         status: "confirmed",
-        tracking: {
-          estimatedDelivery: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days from now
-          currentStatus: "Order confirmed",
-          updates: [
-            {
-              status: "Order placed",
-              timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
-            },
-            {
-              status: "Order confirmed",
-              timestamp: new Date(Date.now() - 1 * 60 * 60 * 1000), // 1 hour ago
-            },
-          ],
-        },
       });
     });
 
-    it("should get order tracking information", async () => {
+    afterAll(() => {
+      if (prevMode === undefined) {
+        delete process.env.TRACKING_KILL_SWITCH_MODE;
+      } else {
+        process.env.TRACKING_KILL_SWITCH_MODE = prevMode;
+      }
+    });
+
+    it("returns HIDDEN when customer tracking is disabled (Phase 0)", async () => {
       const response = await request(app)
         .get(`/api/orders/${order._id}/tracking`)
         .set(authHeaders)
         .expect(200);
 
-      expect(response.body).toHaveProperty("tracking");
-      expect(response.body.tracking.currentStatus).toBe("Order confirmed");
-      expect(response.body.tracking.updates).toHaveLength(2);
-      expect(response.body.tracking.estimatedDelivery).toBeDefined();
+      expect(response.body).toEqual({ trackingState: "HIDDEN" });
+    });
+
+    it("returns OFFLINE contract when customer tracking is enabled (Phase 0)", async () => {
+      process.env.TRACKING_KILL_SWITCH_MODE = "CUSTOMER_READ_ENABLED";
+
+      const response = await request(app)
+        .get(`/api/orders/${order._id}/tracking`)
+        .set(authHeaders)
+        .expect(200);
+
+      expect(response.body.trackingState).toBe("OFFLINE");
+      expect(response.body.lastUpdatedAt).toBe(null);
+      expect(response.body.freshnessState).toBe("OFFLINE");
+      expect("riderId" in response.body).toBe(false);
     });
 
     it("should return 404 for non-existent order", async () => {

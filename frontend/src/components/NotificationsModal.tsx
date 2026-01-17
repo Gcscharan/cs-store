@@ -8,6 +8,8 @@ import {
   useMarkAllAsReadMutation,
 } from "../store/api";
 
+import { formatNotificationCopy } from "../utils/notificationFormatter";
+
 interface NotificationsModalProps {
   onClose: () => void;
 }
@@ -132,62 +134,71 @@ const NotificationsModal: React.FC<NotificationsModalProps> = ({ onClose }) => {
               </p>
             </div>
           ) : (
-            notifications.map((notification: any) => (
-              <motion.div
-                key={notification._id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className={`p-4 rounded-lg border transition-all ${
-                  notification.isRead
-                    ? "bg-white border-gray-200"
-                    : "bg-blue-50 border-blue-200"
-                }`}
-              >
-                <div className="flex items-start space-x-3">
-                  {/* Icon */}
-                  <div className="text-2xl flex-shrink-0">
-                    {getNotificationIcon(notification.type)}
-                  </div>
+            notifications.map((notification: any) => {
+              const formatted = formatNotificationCopy({
+                eventType: notification?.eventType,
+                meta: notification?.meta,
+                fallbackTitle: notification?.title,
+                fallbackBody: notification?.body || notification?.message,
+              });
 
-                  {/* Content */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h4 className="text-sm font-semibold text-gray-900">
-                          {notification.title}
-                        </h4>
-                        <p className="text-sm text-gray-700 mt-1">
-                          {notification.message}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-2">
-                          {formatTime(notification.createdAt)}
-                        </p>
-                      </div>
+              return (
+                <motion.div
+                  key={notification._id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`p-4 rounded-lg border transition-all ${
+                    notification.isRead
+                      ? "bg-white border-gray-200"
+                      : "bg-blue-50 border-blue-200"
+                  }`}
+                >
+                  <div className="flex items-start space-x-3">
+                    {/* Icon */}
+                    <div className="text-2xl flex-shrink-0">
+                      {getNotificationIcon(notification.type)}
+                    </div>
 
-                      {/* Actions */}
-                      <div className="flex items-center space-x-2 ml-2">
-                        {!notification.isRead && (
+                    {/* Content */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h4 className="text-sm font-semibold text-gray-900">
+                            {formatted.title}
+                          </h4>
+                          <p className="text-sm text-gray-700 mt-1">
+                            {formatted.body}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-2">
+                            {formatTime(notification.createdAt)}
+                          </p>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex items-center space-x-2 ml-2">
+                          {!notification.isRead && (
+                            <button
+                              onClick={() => handleMarkAsRead(notification._id)}
+                              className="p-1.5 hover:bg-blue-100 rounded-lg transition-colors text-blue-600"
+                              title="Mark as read"
+                            >
+                              <Check className="h-4 w-4" />
+                            </button>
+                          )}
                           <button
-                            onClick={() => handleMarkAsRead(notification._id)}
-                            className="p-1.5 hover:bg-blue-100 rounded-lg transition-colors text-blue-600"
-                            title="Mark as read"
+                            onClick={() => handleDelete(notification._id)}
+                            className="p-1.5 hover:bg-red-100 rounded-lg transition-colors text-red-600"
+                            title="Delete"
                           >
-                            <Check className="h-4 w-4" />
+                            <Trash2 className="h-4 w-4" />
                           </button>
-                        )}
-                        <button
-                          onClick={() => handleDelete(notification._id)}
-                          className="p-1.5 hover:bg-red-100 rounded-lg transition-colors text-red-600"
-                          title="Delete"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              </motion.div>
-            ))
+                </motion.div>
+              );
+            })
           )}
         </div>
 
