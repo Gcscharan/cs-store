@@ -3,8 +3,8 @@
     "target": "ES2020",
     "module": "commonjs",
 
-    "rootDir": "backend/src",
-    "outDir": "backend/dist",
+    "rootDir": "src",
+    "outDir": "dist",
 
     "strict": true,
     "esModuleInterop": true,
@@ -12,16 +12,16 @@
     "skipLibCheck": true,
 
     "typeRoots": [
-      "backend/src/@types",
+      "src/@types",
       "node_modules/@types"
     ],
 
     "resolveJsonModule": true
   },
-  "include": ["backend/src"],
+  "include": ["src"],
   "exclude": [
-    "backend/dist",
-    "backend/tests",
+    "dist",
+    "tests",
     "**/*.test.ts",
     "**/*.spec.ts"
   ]
