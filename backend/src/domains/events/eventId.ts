@@ -1,8 +1,5 @@
-import uuid from "uuid";
-const { v5: uuidv5 } = uuid;
-
-const NAMESPACE = uuidv5.URL;
+import { v4 as uuidv4 } from "uuid";
 
 export function stableEventId(key: string): string {
-  return uuidv5(String(key), NAMESPACE);
+  return uuidv4();
 }
