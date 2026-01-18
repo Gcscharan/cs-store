@@ -1,6 +1,5 @@
-import uuid from "uuid";
+import { v4 as uuidv4 } from "uuid";
 import { BaseEvent } from "./BaseEvent";
-const { v4: uuidv4 } = uuid;
 
 export type OrderEventType =
   | "ORDER_CREATED"
