@@ -16,3 +16,8 @@
 .env.*
 
 !.env.example
+# Vite internal cache (VERY IMPORTANT)
+frontend/node_modules/.vite/
+
+# npm internal lock noise
+node_modules/.package-lock.json
