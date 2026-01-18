@@ -1,5 +1,6 @@
-import { v4 as uuidv4 } from "uuid";
+import uuid from "uuid";
 import { BaseEvent } from "./BaseEvent";
+const { v4: uuidv4 } = uuid;
 
 export type PromoEventType = "PROMO_CAMPAIGN" | "SYSTEM_ANNOUNCEMENT";
 

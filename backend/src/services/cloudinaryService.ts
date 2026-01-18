@@ -1,5 +1,6 @@
 import { v2 as cloudinary } from "cloudinary";
-import { v4 as uuidv4 } from "uuid";
+import uuid from "uuid";
+const { v4: uuidv4 } = uuid;
 
 export interface CloudinaryUploadResult {
   full: string;

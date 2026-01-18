@@ -1,4 +1,5 @@
-import { v5 as uuidv5 } from "uuid";
+import uuid from "uuid";
+const { v5: uuidv5 } = uuid;
 
 const NAMESPACE = uuidv5.URL;
 
