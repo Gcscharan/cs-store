@@ -37,7 +37,7 @@ export const productsApi = api.injectEndpoints({
   endpoints: (builder) => ({
     getProducts: builder.query<ProductsResponse, any>({
       query: (params) => ({
-        url: "/products",
+        url: `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/products`,
         method: "GET",
         params,
       }),
@@ -58,7 +58,7 @@ export const productsApi = api.injectEndpoints({
     }),
 
     getProductById: builder.query<Product, string>({
-      query: (id) => `/products/${id}`,
+      query: (id) => `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/products/${id}`,
       transformResponse: (response: Product) => {
         console.log("🔥 PRODUCT DETAIL FROM BACKEND:", response);
         
