@@ -40,7 +40,20 @@ export const productsApi = api.injectEndpoints({
       async queryFn(params) {
         try {
           const res = await publicApi.get("/api/products", { params });
-          return { data: res.data };
+          const data: ProductsResponse = res.data;
+
+          console.log("🔥 RAW PRODUCTS FROM BACKEND:", data);
+
+          // Add id field for frontend compatibility
+          const transformedResponse: ProductsResponse = {
+            ...data,
+            products: data.products.map((product) => ({
+              ...product,
+              id: product._id, // Map _id to id for frontend compatibility
+            })),
+          };
+
+          return { data: transformedResponse };
         } catch (err: any) {
           return {
             error: {
@@ -49,20 +62,6 @@ export const productsApi = api.injectEndpoints({
             } as any,
           };
         }
-      },
-      transformResponse: (response: ProductsResponse) => {
-        console.log("🔥 RAW PRODUCTS FROM BACKEND:", response);
-
-        // Add id field for frontend compatibility
-        const transformedResponse = {
-          ...response,
-          products: response.products.map(product => ({
-            ...product,
-            id: product._id // Map _id to id for frontend compatibility
-          }))
-        };
-
-        return transformedResponse;
       },
     }),
 
@@ -70,7 +69,17 @@ export const productsApi = api.injectEndpoints({
       async queryFn(id) {
         try {
           const res = await publicApi.get(`/api/products/${id}`);
-          return { data: res.data };
+          const data: Product = res.data;
+
+          console.log("🔥 PRODUCT DETAIL FROM BACKEND:", data);
+
+          // Add id field for frontend compatibility
+          return {
+            data: {
+              ...data,
+              id: data._id, // Map _id to id for frontend compatibility
+            },
+          };
         } catch (err: any) {
           return {
             error: {
@@ -80,15 +89,6 @@ export const productsApi = api.injectEndpoints({
           };
         }
       },
-      transformResponse: (response: Product) => {
-        console.log("🔥 PRODUCT DETAIL FROM BACKEND:", response);
-        
-        // Add id field for frontend compatibility
-        return {
-          ...response,
-          id: response._id // Map _id to id for frontend compatibility
-        };
-      }
     }),
   }),
 });

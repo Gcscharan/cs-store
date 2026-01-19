@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useDispatch } from "react-redux";
 import { motion } from "framer-motion";
 import { setUser, setTokens } from "../store/slices/authSlice";
@@ -20,6 +20,7 @@ const LoginForm: React.FC = () => {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
+  const inFlightRef = useRef(false);
 
   // Handle URL parameters to pre-fill email/phone
   useEffect(() => {
@@ -113,8 +114,10 @@ const LoginForm: React.FC = () => {
 
   const handleSendOtp = async (e?: React.FormEvent) => {
     e?.preventDefault();
+    if (inFlightRef.current || isLoading) return;
     if (!validateForm()) return;
 
+    inFlightRef.current = true;
     setIsLoading(true);
     try {
       const inputType = detectInputType(formData.emailOrPhone);
@@ -165,14 +168,18 @@ const LoginForm: React.FC = () => {
       setErrors({ general: "Network error. Please try again." });
     } finally {
       setIsLoading(false);
+      inFlightRef.current = false;
     }
   };
 
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (inFlightRef.current || isLoading) return;
+
     if (!validateForm()) return;
 
+    inFlightRef.current = true;
     setIsLoading(true);
     try {
       const inputType = detectInputType(formData.emailOrPhone);
@@ -260,6 +267,7 @@ const LoginForm: React.FC = () => {
       setErrors({ general: "Network error. Please try again." });
     } finally {
       setIsLoading(false);
+      inFlightRef.current = false;
     }
   };
 
@@ -324,7 +332,7 @@ const LoginForm: React.FC = () => {
             onChange={handleInputChange}
             className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Enter your email or phone number"
-            disabled={otpSent}
+            disabled={otpSent || isLoading}
           />
           {errors.emailOrPhone && (
             <p className="text-red-500 text-sm mt-1">{errors.emailOrPhone}</p>
@@ -345,6 +353,7 @@ const LoginForm: React.FC = () => {
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="Enter the 6-digit OTP"
               maxLength={6}
+              disabled={isLoading}
             />
             {errors.otp && (
               <p className="text-red-500 text-sm mt-1">{errors.otp}</p>

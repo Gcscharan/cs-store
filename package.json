@@ -1,5 +1,6 @@
 {
   "name": "cps-store",
+  "private": true,
   "version": "1.0.0",
   "description": "CS Store - Complete E-commerce Platform",
   "scripts": {
@@ -47,7 +48,7 @@
     "concurrently": "^8.2.2",
     "ts-node-dev": "^2.0.0"
   },
-  "workspaces": ["backend", "frontend"],
+  "workspaces": ["backend", "frontend", "mobile"],
   "keywords": ["ecommerce", "react", "nodejs", "typescript", "playwright", "jest"],
   "author": "CS Store Team",
   "license": "ISC",

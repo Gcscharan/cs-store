@@ -245,6 +245,8 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (isLoading) return;
+
     if (!validateForm()) return;
 
     // If a phone is provided, require OTP verification
@@ -288,26 +290,21 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
 
           // TRY OTP generation (no modal) — best-effort
           try {
-            await fetch(
-              toApiUrl("/otp/verification/generate"),
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${accessToken}`,
-                },
-                body: JSON.stringify({ phone: formData.phone }),
-              }
-            );
+            fetch(toApiUrl("/otp/verification/generate"), {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${accessToken}`,
+              },
+              body: JSON.stringify({ phone: formData.phone }),
+            }).catch(() => {});
           } catch (_) {}
 
           setErrors({});
           setLoginInfo("Signup successful! Your account has been created.");
 
           // Redirect to dashboard after successful signup
-          setTimeout(() => {
-            navigate("/dashboard");
-          }, 1500);
+          navigate("/dashboard");
         } else {
           // CASE B: Signup succeeded but NO tokens returned
           setErrors({});
@@ -357,6 +354,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
             onChange={handleInputChange}
             className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Enter your name"
+            disabled={isLoading || isOtpLoading}
           />
           {errors.name && (
             <p className="text-red-500 text-sm mt-1">{errors.name}</p>
@@ -375,6 +373,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
             onChange={handleInputChange}
             className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Enter your email"
+            disabled={isLoading || isOtpLoading}
           />
           {errors.email && (
             <p className="text-red-500 text-sm mt-1">{errors.email}</p>
@@ -400,6 +399,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
               }`}
               placeholder="Enter your 10-digit mobile number"
               maxLength={10}
+              disabled={isLoading || isOtpLoading}
             />
 
             {/* Verify / Verified indicator button */}
@@ -439,6 +439,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
                 className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Enter 6-digit OTP"
                 maxLength={6}
+                disabled={isOtpLoading || isLoading}
               />
 
               <button
@@ -500,6 +501,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
             onChange={handleInputChange}
             className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Enter your password"
+            disabled={isLoading || isOtpLoading}
           />
           {errors.password && (
             <p className="text-red-500 text-sm mt-1">{errors.password}</p>
@@ -518,6 +520,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
             onChange={handleInputChange}
             className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Confirm your password"
+            disabled={isLoading || isOtpLoading}
           />
           {errors.confirmPassword && (
             <p className="text-red-500 text-sm mt-1">{errors.confirmPassword}</p>
