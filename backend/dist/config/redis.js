@@ -162,6 +162,34 @@ function wrapFailOpen(client) {
                 return value;
             if (typeof value !== "function")
                 return value;
+            if (prop === "scanIterator") {
+                return (...args) => {
+                    try {
+                        const it = value.apply(target, args);
+                        return (async function* () {
+                            try {
+                                for await (const k of it)
+                                    yield k;
+                            }
+                            catch (e) {
+                                if (!warnedOnce) {
+                                    warnedOnce = true;
+                                    console.warn("⚠️ Redis unavailable; continuing without Redis (non-fatal)");
+                                }
+                                console.warn("⚠️ Redis scanIterator failed (non-fatal):", e?.message || e);
+                            }
+                        })();
+                    }
+                    catch (e) {
+                        if (!warnedOnce) {
+                            warnedOnce = true;
+                            console.warn("⚠️ Redis unavailable; continuing without Redis (non-fatal)");
+                        }
+                        console.warn("⚠️ Redis scanIterator threw (non-fatal):", e?.message || e);
+                        return (async function* () { })();
+                    }
+                };
+            }
             return (...args) => {
                 try {
                     const out = value.apply(target, args);

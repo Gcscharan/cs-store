@@ -1,6 +1,8 @@
-export const API_BASE_URL =
-  import.meta.env.VITE_API_URL ||
-  "https://cps-store-backend.onrender.com";
+const DEFAULT_API_BASE_URL = import.meta.env.DEV
+  ? "http://localhost:5001"
+  : "https://cps-store-backend.onrender.com";
+
+export const API_BASE_URL = import.meta.env.VITE_API_URL || DEFAULT_API_BASE_URL;
 
 console.log("API BASE URL:", API_BASE_URL);
 
