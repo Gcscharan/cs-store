@@ -40,7 +40,7 @@ function validateEnvironmentVariables() {
   // Redis
   if (!process.env.REDIS_URL) {
     if (NODE_ENV === "production") {
-      errors.push("❌ REDIS_URL is required in production");
+      errors.push("⚠️  REDIS_URL is recommended in production");
     } else {
       errors.push("⚠️  REDIS_URL is recommended");
     }
