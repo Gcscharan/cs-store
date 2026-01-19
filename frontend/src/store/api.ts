@@ -6,6 +6,7 @@ import { RootState } from "./index"; // adjust path if needed
 import { logout as logoutAction } from "./slices/authSlice";
 import { Mutex } from "async-mutex";
 import { API_BASE_URL, getApiBaseUrl } from "../config/runtime";
+import { publicApi } from "../config/publicApi";
 
 /**
  * Robust RTK Query API with:
@@ -241,11 +242,26 @@ export const api = createApi({
     // ---------- PRODUCTS ----------
     getProducts: builder.query({
       // params: object (page, limit, filters) OR undefined
-      query: (params?: Record<string, any>) => ({
-        url: `${API_BASE_URL}/api/products`,
-        method: "GET",
-        params,
-      }),
+      async queryFn(params?: Record<string, any>) {
+        try {
+          const res = await publicApi.get("/api/products", { params });
+          const response: any = res.data;
+
+          // Map _id to id for frontend compatibility
+          const products = (response?.products || []).map((p: any) => ({
+            ...p,
+            id: p._id ?? p.id,
+          }));
+          return { data: { ...response, products } };
+        } catch (err: any) {
+          return {
+            error: {
+              status: err?.response?.status ?? "FETCH_ERROR",
+              data: err?.response?.data ?? err?.message,
+            } as any,
+          };
+        }
+      },
       providesTags: (result: any) =>
         result?.products
           ? [
@@ -253,49 +269,80 @@ export const api = createApi({
               { type: "Product" as const, id: "LIST" },
             ]
           : [{ type: "Product" as const, id: "LIST" }],
-      transformResponse: (response: any) => {
-        // Map _id to id for frontend compatibility
-        const products = (response?.products || []).map((p: any) => ({
-          ...p,
-          id: p._id ?? p.id,
-        }));
-        return { ...response, products };
-      },
     }),
     getProductById: builder.query({
-      query: (id: string) => `${API_BASE_URL}/api/products/${id}`,
+      async queryFn(id: string) {
+        try {
+          const res = await publicApi.get(`/api/products/${id}`);
+          const response: any = res.data;
+          return {
+            data: {
+              ...response,
+              id: response?._id ?? response?.id,
+            },
+          };
+        } catch (err: any) {
+          return {
+            error: {
+              status: err?.response?.status ?? "FETCH_ERROR",
+              data: err?.response?.data ?? err?.message,
+            } as any,
+          };
+        }
+      },
       providesTags: (_, __, id) => [{ type: "Product" as const, id }],
-      transformResponse: (response: any) => ({
-        ...response,
-        id: response._id ?? response.id,
-      }),
     }),
     getSimilarProducts: builder.query({
-      query: ({ id, limit = 4 }: { id: string; limit?: number }) => ({
-        url: `${API_BASE_URL}/api/products/${id}/similar`,
-        method: "GET",
-        params: { limit },
-      }),
-      transformResponse: (response: any) => response,
+      async queryFn({ id, limit = 4 }: { id: string; limit?: number }) {
+        try {
+          const res = await publicApi.get(`/api/products/${id}/similar`, {
+            params: { limit },
+          });
+          return { data: res.data };
+        } catch (err: any) {
+          return {
+            error: {
+              status: err?.response?.status ?? "FETCH_ERROR",
+              data: err?.response?.data ?? err?.message,
+            } as any,
+          };
+        }
+      },
       providesTags: ["Product"],
     }),
 
     // ---------- SEARCH ----------
     getSearchSuggestions: builder.query({
-      query: ({ q }: { q: string }) => ({
-        url: `${API_BASE_URL}/api/products/search/suggestions`,
-        method: "GET",
-        params: { q },
-      }),
-      transformResponse: (response: any) => response?.suggestions || [],
+      async queryFn({ q }: { q: string }) {
+        try {
+          const res = await publicApi.get("/api/products/search/suggestions", {
+            params: { q },
+          });
+          return { data: res.data?.suggestions || [] };
+        } catch (err: any) {
+          return {
+            error: {
+              status: err?.response?.status ?? "FETCH_ERROR",
+              data: err?.response?.data ?? err?.message,
+            } as any,
+          };
+        }
+      },
     }),
     searchProducts: builder.query({
-      query: (params: any) => ({
-        url: `${API_BASE_URL}/api/products/search`,
-        method: "GET",
-        params,
-      }),
-      transformResponse: (response: any) => response,
+      async queryFn(params: any) {
+        try {
+          const res = await publicApi.get("/api/products/search", { params });
+          return { data: res.data };
+        } catch (err: any) {
+          return {
+            error: {
+              status: err?.response?.status ?? "FETCH_ERROR",
+              data: err?.response?.data ?? err?.message,
+            } as any,
+          };
+        }
+      },
       providesTags: ["Product"],
     }),
 
