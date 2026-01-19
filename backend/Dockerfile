@@ -4,17 +4,16 @@ RUN apk add --no-cache libc6-compat
 
 WORKDIR /app/backend
 
-# Use ./ to represent the current directory where the Dockerfile lives
+# Now that you moved the file, this line will work!
 COPY package.json package-lock.json ./
 
 RUN npm install
 
-# Copy everything from the current directory (the backend folder)
+# Copy the rest of your backend code
 COPY . .
 
 RUN npm run build
 
-# Ensure the port matches Render's expectations
 EXPOSE 5000
 
 CMD ["node", "dist/index.js"]
