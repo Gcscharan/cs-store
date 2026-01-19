@@ -61,7 +61,7 @@ app.use(
 );
 app.use(compression() as any);
 app.use('/api/', apiLimiter as any);
-app.use(passport.initialize());
+app.use(passport.initialize() as any);
 
 // body parsers BEFORE routes
 app.use(express.json({ limit: "10mb" }));
