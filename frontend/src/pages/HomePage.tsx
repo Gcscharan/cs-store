@@ -39,8 +39,8 @@ const HomePage = () => {
 
   // Debug logging for products data
   useEffect(() => {
-    console.log("[HomePage] productsData loaded:", productsData?.products?.length, "products");
-    if (productsData?.products?.length > 0) {
+    console.log("[HomePage] productsData loaded:", products.length, "products");
+    if (products.length > 0) {
       const firstProduct = products[0];
       console.log("[HomePage] first product sample:", firstProduct);
       console.log("[HomePage] first product images structure:", firstProduct.images);
