@@ -35,11 +35,13 @@ const HomePage = () => {
     limit: 100, // Get all products
   });
 
+  const products = productsData?.products ?? [];
+
   // Debug logging for products data
   useEffect(() => {
     console.log("[HomePage] productsData loaded:", productsData?.products?.length, "products");
     if (productsData?.products?.length > 0) {
-      const firstProduct = productsData.products[0];
+      const firstProduct = products[0];
       console.log("[HomePage] first product sample:", firstProduct);
       console.log("[HomePage] first product images structure:", firstProduct.images);
       if (firstProduct.images && firstProduct.images.length > 0) {
@@ -124,10 +126,9 @@ const HomePage = () => {
 
   // Top Selling Products
   const topSellingProducts = useMemo(() => {
-    if (!productsData?.products || productsData.products.length === 0)
-      return [];
+    if (products.length === 0) return [];
 
-    const shuffled = [...productsData.products].sort(() => Math.random() - 0.5);
+    const shuffled = [...products].sort(() => Math.random() - 0.5);
     return shuffled.slice(0, 8).map((product: any) => ({
       _id: product._id || product.id,
       id: product._id || product.id,
@@ -135,14 +136,13 @@ const HomePage = () => {
       image: product.images?.[0]?.variants?.small || product.images?.[0]?.variants?.thumb || product.images?.[0]?.thumb || product.images?.[0]?.full || '/placeholder-product.svg',
       category: product.category,
     }));
-  }, [productsData?.products]);
+  }, [products]);
 
   // Top Deals Products
   const topDealsProducts = useMemo(() => {
-    if (!productsData?.products || productsData.products.length === 0)
-      return [];
+    if (products.length === 0) return [];
 
-    const shuffled = [...productsData.products].sort(() => Math.random() - 0.5);
+    const shuffled = [...products].sort(() => Math.random() - 0.5);
     return shuffled.slice(0, 6).map((product: any) => ({
       id: product._id || product.id,
       name: product.name,
@@ -156,13 +156,12 @@ const HomePage = () => {
         ? Math.round(((product.mrp - product.price) / product.mrp) * 100)
         : 20,
     }));
-  }, [productsData?.products]);
+  }, [products]);
 
   // Featured Products
   const featuredProducts = useMemo(() => {
-    if (!productsData?.products || productsData.products.length === 0)
-      return [];
-    return productsData.products.slice(0, 12).map((product: any) => ({
+    if (products.length === 0) return [];
+    return products.slice(0, 12).map((product: any) => ({
       ...product,
       _id: product._id || product.id,
       id: product._id || product.id,
@@ -171,7 +170,7 @@ const HomePage = () => {
         ? Math.round(((product.mrp - product.price) / product.mrp) * 100)
         : 0,
     }));
-  }, [productsData?.products]);
+  }, [products]);
 
   // Refresh data when page becomes visible (handles cache invalidation)
   useEffect(() => {
