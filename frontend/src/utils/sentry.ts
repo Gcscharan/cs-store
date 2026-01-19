@@ -16,7 +16,7 @@ export const initializeSentry = () => {
     dsn,
     environment: import.meta.env.MODE || "development",
     tracesSampleRate: 0.0,
-    beforeSend(event) {
+    beforeSend(event: any) {
       // Filter out sensitive data
       if (event.request?.data) {
         const data = event.request.data;
@@ -38,7 +38,7 @@ export const initializeSentry = () => {
       }
       return event;
     },
-    beforeBreadcrumb(breadcrumb) {
+    beforeBreadcrumb(breadcrumb: any) {
       // Filter out sensitive breadcrumbs
       if (
         breadcrumb.category === "xhr" &&

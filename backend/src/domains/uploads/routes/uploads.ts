@@ -7,6 +7,11 @@ const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
 // FIX: Multer must process multipart/form-data before controller
-router.post("/cloudinary", authenticateToken, upload.single("image"), uploadToCloudinary);
+router.post(
+  "/cloudinary",
+  authenticateToken,
+  upload.single("image") as any,
+  uploadToCloudinary
+);
 
 export default router;

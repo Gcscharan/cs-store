@@ -41,7 +41,7 @@ router.post(
   "/",
   authenticateToken,
   requireRole(["admin"]),
-  upload.array("images"),
+  upload.array("images") as any,
   createProduct
 );
 router.get("/", getProducts);
