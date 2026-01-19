@@ -1,16 +1,11 @@
-export function getApiOrigin(): string {
-  console.log("API BASE URL:", typeof process !== "undefined" ? process.env.NEXT_PUBLIC_API_BASE_URL : undefined);
+export const API_BASE_URL =
+  import.meta.env.VITE_API_URL ||
+  "https://cps-store-backend.onrender.com";
 
-  const raw = String(
-    (typeof process !== "undefined" ? process.env.NEXT_PUBLIC_API_BASE_URL : "") ||
-      import.meta.env.VITE_API_URL ||
-      ""
-  ).trim();
-  if (raw) return raw.replace(/\/+$/, "");
-  if (typeof window !== "undefined" && window.location?.origin) {
-    return window.location.origin;
-  }
-  return "";
+console.log("API BASE URL:", API_BASE_URL);
+
+export function getApiOrigin(): string {
+  return API_BASE_URL;
 }
 
 export function getApiBaseUrl(): string {

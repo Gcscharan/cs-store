@@ -5,7 +5,7 @@ import type { FetchArgs, FetchBaseQueryError } from "@reduxjs/toolkit/query";
 import { RootState } from "./index"; // adjust path if needed
 import { logout as logoutAction } from "./slices/authSlice";
 import { Mutex } from "async-mutex";
-import { getApiBaseUrl } from "../config/runtime";
+import { API_BASE_URL, getApiBaseUrl } from "../config/runtime";
 
 /**
  * Robust RTK Query API with:
@@ -16,14 +16,14 @@ import { getApiBaseUrl } from "../config/runtime";
  * NOTE: adjust baseUrl if your env var name/path differs
  */
 
-const API_BASE_URL = getApiBaseUrl();
+const API_ROOT = getApiBaseUrl();
 
 // Mutex for token refresh race condition prevention
 const mutex = new Mutex();
 
 // raw baseQuery used for actual fetch calls
 const rawBaseQuery = fetchBaseQuery({
-  baseUrl: API_BASE_URL,
+  baseUrl: API_ROOT,
   credentials: "include", // send cookies if used
   timeout: 10000, // 10 second timeout
   prepareHeaders: (headers, { getState }) => {
@@ -242,7 +242,7 @@ export const api = createApi({
     getProducts: builder.query({
       // params: object (page, limit, filters) OR undefined
       query: (params?: Record<string, any>) => ({
-        url: `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/products`,
+        url: `${API_BASE_URL}/api/products`,
         method: "GET",
         params,
       }),
@@ -263,7 +263,7 @@ export const api = createApi({
       },
     }),
     getProductById: builder.query({
-      query: (id: string) => `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/products/${id}`,
+      query: (id: string) => `${API_BASE_URL}/api/products/${id}`,
       providesTags: (_, __, id) => [{ type: "Product" as const, id }],
       transformResponse: (response: any) => ({
         ...response,
@@ -272,7 +272,7 @@ export const api = createApi({
     }),
     getSimilarProducts: builder.query({
       query: ({ id, limit = 4 }: { id: string; limit?: number }) => ({
-        url: `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/products/${id}/similar`,
+        url: `${API_BASE_URL}/api/products/${id}/similar`,
         method: "GET",
         params: { limit },
       }),
@@ -283,7 +283,7 @@ export const api = createApi({
     // ---------- SEARCH ----------
     getSearchSuggestions: builder.query({
       query: ({ q }: { q: string }) => ({
-        url: `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/products/search/suggestions`,
+        url: `${API_BASE_URL}/api/products/search/suggestions`,
         method: "GET",
         params: { q },
       }),
@@ -291,7 +291,7 @@ export const api = createApi({
     }),
     searchProducts: builder.query({
       query: (params: any) => ({
-        url: `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/products/search`,
+        url: `${API_BASE_URL}/api/products/search`,
         method: "GET",
         params,
       }),
@@ -585,14 +585,14 @@ export const api = createApi({
     // ---------- ADMIN (upload/product management) ----------
     getPresignedUploadUrl: builder.mutation({
       query: (payload: any) => ({
-        url: `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/products/upload-url`,
+        url: `${API_BASE_URL}/api/products/upload-url`,
         method: "POST",
         body: payload,
       }),
     }),
     createProduct: builder.mutation({
       query: (productData: any) => ({
-        url: `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/products`,
+        url: `${API_BASE_URL}/api/products`,
         method: "POST",
         // productData could be FormData - keep body as-is
         body: productData,
@@ -601,7 +601,7 @@ export const api = createApi({
     }),
     updateProduct: builder.mutation({
       query: ({ id, ...productData }: any) => ({
-        url: `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/products/${id}`,
+        url: `${API_BASE_URL}/api/products/${id}`,
         method: "PUT",
         body: productData,
       }),
@@ -609,7 +609,7 @@ export const api = createApi({
     }),
     deleteProduct: builder.mutation({
       query: (id: string) => ({
-        url: `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/admin/products/${id}`,
+        url: `${API_BASE_URL}/api/admin/products/${id}`,
         method: "DELETE",
       }),
       invalidatesTags: ["Product"],

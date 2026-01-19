@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import FileUpload from "../components/FileUpload";
 import { getProductImage } from "../utils/image";
+import { API_BASE_URL } from "../config/runtime";
 
 interface Product {
   _id: string;
@@ -81,7 +82,7 @@ const AdminProductsPage: React.FC = () => {
         throw new Error("No authentication token available");
       }
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/admin/products`, {
+      const response = await fetch(`${API_BASE_URL}/api/admin/products`, {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${tokens.accessToken}`,
