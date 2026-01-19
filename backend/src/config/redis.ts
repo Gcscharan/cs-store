@@ -36,11 +36,15 @@ function createInMemoryRedisClient(): any {
       }
       return true;
     },
-    del: async (key: string) => {
-      const k = String(key);
-      const existed = kv.delete(k);
-      expiries.delete(k);
-      return existed ? 1 : 0;
+    del: async (key: any) => {
+      const keys = Array.isArray(key) ? key.map(String) : [String(key)];
+      let removed = 0;
+      for (const k of keys) {
+        const existed = kv.delete(k);
+        expiries.delete(k);
+        if (existed) removed++;
+      }
+      return removed;
     },
     exists: async (key: string) => {
       const k = String(key);
@@ -79,6 +83,21 @@ function createInMemoryRedisClient(): any {
       if (!exp) return -1;
       return Math.max(0, Math.floor((exp - Date.now()) / 1000));
     },
+    scanIterator: async function* (opts?: any) {
+      const match = opts && typeof opts === "object" ? String((opts as any).MATCH || "*") : "*";
+      const pattern = new RegExp(
+        "^" +
+          match
+            .replace(/[.+^${}()|[\\]\\]/g, "\\$&")
+            .replace(/\*/g, ".*")
+            .replace(/\?/g, ".") +
+          "$"
+      );
+      for (const k of kv.keys()) {
+        isExpired(k);
+        if (pattern.test(k)) yield k;
+      }
+    },
     on: () => undefined,
     once: () => undefined,
     emit: () => undefined,
@@ -92,43 +111,117 @@ function createInMemoryRedisClient(): any {
   return client;
 }
 
-const redisClient =
-  process.env.NODE_ENV === "test"
-    ? createInMemoryRedisClient()
-    : !process.env.REDIS_URL && process.env.NODE_ENV !== "production"
-      ? createInMemoryRedisClient()
-      : createClient({
-          url: process.env.REDIS_URL || "",
-        });
+export const redis = createClient({
+  url: process.env.REDIS_URL,
+  socket: {
+    tls: true,
+    keepAlive: 10_000,
+    reconnectStrategy: (retries) => Math.min(retries * 100, 3000),
+  },
+});
 
-if (process.env.NODE_ENV === "production" && !process.env.REDIS_URL) {
-  console.error("\n❌ CRITICAL: REDIS_URL environment variable is not set in production!");
-  console.error("❌ Redis is required for token blacklisting and caching.");
-  console.error("❌ Please provision a Redis instance on Railway and set REDIS_URL.\n");
-  process.exit(1);
-}
-
-redisClient.on("connect", () => {
+redis.on("connect", () => {
   console.log("⚡ Redis connected successfully");
 });
 
-redisClient.on("error", (err: Error) => {
-  console.error("❌ Redis connection error:", err);
-  console.error("❌ Redis is required for token blacklisting and caching");
-  console.error("❌ Please ensure Redis is running or check REDIS_URL configuration");
-  process.exit(1);
+redis.on("error", (err) => {
+  console.warn("⚠️ Redis error (non-fatal):", err.message);
 });
 
-// Auto-connect without top-level await
+const baseRedisClient =
+  process.env.NODE_ENV === "test"
+    ? createInMemoryRedisClient()
+    : !process.env.REDIS_URL
+      ? createInMemoryRedisClient()
+      : redis;
+
+let warnedOnce = false;
+
+function failOpenDefault(method: string): any {
+  if (method === "get") return null;
+  if (method === "set") return null;
+  if (method === "del") return 0;
+  if (method === "exists") return 0;
+  if (method === "incr") return 0;
+  if (method === "incrBy") return 0;
+  if (method === "expire") return false;
+  if (method === "ttl") return -2;
+  return null;
+}
+
+function wrapFailOpen(client: any): any {
+  return new Proxy(client, {
+    get(target, prop, receiver) {
+      const value = Reflect.get(target, prop, receiver);
+      if (typeof prop !== "string") return value;
+      if (typeof value !== "function") return value;
+
+      if (prop === "scanIterator") {
+        return (...args: any[]) => {
+          try {
+            const it = value.apply(target, args);
+            return (async function* () {
+              try {
+                for await (const k of it) yield k;
+              } catch (e: any) {
+                if (!warnedOnce) {
+                  warnedOnce = true;
+                  console.warn("⚠️ Redis unavailable; continuing without Redis (non-fatal)");
+                }
+                console.warn("⚠️ Redis scanIterator failed (non-fatal):", e?.message || e);
+              }
+            })();
+          } catch (e: any) {
+            if (!warnedOnce) {
+              warnedOnce = true;
+              console.warn("⚠️ Redis unavailable; continuing without Redis (non-fatal)");
+            }
+            console.warn("⚠️ Redis scanIterator threw (non-fatal):", e?.message || e);
+            return (async function* () {})();
+          }
+        };
+      }
+
+      return (...args: any[]) => {
+        try {
+          const out = value.apply(target, args);
+          if (!out || typeof out.then !== "function") return out;
+
+          return out.catch((e: any) => {
+            if (!warnedOnce) {
+              warnedOnce = true;
+              console.warn("⚠️ Redis unavailable; continuing without Redis (non-fatal)");
+            }
+            console.warn("⚠️ Redis command failed (non-fatal):", prop, e?.message || e);
+            return failOpenDefault(prop);
+          });
+        } catch (e: any) {
+          if (!warnedOnce) {
+            warnedOnce = true;
+            console.warn("⚠️ Redis unavailable; continuing without Redis (non-fatal)");
+          }
+          console.warn("⚠️ Redis command threw (non-fatal):", prop, e?.message || e);
+          return failOpenDefault(prop);
+        }
+      };
+    },
+  });
+}
+
+const redisClient = wrapFailOpen(baseRedisClient);
+
+if (process.env.NODE_ENV === "production" && !process.env.REDIS_URL) {
+  console.warn("⚠️  REDIS_URL is not set; continuing without Redis (non-fatal)");
+}
+
+// Auto-connect without top-level await (best-effort)
 (async () => {
   try {
-    if (!redisClient.isOpen) {
-      await redisClient.connect();
+    if (baseRedisClient === redis && !redis.isOpen) {
+      await redis.connect();
     }
-  } catch (error) {
-    console.error("❌ Redis auto-connect failed:", error);
-    console.error("❌ Redis is required for proper operation");
-    process.exit(1);
+  } catch (error: any) {
+    console.warn("⚠️ Redis auto-connect failed (non-fatal):", error?.message || error);
   }
 })();
 
