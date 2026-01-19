@@ -1,5 +1,5 @@
 import { api } from "../../app/api";
-import { API_BASE_URL } from "../../config/runtime";
+import { publicApi } from "../../config/publicApi";
 
 // Define types for better TypeScript support
 export interface Product {
@@ -37,11 +37,19 @@ export interface ProductsResponse {
 export const productsApi = api.injectEndpoints({
   endpoints: (builder) => ({
     getProducts: builder.query<ProductsResponse, any>({
-      query: (params) => ({
-        url: `${API_BASE_URL}/api/products`,
-        method: "GET",
-        params,
-      }),
+      async queryFn(params) {
+        try {
+          const res = await publicApi.get("/api/products", { params });
+          return { data: res.data };
+        } catch (err: any) {
+          return {
+            error: {
+              status: err?.response?.status ?? "FETCH_ERROR",
+              data: err?.response?.data ?? err?.message,
+            } as any,
+          };
+        }
+      },
       transformResponse: (response: ProductsResponse) => {
         console.log("🔥 RAW PRODUCTS FROM BACKEND:", response);
 
@@ -59,7 +67,19 @@ export const productsApi = api.injectEndpoints({
     }),
 
     getProductById: builder.query<Product, string>({
-      query: (id) => `${API_BASE_URL}/api/products/${id}`,
+      async queryFn(id) {
+        try {
+          const res = await publicApi.get(`/api/products/${id}`);
+          return { data: res.data };
+        } catch (err: any) {
+          return {
+            error: {
+              status: err?.response?.status ?? "FETCH_ERROR",
+              data: err?.response?.data ?? err?.message,
+            } as any,
+          };
+        }
+      },
       transformResponse: (response: Product) => {
         console.log("🔥 PRODUCT DETAIL FROM BACKEND:", response);
         
