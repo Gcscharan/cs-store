@@ -1,4 +1,5 @@
 import { api } from "../../app/api";
+import { API_BASE_URL } from "../../config/runtime";
 
 // Define types for better TypeScript support
 export interface Product {
@@ -37,7 +38,7 @@ export const productsApi = api.injectEndpoints({
   endpoints: (builder) => ({
     getProducts: builder.query<ProductsResponse, any>({
       query: (params) => ({
-        url: `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/products`,
+        url: `${API_BASE_URL}/api/products`,
         method: "GET",
         params,
       }),
@@ -58,7 +59,7 @@ export const productsApi = api.injectEndpoints({
     }),
 
     getProductById: builder.query<Product, string>({
-      query: (id) => `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/products/${id}`,
+      query: (id) => `${API_BASE_URL}/api/products/${id}`,
       transformResponse: (response: Product) => {
         console.log("🔥 PRODUCT DETAIL FROM BACKEND:", response);
         
