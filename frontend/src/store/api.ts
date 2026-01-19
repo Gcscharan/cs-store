@@ -242,7 +242,7 @@ export const api = createApi({
     getProducts: builder.query({
       // params: object (page, limit, filters) OR undefined
       query: (params?: Record<string, any>) => ({
-        url: "/products",
+        url: `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/products`,
         method: "GET",
         params,
       }),
@@ -263,7 +263,7 @@ export const api = createApi({
       },
     }),
     getProductById: builder.query({
-      query: (id: string) => `/products/${id}`,
+      query: (id: string) => `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/products/${id}`,
       providesTags: (_, __, id) => [{ type: "Product" as const, id }],
       transformResponse: (response: any) => ({
         ...response,
@@ -272,7 +272,7 @@ export const api = createApi({
     }),
     getSimilarProducts: builder.query({
       query: ({ id, limit = 4 }: { id: string; limit?: number }) => ({
-        url: `/products/${id}/similar`,
+        url: `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/products/${id}/similar`,
         method: "GET",
         params: { limit },
       }),
@@ -283,7 +283,7 @@ export const api = createApi({
     // ---------- SEARCH ----------
     getSearchSuggestions: builder.query({
       query: ({ q }: { q: string }) => ({
-        url: `/products/search/suggestions`,
+        url: `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/products/search/suggestions`,
         method: "GET",
         params: { q },
       }),
@@ -291,7 +291,7 @@ export const api = createApi({
     }),
     searchProducts: builder.query({
       query: (params: any) => ({
-        url: "/products/search",
+        url: `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/products/search`,
         method: "GET",
         params,
       }),
@@ -585,14 +585,14 @@ export const api = createApi({
     // ---------- ADMIN (upload/product management) ----------
     getPresignedUploadUrl: builder.mutation({
       query: (payload: any) => ({
-        url: "/products/upload-url",
+        url: `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/products/upload-url`,
         method: "POST",
         body: payload,
       }),
     }),
     createProduct: builder.mutation({
       query: (productData: any) => ({
-        url: "/products",
+        url: `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/products`,
         method: "POST",
         // productData could be FormData - keep body as-is
         body: productData,
@@ -601,7 +601,7 @@ export const api = createApi({
     }),
     updateProduct: builder.mutation({
       query: ({ id, ...productData }: any) => ({
-        url: `/products/${id}`,
+        url: `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/products/${id}`,
         method: "PUT",
         body: productData,
       }),
@@ -609,7 +609,7 @@ export const api = createApi({
     }),
     deleteProduct: builder.mutation({
       query: (id: string) => ({
-        url: `/admin/products/${id}`,
+        url: `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/admin/products/${id}`,
         method: "DELETE",
       }),
       invalidatesTags: ["Product"],

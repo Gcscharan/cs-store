@@ -81,7 +81,7 @@ const AdminProductsPage: React.FC = () => {
         throw new Error("No authentication token available");
       }
 
-      const response = await fetch("/api/admin/products", {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/admin/products`, {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${tokens.accessToken}`,
