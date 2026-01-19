@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { X, Phone, Mail, User } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { setUser, setTokens } from "../store/slices/authSlice";
@@ -25,6 +25,7 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const inFlightRef = useRef(false);
   const [error, setError] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [phoneError, setPhoneError] = useState("");
@@ -62,6 +63,8 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
   };
 
   const handleSendOtp = async () => {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
     setIsLoading(true);
     setError("");
     setPhoneError("");
@@ -74,6 +77,7 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
         if (!isValidPhoneNumber(phone)) {
           setPhoneError("Please enter a valid 10-digit mobile number.");
           setIsLoading(false);
+          inFlightRef.current = false;
           return;
         }
         const phoneDigits = phone.replace(/\D/g, "");
@@ -83,6 +87,7 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
       } else {
         // Don't show error, just return without doing anything
         setIsLoading(false);
+        inFlightRef.current = false;
         return;
       }
 
@@ -139,10 +144,13 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
       setError(err instanceof Error ? err.message : "Failed to send OTP");
     } finally {
       setIsLoading(false);
+      inFlightRef.current = false;
     }
   };
 
   const handleVerifyOtp = async () => {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
     setIsLoading(true);
     setError("");
 
@@ -190,23 +198,19 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
       // Close modal and redirect based on user role
       handleClose();
 
-      // Add longer delay to ensure Redux state is saved to localStorage before redirect
-      setTimeout(() => {
-        if (data.user.isAdmin) {
-          window.location.href = "/admin";
-        } else {
-          // Don't redirect if we're already on the target page
-          if (window.location.pathname !== redirectTo) {
-            window.location.href = redirectTo;
-          }
-          // If we're already on the target page, just close the modal
-          // The page will automatically update due to Redux state change
+      // Redirect only after successful verification + state update
+      if (data.user.isAdmin) {
+        window.location.href = "/admin";
+      } else {
+        if (window.location.pathname !== redirectTo) {
+          window.location.href = redirectTo;
         }
-      }, 500);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to verify OTP");
     } finally {
       setIsLoading(false);
+      inFlightRef.current = false;
     }
   };
 
@@ -296,6 +300,7 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
                   <input
                     type="text"
                     value={phone || email}
+                    disabled={isLoading}
                     onChange={(e) => {
                       e.stopPropagation();
                       const value = e.target.value;
@@ -327,7 +332,7 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
                         e.preventDefault();
                         e.stopPropagation();
                         const value = phone || email;
-                        if (value) {
+                        if (value && !isLoading) {
                           handleSendOtp();
                         }
                       }
@@ -376,16 +381,20 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
                 <button
                   onClick={() => {
                     const value = phone || email;
-                    if (value) {
+                    if (value && !isLoading) {
                       handleSendOtp();
                     }
                   }}
                   disabled={
-                    Boolean(!phone && !email) || Boolean(phone && !isValidPhoneNumber(phone))
+                    Boolean(!phone && !email) ||
+                    Boolean(phone && !isValidPhoneNumber(phone)) ||
+                    isLoading
                   }
-                  className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold py-4 px-6 rounded-lg text-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-105 shadow-lg"
+                  className={`w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold py-4 px-6 rounded-lg text-lg transition-all transform hover:scale-105 shadow-lg ${
+                    isLoading ? "opacity-60 cursor-not-allowed" : ""
+                  }`}
                 >
-                  Continue
+                  {isLoading ? "Please wait..." : "Continue"}
                 </button>
 
                 {/* OTP BLOCK – SHOW ONLY AFTER OTP IS SENT */}
@@ -396,6 +405,7 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
                       type="text"
                       value={otp}
                       onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      disabled={isLoading}
                       maxLength={6}
                       className="w-full px-4 py-3 border-2 rounded-lg border-gray-200 focus:outline-none focus:border-blue-500"
                       placeholder="Enter 6-digit OTP"
@@ -405,7 +415,7 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
                     <div className="flex items-center justify-between mt-2">
                       <button
                         type="button"
-                        disabled={!canResendOtp}
+                        disabled={!canResendOtp || isLoading}
                         onClick={handleSendOtp}
                         className={`text-sm font-medium transition-colors ${
                           canResendOtp

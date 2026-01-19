@@ -30,12 +30,24 @@ export const OtpModalProvider: React.FC<OtpModalProviderProps> = ({
 }) => {
   const [isOtpModalOpen, setIsOtpModalOpen] = useState(false);
   const [redirectTo, setRedirectTo] = useState("/account/profile");
-  const { isAuthenticated } = useSelector((state: RootState) => state.auth);
+  const { isAuthenticated, loading: isAuthLoading } = useSelector(
+    (state: RootState) => state.auth
+  );
 
   const showOtpModal = (redirectPath?: string) => {
     // Don't show modal if user is already authenticated
     if (isAuthenticated) {
       console.log("OtpModalContext: User is already authenticated, skipping modal");
+      return;
+    }
+
+    // Avoid opening the modal while auth state is still initializing
+    if (isAuthLoading) {
+      return;
+    }
+
+    // Avoid repeated open calls (can cause UI loops)
+    if (isOtpModalOpen) {
       return;
     }
     

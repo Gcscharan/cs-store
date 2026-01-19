@@ -111,6 +111,11 @@ const HomePage = () => {
       return;
     }
 
+    // Avoid opening auth modal while auth state is still initializing
+    if (auth.loading) {
+      return;
+    }
+
     const urlParams = new URLSearchParams(window.location.search);
     const showLogin = urlParams.get("showLogin");
 
@@ -122,7 +127,7 @@ const HomePage = () => {
       const newUrl = window.location.pathname;
       window.history.replaceState({}, "", newUrl);
     }
-  }, [showOtpModal, auth.isAuthenticated]);
+  }, [showOtpModal, auth.isAuthenticated, auth.loading]);
 
   // Top Selling Products
   const topSellingProducts = useMemo(() => {
