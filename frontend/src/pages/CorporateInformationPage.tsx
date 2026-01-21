@@ -16,32 +16,11 @@ const CorporateInformationPage: React.FC = () => {
 
   const leadership = [
     {
-      name: "Rajesh Kumar",
-      position: "Chief Executive Officer",
-      bio: "15+ years of experience in e-commerce and technology leadership.",
+      name: "CS Store",
+      position: "Proprietor",
+      bio: "CS Store is operated by an individual proprietor in India.",
       image:
         "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&h=300&fit=crop&crop=face",
-    },
-    {
-      name: "Priya Sharma",
-      position: "Chief Technology Officer",
-      bio: "Expert in scalable systems and digital transformation.",
-      image:
-        "https://images.unsplash.com/photo-1494790108755-2616b612b786?w=300&h=300&fit=crop&crop=face",
-    },
-    {
-      name: "Amit Patel",
-      position: "Chief Operating Officer",
-      bio: "Operations specialist with focus on customer experience.",
-      image:
-        "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=300&h=300&fit=crop&crop=face",
-    },
-    {
-      name: "Sarah Johnson",
-      position: "Chief Financial Officer",
-      bio: "Financial strategy and growth management expert.",
-      image:
-        "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=300&h=300&fit=crop&crop=face",
     },
   ];
 
@@ -49,21 +28,21 @@ const CorporateInformationPage: React.FC = () => {
     {
       title: "Annual Report 2023",
       description:
-        "Complete financial and operational overview for fiscal year 2023",
+        "Store information and updates",
       type: "PDF",
       size: "2.4 MB",
       date: "2024-01-15",
     },
     {
       title: "Sustainability Report",
-      description: "Our environmental and social impact initiatives",
+      description: "How we aim to operate responsibly",
       type: "PDF",
       size: "1.8 MB",
       date: "2023-12-20",
     },
     {
       title: "Corporate Governance Guidelines",
-      description: "Framework for ethical business practices and transparency",
+      description: "Guidelines for ethical business practices and transparency",
       type: "PDF",
       size: "1.2 MB",
       date: "2023-11-10",
@@ -91,7 +70,7 @@ const CorporateInformationPage: React.FC = () => {
               <span>Back to Home</span>
             </button>
             <h1 className="text-2xl font-bold text-gray-900">
-              Corporate Information
+              Business Information
             </h1>
             <div></div>
           </div>
@@ -108,11 +87,11 @@ const CorporateInformationPage: React.FC = () => {
           className="text-center mb-12"
         >
           <h2 className="text-4xl font-bold text-gray-900 mb-6">
-            Corporate Information
+            Business Information
           </h2>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Learn about CS Store's corporate structure, leadership team, and
-            commitment to transparency and ethical business practices.
+            Learn about CS Store and how we operate, with a commitment to
+            transparency and ethical business practices.
           </p>
         </motion.div>
 
@@ -132,17 +111,12 @@ const CorporateInformationPage: React.FC = () => {
                 About CS Store
               </h4>
               <p className="text-gray-600 mb-4">
-                CS Store is India's leading e-commerce platform, founded in 2020
-                with a mission to democratize commerce and make quality products
-                accessible to every Indian. We operate as a technology-driven
-                marketplace connecting millions of customers with thousands of
-                sellers across the country.
+                CS Store is an online store operated by an individual proprietor
+                in India.
               </p>
               <p className="text-gray-600">
-                Our platform offers a wide range of products including
-                electronics, fashion, home goods, groceries, and more, all
-                delivered with exceptional customer service and competitive
-                pricing.
+                We aim to provide a smooth shopping experience and responsive
+                customer support.
               </p>
             </div>
             <div>
@@ -152,19 +126,19 @@ const CorporateInformationPage: React.FC = () => {
               <div className="space-y-3">
                 <div className="flex items-center">
                   <Building className="w-5 h-5 text-orange-500 mr-3" />
-                  <span className="text-gray-600">Founded: 2020</span>
+                  <span className="text-gray-600">Business type: Sole proprietorship</span>
                 </div>
                 <div className="flex items-center">
                   <Users className="w-5 h-5 text-orange-500 mr-3" />
-                  <span className="text-gray-600">Employees: 5,000+</span>
+                  <span className="text-gray-600">Operated in: India</span>
                 </div>
                 <div className="flex items-center">
                   <Globe className="w-5 h-5 text-orange-500 mr-3" />
-                  <span className="text-gray-600">Cities Served: 500+</span>
+                  <span className="text-gray-600">Location: Tiruvuru, Andhra Pradesh</span>
                 </div>
                 <div className="flex items-center">
                   <Award className="w-5 h-5 text-orange-500 mr-3" />
-                  <span className="text-gray-600">Customers: 10M+</span>
+                  <span className="text-gray-600">Support: support@csstore.com</span>
                 </div>
               </div>
             </div>
@@ -178,9 +152,7 @@ const CorporateInformationPage: React.FC = () => {
           transition={{ duration: 0.6, delay: 0.3 }}
           className="bg-white rounded-lg shadow-lg p-8 mb-8"
         >
-          <h3 className="text-3xl font-bold text-gray-900 mb-8">
-            Leadership Team
-          </h3>
+          <h3 className="text-3xl font-bold text-gray-900 mb-8">About the operator</h3>
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
             {leadership.map((leader, index) => (
               <div key={index} className="text-center">
@@ -258,9 +230,7 @@ const CorporateInformationPage: React.FC = () => {
           transition={{ duration: 0.6, delay: 0.5 }}
           className="bg-white rounded-lg shadow-lg p-8 mb-8"
         >
-          <h3 className="text-3xl font-bold text-gray-900 mb-8">
-            Corporate Documents
-          </h3>
+          <h3 className="text-3xl font-bold text-gray-900 mb-8">Documents</h3>
           <div className="grid md:grid-cols-2 gap-6">
             {documents.map((doc, index) => (
               <div
@@ -300,20 +270,19 @@ const CorporateInformationPage: React.FC = () => {
           transition={{ duration: 0.6, delay: 0.6 }}
           className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-lg shadow-lg p-8 text-white"
         >
-          <h3 className="text-3xl font-bold mb-6">Corporate Contact</h3>
+          <h3 className="text-3xl font-bold mb-6">Contact</h3>
           <div className="grid md:grid-cols-2 gap-8">
             <div>
-              <h4 className="text-xl font-semibold mb-4">Headquarters</h4>
-              <p className="mb-2">CS Store Private Limited</p>
-              <p className="mb-2">123 Business Park, Sector 5</p>
-              <p className="mb-2">New Delhi, 110001, India</p>
-              <p className="mb-4">Phone: +91 11 1234 5678</p>
+              <h4 className="text-xl font-semibold mb-4">Mail Us</h4>
+              <p className="mb-2">CS Store</p>
+              <p className="mb-2">Tiruvuru, Krishna District</p>
+              <p className="mb-2">Andhra Pradesh, India – 521235</p>
+              <p className="mb-4">Phone: +91-9391795162</p>
             </div>
             <div>
-              <h4 className="text-xl font-semibold mb-4">Investor Relations</h4>
-              <p className="mb-2">Email: investors@csstore.com</p>
-              <p className="mb-2">Phone: +91 11 1234 5679</p>
-              <p className="mb-4">Website: investors.csstore.com</p>
+              <h4 className="text-xl font-semibold mb-4">Support</h4>
+              <p className="mb-2">Email: support@csstore.com</p>
+              <p className="mb-2">Phone: +91-9391795162</p>
             </div>
           </div>
         </motion.div>

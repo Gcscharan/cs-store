@@ -94,7 +94,7 @@ export interface IOrder extends Document {
   discount?: number;
   grandTotal?: number;
   totalAmount: number;
-  paymentMethod: "cod" | "upi";
+  paymentMethod: "cod" | "upi" | "razorpay";
   paymentStatus:
     | "PENDING"
     | "AWAITING_UPI_APPROVAL"
@@ -323,7 +323,7 @@ const OrderSchema = new Schema<IOrder>(
     },
     paymentMethod: {
       type: String,
-      enum: ["upi", "cod"],
+      enum: ["upi", "cod", "razorpay"],
     },
     paymentStatus: {
       type: String,

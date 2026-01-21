@@ -56,7 +56,6 @@ const ContactUsPage: React.FC = () => {
                   <div>
                     <p className="font-medium text-gray-900">Email</p>
                     <p className="text-gray-600">support@csstore.com</p>
-                    <p className="text-gray-600">info@csstore.com</p>
                   </div>
                 </div>
 
@@ -64,8 +63,7 @@ const ContactUsPage: React.FC = () => {
                   <Phone className="w-6 h-6 text-orange-500" />
                   <div>
                     <p className="font-medium text-gray-900">Phone</p>
-                    <p className="text-gray-600">+91 98765 43210</p>
-                    <p className="text-gray-600">+91 98765 43211</p>
+                    <p className="text-gray-600">+91-9391795162</p>
                   </div>
                 </div>
 
@@ -74,10 +72,11 @@ const ContactUsPage: React.FC = () => {
                   <div>
                     <p className="font-medium text-gray-900">Address</p>
                     <p className="text-gray-600">
-                      CS Store Headquarters
+                      CS Store
                       <br />
-                      123 Business Park, Sector 5<br />
-                      New Delhi, 110001, India
+                      Tiruvuru, Krishna District,
+                      <br />
+                      Andhra Pradesh, India – 521235
                     </p>
                   </div>
                 </div>

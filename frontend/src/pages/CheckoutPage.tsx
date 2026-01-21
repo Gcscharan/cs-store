@@ -22,10 +22,12 @@ import api, {
   useGetAddressesQuery,
   useSetDefaultAddressMutation,
 } from "../store/api";
+import RazorpayCheckout from "../components/RazorpayCheckout";
+import { createRazorpayOrder, openRazorpayCheckout } from "../utils/razorpay";
 
 const CheckoutPage = () => {
   const cart = useSelector((state: RootState) => state.cart);
-  const { isAuthenticated, tokens } = useSelector((state: RootState) => state.auth);
+  const { user, isAuthenticated, tokens } = useSelector((state: RootState) => state.auth);
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const [clearCartMutation] = useClearCartMutation();
@@ -38,11 +40,13 @@ const CheckoutPage = () => {
   });
   const [setDefaultAddressMutation] = useSetDefaultAddressMutation();
 
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"cod" | "upi">("upi");
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"cod" | "upi" | "razorpay">("upi");
   const [upiVpa, setUpiVpa] = useState("");
   const [createdUpiOrderId, setCreatedUpiOrderId] = useState<string | null>(null);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [isConfirmingPayment, setIsConfirmingPayment] = useState(false);
+  const [razorpayAttempt, setRazorpayAttempt] = useState(1);
+  const [isRazorpayPolling, setIsRazorpayPolling] = useState(false);
 
   // Helper function to clear both Redux cart and backend MongoDB cart
   const clearCartCompletely = async () => {
@@ -58,6 +62,128 @@ const CheckoutPage = () => {
     } catch (error) {
       console.error("Error clearing backend cart:", error);
       // Even if backend fails, Redux state will still be cleared
+    }
+  };
+
+  const pollOrderUntilPaid = async (args: {
+    orderId: string;
+    accessToken: string;
+    timeoutMs?: number;
+    intervalMs?: number;
+  }): Promise<boolean> => {
+    const timeoutMs = Number(args.timeoutMs || 60_000);
+    const intervalMs = Number(args.intervalMs || 2_000);
+    const start = Date.now();
+
+    while (Date.now() - start < timeoutMs) {
+      const res = await fetch(`/api/orders/${args.orderId}`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${args.accessToken}`,
+        },
+      });
+
+      const data = await res.json().catch(() => ({} as any));
+      if (res.ok) {
+        const ps = String((data as any)?.order?.paymentStatus || "").toUpperCase();
+        if (ps === "PAID") return true;
+      }
+
+      await new Promise((r) => setTimeout(r, intervalMs));
+    }
+
+    return false;
+  };
+
+  const handleRazorpayPayment = async () => {
+    try {
+      if (!canAttemptCheckout) {
+        toast.error("Please select a valid delivery address");
+        return;
+      }
+
+      const accessToken = tokens?.accessToken;
+      if (!accessToken) {
+        toast.error("Please log in to continue");
+        navigate("/login");
+        return;
+      }
+
+      if (razorpayAttempt > 3) {
+        toast.error("Max payment attempts exceeded");
+        return;
+      }
+
+      setIsPlacingOrder(true);
+
+      const orderRes = await fetch("/api/orders", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ paymentMethod: "razorpay" }),
+      });
+
+      const orderData = await orderRes.json().catch(() => ({} as any));
+      if (!orderRes.ok) {
+        const message = String((orderData as any)?.message || (orderData as any)?.error || "Failed to create order");
+        throw new Error(message);
+      }
+
+      const dbOrderId = String((orderData as any)?.order?._id || "");
+      if (!dbOrderId) {
+        throw new Error("Failed to create order");
+      }
+
+      const intent = await createRazorpayOrder({
+        orderId: dbOrderId,
+        accessToken,
+        idempotencyKey: `order_${dbOrderId}_attempt_${razorpayAttempt}`,
+      });
+
+      await openRazorpayCheckout({
+        checkoutPayload: intent.checkoutPayload,
+        prefill: {
+          name: (user as any)?.name,
+          email: (user as any)?.email,
+          contact: (user as any)?.phone,
+        },
+        onSuccess: async () => {
+          try {
+            setIsRazorpayPolling(true);
+            toast.success("Processing payment…");
+
+            const ok = await pollOrderUntilPaid({
+              orderId: dbOrderId,
+              accessToken,
+            });
+
+            if (ok) {
+              await clearCartCompletely();
+              toast.success("Payment confirmed");
+              navigate(`/orders/${dbOrderId}`);
+            } else {
+              toast.error("Payment processing. If amount is debited it will be confirmed shortly.");
+              navigate("/orders");
+            }
+          } finally {
+            setIsRazorpayPolling(false);
+          }
+        },
+        onDismiss: () => {
+          setRazorpayAttempt((n) => n + 1);
+          toast.error("Payment cancelled or failed");
+        },
+        onFailure: () => {
+          setRazorpayAttempt((n) => n + 1);
+        },
+      });
+    } catch (error: any) {
+      console.error("Razorpay payment error:", error);
+      toast.error(error.message || "Failed to process payment", { duration: 5000 });
+    } finally {
+      setIsPlacingOrder(false);
     }
   };
 
@@ -531,6 +657,37 @@ const CheckoutPage = () => {
                         {isPlacingOrder ? "Creating order..." : `Pay ₹${priceBreakdown.total}`}
                       </button>
                     )}
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-orange-300 transition-colors">
+                  <div className="flex items-center space-x-3">
+                    <input
+                      type="radio"
+                      name="payment"
+                      value="razorpay"
+                      checked={selectedPaymentMethod === "razorpay"}
+                      onChange={() => setSelectedPaymentMethod("razorpay")}
+                      className="h-4 w-4 text-orange-500 focus:ring-orange-500"
+                    />
+                    <div className="text-2xl">💳</div>
+                    <div>
+                      <div className="font-medium text-gray-900">Card / UPI (Razorpay)</div>
+                      <div className="text-sm text-gray-500">Secure checkout via Razorpay</div>
+                    </div>
+                  </div>
+                </div>
+
+                {selectedPaymentMethod === "razorpay" && (
+                  <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
+                    <RazorpayCheckout
+                      disabled={!canAttemptCheckout || isPlacingOrder || isRazorpayPolling}
+                      label={isRazorpayPolling ? "Processing…" : `Pay ₹${priceBreakdown.total}`}
+                      onClick={handleRazorpayPayment}
+                    />
+                    <p className="text-xs text-gray-600 mt-2">
+                      Do not close this page until payment is confirmed.
+                    </p>
                   </div>
                 )}
 

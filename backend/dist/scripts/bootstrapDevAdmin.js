@@ -43,6 +43,8 @@ const bootstrapDevAdmin = async () => {
                         pincode: "521235",
                         city: "Tiruvuru",
                         state: "Andhra Pradesh",
+                        postal_district: "Krishna",
+                        admin_district: "NTR",
                         addressLine: "Admin Office, Tiruvuru",
                         lat: 16.5, // Approximate coordinates for Tiruvuru
                         lng: 80.5,
@@ -72,6 +74,8 @@ const bootstrapDevAdmin = async () => {
                         pincode: "521235",
                         city: "Tiruvuru",
                         state: "Andhra Pradesh",
+                        postal_district: "Krishna",
+                        admin_district: "NTR",
                         addressLine: "Admin Office, Tiruvuru",
                         lat: 16.5, // Approximate coordinates for Tiruvuru
                         lng: 80.5,

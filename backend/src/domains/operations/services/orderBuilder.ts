@@ -14,7 +14,7 @@ import {
   resolvePincodeDetails,
 } from "../../../utils/pincodeResolver";
 
-type PaymentMethod = "cod" | "upi";
+type PaymentMethod = "cod" | "upi" | "razorpay";
 
 export type CreateOrderFromCartResult = {
   order: any;

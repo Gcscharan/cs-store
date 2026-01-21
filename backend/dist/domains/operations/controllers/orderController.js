@@ -139,7 +139,7 @@ const createOrder = async (req, res) => {
         if (!userId) {
             return res.status(401).json({ message: "User not authenticated" });
         }
-        if (paymentMethod !== "cod" && paymentMethod !== "upi") {
+        if (paymentMethod !== "cod" && paymentMethod !== "upi" && paymentMethod !== "razorpay") {
             return res.status(400).json({ message: "Unsupported payment method" });
         }
         const upiVpa = paymentMethod === "upi" ? String(req.body?.upiVpa || "").trim() : undefined;
@@ -151,13 +151,20 @@ const createOrder = async (req, res) => {
         const idempotencyKey = idempotencyKeyHeader || idempotencyKeyBody || undefined;
         const result = await (0, orderBuilder_1.createOrderFromCart)({
             userId,
-            paymentMethod,
+            paymentMethod: paymentMethod,
             upiVpa,
             idempotencyKey,
         });
         if (paymentMethod === "cod") {
             return res.status(201).json({
                 message: "Order placed with Cash on Delivery",
+                order: result.order,
+                created: result.created,
+            });
+        }
+        if (paymentMethod === "razorpay") {
+            return res.status(201).json({
+                message: "Order created. Awaiting payment",
                 order: result.order,
                 created: result.created,
             });

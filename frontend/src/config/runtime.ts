@@ -2,7 +2,26 @@ const DEFAULT_API_BASE_URL = import.meta.env.DEV
   ? "http://localhost:5001"
   : "https://cps-store-backend.onrender.com";
 
-export const API_BASE_URL = import.meta.env.VITE_API_URL || DEFAULT_API_BASE_URL;
+function normalizeApiOrigin(value: unknown): string {
+  let v = String(value ?? "").trim();
+  if ((v.startsWith("\"") && v.endsWith("\"")) || (v.startsWith("'") && v.endsWith("'"))) {
+    v = v.slice(1, -1).trim();
+  }
+
+  if (/^VITE_API_URL\s*=/.test(v)) {
+    v = v.replace(/^VITE_API_URL\s*=/, "").trim();
+  }
+
+  v = v.replace(/\/+$/, "");
+  if (v.endsWith("/api")) {
+    v = v.slice(0, -4);
+  }
+
+  return v;
+}
+
+export const API_BASE_URL =
+  normalizeApiOrigin(import.meta.env.VITE_API_URL) || DEFAULT_API_BASE_URL;
 
 console.log("API BASE URL:", API_BASE_URL);
 

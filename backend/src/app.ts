@@ -29,6 +29,8 @@ import mobileVerifyRoutes from "./domains/security/routes/mobileVerifyRoutes";
 import notificationRoutes from "./domains/communication/routes/notifications";
 import devNotificationRoutes from "./domains/communication/routes/devNotifications";
 import uploadRoutes from "./domains/uploads/routes/uploads";
+import paymentIntentsRoutes from "./domains/payments/routes/paymentIntents.routes";
+import paymentWebhooksRoutes from "./domains/payments/routes/webhooks.routes";
 
 console.log("App.ts loaded successfully");
 
@@ -46,6 +48,8 @@ const corsOrigins = [
     : [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
       ]),
@@ -62,6 +66,9 @@ app.use(
 app.use(compression() as any);
 app.use('/api/', apiLimiter as any);
 app.use(passport.initialize() as any);
+
+// Razorpay webhooks require raw body for signature verification. Keep this BEFORE express.json().
+app.use("/api/webhooks/razorpay", express.raw({ type: "application/json" }));
 
 // body parsers BEFORE routes
 app.use(express.json({ limit: "10mb" }));
@@ -95,6 +102,8 @@ app.use("/api/otp", otpRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/dev/notifications", devNotificationRoutes);
 app.use("/api/uploads", uploadRoutes);
+app.use("/api/payment-intents", paymentIntentsRoutes);
+app.use("/api/webhooks", paymentWebhooksRoutes);
 
 // Admin tracking (Phase 4)
 app.use("/admin/tracking", adminTrackingRoutes);
