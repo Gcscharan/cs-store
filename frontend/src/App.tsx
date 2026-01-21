@@ -78,6 +78,9 @@ import CorporateInformationPage from "./pages/CorporateInformationPage";
 import CustomerCarePage from "./pages/CustomerCarePage";
 import NotificationPreferencesPage from "./pages/NotificationPreferencesPage";
 import SettingsPage from "./pages/SettingsPage";
+import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
+import TermsConditionsPage from "./pages/TermsConditionsPage";
+import CancellationReturnsPage from "./pages/CancellationReturnsPage";
 import { ReactNode } from "react";
 import CartInitializer from "./components/CartInitializer";
 import AuthInitializer from "./components/AuthInitializer";
@@ -140,6 +143,9 @@ function AuthRouter() {
       location.pathname === "/login" ||
       location.pathname === "/download-app" ||
       location.pathname === "/contact-us" ||
+      location.pathname === "/privacy" ||
+      location.pathname === "/terms" ||
+      location.pathname === "/cancellation" ||
       location.pathname === "/about-us" ||
       location.pathname === "/careers" ||
       location.pathname.startsWith("/cs-store-stories") ||
@@ -176,6 +182,33 @@ function AuthRouter() {
         element={
           <Layout>
             <LoginPage />
+          </Layout>
+        }
+      />
+
+      <Route
+        path="/privacy"
+        element={
+          <Layout>
+            <PrivacyPolicyPage />
+          </Layout>
+        }
+      />
+
+      <Route
+        path="/terms"
+        element={
+          <Layout>
+            <TermsConditionsPage />
+          </Layout>
+        }
+      />
+
+      <Route
+        path="/cancellation"
+        element={
+          <Layout>
+            <CancellationReturnsPage />
           </Layout>
         }
       />

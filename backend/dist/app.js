@@ -31,6 +31,8 @@ const mobileVerifyRoutes_1 = __importDefault(require("./domains/security/routes/
 const notifications_1 = __importDefault(require("./domains/communication/routes/notifications"));
 const devNotifications_1 = __importDefault(require("./domains/communication/routes/devNotifications"));
 const uploads_1 = __importDefault(require("./domains/uploads/routes/uploads"));
+const paymentIntents_routes_1 = __importDefault(require("./domains/payments/routes/paymentIntents.routes"));
+const webhooks_routes_1 = __importDefault(require("./domains/payments/routes/webhooks.routes"));
 console.log("App.ts loaded successfully");
 const app = (0, express_1.default)();
 // Middleware
@@ -44,6 +46,8 @@ const corsOrigins = [
         : [
             "http://localhost:3000",
             "http://127.0.0.1:3000",
+            "http://localhost:3001",
+            "http://127.0.0.1:3001",
             "http://localhost:5173",
             "http://127.0.0.1:5173",
         ]),
@@ -57,6 +61,8 @@ app.use((0, cors_1.default)({
 app.use((0, compression_1.default)());
 app.use('/api/', security_1.apiLimiter);
 app.use(passport_1.default.initialize());
+// Razorpay webhooks require raw body for signature verification. Keep this BEFORE express.json().
+app.use("/api/webhooks/razorpay", express_1.default.raw({ type: "application/json" }));
 // body parsers BEFORE routes
 app.use(express_1.default.json({ limit: "10mb" }));
 app.use(express_1.default.urlencoded({ extended: true }));
@@ -87,6 +93,8 @@ app.use("/api/otp", otpRoutes_1.default);
 app.use("/api/notifications", notifications_1.default);
 app.use("/api/dev/notifications", devNotifications_1.default);
 app.use("/api/uploads", uploads_1.default);
+app.use("/api/payment-intents", paymentIntents_routes_1.default);
+app.use("/api/webhooks", webhooks_routes_1.default);
 // Admin tracking (Phase 4)
 app.use("/admin/tracking", adminTracking_1.default);
 // Internal (non-customer) routes

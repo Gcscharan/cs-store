@@ -53,10 +53,13 @@ function validateEnvironmentVariables() {
     }
     // Razorpay
     if (!process.env.RAZORPAY_KEY_ID) {
-        errors.push("⚠️  RAZORPAY_KEY_ID is recommended");
+        errors.push("❌ RAZORPAY_KEY_ID is required");
     }
     if (!process.env.RAZORPAY_KEY_SECRET) {
-        errors.push("⚠️  RAZORPAY_KEY_SECRET is recommended");
+        errors.push("❌ RAZORPAY_KEY_SECRET is required");
+    }
+    if (!process.env.RAZORPAY_WEBHOOK_SECRET) {
+        errors.push("❌ RAZORPAY_WEBHOOK_SECRET is required");
     }
     // Google OAuth
     if (!process.env.GOOGLE_CLIENT_ID) {

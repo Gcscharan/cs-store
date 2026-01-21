@@ -566,43 +566,21 @@ const DashboardPage = () => {
               </ul>
             </div>
 
-            {/* Mail Us & Registered Office */}
+            {/* Mail Us */}
             <div>
               <h3 className="text-lg font-semibold mb-4 text-orange-400">
                 Mail Us:
               </h3>
-              <p className="text-sm text-gray-400 mb-4">
-                CS Store Internet Private Limited,
-                <br />
-                Buildings Alyssa, Begonia & Clove Embassy Tech Village,
-                <br />
-                Outer Ring Road, Devarabeesanahalli Village,
-                <br />
-                Bengaluru, 560103,
-                <br />
-                Karnataka, India
-              </p>
-
-              <h3 className="text-lg font-semibold mb-4 text-orange-400">
-                Registered Office Address:
-              </h3>
               <p className="text-sm text-gray-400">
-                CS Store Internet Private Limited,
+                CS Store
                 <br />
-                Buildings Alyssa, Begonia & Clove Embassy Tech Village,
+                📍 Tiruvuru, Krishna District,
                 <br />
-                Outer Ring Road, Devarabeesanahalli Village,
+                Andhra Pradesh, India – 521235
                 <br />
-                Bengaluru, 560103,
+                📧 support@csstore.com
                 <br />
-                Karnataka, India
-                <br />
-                CIN : U51109KA2012PTC066107
-                <br />
-                Telephone:{" "}
-                <a href="tel:044-45614700" className="hover:text-orange-400">
-                  044-45614700
-                </a>
+                📞 +91-9391795162
               </p>
             </div>
           </div>
@@ -625,7 +603,7 @@ const DashboardPage = () => {
                 Help Center
               </Link>
             </div>
-            <div className="mb-4 md:mb-0">© 2023-2024 CS Store.com</div>
+            <div className="mb-4 md:mb-0">© 2024–2026 CS Store. All rights reserved.</div>
             <div>
               <div className="text-sm text-gray-400">
                 Secure Payments Available
