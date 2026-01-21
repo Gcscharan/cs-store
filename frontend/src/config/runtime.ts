@@ -1,6 +1,4 @@
-const DEFAULT_API_BASE_URL = import.meta.env.DEV
-  ? "http://localhost:5001"
-  : "https://cps-store-backend.onrender.com";
+const DEFAULT_API_BASE_URL = import.meta.env.DEV ? "http://localhost:4000" : "";
 
 function normalizeApiOrigin(value: unknown): string {
   let v = String(value ?? "").trim();
@@ -22,6 +20,10 @@ function normalizeApiOrigin(value: unknown): string {
 
 export const API_BASE_URL =
   normalizeApiOrigin(import.meta.env.VITE_API_URL) || DEFAULT_API_BASE_URL;
+
+if (!API_BASE_URL && !import.meta.env.DEV) {
+  throw new Error("Missing required frontend env: VITE_API_URL");
+}
 
 console.log("API BASE URL:", API_BASE_URL);
 

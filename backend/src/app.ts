@@ -37,30 +37,28 @@ console.log("App.ts loaded successfully");
 const app: Application = express();
 
 // Middleware
-const corsOriginFromEnv = String(process.env.CORS_ORIGIN || "")
-  .split(",")
-  .map((s) => s.trim())
-  .filter(Boolean);
-
-const corsOrigins = [
-  ...(process.env.NODE_ENV === "production"
-    ? []
-    : [
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:3001",
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-      ]),
-  process.env.FRONTEND_URL || "",
-  ...corsOriginFromEnv,
-].filter(Boolean);
+const allowedCorsOrigins = [
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "https://cs-store-frontend-p9sszldr6-randoms-projects-e13b50d6.vercel.app",
+];
 
 app.use(
   cors({
-    origin: corsOrigins,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (e.g. server-to-server, Postman)
+      if (!origin) return callback(null, true);
+
+      if (allowedCorsOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("Not allowed by CORS"));
+    },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    optionsSuccessStatus: 200,
   })
 );
 app.use(compression() as any);
