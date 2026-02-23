@@ -29,6 +29,7 @@ import { orderStateService } from "../domains/orders/services/orderStateService"
 import { OrderStatus } from "../domains/orders/enums/OrderStatus";
 import { enqueueAutoAssignment } from "../domains/delivery/services/autoAssignmentRunner";
 import { getAdminCodCollection, getAdminOrderAttempt } from "../domains/operations/controllers/deliveryOrderController";
+import { UserAccountService } from "../domains/user/services/UserAccountService";
 
 const router = express.Router();
 
@@ -53,19 +54,14 @@ router.get(
 router.get("/users", authenticateToken, requireRole(["admin"]), getUsers);
 router.delete("/users/:id", authenticateToken, requireRole(["admin"]), auditLog, async (req, res) => {
   try {
-    const User = require("../models/User").User;
     const { id } = req.params;
 
-    // Find and delete the user
-    const deletedUser = await User.findByIdAndDelete(id);
-
-    if (!deletedUser) {
-      return res.status(404).json({ error: "User not found" });
-    }
+    const svc = new UserAccountService();
+    const result = await svc.deleteAccount(String(id));
 
     res.json({
       message: "User deleted successfully",
-      user: deletedUser
+      result,
     });
   } catch (error) {
     console.error("Error deleting user:", error);

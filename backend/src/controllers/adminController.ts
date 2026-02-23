@@ -8,6 +8,7 @@ import { DeliveryBoy } from "../models/DeliveryBoy";
 import { Route as PersistedRoute } from "../models/Route";
 import { liveLocationStore } from "../services/liveLocationStore";
 import { createObjectCsvWriter } from "csv-writer";
+import { invalidateCache } from "../middleware/cache";
 import {
   cvrpRouteAssignmentService,
   OrderInput,
@@ -41,7 +42,7 @@ export const getStats = async (req: Request, res: Response) => {
       {
         $match: {
           createdAt: { $gte: startDate, $lte: endDate },
-          paymentStatus: "paid",
+          paymentStatus: "PAID",
         },
       },
       {
@@ -62,7 +63,7 @@ export const getStats = async (req: Request, res: Response) => {
       {
         $match: {
           createdAt: { $gte: startDate, $lte: endDate },
-          paymentStatus: "paid",
+          paymentStatus: "PAID",
         },
       },
       {
@@ -151,7 +152,7 @@ export const getStats = async (req: Request, res: Response) => {
       {
         $match: {
           createdAt: { $gte: startDate, $lte: endDate },
-          paymentStatus: "paid",
+          paymentStatus: "PAID",
         },
       },
       { $unwind: "$items" },
@@ -644,7 +645,7 @@ export const getAdminProducts = async (req: Request, res: Response) => {
     }
 
     // Fetch all products
-    const products = await Product.find({})
+    const products = await Product.find({ deletedAt: null, isSellable: { $ne: false } })
       .select(
         "name price stock category weight images description createdAt updatedAt"
       )
@@ -971,7 +972,7 @@ export const getDashboardStats = async (
 
     // Get total revenue (from paid orders)
     const totalRevenue = await Order.aggregate([
-      { $match: { paymentStatus: "paid" } },
+      { $match: { paymentStatus: "PAID" } },
       { $group: { _id: null, total: { $sum: "$totalAmount" } } },
     ]);
 
@@ -1040,7 +1041,7 @@ export const updateProduct = async (
     }
 
     // Find and update product
-    const product = await Product.findByIdAndUpdate(id, updateData, {
+    const product = await Product.findOneAndUpdate({ _id: id, deletedAt: null, isSellable: { $ne: false } }, updateData, {
       new: true,
       runValidators: true,
     });
@@ -1048,6 +1049,8 @@ export const updateProduct = async (
     if (!product) {
       return res.status(404).json({ error: "Product not found" });
     }
+
+    await invalidateCache.product(String(id));
 
     res.json({
       message: "Product updated successfully",
@@ -1081,12 +1084,18 @@ export const deleteProduct = async (
         .json({ error: "Access denied. Admin role required." });
     }
 
-    // Find and delete product
-    const product = await Product.findByIdAndDelete(id);
+    // Soft delete product
+    const product = await Product.findOneAndUpdate(
+      { _id: id, deletedAt: null, isSellable: { $ne: false } },
+      { $set: { isSellable: false, isActive: false, deletedAt: new Date() } },
+      { new: true }
+    );
 
     if (!product) {
       return res.status(404).json({ error: "Product not found" });
     }
+
+    await invalidateCache.product(String(id));
 
     res.json({
       message: "Product deleted successfully",

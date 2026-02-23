@@ -4,6 +4,7 @@ import { useSelector } from "react-redux";
 import { RootState } from "../store";
 import toast from "react-hot-toast";
 import { useOrderWebSocket } from "../hooks/useOrderWebSocket";
+import { toApiUrl } from "../config/runtime";
 import {
   Search,
   ArrowLeft,
@@ -130,7 +131,7 @@ const AdminOrdersPage: React.FC = () => {
 
     try {
       setIsProcessing(true);
-      const response = await fetch("/api/admin/orders/purge", {
+      const response = await fetch(toApiUrl("/admin/orders/purge"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -196,7 +197,7 @@ const AdminOrdersPage: React.FC = () => {
       setIsLoading(true);
       setError(null);
 
-      const response = await fetch("/api/admin/orders", {
+      const response = await fetch(toApiUrl("/admin/orders"), {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${tokens?.accessToken}`,
@@ -221,7 +222,7 @@ const AdminOrdersPage: React.FC = () => {
     e.stopPropagation();
     try {
       setIsProcessing(true);
-      const response = await fetch(`/api/admin/orders/${order._id}/pack`, {
+      const response = await fetch(toApiUrl(`/admin/orders/${order._id}/pack`), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -267,7 +268,7 @@ const AdminOrdersPage: React.FC = () => {
 
     try {
       setIsProcessing(true);
-      const response = await fetch(`/api/admin/orders/${selectedOrder._id}/confirm`, {
+      const response = await fetch(toApiUrl(`/admin/orders/${selectedOrder._id}/confirm`), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

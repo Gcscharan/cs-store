@@ -51,6 +51,11 @@ export interface SearchResult {
 }
 
 export class SearchFallbackService {
+  private readonly SELLABLE_PRODUCT_MATCH: any = {
+    deletedAt: null,
+    isSellable: { $ne: false },
+  };
+
   // Helper to normalize images using the same function as other endpoints
   private async normalizeImages(product: any): Promise<any[]> {
     const normalized = await normalizeProductImages(product);
@@ -109,6 +114,9 @@ export class SearchFallbackService {
     try {
       // Build match stages
       const matchStages: any[] = [];
+
+      // Lifecycle filter (must always apply)
+      matchStages.push({ $match: this.SELLABLE_PRODUCT_MATCH });
 
       // Text search stage (if text index exists)
       const textMatch: any = {};

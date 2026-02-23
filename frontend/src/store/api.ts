@@ -7,6 +7,7 @@ import { logout as logoutAction } from "./slices/authSlice";
 import { Mutex } from "async-mutex";
 import { API_BASE_URL, getApiBaseUrl } from "../config/runtime";
 import { publicApi } from "../config/publicApi";
+import { refreshAccessToken } from "../utils/authClient";
 
 /**
  * Robust RTK Query API with:
@@ -51,6 +52,14 @@ const baseQueryWithReauth: BaseQueryFn<
   let result = await rawBaseQuery(args, api, extraOptions);
 
   if (result.error && result.error.status === 401) {
+    const errorData: any = (result.error as any)?.data;
+    const code = String(errorData?.code || "").trim();
+    const msg = String(errorData?.message || "").trim().toLowerCase();
+    const isExpired = code === "TOKEN_EXPIRED" || msg === "token expired";
+    if (!isExpired) {
+      return result;
+    }
+
     const currentAuthState = (api.getState() as any)?.auth?.authState;
     if (currentAuthState === "GOOGLE_AUTH_ONLY") {
       return result;
@@ -59,25 +68,8 @@ const baseQueryWithReauth: BaseQueryFn<
     if (!mutex.isLocked()) {
       const release = await mutex.acquire();
       try {
-        const refreshResponse: any = await rawBaseQuery(
-          {
-            url: "/auth/refresh",
-            method: "POST",
-            body: { refreshToken: (api.getState() as any).auth?.tokens?.refreshToken },
-          },
-          api,
-          extraOptions
-        );
-
-        if (refreshResponse?.data?.accessToken) {
-          api.dispatch({
-            type: "auth/setTokens",
-            payload: {
-              accessToken: refreshResponse.data.accessToken,
-              refreshToken: refreshResponse.data.refreshToken ?? (api.getState() as any).auth?.tokens?.refreshToken,
-            },
-          });
-
+        const next = await refreshAccessToken();
+        if (next) {
           result = await rawBaseQuery(args, api, extraOptions);
         } else {
           api.dispatch({ type: "auth/logout" });
@@ -151,6 +143,9 @@ function listNotificationsV2CachedArgs(getState: () => unknown): any[] {
 export const api = createApi({
   reducerPath: "api",
   baseQuery: baseQueryWithReauth,
+  refetchOnFocus: false,
+  refetchOnReconnect: false,
+  keepUnusedDataFor: 60,
   tagTypes: [
     "User",
     "Product",

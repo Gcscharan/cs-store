@@ -1,6 +1,8 @@
 import { OutboxEvent } from "../models/OutboxEvent";
 import { InventoryReservation } from "../models/InventoryReservation";
 import { Product } from "../models/Product";
+import { WebhookEventInbox } from "../domains/payments/models/WebhookEventInbox";
+import { PaymentIntent } from "../domains/payments/models/PaymentIntent";
 
 type CounterName =
   | "assignment_conflicts_total"
@@ -48,6 +50,39 @@ const counters: Record<CounterName, number> = {
 const labeledCounters: Record<string, number> = {};
 const gauges: Record<string, number> = {};
 
+type HistogramState = {
+  buckets: number[];
+  bucketCounts: number[];
+  sum: number;
+  count: number;
+};
+
+const histograms: Record<string, HistogramState> = {};
+
+function labelsKey(labels: Record<string, string>): string {
+  return Object.entries(labels)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([k, v]) => `${k}=${v}`)
+    .join(",");
+}
+
+function metricKey(name: string, labels: Record<string, string>): string {
+  const lk = labelsKey(labels);
+  return lk ? `${name}:${lk}` : `${name}:`;
+}
+
+function parseMetricKey(key: string): { name: string; labels: Record<string, string> } {
+  const idx = key.indexOf(":");
+  const name = idx >= 0 ? key.slice(0, idx) : key;
+  const rest = idx >= 0 ? key.slice(idx + 1) : "";
+  const labels: Record<string, string> = {};
+  for (const part of rest.split(",").filter(Boolean)) {
+    const [k, v] = part.split("=");
+    if (k) labels[k] = String(v || "");
+  }
+  return { name, labels };
+}
+
 export function getInternalMetricsSnapshot(): {
   counters: Record<string, number>;
   labeledCounters: Record<string, number>;
@@ -60,16 +95,61 @@ export function getInternalMetricsSnapshot(): {
   };
 }
 
+async function computeNegativeInventoryCounts(): Promise<{ negativeStock: number; negativeReserved: number }> {
+  const [negativeStock, negativeReserved] = await Promise.all([
+    Product.countDocuments({ stock: { $lt: 0 } }),
+    Product.countDocuments({ reservedStock: { $lt: 0 } }),
+  ]);
+  return {
+    negativeStock: Number(negativeStock || 0),
+    negativeReserved: Number(negativeReserved || 0),
+  };
+}
+
 export function incCounter(name: CounterName, by: number = 1): void {
   counters[name] = Number(counters[name] || 0) + Number(by || 0);
 }
 
 export function incCounterWithLabels(name: string, labels: Record<string, string>, by: number = 1): void {
-  const key = `${name}:${Object.entries(labels)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([k, v]) => `${k}=${v}`)
-    .join(",")}`;
+  const key = metricKey(name, labels);
   labeledCounters[key] = Number(labeledCounters[key] || 0) + Number(by || 0);
+}
+
+export function observeHistogramMs(
+  name: string,
+  valueMs: number,
+  labels: Record<string, string>,
+  bucketsMs: number[]
+): void {
+  const key = metricKey(name, labels);
+  const v = Number(valueMs);
+  if (!Number.isFinite(v) || v < 0) return;
+
+  const buckets = bucketsMs
+    .map((n) => Number(n))
+    .filter((n) => Number.isFinite(n) && n > 0)
+    .sort((a, b) => a - b);
+
+  if (!buckets.length) return;
+
+  const st: HistogramState = histograms[key] || {
+    buckets,
+    bucketCounts: new Array(buckets.length).fill(0),
+    sum: 0,
+    count: 0,
+  };
+
+  // If buckets change between calls, keep the first-seen definition (cheap + stable).
+  histograms[key] = st;
+
+  st.sum += v;
+  st.count += 1;
+
+  for (let i = 0; i < st.buckets.length; i++) {
+    if (v <= st.buckets[i]) {
+      st.bucketCounts[i] += 1;
+    }
+  }
 }
 
 export function setGauge(name: string, value: number | string): void {
@@ -141,6 +221,10 @@ export async function renderPrometheusMetrics(): Promise<string> {
     resExpired,
     resReleased,
     drift,
+    negativeCounts,
+    webhookInboxReceived,
+    webhookInboxFailed,
+    stuckPaymentIntents,
   ] = await Promise.all([
     OutboxEvent.countDocuments({ status: "PENDING" }),
     OutboxEvent.countDocuments({ status: "FAILED" }),
@@ -153,6 +237,23 @@ export async function renderPrometheusMetrics(): Promise<string> {
     InventoryReservation.countDocuments({ status: "EXPIRED" }),
     InventoryReservation.countDocuments({ status: "RELEASED" }),
     computeInventoryDrift(),
+    computeNegativeInventoryCounts(),
+    WebhookEventInbox.countDocuments({ status: "RECEIVED" }),
+    WebhookEventInbox.countDocuments({ status: "FAILED" }),
+    PaymentIntent.countDocuments({
+      gateway: "RAZORPAY",
+      isLocked: { $ne: true },
+      status: {
+        $in: [
+          "CREATED",
+          "GATEWAY_ORDER_CREATED",
+          "PAYMENT_PROCESSING",
+          "PAYMENT_RECOVERABLE",
+          "VERIFYING",
+        ],
+      },
+      updatedAt: { $lte: new Date(Date.now() - 30 * 60_000) },
+    }),
   ]);
 
   const outboxAttempts = outboxAttemptsAgg?.length ? Number(outboxAttemptsAgg[0]?.attempts || 0) : 0;
@@ -197,6 +298,25 @@ export async function renderPrometheusMetrics(): Promise<string> {
   lines.push("# HELP ops_inventory_reserved_stock_drift_qty_total Total absolute drift qty across all drifted products.");
   lines.push("# TYPE ops_inventory_reserved_stock_drift_qty_total gauge");
   lines.push(formatMetricLine("ops_inventory_reserved_stock_drift_qty_total", drift.driftQtyTotal));
+
+  lines.push("# HELP ops_inventory_negative_stock_products Number of products with stock < 0.");
+  lines.push("# TYPE ops_inventory_negative_stock_products gauge");
+  lines.push(formatMetricLine("ops_inventory_negative_stock_products", negativeCounts.negativeStock));
+
+  lines.push("# HELP ops_inventory_negative_reserved_stock_products Number of products with reservedStock < 0.");
+  lines.push("# TYPE ops_inventory_negative_reserved_stock_products gauge");
+  lines.push(formatMetricLine("ops_inventory_negative_reserved_stock_products", negativeCounts.negativeReserved));
+
+  lines.push("# HELP ops_webhook_inbox_backlog Webhook inbox rows by status (RECEIVED indicates backlog).");
+  lines.push("# TYPE ops_webhook_inbox_backlog gauge");
+  lines.push(formatMetricLine("ops_webhook_inbox_backlog", Number(webhookInboxReceived || 0), { status: "RECEIVED" }));
+  lines.push(formatMetricLine("ops_webhook_inbox_backlog", Number(webhookInboxFailed || 0), { status: "FAILED" }));
+
+  lines.push(
+    "# HELP ops_payment_intents_stuck_total PaymentIntents older than 30m in non-terminal states (potentially stuck payments)."
+  );
+  lines.push("# TYPE ops_payment_intents_stuck_total gauge");
+  lines.push(formatMetricLine("ops_payment_intents_stuck_total", Number(stuckPaymentIntents || 0)));
 
   lines.push("# HELP ops_assignment_conflicts_total Total assignment conflicts since process start.");
   lines.push("# TYPE ops_assignment_conflicts_total counter");
@@ -511,6 +631,67 @@ export async function renderPrometheusMetrics(): Promise<string> {
   lines.push("# HELP learning_insights_generated_last_run Number of insights generated in the latest offline learning run.");
   lines.push("# TYPE learning_insights_generated_last_run gauge");
   lines.push(formatMetricLine("learning_insights_generated_last_run", Number(gauges.learning_insights_generated_last_run || 0)));
+
+  // =====================================================
+  // Generic lightweight counters/histograms (HTTP/Redis/Payments)
+  // =====================================================
+
+  const renderLabeledCounter = (metricName: string, help: string) => {
+    lines.push(`# HELP ${metricName} ${help}`);
+    lines.push(`# TYPE ${metricName} counter`);
+    for (const [k, v] of Object.entries(labeledCounters)) {
+      if (!k.startsWith(`${metricName}:`)) continue;
+      const parsed = parseMetricKey(k);
+      lines.push(formatMetricLine(metricName, Number(v || 0), parsed.labels));
+    }
+  };
+
+  const renderHistogram = (metricName: string, help: string) => {
+    lines.push(`# HELP ${metricName} ${help}`);
+    lines.push(`# TYPE ${metricName} histogram`);
+    for (const [k, st] of Object.entries(histograms)) {
+      if (!k.startsWith(`${metricName}:`)) continue;
+      const parsed = parseMetricKey(k);
+
+      // Prometheus histogram requires cumulative buckets.
+      let cumulative = 0;
+      for (let i = 0; i < st.buckets.length; i++) {
+        cumulative += Number(st.bucketCounts[i] || 0);
+        lines.push(
+          formatMetricLine(
+            `${metricName}_bucket`,
+            cumulative,
+            { ...parsed.labels, le: String(st.buckets[i]) }
+          )
+        );
+      }
+      // +Inf bucket
+      lines.push(formatMetricLine(`${metricName}_bucket`, st.count, { ...parsed.labels, le: "+Inf" }));
+      lines.push(formatMetricLine(`${metricName}_sum`, st.sum, parsed.labels));
+      lines.push(formatMetricLine(`${metricName}_count`, st.count, parsed.labels));
+    }
+  };
+
+  renderLabeledCounter(
+    "http_requests_total",
+    "HTTP requests observed at response completion (low-cardinality labels)."
+  );
+  renderHistogram(
+    "http_request_duration_ms",
+    "HTTP request duration in milliseconds (histogram buckets are best-effort)."
+  );
+
+  renderLabeledCounter("redis_get_total", "Redis GET results by hit/miss/error.");
+  renderLabeledCounter("redis_ops_total", "Redis operations by op and ok/error.");
+
+  lines.push("# HELP redis_connected Redis connection state (1=connected/ready, 0=not connected).");
+  lines.push("# TYPE redis_connected gauge");
+  lines.push(formatMetricLine("redis_connected", Number(gauges.redis_connected || 0)));
+
+  renderLabeledCounter(
+    "payment_events_total",
+    "Payment-related events (webhook/payout/intent) by gateway/type/result."
+  );
 
   return lines.join("\n") + "\n";
 }

@@ -92,6 +92,8 @@ class SearchService {
         const escaped = (0, regex_1.escapeRegex)(q);
         const regex = new RegExp(escaped, "i");
         const dbQuery = {
+            deletedAt: null,
+            isSellable: { $ne: false },
             $or: [
                 { name: regex },
                 { description: regex },

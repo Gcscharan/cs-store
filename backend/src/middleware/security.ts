@@ -105,6 +105,10 @@ export const sanitizeInput = (
       return obj;
     }
 
+    if (Buffer.isBuffer(obj)) {
+      return obj;
+    }
+
     if (Array.isArray(obj)) {
       return obj.map(sanitizeObject);
     }
@@ -126,7 +130,9 @@ export const sanitizeInput = (
   };
 
   if (req.body) {
-    req.body = sanitizeObject(req.body);
+    if (!Buffer.isBuffer(req.body)) {
+      req.body = sanitizeObject(req.body);
+    }
   }
   if (req.query) {
     req.query = sanitizeObject(req.query);

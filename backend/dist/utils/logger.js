@@ -210,9 +210,27 @@ const initializeSentry = () => {
 exports.initializeSentry = initializeSentry;
 // Express middleware for Sentry
 exports.sentryMiddleware = {
-    requestHandler: () => (req, res, next) => next(),
-    tracingHandler: () => (req, res, next) => next(),
-    errorHandler: () => (err, req, res, next) => next(err),
+    requestHandler: () => {
+        if (!process.env.SENTRY_DSN)
+            return (req, res, next) => next();
+        return Sentry.Handlers?.requestHandler()
+            ? Sentry.Handlers.requestHandler()
+            : (req, res, next) => next();
+    },
+    tracingHandler: () => {
+        if (!process.env.SENTRY_DSN)
+            return (req, res, next) => next();
+        return Sentry.Handlers?.tracingHandler()
+            ? Sentry.Handlers.tracingHandler()
+            : (req, res, next) => next();
+    },
+    errorHandler: () => {
+        if (!process.env.SENTRY_DSN)
+            return (err, req, res, next) => next(err);
+        return Sentry.Handlers?.errorHandler()
+            ? Sentry.Handlers.errorHandler()
+            : (err, req, res, next) => next(err);
+    },
 };
 // Helper functions for common logging patterns
 const logAuthAttempt = (email, success, ip) => {

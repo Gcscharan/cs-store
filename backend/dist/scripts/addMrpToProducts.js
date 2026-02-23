@@ -20,7 +20,7 @@ const addMrpToProducts = async () => {
         await mongoose_1.default.connect(MONGODB_URI);
         console.log("✅ Connected to MongoDB Atlas");
         // Get all products
-        const products = await Product_1.Product.find({});
+        const products = await Product_1.Product.find({ deletedAt: null, isSellable: { $ne: false } });
         console.log(`📦 Found ${products.length} products`);
         let updatedCount = 0;
         // Update each product with MRP (15-30% higher than current price)

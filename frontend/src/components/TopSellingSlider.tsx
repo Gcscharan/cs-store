@@ -281,6 +281,8 @@ const TopSellingSlider: React.FC<TopSellingSliderProps> = ({
                   className="w-full h-full"
                   productId={product.id?.toString()}
                   debug={false}
+                  priority={index === 0}
+                  fetchPriority={index === 0 ? "high" : "auto"}
                 />
                 <motion.div
                   className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-10 transition-all duration-300"

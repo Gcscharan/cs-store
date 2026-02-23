@@ -1,5 +1,4 @@
 import React from "react";
-import { motion } from "framer-motion";
 
 interface SkeletonLoaderProps {
   className?: string;
@@ -18,7 +17,7 @@ const SkeletonLoader: React.FC<SkeletonLoaderProps> = ({
   lines = 1,
   animate = true,
 }) => {
-  const baseClasses = "bg-secondary-200 rounded animate-pulse";
+  const baseClasses = "bg-gray-200 rounded animate-shimmer";
 
   const getVariantClasses = () => {
     switch (variant) {
@@ -45,15 +44,12 @@ const SkeletonLoader: React.FC<SkeletonLoaderProps> = ({
 
   if (variant === "text" && lines > 1) {
     return (
-      <div className={`space-y-2 ${className}`}>
+      <div className={`space-y-2 ${className}`} aria-hidden="true">
         {Array.from({ length: lines }).map((_, index) => (
-          <motion.div
+          <div
             key={index}
             className={`${baseClasses} ${getVariantClasses()}`}
             style={getDimensions()}
-            initial={animate ? { opacity: 0.6 } : {}}
-            animate={animate ? { opacity: [0.6, 1, 0.6] } : {}}
-            transition={animate ? { duration: 1.5, repeat: Infinity } : {}}
           />
         ))}
       </div>
@@ -61,12 +57,10 @@ const SkeletonLoader: React.FC<SkeletonLoaderProps> = ({
   }
 
   return (
-    <motion.div
-      className={`${baseClasses} ${getVariantClasses()} ${className}`}
+    <div
+      aria-hidden="true"
+      className={`${baseClasses} ${getVariantClasses()} ${className} ${animate ? "" : ""}`}
       style={getDimensions()}
-      initial={animate ? { opacity: 0.6 } : {}}
-      animate={animate ? { opacity: [0.6, 1, 0.6] } : {}}
-      transition={animate ? { duration: 1.5, repeat: Infinity } : {}}
     />
   );
 };

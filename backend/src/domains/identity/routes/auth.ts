@@ -21,6 +21,14 @@ import {
 
 const router = express.Router();
 
+function isGoogleStrategyRegistered(): boolean {
+  try {
+    return typeof (passport as any)?._strategy === "function" ? !!(passport as any)._strategy("google") : false;
+  } catch {
+    return false;
+  }
+}
+
 // Middleware to handle OAuth errors
 const handleOAuthError = (
   err: any,
@@ -61,7 +69,16 @@ router.post("/check-phone", checkPhoneExists);
 // OAuth routes
 router.get(
   "/google",
-  passport.authenticate("google", { 
+  (req, res, next) => {
+    if (!isGoogleStrategyRegistered()) {
+      return res.status(503).json({
+        error: "GOOGLE_OAUTH_NOT_CONFIGURED",
+        message: "Google OAuth is not configured on this server",
+      });
+    }
+    return next();
+  },
+  passport.authenticate("google", {
     scope: ["profile", "email"],
     prompt: "select_account", // Force account selection
     accessType: "offline" // Get refresh token for long-term access (corrected property name)
@@ -69,6 +86,15 @@ router.get(
 );
 router.get(
   "/google/callback",
+  (req, res, next) => {
+    if (!isGoogleStrategyRegistered()) {
+      return res.status(503).json({
+        error: "GOOGLE_OAUTH_NOT_CONFIGURED",
+        message: "Google OAuth is not configured on this server",
+      });
+    }
+    return next();
+  },
   passport.authenticate("google", { session: false }),
   googleCallback
 );

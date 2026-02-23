@@ -1,9 +1,14 @@
 import Product from "../models/Product.js";
 import { normalizeProductImages } from "../utils/normalizeProductImages.js";
 
+const SELLABLE_PRODUCT_FILTER = {
+  deletedAt: null,
+  isSellable: { $ne: false },
+};
+
 export const getProducts = async (req, res) => {
   try {
-    const products = await Product.find();
+    const products = await Product.find(SELLABLE_PRODUCT_FILTER);
     const fixed = products.map(p => ({
       ...p._doc,
       id: p._id,
@@ -23,7 +28,10 @@ export const getProducts = async (req, res) => {
 
 export const getProductById = async (req, res) => {
   try {
-    const p = await Product.findById(req.params.id);
+    const p = await Product.findOne({ _id: req.params.id, ...SELLABLE_PRODUCT_FILTER });
+    if (!p) {
+      return res.status(404).json({ error: "Product not found" });
+    }
     const fixed = {
       ...p._doc,
       id: p._id,

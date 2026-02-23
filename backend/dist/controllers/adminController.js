@@ -13,6 +13,7 @@ const DeliveryBoy_1 = require("../models/DeliveryBoy");
 const Route_1 = require("../models/Route");
 const liveLocationStore_1 = require("../services/liveLocationStore");
 const csv_writer_1 = require("csv-writer");
+const cache_1 = require("../middleware/cache");
 const cvrpRouteAssignmentService_1 = require("../services/cvrpRouteAssignmentService");
 const getStats = async (req, res) => {
     try {
@@ -42,7 +43,7 @@ const getStats = async (req, res) => {
             {
                 $match: {
                     createdAt: { $gte: startDate, $lte: endDate },
-                    paymentStatus: "paid",
+                    paymentStatus: "PAID",
                 },
             },
             {
@@ -62,7 +63,7 @@ const getStats = async (req, res) => {
             {
                 $match: {
                     createdAt: { $gte: startDate, $lte: endDate },
-                    paymentStatus: "paid",
+                    paymentStatus: "PAID",
                 },
             },
             {
@@ -143,7 +144,7 @@ const getStats = async (req, res) => {
             {
                 $match: {
                     createdAt: { $gte: startDate, $lte: endDate },
-                    paymentStatus: "paid",
+                    paymentStatus: "PAID",
                 },
             },
             { $unwind: "$items" },
@@ -584,7 +585,7 @@ const getAdminProducts = async (req, res) => {
                 .json({ error: "Access denied. Admin role required." });
         }
         // Fetch all products
-        const products = await Product_1.Product.find({})
+        const products = await Product_1.Product.find({ deletedAt: null, isSellable: { $ne: false } })
             .select("name price stock category weight images description createdAt updatedAt")
             .sort({ createdAt: -1 });
         return res.json({ products });
@@ -861,7 +862,7 @@ const getDashboardStats = async (req, res) => {
         });
         // Get total revenue (from paid orders)
         const totalRevenue = await Order_1.Order.aggregate([
-            { $match: { paymentStatus: "paid" } },
+            { $match: { paymentStatus: "PAID" } },
             { $group: { _id: null, total: { $sum: "$totalAmount" } } },
         ]);
         res.json({
@@ -920,13 +921,14 @@ const updateProduct = async (req, res) => {
             updateData.images = [image];
         }
         // Find and update product
-        const product = await Product_1.Product.findByIdAndUpdate(id, updateData, {
+        const product = await Product_1.Product.findOneAndUpdate({ _id: id, deletedAt: null, isSellable: { $ne: false } }, updateData, {
             new: true,
             runValidators: true,
         });
         if (!product) {
             return res.status(404).json({ error: "Product not found" });
         }
+        await cache_1.invalidateCache.product(String(id));
         res.json({
             message: "Product updated successfully",
             product,
@@ -953,11 +955,12 @@ const deleteProduct = async (req, res) => {
                 .status(403)
                 .json({ error: "Access denied. Admin role required." });
         }
-        // Find and delete product
-        const product = await Product_1.Product.findByIdAndDelete(id);
+        // Soft delete product
+        const product = await Product_1.Product.findOneAndUpdate({ _id: id, deletedAt: null, isSellable: { $ne: false } }, { $set: { isSellable: false, isActive: false, deletedAt: new Date() } }, { new: true });
         if (!product) {
             return res.status(404).json({ error: "Product not found" });
         }
+        await cache_1.invalidateCache.product(String(id));
         res.json({
             message: "Product deleted successfully",
         });

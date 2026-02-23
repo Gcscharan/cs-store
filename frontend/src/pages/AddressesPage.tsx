@@ -6,6 +6,7 @@ import { setUser } from "../store/slices/authSlice";
 import { useToast } from "../components/AccessibleToast";
 import { Plus, MapPin, Phone, User } from "lucide-react";
 import { isPincodeDeliverable } from "../utils/pincodeValidation";
+import { toApiUrl } from "../config/runtime";
 import {
   useGetAddressesQuery,
   useAddAddressMutation,
@@ -626,7 +627,7 @@ const AddressForm: React.FC<AddressFormProps> = ({
     setShowCityDropdown(false);
 
     try {
-      const response = await fetch(`/api/pincode/check/${pincode}`, {
+      const response = await fetch(toApiUrl(`/pincode/check/${pincode}`), {
         credentials: "include",
       });
       const data = await response.json();

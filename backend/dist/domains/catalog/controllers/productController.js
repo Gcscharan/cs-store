@@ -4,7 +4,13 @@ exports.debugProductImages = exports.getSimilarProducts = exports.deleteProduct 
 exports.normalizeProductImages = normalizeProductImages;
 const Product_1 = require("../../../models/Product");
 const MediaImageService_1 = require("../../media/services/MediaImageService");
+const cache_1 = require("../../../middleware/cache");
+const productReadCache_1 = require("../../../utils/productReadCache");
 const mediaService = new MediaImageService_1.MediaImageService();
+const SELLABLE_PRODUCT_FILTER = {
+    deletedAt: null,
+    isSellable: { $ne: false },
+};
 // Valid product categories from schema
 const VALID_CATEGORIES = [
     "chocolates",
@@ -32,8 +38,14 @@ async function normalizeProductImages(product) {
 }
 const getCategories = async (req, res) => {
     try {
+        const cacheKey = (0, productReadCache_1.buildCategoriesCacheKey)();
+        const cached = await (0, productReadCache_1.cacheGetJson)(cacheKey);
+        if (cached && cached.categories) {
+            return res.json(cached);
+        }
         // Get product counts by category
         const categoryCounts = await Product_1.Product.aggregate([
+            { $match: SELLABLE_PRODUCT_FILTER },
             { $group: { _id: "$category", count: { $sum: 1 } } },
             { $sort: { count: -1 } },
         ]);
@@ -44,7 +56,9 @@ const getCategories = async (req, res) => {
                 count: categoryData ? categoryData.count : 0,
             };
         });
-        res.json({ categories });
+        const responseData = { categories };
+        void (0, productReadCache_1.cacheSetJson)(cacheKey, responseData, 60);
+        return res.json(responseData);
     }
     catch (error) {
         res.status(500).json({ message: "Failed to fetch categories" });
@@ -69,8 +83,9 @@ const getProducts = async (req, res) => {
         const parsedLimit = Math.min(Number(limit) || 10, 50);
         const parsedPage = Math.max(Number(page) || 1, 1);
         const skip = (parsedPage - 1) * parsedLimit;
+        const hasSearch = typeof search === "string" && String(search).trim().length > 0;
         // Build filter
-        const filter = {};
+        const filter = { ...SELLABLE_PRODUCT_FILTER };
         if (category)
             filter.category = category;
         if (minPrice || maxPrice) {
@@ -92,6 +107,29 @@ const getProducts = async (req, res) => {
         if (sortBy) {
             sort[sortBy] = sortOrder === "asc" ? 1 : -1;
         }
+        const lifecycleOk = filter?.deletedAt === null &&
+            filter?.isSellable &&
+            typeof filter.isSellable === "object" &&
+            filter.isSellable.$ne === false;
+        const cacheEligible = !hasSearch && lifecycleOk;
+        const cacheKey = cacheEligible
+            ? (0, productReadCache_1.buildProductsListCacheKey)({
+                page: parsedPage,
+                limit: parsedLimit,
+                category,
+                minPrice,
+                maxPrice,
+                sortBy,
+                sortOrder,
+                tags,
+            })
+            : "";
+        if (cacheEligible) {
+            const cached = await (0, productReadCache_1.cacheGetJson)(cacheKey);
+            if (cached && cached.products && cached.pagination) {
+                return res.json(cached);
+            }
+        }
         console.log('📊 [GetProducts] Query built:', { filter, sort });
         // Execute query
         const products = await Product_1.Product.find(filter)
@@ -109,7 +147,7 @@ const getProducts = async (req, res) => {
             });
         }
         const safeProducts = normalized;
-        return res.json({
+        const responseData = {
             products: safeProducts,
             pagination: {
                 page: parsedPage,
@@ -117,7 +155,11 @@ const getProducts = async (req, res) => {
                 total,
                 pages: Math.ceil(total / parsedLimit),
             },
-        });
+        };
+        if (cacheEligible) {
+            void (0, productReadCache_1.cacheSetJson)(cacheKey, responseData, 30);
+        }
+        return res.json(responseData);
     }
     catch (error) {
         console.error("❌ [GetProducts] Error:", error);
@@ -129,6 +171,11 @@ exports.getProducts = getProducts;
 const getProductById = async (req, res) => {
     try {
         const { id } = req.params;
+        const cacheKey = (0, productReadCache_1.buildProductDetailCacheKey)(id);
+        const cached = await (0, productReadCache_1.cacheGetJson)(cacheKey);
+        if (cached && cached._id) {
+            return res.json(cached);
+        }
         console.log('🔍 [GetProductById] Request received:', { id });
         // Validate ID using mongoose.isValidObjectId
         const mongoose = require("mongoose");
@@ -136,7 +183,7 @@ const getProductById = async (req, res) => {
             return res.status(404).json({ message: "Product not found" });
         }
         // Fetch from MongoDB
-        const product = await Product_1.Product.findById(id);
+        const product = await Product_1.Product.findOne({ _id: id, ...SELLABLE_PRODUCT_FILTER });
         if (!product) {
             console.log('❌ [GetProductById] Product not found in DB:', id);
             return res.status(404).json({ message: "Product not found" });
@@ -153,6 +200,7 @@ const getProductById = async (req, res) => {
         // Normalize images using the same function as debug endpoint
         const clean = product.toObject ? product.toObject() : product;
         const normalizedProduct = await normalizeProductImages(clean);
+        void (0, productReadCache_1.cacheSetJson)(cacheKey, normalizedProduct, 120);
         console.log('✅ [GetProductById] Response prepared:', {
             productId: id,
             normalizedImagesCount: normalizedProduct.images.length,
@@ -173,6 +221,14 @@ const createProduct = async (req, res) => {
         console.log('🔥 Incoming headers:', req.headers);
         console.log('🔥 Incoming body:', req.body);
         console.log('🔥 Incoming files count:', files.length);
+        const parseNumberField = (value) => {
+            if (value === undefined || value === null)
+                return undefined;
+            if (typeof value === "string" && value.trim() === "")
+                return undefined;
+            const n = Number(value);
+            return Number.isFinite(n) ? n : NaN;
+        };
         // Basic validation
         const filtered = files.filter(f => f && (f.size ?? 0) > 0 && /^image\/(jpeg|png|webp|avif)$/.test((f.mimetype ?? '')));
         console.log('🔥 Valid files after filter (size>0 & image mimetype):', filtered.map(f => ({ name: f.originalname, size: f.size, mime: f.mimetype })));
@@ -180,6 +236,31 @@ const createProduct = async (req, res) => {
             return res.status(400).json({ message: 'No valid images uploaded (empty or invalid mimetype)' });
         }
         const { name, description, category, price, mrp, stock, weight, tags, } = req.body;
+        const parsedPrice = parseNumberField(price);
+        if (parsedPrice === undefined) {
+            return res.status(400).json({ message: "Price is required" });
+        }
+        if (Number.isNaN(parsedPrice)) {
+            return res.status(400).json({ message: "Invalid price" });
+        }
+        const parsedStock = parseNumberField(stock);
+        if (parsedStock === undefined) {
+            return res.status(400).json({ message: "Stock quantity is required" });
+        }
+        if (Number.isNaN(parsedStock)) {
+            return res.status(400).json({ message: "Invalid stock quantity" });
+        }
+        const parsedMrp = parseNumberField(mrp);
+        if (parsedMrp !== undefined && Number.isNaN(parsedMrp)) {
+            return res.status(400).json({ message: "Invalid MRP" });
+        }
+        const parsedWeight = parseNumberField(weight);
+        if (parsedWeight === undefined) {
+            return res.status(400).json({ message: "Weight is required" });
+        }
+        if (Number.isNaN(parsedWeight)) {
+            return res.status(400).json({ message: "Invalid weight" });
+        }
         // Upload via MediaImageService (production) / bypass in tests
         const buffers = filtered
             .filter((f) => f.buffer && f.buffer.length > 0)
@@ -218,14 +299,15 @@ const createProduct = async (req, res) => {
             name,
             description,
             category,
-            price,
-            mrp,
-            stock,
-            weight,
+            price: parsedPrice,
+            mrp: parsedMrp,
+            stock: parsedStock,
+            weight: parsedWeight,
             tags,
             images: imageDocs,
         });
         const saved = await product.save();
+        await cache_1.invalidateCache.products();
         // Normalize before sending to frontend
         const clean = saved.toObject ? saved.toObject() : saved;
         const normalized = await normalizeProductImages(clean);
@@ -236,6 +318,19 @@ const createProduct = async (req, res) => {
     }
     catch (error) {
         console.error("CREATE PRODUCT ERROR:", error);
+        if (error?.name === "ValidationError" && error?.errors) {
+            const fieldErrors = {};
+            for (const [field, err] of Object.entries(error.errors)) {
+                const msg = err?.message;
+                if (msg)
+                    fieldErrors[field] = msg;
+            }
+            return res.status(400).json({
+                success: false,
+                message: "Validation failed",
+                errors: fieldErrors,
+            });
+        }
         return res.status(500).json({
             success: false,
             message: "Server error while creating product",
@@ -271,7 +366,7 @@ const updateProduct = async (req, res) => {
             updateFields.mrp = Number(updateFields.mrp);
         if (updateFields.weight)
             updateFields.weight = Number(updateFields.weight);
-        const product = await Product_1.Product.findByIdAndUpdate(id, updateFields, {
+        const product = await Product_1.Product.findOneAndUpdate({ _id: id, ...SELLABLE_PRODUCT_FILTER }, updateFields, {
             new: true,
             runValidators: true,
         });
@@ -285,6 +380,7 @@ const updateProduct = async (req, res) => {
         });
         // Search indexing disabled (Algolia not configured)
         console.log('📝 [UpdateProduct] Search indexing disabled');
+        await cache_1.invalidateCache.product(id);
         res.json({
             message: "Product updated successfully",
             product
@@ -306,7 +402,7 @@ const deleteProduct = async (req, res) => {
         if (!mongoose.isValidObjectId(id)) {
             return res.status(404).json({ message: "Product not found" });
         }
-        const product = await Product_1.Product.findByIdAndDelete(id);
+        const product = await Product_1.Product.findOneAndUpdate({ _id: id, ...SELLABLE_PRODUCT_FILTER }, { $set: { isSellable: false, isActive: false, deletedAt: new Date() } }, { new: true });
         if (!product) {
             console.log('❌ [DeleteProduct] Product not found:', id);
             return res.status(404).json({ message: "Product not found" });
@@ -317,6 +413,7 @@ const deleteProduct = async (req, res) => {
         });
         // Search indexing disabled (Algolia not configured)
         console.log('🗑️ [DeleteProduct] Search indexing disabled');
+        await cache_1.invalidateCache.product(id);
         res.json({
             message: "Product deleted successfully",
             productId: id
@@ -351,12 +448,13 @@ const getSimilarProducts = async (req, res) => {
             });
         }
         // First, get the current product to find similar ones
-        const currentProduct = await Product_1.Product.findById(id);
+        const currentProduct = await Product_1.Product.findOne({ _id: id, ...SELLABLE_PRODUCT_FILTER });
         if (!currentProduct) {
             return res.status(404).json({ message: "Product not found" });
         }
         // Find similar products based on category, excluding the current product
         const similarProducts = await Product_1.Product.find({
+            ...SELLABLE_PRODUCT_FILTER,
             _id: { $ne: id }, // Exclude current product
             category: currentProduct.category,
         })
@@ -367,6 +465,7 @@ const getSimilarProducts = async (req, res) => {
         let fallbackProducts = [];
         if (similarProducts.length === 0) {
             fallbackProducts = await Product_1.Product.find({
+                ...SELLABLE_PRODUCT_FILTER,
                 _id: { $ne: id },
             })
                 .limit(Number(limit))
@@ -412,7 +511,7 @@ const debugProductImages = async (req, res) => {
     try {
         const { id } = req.params;
         console.log('🔍 [Debug] Checking product images for:', id);
-        const product = await Product_1.Product.findById(id);
+        const product = await Product_1.Product.findOne({ _id: id, ...SELLABLE_PRODUCT_FILTER });
         if (!product) {
             console.log('❌ [Debug] Product not found:', id);
             return res.status(404).json({ message: "Product not found" });

@@ -11,6 +11,7 @@ const auditLog_1 = require("../middleware/auditLog");
 const orderStateService_1 = require("../domains/orders/services/orderStateService");
 const OrderStatus_1 = require("../domains/orders/enums/OrderStatus");
 const deliveryOrderController_1 = require("../domains/operations/controllers/deliveryOrderController");
+const UserAccountService_1 = require("../domains/user/services/UserAccountService");
 const router = express_1.default.Router();
 // Admin routes
 router.get("/stats", auth_1.authenticateToken, (0, auth_1.requireRole)(["admin"]), auditLog_1.auditLog, adminController_1.getStats);
@@ -23,16 +24,12 @@ router.get("/profile", auth_1.authenticateToken, (0, auth_1.requireRole)(["admin
 router.get("/users", auth_1.authenticateToken, (0, auth_1.requireRole)(["admin"]), adminController_1.getUsers);
 router.delete("/users/:id", auth_1.authenticateToken, (0, auth_1.requireRole)(["admin"]), auditLog_1.auditLog, async (req, res) => {
     try {
-        const User = require("../models/User").User;
         const { id } = req.params;
-        // Find and delete the user
-        const deletedUser = await User.findByIdAndDelete(id);
-        if (!deletedUser) {
-            return res.status(404).json({ error: "User not found" });
-        }
+        const svc = new UserAccountService_1.UserAccountService();
+        const result = await svc.deleteAccount(String(id));
         res.json({
             message: "User deleted successfully",
-            user: deletedUser
+            result,
         });
     }
     catch (error) {

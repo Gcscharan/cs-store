@@ -5,6 +5,12 @@ const Product_1 = require("../models/Product");
 const regex_1 = require("../utils/regex");
 const productController_1 = require("../domains/catalog/controllers/productController");
 class SearchFallbackService {
+    constructor() {
+        this.SELLABLE_PRODUCT_MATCH = {
+            deletedAt: null,
+            isSellable: { $ne: false },
+        };
+    }
     // Helper to normalize images using the same function as other endpoints
     async normalizeImages(product) {
         const normalized = await (0, productController_1.normalizeProductImages)(product);
@@ -46,6 +52,8 @@ class SearchFallbackService {
         try {
             // Build match stages
             const matchStages = [];
+            // Lifecycle filter (must always apply)
+            matchStages.push({ $match: this.SELLABLE_PRODUCT_MATCH });
             // Text search stage (if text index exists)
             const textMatch = {};
             if (searchQuery) {

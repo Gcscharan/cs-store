@@ -106,12 +106,16 @@ export function formatNotificationCopy(input: {
     }
     case "REFUND_INITIATED": {
       const amt = formatRupees(meta?.amount ?? meta?.totalAmount);
-      const body = amt ? `Refund of ${amt} has been initiated.` : "Refund has been initiated.";
+      const body = amt
+        ? `Refund of ${amt} has been initiated. Banks may take 2–7 business days to reflect the amount.`
+        : "Refund has been initiated. Banks may take 2–7 business days to reflect the amount.";
       return { title: "Refund initiated", body };
     }
     case "REFUND_COMPLETED": {
       const amt = formatRupees(meta?.amount ?? meta?.totalAmount);
-      const body = amt ? `Refund of ${amt} has been credited to your account.` : "Refund has been credited to your account.";
+      const body = amt
+        ? `Refund of ${amt} has been completed. If you don’t see it yet, please check again in 24–48 hours.`
+        : "Refund has been completed. If you don’t see it yet, please check again in 24–48 hours.";
       return { title: "Refund completed", body };
     }
     case "ACCOUNT_NEW_LOGIN": {

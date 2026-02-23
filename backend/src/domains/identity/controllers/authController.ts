@@ -11,9 +11,8 @@ import { sendEmailOTP } from "../../../utils/sendEmailOTP";
 import { publish } from "../../events/eventBus";
 import { createAccountNewLoginEvent, createAccountPasswordChangedEvent } from "../../events/account.events";
 
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
-const JWT_REFRESH_SECRET =
-  process.env.JWT_REFRESH_SECRET || "your-refresh-secret";
+const JWT_SECRET = process.env.JWT_SECRET as string;
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET as string;
 
 export const signup = async (
   req: Request,
@@ -335,6 +334,11 @@ export const login = async (
       user = await User.findOne({ phone: cleanedPhone });
     }
 
+    if (user && ((user as any).isDeleted || (user as any).deletedAt)) {
+      res.status(403).json({ message: "Account is deleted" });
+      return;
+    }
+
     if (!user || !user.passwordHash) {
       res.status(400).json({ message: "Invalid email or password" });
       return;
@@ -419,7 +423,7 @@ export const oauth = async (
     if (!user) {
       // Check if user exists with same email
       user = await User.findOne({ email });
-      if (user) {
+      if (user && !user.isDeleted) {
         // Link OAuth provider to existing user
         user.oauthProviders = user.oauthProviders || [];
         user.oauthProviders.push({ provider, providerId });
@@ -530,6 +534,7 @@ export const refresh = async (
     res.json({ 
       message: "Token refreshed",
       accessToken,
+      refreshToken: newRefreshToken,
     });
   } catch (error) {
     res.status(401).json({ message: "Invalid refresh token" });
@@ -706,6 +711,10 @@ export const changePassword = async (
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ message: "User not found" });
+    }
+
+    if ((user as any).isDeleted || (user as any).deletedAt) {
+      return res.status(403).json({ message: "Account is deleted" });
     }
 
     // Verify current password

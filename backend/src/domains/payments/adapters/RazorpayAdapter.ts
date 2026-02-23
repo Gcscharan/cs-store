@@ -17,9 +17,11 @@ export class RazorpayAdapter implements PaymentGatewayAdapter {
   private readonly webhookSecret: string;
 
   constructor() {
-    const keyId = String(process.env.RAZORPAY_KEY_ID || "").trim();
-    const keySecret = String(process.env.RAZORPAY_KEY_SECRET || "").trim();
-    const webhookSecret = String(process.env.RAZORPAY_WEBHOOK_SECRET || "").trim();
+    const isTest = process.env.NODE_ENV === "test";
+
+    const keyId = String(process.env.RAZORPAY_KEY_ID || (isTest ? "rzp_test_key" : "")).trim();
+    const keySecret = String(process.env.RAZORPAY_KEY_SECRET || (isTest ? "rzp_test_secret" : "")).trim();
+    const webhookSecret = String(process.env.RAZORPAY_WEBHOOK_SECRET || (isTest ? "test-webhook-secret" : "")).trim();
 
     if (!keyId || !keySecret) {
       throw new Error("RazorpayAdapter misconfigured: RAZORPAY_KEY_ID/RAZORPAY_KEY_SECRET required");
@@ -117,6 +119,17 @@ export class RazorpayAdapter implements PaymentGatewayAdapter {
     }
 
     const event = String(body?.event || "");
+
+    if (event === "order.paid") {
+      // STRICT RULE: do not treat order.paid as payment capture authority.
+      // Only payment.captured may mark a payment as captured/paid.
+      return {
+        gateway: this.gateway,
+        type: "UNKNOWN",
+        gatewayEventId: String(body?.id || body?.event || "unknown"),
+        rawEvent: body,
+      };
+    }
 
     if (event === "payment.captured") {
       const payment = body?.payload?.payment?.entity;

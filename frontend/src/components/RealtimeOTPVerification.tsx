@@ -109,7 +109,46 @@ const RealtimeOTPVerification: React.FC<RealtimeOTPVerificationProps> = ({
 
       socketRef.current.on("payment_status_update", (data) => {
         console.log("💳 Payment status update:", data);
-        toast.success(`Payment ${data.data.status} successfully!`);
+        const status = String(data?.data?.status || data?.status || "").toLowerCase();
+        if (status === "failed") {
+          toast.error("Payment failed");
+          return;
+        }
+        if (status === "confirmed" || status === "paid" || status === "captured") {
+          const token = localStorage.getItem("accessToken");
+          const orderIdFromEvent = String(data?.data?.orderId || data?.orderId || orderId || "").trim();
+          console.info("[FRONTEND][SUCCESS_DISPATCHED]", {
+            source: "socket:payment_status_update",
+            orderId: orderIdFromEvent,
+            note: "Verifying backend paymentStatus before showing success",
+          });
+
+          fetch(`/api/orders/${orderIdFromEvent}`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          })
+            .then((r) => r.json().catch(() => ({})))
+            .then((payload: any) => {
+              const ps = String(payload?.order?.paymentStatus || payload?.paymentStatus || "").toUpperCase();
+              if (ps === "PAID") {
+                toast.success("Payment confirmed");
+              } else {
+                console.warn("[FRONTEND][SUCCESS_DISPATCHED_BLOCKED]", {
+                  source: "socket:payment_status_update",
+                  orderId: orderIdFromEvent,
+                  paymentStatus: ps,
+                });
+              }
+            })
+            .catch(() => {
+              console.warn("[FRONTEND][SUCCESS_DISPATCHED_BLOCKED]", {
+                source: "socket:payment_status_update",
+                orderId: orderIdFromEvent,
+                reason: "VERIFY_FAILED",
+              });
+            });
+        }
       });
 
       socketRef.current.on("notification", (data) => {

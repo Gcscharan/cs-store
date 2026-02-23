@@ -1,15 +1,20 @@
 import express, { Application } from "express";
 import cors from "cors";
 import passport from "passport";
-
-// JWT Secret Validation moved to index.ts after dotenv.config()
 import compression from "compression";
+
 import { apiLimiter } from "./middleware/security";
-import { connectDB } from "./utils/database";
+import { sanitizeInput, securityHeaders } from "./middleware/security";
 import { errorHandler } from "./middleware/errorHandler";
+import { httpObservabilityMiddleware, requestIdMiddleware } from "./middleware/observability";
+import { initializeSentry, sentryMiddleware } from "./utils/logger";
+
 import "./config/oauth"; // Initialize OAuth strategies
-import { deliveryPartnerLoadService } from "./domains/operations/services/deliveryPartnerLoadService";
+
+// Routes
 import authRoutes from "./domains/identity/routes/auth";
+import userRoutes from "./domains/identity/routes/user";
+import mobileVerifyRoutes from "./domains/security/routes/mobileVerifyRoutes";
 import productRoutes from "./domains/catalog/routes/products";
 import cartRoutes from "./routes/cart";
 import orderRoutes from "./routes/orders";
@@ -23,75 +28,111 @@ import adminRoutes from "./routes/admin";
 import adminOpsRoutes from "./routes/adminOps";
 import adminTrackingRoutes from "./routes/adminTracking";
 import internalTrackingRoutes from "./routes/internalTracking";
-import userRoutes from "./domains/identity/routes/user";
+import internalPaymentsReconciliationRoutes from "./routes/internalPaymentsReconciliation";
+import internalPaymentsRecoveryRoutes from "./routes/internalPaymentsRecovery";
+import internalPaymentRecoverySuggestionRoutes from "./routes/internalPaymentRecoverySuggestion";
+import internalPaymentRecoveryExecuteRoutes from "./routes/internalPaymentRecoveryExecute";
+import internalFinanceReportsRoutes from "./routes/internalFinanceReports";
+import internalPaymentsVerificationRoutes from "./domains/payments/routes/internalPaymentsVerification";
+import internalRefundsRoutes from "./routes/internalRefunds";
 import otpRoutes from "./domains/security/routes/otpRoutes";
-import mobileVerifyRoutes from "./domains/security/routes/mobileVerifyRoutes";
 import notificationRoutes from "./domains/communication/routes/notifications";
 import devNotificationRoutes from "./domains/communication/routes/devNotifications";
 import uploadRoutes from "./domains/uploads/routes/uploads";
+import upiRoutes from "./routes/upi";
+import paymentRoutes from "./domains/finance/routes/paymentRoutes";
+
+// Payments (new architecture)
 import paymentIntentsRoutes from "./domains/payments/routes/paymentIntents.routes";
 import paymentWebhooksRoutes from "./domains/payments/routes/webhooks.routes";
 
-console.log("App.ts loaded successfully");
+console.log("✅ App.ts loaded");
+
+initializeSentry();
 
 const app: Application = express();
 
-// Middleware
+/* ======================================================
+   CORS — SINGLE SOURCE OF TRUTH (REGISTER FIRST)
+====================================================== */
+
 const allowedCorsOrigins = [
   "http://localhost:3000",
   "http://localhost:3001",
-  "https://cs-store-frontend-p9sszldr6-randoms-projects-e13b50d6.vercel.app",
+  "https://cs-store-frontend.vercel.app",
 ];
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (e.g. server-to-server, Postman)
       if (!origin) return callback(null, true);
-
       if (allowedCorsOrigins.includes(origin)) {
         return callback(null, true);
       }
-
-      return callback(new Error("Not allowed by CORS"));
+      return callback(null, false);
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    optionsSuccessStatus: 200,
+    allowedHeaders: ["Content-Type", "Authorization", "Idempotency-Key", "X-Request-Id", "x-request-id"],
   })
 );
-app.use(compression() as any);
-app.use('/api/', apiLimiter as any);
-app.use(passport.initialize() as any);
 
-// Razorpay webhooks require raw body for signature verification. Keep this BEFORE express.json().
-app.use("/api/webhooks/razorpay", express.raw({ type: "application/json" }));
+/* ======================================================
+   GENERAL MIDDLEWARE
+====================================================== */
 
-// body parsers BEFORE routes
+app.use(securityHeaders);
+app.use(sentryMiddleware.requestHandler());
+app.use(sentryMiddleware.tracingHandler());
+app.use(compression());
+app.use(requestIdMiddleware);
+app.use(httpObservabilityMiddleware);
+app.use("/api", apiLimiter);
+app.use(passport.initialize());
+
+/* ======================================================
+   RAZORPAY WEBHOOK (RAW BODY — BEFORE JSON)
+====================================================== */
+
+app.use(
+  "/api/webhooks/razorpay",
+  express.raw({ type: "application/json" })
+);
+
+/* ======================================================
+   BODY PARSERS (AFTER WEBHOOK RAW)
+====================================================== */
+
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
+app.use(sanitizeInput);
 
-// Health check route
-app.get("/health", (req, res) => {
+/* ======================================================
+   HEALTH CHECK
+====================================================== */
+
+app.get("/health", (_req, res) => {
   res.status(200).json({
+    status: "ok",
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
-    status: "ok",
   });
 });
 
-// API Routes
+/* ======================================================
+   API ROUTES
+====================================================== */
+
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
-app.use("/api/users", mobileVerifyRoutes); // Only use mobile verify routes for /api/users
+app.use("/api/users", mobileVerifyRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/delivery-fee", deliveryFeeRoutes);
-app.use("/api/delivery-fee-v2", enhancedDeliveryFeeRoutes); // Enhanced delivery fee calculation
+app.use("/api/delivery-fee-v2", enhancedDeliveryFeeRoutes);
 app.use("/api/delivery-personnel", deliveryPersonnelRoutes);
-app.use("/api/delivery", deliveryAuthRoutes); // Delivery auth & order management
+app.use("/api/delivery", deliveryAuthRoutes);
 app.use("/api/pincode", pincodeRoutes);
 app.use("/api/location", locationRoutes);
 app.use("/api/admin", adminRoutes);
@@ -100,25 +141,45 @@ app.use("/api/otp", otpRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/dev/notifications", devNotificationRoutes);
 app.use("/api/uploads", uploadRoutes);
+app.use("/api/upi", upiRoutes);
+
+// Payments (legacy - admin list/stats)
+app.use("/api/payment", paymentRoutes);
+
+// Payments (canonical)
 app.use("/api/payment-intents", paymentIntentsRoutes);
 app.use("/api/webhooks", paymentWebhooksRoutes);
 
-// Admin tracking (Phase 4)
+// Tracking
 app.use("/admin/tracking", adminTrackingRoutes);
-
-// Internal (non-customer) routes
 app.use("/internal/tracking", internalTrackingRoutes);
 
-console.log("OTP routes registered successfully");
-console.log("Notification routes registered successfully");
-console.log("Upload routes registered successfully");
+// Internal Payments
+app.use("/internal/payments", internalPaymentsReconciliationRoutes);
+app.use("/internal/payments", internalPaymentsRecoveryRoutes);
+app.use("/internal/payments", internalPaymentsVerificationRoutes);
+app.use("/internal/payments", internalPaymentRecoverySuggestionRoutes);
+app.use("/internal/payments", internalPaymentRecoveryExecuteRoutes);
 
-// Global 404 handler
-app.use((req, res) => {
+// Internal Refunds (admin-only, no gateway writes)
+app.use("/internal", internalRefundsRoutes);
+
+// Internal Finance (read-only)
+app.use("/internal/finance", internalFinanceReportsRoutes);
+
+/* ======================================================
+   404 HANDLER
+====================================================== */
+
+app.use((_req, res) => {
   res.status(404).json({ message: "Route not found" });
 });
 
-// Error handling middleware (must be last)
+/* ======================================================
+   ERROR HANDLER (LAST)
+====================================================== */
+
+app.use(sentryMiddleware.errorHandler());
 app.use(errorHandler);
 
 export default app;

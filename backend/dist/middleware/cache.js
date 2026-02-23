@@ -98,6 +98,7 @@ exports.invalidateCache = {
     product: async (id) => {
         try {
             await redis_1.default.del(`product:${id}`);
+            await redis_1.default.del(`product:v1:${id}`);
             await exports.invalidateCache.deleteByPattern(`similar:${id}:*`);
             await exports.invalidateCache.deleteByPattern("products:*"); // Invalidate product lists
             console.log(`🗑️  Invalidated cache for product: ${id}`);

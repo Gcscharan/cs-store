@@ -14,6 +14,7 @@
 
 .env
 .env.*
+/backend/env_archive/
 
 !.env.example
 # Vite internal cache (VERY IMPORTANT)

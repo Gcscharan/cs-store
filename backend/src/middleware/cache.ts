@@ -105,6 +105,7 @@ export const invalidateCache = {
   product: async (id: string): Promise<void> => {
     try {
       await redisClient.del(`product:${id}`);
+      await redisClient.del(`product:v1:${id}`);
       await invalidateCache.deleteByPattern(`similar:${id}:*`);
       await invalidateCache.deleteByPattern("products:*"); // Invalidate product lists
       console.log(`🗑️  Invalidated cache for product: ${id}`);

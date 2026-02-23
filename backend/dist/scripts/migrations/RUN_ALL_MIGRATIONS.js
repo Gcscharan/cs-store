@@ -45,7 +45,8 @@ const migrations = [
     "02_enhance_products.ts",
     "03_enhance_orders.ts",
     "04_enhance_deliveryboys.ts",
-    "05_enhance_payments.ts"
+    "05_enhance_payments.ts",
+    "06_enforce_unique_user_phone_index.ts"
 ];
 console.log("=".repeat(70));
 console.log("🚀 ENTERPRISE DATABASE ENHANCEMENT - MIGRATION RUNNER");

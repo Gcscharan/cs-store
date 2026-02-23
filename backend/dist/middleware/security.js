@@ -82,6 +82,9 @@ const sanitizeInput = (req, res, next) => {
         if (typeof obj !== "object" || obj === null) {
             return obj;
         }
+        if (Buffer.isBuffer(obj)) {
+            return obj;
+        }
         if (Array.isArray(obj)) {
             return obj.map(sanitizeObject);
         }
@@ -102,7 +105,9 @@ const sanitizeInput = (req, res, next) => {
         return sanitized;
     };
     if (req.body) {
-        req.body = sanitizeObject(req.body);
+        if (!Buffer.isBuffer(req.body)) {
+            req.body = sanitizeObject(req.body);
+        }
     }
     if (req.query) {
         req.query = sanitizeObject(req.query);

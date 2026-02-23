@@ -40,10 +40,12 @@ class SocketService {
           return next(new Error("Authentication error: No token provided"));
         }
 
-        const decoded = jwt.verify(
-          token,
-          process.env.JWT_SECRET || "your-secret-key"
-        ) as any;
+        const jwtSecret = process.env.JWT_SECRET;
+        if (!jwtSecret) {
+          return next(new Error("Authentication error: Server misconfigured"));
+        }
+
+        const decoded = jwt.verify(token, jwtSecret) as any;
         const user = await User.findById(decoded.userId).select("-password");
 
         if (!user) {

@@ -7,6 +7,11 @@ import { Cart } from "../models/Cart";
 import Razorpay from "razorpay";
 import crypto from "crypto";
 
+const SELLABLE_PRODUCT_FILTER: any = {
+  deletedAt: null,
+  isSellable: { $ne: false },
+};
+
 // Define interfaces for type safety
 interface PopulatedProduct {
   _id: any;
@@ -24,8 +29,8 @@ interface PopulatedCartItem {
 }
 
 const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID || "",
-  key_secret: process.env.RAZORPAY_KEY_SECRET || "",
+  key_id: process.env.RAZORPAY_KEY_ID!,
+  key_secret: process.env.RAZORPAY_KEY_SECRET!,
 });
 
 // Helper function to format cart items with type safety
@@ -44,9 +49,10 @@ const formatCartItem = (item: any) => {
       quantity: item.quantity,
     };
   } else {
+    const rawProductId = (item as any)?._doc?.productId ?? (item as any)?.productId;
     // Fallback for non-populated productId
     return {
-      productId: (productId as any).toString(),
+      productId: rawProductId ? String(rawProductId) : "",
       name: "",
       price: 0,
       image: "",
@@ -62,7 +68,10 @@ export const getCart = async (
   try {
     const userId = (req as any).user._id;
 
-    let cart = await Cart.findOne({ userId }).populate("items.productId");
+    let cart = await Cart.findOne({ userId }).populate({
+      path: "items.productId",
+      match: SELLABLE_PRODUCT_FILTER,
+    });
 
     if (!cart) {
       // Create empty cart for user
@@ -105,8 +114,8 @@ export const addToCart = async (
       return res.status(400).json({ message: "Quantity must be greater than 0" });
     }
 
-    // Verify product exists and has stock
-    const product = await Product.findById(productId);
+    // Verify product exists and is sellable
+    const product = await Product.findOne({ _id: productId, ...SELLABLE_PRODUCT_FILTER });
     if (!product) {
       return res.status(404).json({ message: "Product not found" });
     }
@@ -160,7 +169,10 @@ export const addToCart = async (
     await cart.save();
 
     // Get cart with populated product details for response
-    const populatedCart = await Cart.findOne({ userId }).populate("items.productId");
+    const populatedCart = await Cart.findOne({ userId }).populate({
+      path: "items.productId",
+      match: SELLABLE_PRODUCT_FILTER,
+    });
 
     res.json({
       message: "Item added to cart",
@@ -210,7 +222,7 @@ export const updateCartItem = async (
 
     // Verify product exists and has stock (only if quantity > 0)
     if (quantity > 0) {
-      const product = await Product.findById(productId);
+      const product = await Product.findOne({ _id: productId, ...SELLABLE_PRODUCT_FILTER });
       if (!product) {
         return res.status(404).json({ message: "Product not found" });
       }
@@ -243,7 +255,10 @@ export const updateCartItem = async (
     await cart.save();
 
     // Get cart with populated product details for response
-    const populatedCart = await Cart.findOne({ userId }).populate("items.productId");
+    const populatedCart = await Cart.findOne({ userId }).populate({
+      path: "items.productId",
+      match: SELLABLE_PRODUCT_FILTER,
+    });
 
     res.json({
       message: "Cart updated",
@@ -301,7 +316,10 @@ export const removeFromCart = async (
     await cart.save();
 
     // Get cart with populated product details for response
-    const populatedCart = await Cart.findOne({ userId }).populate("items.productId");
+    const populatedCart = await Cart.findOne({ userId }).populate({
+      path: "items.productId",
+      match: SELLABLE_PRODUCT_FILTER,
+    });
 
     res.json({
       message: "Item removed from cart",
@@ -336,7 +354,10 @@ export const clearCart = async (
     await cart.save();
 
     // Get cart with populated product details for response (will be empty after clear)
-    const populatedCart = await Cart.findOne({ userId }).populate("items.productId");
+    const populatedCart = await Cart.findOne({ userId }).populate({
+      path: "items.productId",
+      match: SELLABLE_PRODUCT_FILTER,
+    });
 
     res.json({
       message: "Cart cleared",
@@ -370,56 +391,10 @@ export const verifyPayment = async (
   res: Response
 ): Promise<Response | void> => {
   try {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } =
-      req.body;
-    const userId = (req as any).user._id;
-
-    // Verify Razorpay signature
-    const body = razorpay_order_id + "|" + razorpay_payment_id;
-    const expectedSignature = crypto
-      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET || "")
-      .update(body.toString())
-      .digest("hex");
-
-    if (expectedSignature !== razorpay_signature) {
-      return res.status(400).json({ message: "Invalid payment signature" });
-    }
-
-    // Update order payment status and set to pending for admin review
-    const order = await Order.findOneAndUpdate(
-      { razorpayOrderId: razorpay_order_id },
-      {
-        paymentStatus: "paid",
-        razorpayPaymentId: razorpay_payment_id,
-      },
-      { new: true }
-    );
-
-    if (!order) {
-      return res.status(404).json({ message: "Order not found" });
-    }
-
-    // Clear user's cart after successful payment verification
-    await Cart.findOneAndUpdate(
-      { userId },
-      { items: [], total: 0, itemCount: 0 },
-      { new: true }
-    );
-
-    // Emit socket event to notify admin of new order
-    const io = (req as any).app.get("io");
-    if (io) {
-      io.to("admin_room").emit("order:new", {
-        orderId: order._id,
-        status: "pending",
-        totalAmount: order.totalAmount,
-        message: "New order received and awaiting review",
-      });
-    }
-
-    res.json({
-      message: "Payment verified successfully",
-      order,
+    // SAFETY: Disabled to enforce single payment source-of-truth
+    return res.status(410).json({
+      error: "LEGACY_PAYMENT_PATH_DISABLED",
+      message: "This payment path has been permanently disabled. Use PaymentIntent flow.",
     });
   } catch (error) {
     res.status(500).json({ message: "Failed to verify payment" });

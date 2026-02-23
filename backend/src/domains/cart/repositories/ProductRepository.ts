@@ -6,6 +6,10 @@ export interface IProductRepository {
 
 export class ProductRepository implements IProductRepository {
   async findById(productId: string): Promise<any> {
-    return await Product.findById(productId);
+    return await Product.findOne({
+      _id: productId,
+      deletedAt: null,
+      isSellable: { $ne: false },
+    });
   }
 }

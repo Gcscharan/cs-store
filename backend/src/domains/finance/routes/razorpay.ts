@@ -6,8 +6,16 @@ import {
 } from "../controllers/razorpayController";
 import { authenticateToken } from "../../../middleware/auth";
 import { verifyRazorpayWebhook } from "../../../middleware/razorpayWebhook";
+import { deprecatedRoute } from "../../../middleware/deprecatedRoute";
 
 const router = express.Router();
+
+router.use(
+  deprecatedRoute({
+    label: "legacy_finance_razorpay_routes",
+    replacement: "POST /api/payment-intents + POST /api/webhooks/razorpay",
+  })
+);
 
 // Razorpay payment routes
 router.post("/create-order", authenticateToken, createRazorpayOrder);

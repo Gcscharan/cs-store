@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { io, Socket } from "socket.io-client";
 
 import { getApiOrigin } from "../config/runtime";
+import { refreshAccessToken } from "../utils/authClient";
 
 export const useSocket = () => {
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -11,10 +12,23 @@ export const useSocket = () => {
     String(import.meta.env.VITE_DEV_LOW_POWER || "").toLowerCase() !== "true";
 
   useEffect(() => {
+    let reconnectInFlight = false;
+
+    const getAccessTokenFromStorage = (): string => {
+      try {
+        return String(localStorage.getItem("accessToken") || "").trim();
+      } catch {
+        return "";
+      }
+    };
+
     const socketInstance = io(
       getApiOrigin() || "/",
       {
         transports: ["websocket"],
+        auth: {
+          token: getAccessTokenFromStorage(),
+        },
       }
     );
 
@@ -30,6 +44,32 @@ export const useSocket = () => {
         console.log("Disconnected from server");
       }
       setIsConnected(false);
+    });
+
+    socketInstance.on("connect_error", async (err: any) => {
+      const msg = String(err?.message || "").toLowerCase();
+      const looksExpired =
+        (msg.includes("token") && msg.includes("exp")) ||
+        (msg.includes("authentication") && msg.includes("token")) ||
+        msg.includes("invalid token");
+      if (!looksExpired) return;
+      if (reconnectInFlight) return;
+      reconnectInFlight = true;
+
+      const next = await refreshAccessToken();
+      if (next) {
+        try {
+          (socketInstance as any).auth = { token: next };
+        } catch {
+        }
+        try {
+          socketInstance.connect();
+          console.info("[SOCKET][RECONNECTED_AFTER_REFRESH]");
+        } catch {
+        }
+      }
+
+      reconnectInFlight = false;
     });
 
     setSocket(socketInstance);

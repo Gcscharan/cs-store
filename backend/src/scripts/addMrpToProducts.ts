@@ -20,7 +20,7 @@ const addMrpToProducts = async () => {
     console.log("✅ Connected to MongoDB Atlas");
 
     // Get all products
-    const products = await Product.find({});
+    const products = await Product.find({ deletedAt: null, isSellable: { $ne: false } });
     console.log(`📦 Found ${products.length} products`);
 
     let updatedCount = 0;

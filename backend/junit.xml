@@ -1,0 +1,619 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="jest tests" tests="254" failures="0" errors="0" time="328.64">
+  <testsuite name="Authentication Endpoints" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:36:16" time="11.398" tests="22">
+    <testcase classname="Authentication Endpoints POST /api/auth/signup should signup a new user successfully" name="Authentication Endpoints POST /api/auth/signup should signup a new user successfully" time="1.632">
+    </testcase>
+    <testcase classname="Authentication Endpoints POST /api/auth/signup should not signup user with duplicate email" name="Authentication Endpoints POST /api/auth/signup should not signup user with duplicate email" time="0.458">
+    </testcase>
+    <testcase classname="Authentication Endpoints POST /api/auth/signup should not signup user with duplicate phone" name="Authentication Endpoints POST /api/auth/signup should not signup user with duplicate phone" time="0.293">
+    </testcase>
+    <testcase classname="Authentication Endpoints POST /api/auth/signup should validate required fields" name="Authentication Endpoints POST /api/auth/signup should validate required fields" time="0.022">
+    </testcase>
+    <testcase classname="Authentication Endpoints POST /api/auth/login should login with valid credentials" name="Authentication Endpoints POST /api/auth/login should login with valid credentials" time="0.249">
+    </testcase>
+    <testcase classname="Authentication Endpoints POST /api/auth/login should not login with invalid email" name="Authentication Endpoints POST /api/auth/login should not login with invalid email" time="0.15">
+    </testcase>
+    <testcase classname="Authentication Endpoints POST /api/auth/login should not login with invalid password" name="Authentication Endpoints POST /api/auth/login should not login with invalid password" time="0.261">
+    </testcase>
+    <testcase classname="Authentication Endpoints POST /api/auth/refresh should refresh tokens with valid refresh token" name="Authentication Endpoints POST /api/auth/refresh should refresh tokens with valid refresh token" time="0.176">
+    </testcase>
+    <testcase classname="Authentication Endpoints POST /api/auth/refresh should not refresh with invalid refresh token" name="Authentication Endpoints POST /api/auth/refresh should not refresh with invalid refresh token" time="0.246">
+    </testcase>
+    <testcase classname="Authentication Endpoints POST /api/auth/refresh should not refresh without refresh token" name="Authentication Endpoints POST /api/auth/refresh should not refresh without refresh token" time="0.151">
+    </testcase>
+    <testcase classname="Authentication Endpoints POST /api/auth/logout should logout authenticated user" name="Authentication Endpoints POST /api/auth/logout should logout authenticated user" time="0.166">
+    </testcase>
+    <testcase classname="Authentication Endpoints POST /api/auth/logout should not logout unauthenticated user" name="Authentication Endpoints POST /api/auth/logout should not logout unauthenticated user" time="0.168">
+    </testcase>
+    <testcase classname="Authentication Endpoints POST /api/auth/complete-profile should complete user profile" name="Authentication Endpoints POST /api/auth/complete-profile should complete user profile" time="0.16">
+    </testcase>
+    <testcase classname="Authentication Endpoints POST /api/auth/complete-profile should not complete profile without authentication" name="Authentication Endpoints POST /api/auth/complete-profile should not complete profile without authentication" time="0.297">
+    </testcase>
+    <testcase classname="Authentication Endpoints POST /api/auth/complete-profile should validate phone number format" name="Authentication Endpoints POST /api/auth/complete-profile should validate phone number format" time="0.174">
+    </testcase>
+    <testcase classname="Authentication Endpoints POST /api/auth/change-password should change password with correct current password" name="Authentication Endpoints POST /api/auth/change-password should change password with correct current password" time="0.781">
+    </testcase>
+    <testcase classname="Authentication Endpoints POST /api/auth/change-password should not change password with incorrect current password" name="Authentication Endpoints POST /api/auth/change-password should not change password with incorrect current password" time="0.302">
+    </testcase>
+    <testcase classname="Authentication Endpoints POST /api/auth/change-password should not change password without authentication" name="Authentication Endpoints POST /api/auth/change-password should not change password without authentication" time="0.143">
+    </testcase>
+    <testcase classname="Authentication Endpoints GET /api/auth/me should get current user profile" name="Authentication Endpoints GET /api/auth/me should get current user profile" time="0.154">
+    </testcase>
+    <testcase classname="Authentication Endpoints GET /api/auth/me should not get profile without authentication" name="Authentication Endpoints GET /api/auth/me should not get profile without authentication" time="0.152">
+    </testcase>
+    <testcase classname="Authentication Endpoints DELETE /api/auth/delete-account should delete user account" name="Authentication Endpoints DELETE /api/auth/delete-account should delete user account" time="0.27">
+    </testcase>
+    <testcase classname="Authentication Endpoints DELETE /api/auth/delete-account should not delete account without authentication" name="Authentication Endpoints DELETE /api/auth/delete-account should not delete account without authentication" time="0.15">
+    </testcase>
+  </testsuite>
+  <testsuite name="Orders Endpoints" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:36:28" time="12.266" tests="24">
+    <testcase classname="Orders Endpoints POST /api/orders/create should create order from cart" name="Orders Endpoints POST /api/orders/create should create order from cart" time="2.023">
+    </testcase>
+    <testcase classname="Orders Endpoints POST /api/orders/create should not create order with empty cart" name="Orders Endpoints POST /api/orders/create should not create order with empty cart" time="0.536">
+    </testcase>
+    <testcase classname="Orders Endpoints POST /api/orders/create should validate delivery address" name="Orders Endpoints POST /api/orders/create should validate delivery address" time="0.536">
+    </testcase>
+    <testcase classname="Orders Endpoints POST /api/orders/create should not create order without authentication" name="Orders Endpoints POST /api/orders/create should not create order without authentication" time="0.22">
+    </testcase>
+    <testcase classname="Orders Endpoints POST /api/orders/create should check pincode serviceability" name="Orders Endpoints POST /api/orders/create should check pincode serviceability" time="0.349">
+    </testcase>
+    <testcase classname="Orders Endpoints GET /api/orders should get user orders" name="Orders Endpoints GET /api/orders should get user orders" time="0.352">
+    </testcase>
+    <testcase classname="Orders Endpoints GET /api/orders should filter orders by status" name="Orders Endpoints GET /api/orders should filter orders by status" time="0.195">
+    </testcase>
+    <testcase classname="Orders Endpoints GET /api/orders should paginate orders" name="Orders Endpoints GET /api/orders should paginate orders" time="0.196">
+    </testcase>
+    <testcase classname="Orders Endpoints GET /api/orders should not get orders without authentication" name="Orders Endpoints GET /api/orders should not get orders without authentication" time="0.198">
+    </testcase>
+    <testcase classname="Orders Endpoints GET /api/orders/:id should get order by ID" name="Orders Endpoints GET /api/orders/:id should get order by ID" time="0.204">
+    </testcase>
+    <testcase classname="Orders Endpoints GET /api/orders/:id should not get order of another user" name="Orders Endpoints GET /api/orders/:id should not get order of another user" time="0.335">
+    </testcase>
+    <testcase classname="Orders Endpoints GET /api/orders/:id should return 404 for non-existent order" name="Orders Endpoints GET /api/orders/:id should return 404 for non-existent order" time="0.175">
+    </testcase>
+    <testcase classname="Orders Endpoints GET /api/orders/:id should return 400 for invalid order ID" name="Orders Endpoints GET /api/orders/:id should return 400 for invalid order ID" time="0.172">
+    </testcase>
+    <testcase classname="Orders Endpoints GET /api/orders/:id should not get order without authentication" name="Orders Endpoints GET /api/orders/:id should not get order without authentication" time="0.188">
+    </testcase>
+    <testcase classname="Orders Endpoints PUT /api/orders/:id/cancel should cancel pending order" name="Orders Endpoints PUT /api/orders/:id/cancel should cancel pending order" time="0.269">
+    </testcase>
+    <testcase classname="Orders Endpoints PUT /api/orders/:id/cancel should cancel confirmed order" name="Orders Endpoints PUT /api/orders/:id/cancel should cancel confirmed order" time="0.208">
+    </testcase>
+    <testcase classname="Orders Endpoints PUT /api/orders/:id/cancel should not cancel order of another user" name="Orders Endpoints PUT /api/orders/:id/cancel should not cancel order of another user" time="0.314">
+    </testcase>
+    <testcase classname="Orders Endpoints PUT /api/orders/:id/cancel should not cancel order without authentication" name="Orders Endpoints PUT /api/orders/:id/cancel should not cancel order without authentication" time="0.188">
+    </testcase>
+    <testcase classname="Orders Endpoints GET /api/orders/:id/tracking returns HIDDEN when customer tracking is disabled (Phase 0)" name="Orders Endpoints GET /api/orders/:id/tracking returns HIDDEN when customer tracking is disabled (Phase 0)" time="0.18">
+    </testcase>
+    <testcase classname="Orders Endpoints GET /api/orders/:id/tracking returns OFFLINE contract when customer tracking is enabled (Phase 0)" name="Orders Endpoints GET /api/orders/:id/tracking returns OFFLINE contract when customer tracking is enabled (Phase 0)" time="0.195">
+    </testcase>
+    <testcase classname="Orders Endpoints GET /api/orders/:id/tracking should return 404 for non-existent order" name="Orders Endpoints GET /api/orders/:id/tracking should return 404 for non-existent order" time="0.177">
+    </testcase>
+    <testcase classname="Orders Endpoints Admin order action endpoints should confirm order as admin" name="Orders Endpoints Admin order action endpoints should confirm order as admin" time="0.31">
+    </testcase>
+    <testcase classname="Orders Endpoints Admin order action endpoints should not allow regular user to confirm order" name="Orders Endpoints Admin order action endpoints should not allow regular user to confirm order" time="0.301">
+    </testcase>
+    <testcase classname="Orders Endpoints Admin order action endpoints should return 409 for invalid transition (pack before confirm)" name="Orders Endpoints Admin order action endpoints should return 409 for invalid transition (pack before confirm)" time="0.382">
+    </testcase>
+  </testsuite>
+  <testsuite name="Cart Endpoints" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:36:40" time="10.759" tests="23">
+    <testcase classname="Cart Endpoints POST /api/cart/add should add item to cart" name="Cart Endpoints POST /api/cart/add should add item to cart" time="1.544">
+    </testcase>
+    <testcase classname="Cart Endpoints POST /api/cart/add should update quantity if item already exists in cart" name="Cart Endpoints POST /api/cart/add should update quantity if item already exists in cart" time="0.637">
+    </testcase>
+    <testcase classname="Cart Endpoints POST /api/cart/add should not add item with insufficient stock" name="Cart Endpoints POST /api/cart/add should not add item with insufficient stock" time="0.221">
+    </testcase>
+    <testcase classname="Cart Endpoints POST /api/cart/add should not add item for non-existent product" name="Cart Endpoints POST /api/cart/add should not add item for non-existent product" time="0.196">
+    </testcase>
+    <testcase classname="Cart Endpoints POST /api/cart/add should not add item without authentication" name="Cart Endpoints POST /api/cart/add should not add item without authentication" time="0.218">
+    </testcase>
+    <testcase classname="Cart Endpoints POST /api/cart/add should validate required fields" name="Cart Endpoints POST /api/cart/add should validate required fields" time="0.172">
+    </testcase>
+    <testcase classname="Cart Endpoints GET /api/cart should get user cart" name="Cart Endpoints GET /api/cart should get user cart" time="0.196">
+    </testcase>
+    <testcase classname="Cart Endpoints GET /api/cart should return empty cart for new user" name="Cart Endpoints GET /api/cart should return empty cart for new user" time="0.313">
+    </testcase>
+    <testcase classname="Cart Endpoints GET /api/cart should not get cart without authentication" name="Cart Endpoints GET /api/cart should not get cart without authentication" time="0.204">
+    </testcase>
+    <testcase classname="Cart Endpoints PUT /api/cart/update should update item quantity" name="Cart Endpoints PUT /api/cart/update should update item quantity" time="0.285">
+    </testcase>
+    <testcase classname="Cart Endpoints PUT /api/cart/update should remove item if quantity is 0" name="Cart Endpoints PUT /api/cart/update should remove item if quantity is 0" time="0.199">
+    </testcase>
+    <testcase classname="Cart Endpoints PUT /api/cart/update should not update quantity beyond stock" name="Cart Endpoints PUT /api/cart/update should not update quantity beyond stock" time="0.192">
+    </testcase>
+    <testcase classname="Cart Endpoints PUT /api/cart/update should not update non-existent item" name="Cart Endpoints PUT /api/cart/update should not update non-existent item" time="0.185">
+    </testcase>
+    <testcase classname="Cart Endpoints PUT /api/cart/update should not update cart without authentication" name="Cart Endpoints PUT /api/cart/update should not update cart without authentication" time="0.29">
+    </testcase>
+    <testcase classname="Cart Endpoints DELETE /api/cart/remove should remove item from cart" name="Cart Endpoints DELETE /api/cart/remove should remove item from cart" time="0.243">
+    </testcase>
+    <testcase classname="Cart Endpoints DELETE /api/cart/remove should not remove non-existent item" name="Cart Endpoints DELETE /api/cart/remove should not remove non-existent item" time="0.187">
+    </testcase>
+    <testcase classname="Cart Endpoints DELETE /api/cart/remove should not remove item without authentication" name="Cart Endpoints DELETE /api/cart/remove should not remove item without authentication" time="0.184">
+    </testcase>
+    <testcase classname="Cart Endpoints DELETE /api/cart/remove should validate product ID" name="Cart Endpoints DELETE /api/cart/remove should validate product ID" time="0.188">
+    </testcase>
+    <testcase classname="Cart Endpoints DELETE /api/cart/clear should clear entire cart" name="Cart Endpoints DELETE /api/cart/clear should clear entire cart" time="0.335">
+    </testcase>
+    <testcase classname="Cart Endpoints DELETE /api/cart/clear should not clear cart without authentication" name="Cart Endpoints DELETE /api/cart/clear should not clear cart without authentication" time="0.177">
+    </testcase>
+    <testcase classname="Cart Endpoints Cart with multiple items should handle multiple items correctly" name="Cart Endpoints Cart with multiple items should handle multiple items correctly" time="0.252">
+    </testcase>
+    <testcase classname="Cart Endpoints Cart with multiple items should update one item without affecting others" name="Cart Endpoints Cart with multiple items should update one item without affecting others" time="0.229">
+    </testcase>
+    <testcase classname="Cart Endpoints Cart with multiple items should remove one item without affecting others" name="Cart Endpoints Cart with multiple items should remove one item without affecting others" time="0.322">
+    </testcase>
+  </testsuite>
+  <testsuite name="Phase 1 tracking (stream + projection)" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:36:51" time="5.81" tests="2">
+    <testcase classname="Phase 1 tracking (stream + projection) ingestion -&gt; stream -&gt; projection -&gt; customer API read (CUSTOMER_READ_ENABLED)" name="Phase 1 tracking (stream + projection) ingestion -&gt; stream -&gt; projection -&gt; customer API read (CUSTOMER_READ_ENABLED)" time="1.392">
+    </testcase>
+    <testcase classname="Phase 1 tracking (stream + projection) kill switch OFF blocks ingestion and prevents projection/customer read" name="Phase 1 tracking (stream + projection) kill switch OFF blocks ingestion and prevents projection/customer read" time="0.813">
+    </testcase>
+  </testsuite>
+  <testsuite name="Distributed reliability verification" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:36:57" time="9.894" tests="8">
+    <testcase classname="Distributed reliability verification Inventory A: two users concurrently reserve last item -&gt; only one succeeds" name="Distributed reliability verification Inventory A: two users concurrently reserve last item -&gt; only one succeeds" time="1.269">
+    </testcase>
+    <testcase classname="Distributed reliability verification Inventory B: order created then crash before payment -&gt; reservation expires and stock becomes available" name="Distributed reliability verification Inventory B: order created then crash before payment -&gt; reservation expires and stock becomes available" time="0.379">
+    </testcase>
+    <testcase classname="Distributed reliability verification Inventory C: payment success retried -&gt; commit occurs only once" name="Distributed reliability verification Inventory C: payment success retried -&gt; commit occurs only once" time="0.195">
+    </testcase>
+    <testcase classname="Distributed reliability verification Outbox A: crash after DB commit before dispatch -&gt; restart delivers once" name="Distributed reliability verification Outbox A: crash after DB commit before dispatch -&gt; restart delivers once" time="0.348">
+    </testcase>
+    <testcase classname="Distributed reliability verification Outbox B: notification writer throws -&gt; outbox retries; NO duplicate notifications" name="Distributed reliability verification Outbox B: notification writer throws -&gt; outbox retries; NO duplicate notifications" time="2.384">
+    </testcase>
+    <testcase classname="Distributed reliability verification Assignment A: two workers assigning same PACKED order -&gt; one succeeds, one conflicts; load increments once" name="Distributed reliability verification Assignment A: two workers assigning same PACKED order -&gt; one succeeds, one conflicts; load increments once" time="0.569">
+    </testcase>
+    <testcase classname="Distributed reliability verification Assignment B: admin unassign while auto-assign runs -&gt; valid final state, no negative load" name="Distributed reliability verification Assignment B: admin unassign while auto-assign runs -&gt; valid final state, no negative load" time="0.627">
+    </testcase>
+    <testcase classname="Distributed reliability verification Chaos: payment success + cancel + assignment + failure (rapid) -&gt; invariants hold" name="Distributed reliability verification Chaos: payment success + cancel + assignment + failure (rapid) -&gt; invariants hold" time="0.469">
+    </testcase>
+  </testsuite>
+  <testsuite name="Admin CVRP routes operationalization" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:37:07" time="12.768" tests="1">
+    <testcase classname="Admin CVRP routes operationalization compute -&gt; persist -&gt; assign -&gt; delivery current route -&gt; complete -&gt; route status" name="Admin CVRP routes operationalization compute -&gt; persist -&gt; assign -&gt; delivery current route -&gt; complete -&gt; route status" time="7.131">
+    </testcase>
+  </testsuite>
+  <testsuite name="Internal payments manual recovery hooks" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:37:21" time="8.103" tests="8">
+    <testcase classname="Internal payments manual recovery hooks rejects non-admin users" name="Internal payments manual recovery hooks rejects non-admin users" time="1.364">
+    </testcase>
+    <testcase classname="Internal payments manual recovery hooks rejects invalid paymentIntentId" name="Internal payments manual recovery hooks rejects invalid paymentIntentId" time="0.538">
+    </testcase>
+    <testcase classname="Internal payments manual recovery hooks rejects short reason" name="Internal payments manual recovery hooks rejects short reason" time="0.55">
+    </testcase>
+    <testcase classname="Internal payments manual recovery hooks does not allow modifying CAPTURED intents" name="Internal payments manual recovery hooks does not allow modifying CAPTURED intents" time="0.307">
+    </testcase>
+    <testcase classname="Internal payments manual recovery hooks does not allow modifying intents when order is PAID" name="Internal payments manual recovery hooks does not allow modifying intents when order is PAID" time="0.321">
+    </testcase>
+    <testcase classname="Internal payments manual recovery hooks MARK_VERIFYING allowed only from PAYMENT_PROCESSING or PAYMENT_RECOVERABLE" name="Internal payments manual recovery hooks MARK_VERIFYING allowed only from PAYMENT_PROCESSING or PAYMENT_RECOVERABLE" time="0.347">
+    </testcase>
+    <testcase classname="Internal payments manual recovery hooks MARK_RECOVERABLE allowed only from CREATED, GATEWAY_ORDER_CREATED, PAYMENT_PROCESSING" name="Internal payments manual recovery hooks MARK_RECOVERABLE allowed only from CREATED, GATEWAY_ORDER_CREATED, PAYMENT_PROCESSING" time="0.333">
+    </testcase>
+    <testcase classname="Internal payments manual recovery hooks locked intents cannot be modified (except LOCK_PERMANENTLY idempotent ok)" name="Internal payments manual recovery hooks locked intents cannot be modified (except LOCK_PERMANENTLY idempotent ok)" time="0.32">
+    </testcase>
+  </testsuite>
+  <testsuite name="Phase 5 admin incident APIs" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:37:29" time="6.019" tests="1">
+    <testcase classname="Phase 5 admin incident APIs OPS_ADMIN can run detection and see incidents; OPS_VIEWER can read but cannot mutate" name="Phase 5 admin incident APIs OPS_ADMIN can run detection and see incidents; OPS_VIEWER can read but cannot mutate" time="1.785">
+    </testcase>
+  </testsuite>
+  <testsuite name="Products Endpoints" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:37:35" time="7.705" tests="19">
+    <testcase classname="Products Endpoints GET /api/products should get all products" name="Products Endpoints GET /api/products should get all products" time="1.107">
+    </testcase>
+    <testcase classname="Products Endpoints GET /api/products should filter products by category" name="Products Endpoints GET /api/products should filter products by category" time="0.354">
+    </testcase>
+    <testcase classname="Products Endpoints GET /api/products should paginate products" name="Products Endpoints GET /api/products should paginate products" time="0.291">
+    </testcase>
+    <testcase classname="Products Endpoints GET /api/products should search products by name" name="Products Endpoints GET /api/products should search products by name" time="0.264">
+    </testcase>
+    <testcase classname="Products Endpoints GET /api/products/:id should get product by ID" name="Products Endpoints GET /api/products/:id should get product by ID" time="0.036">
+    </testcase>
+    <testcase classname="Products Endpoints GET /api/products/:id should return 404 for non-existent product" name="Products Endpoints GET /api/products/:id should return 404 for non-existent product" time="0.027">
+    </testcase>
+    <testcase classname="Products Endpoints GET /api/products/search/suggestions should get search suggestions" name="Products Endpoints GET /api/products/search/suggestions should get search suggestions" time="0.086">
+    </testcase>
+    <testcase classname="Products Endpoints GET /api/products/search/suggestions should return empty suggestions for no query" name="Products Endpoints GET /api/products/search/suggestions should return empty suggestions for no query" time="0.036">
+    </testcase>
+    <testcase classname="Products Endpoints GET /api/products/similar/:id should get similar products" name="Products Endpoints GET /api/products/similar/:id should get similar products" time="0.036">
+    </testcase>
+    <testcase classname="Products Endpoints GET /api/products/similar/:id should return 404 for non-existent product" name="Products Endpoints GET /api/products/similar/:id should return 404 for non-existent product" time="0.032">
+    </testcase>
+    <testcase classname="Products Endpoints POST /api/products (Admin only) should create product as admin" name="Products Endpoints POST /api/products (Admin only) should create product as admin" time="0.32">
+    </testcase>
+    <testcase classname="Products Endpoints POST /api/products (Admin only) should not create product as regular user" name="Products Endpoints POST /api/products (Admin only) should not create product as regular user" time="0.329">
+    </testcase>
+    <testcase classname="Products Endpoints POST /api/products (Admin only) should not create product without authentication" name="Products Endpoints POST /api/products (Admin only) should not create product without authentication" time="0.266">
+    </testcase>
+    <testcase classname="Products Endpoints POST /api/products (Admin only) should validate required fields" name="Products Endpoints POST /api/products (Admin only) should validate required fields" time="0.263">
+    </testcase>
+    <testcase classname="Products Endpoints PUT /api/products/:id (Admin only) should update product as admin" name="Products Endpoints PUT /api/products/:id (Admin only) should update product as admin" time="0.159">
+    </testcase>
+    <testcase classname="Products Endpoints PUT /api/products/:id (Admin only) should not update product with invalid ID" name="Products Endpoints PUT /api/products/:id (Admin only) should not update product with invalid ID" time="0.151">
+    </testcase>
+    <testcase classname="Products Endpoints DELETE /api/products/:id (Admin only) should delete product as admin" name="Products Endpoints DELETE /api/products/:id (Admin only) should delete product as admin" time="0.19">
+    </testcase>
+    <testcase classname="Products Endpoints DELETE /api/products/:id (Admin only) should not delete product with invalid ID" name="Products Endpoints DELETE /api/products/:id (Admin only) should not delete product with invalid ID" time="0.155">
+    </testcase>
+    <testcase classname="Products Endpoints GET /api/products/categories should get all categories with product counts" name="Products Endpoints GET /api/products/categories should get all categories with product counts" time="0.04">
+    </testcase>
+  </testsuite>
+  <testsuite name="POST /internal/payments/recovery-execute/:paymentIntentId (STEP 4)" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:37:43" time="8.008" tests="8">
+    <testcase classname="POST /internal/payments/recovery-execute/:paymentIntentId (STEP 4) blocks execution when feature flag is OFF" name="POST /internal/payments/recovery-execute/:paymentIntentId (STEP 4) blocks execution when feature flag is OFF" time="1.622">
+    </testcase>
+    <testcase classname="POST /internal/payments/recovery-execute/:paymentIntentId (STEP 4) blocks execution when recovery execution kill switch is OFF" name="POST /internal/payments/recovery-execute/:paymentIntentId (STEP 4) blocks execution when recovery execution kill switch is OFF" time="0.783">
+    </testcase>
+    <testcase classname="POST /internal/payments/recovery-execute/:paymentIntentId (STEP 4) blocks invalid FSM transition" name="POST /internal/payments/recovery-execute/:paymentIntentId (STEP 4) blocks invalid FSM transition" time="0.303">
+    </testcase>
+    <testcase classname="POST /internal/payments/recovery-execute/:paymentIntentId (STEP 4) blocks non-admin" name="POST /internal/payments/recovery-execute/:paymentIntentId (STEP 4) blocks non-admin" time="0.181">
+    </testcase>
+    <testcase classname="POST /internal/payments/recovery-execute/:paymentIntentId (STEP 4) rejects missing or invalid confirmation" name="POST /internal/payments/recovery-execute/:paymentIntentId (STEP 4) rejects missing or invalid confirmation" time="0.291">
+    </testcase>
+    <testcase classname="POST /internal/payments/recovery-execute/:paymentIntentId (STEP 4) blocks CAPTURED intent" name="POST /internal/payments/recovery-execute/:paymentIntentId (STEP 4) blocks CAPTURED intent" time="0.309">
+    </testcase>
+    <testcase classname="POST /internal/payments/recovery-execute/:paymentIntentId (STEP 4) blocks when order is PAID" name="POST /internal/payments/recovery-execute/:paymentIntentId (STEP 4) blocks when order is PAID" time="0.444">
+    </testcase>
+    <testcase classname="POST /internal/payments/recovery-execute/:paymentIntentId (STEP 4) executes allowed transition and writes audit exactly once" name="POST /internal/payments/recovery-execute/:paymentIntentId (STEP 4) executes allowed transition and writes audit exactly once" time="0.33">
+    </testcase>
+  </testsuite>
+  <testsuite name="Phase 6 escalation runner" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:37:51" time="3.284" tests="1">
+    <testcase classname="Phase 6 escalation runner dedupes by {incidentId, policyId, stepIndex} and respects suppression window" name="Phase 6 escalation runner dedupes by {incidentId, policyId, stepIndex} and respects suppression window" time="0.435">
+    </testcase>
+  </testsuite>
+  <testsuite name="UPI payment status update is not ledger-backed (documented exception)" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:37:55" time="4.894" tests="1">
+    <testcase classname="UPI payment status update is not ledger-backed (documented exception) PUT /api/orders/:orderId/payment-status marks UPI order paid but does not create a CAPTURE ledger entry" name="UPI payment status update is not ledger-backed (documented exception) PUT /api/orders/:orderId/payment-status marks UPI order paid but does not create a CAPTURE ledger entry" time="1.328">
+    </testcase>
+  </testsuite>
+  <testsuite name="Basic API Tests" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:38:00" time="5.591" tests="6">
+    <testcase classname="Basic API Tests should return 404 for non-existent route" name="Basic API Tests should return 404 for non-existent route" time="1.256">
+    </testcase>
+    <testcase classname="Basic API Tests should handle health check" name="Basic API Tests should handle health check" time="0.264">
+    </testcase>
+    <testcase classname="Basic API Tests should handle CORS preflight" name="Basic API Tests should handle CORS preflight" time="0.171">
+    </testcase>
+    <testcase classname="Basic API Tests should handle product listing endpoint" name="Basic API Tests should handle product listing endpoint" time="0.254">
+    </testcase>
+    <testcase classname="Basic API Tests should reject invalid login" name="Basic API Tests should reject invalid login" time="0.231">
+    </testcase>
+    <testcase classname="Basic API Tests should reject signup with incomplete data" name="Basic API Tests should reject signup with incomplete data" time="0.014">
+    </testcase>
+  </testsuite>
+  <testsuite name="Refund execution kill switch (REFUND_EXECUTION_ENABLED)" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:38:06" time="6.781" tests="2">
+    <testcase classname="Refund execution kill switch (REFUND_EXECUTION_ENABLED) blocks admin refund initiation when disabled (503)" name="Refund execution kill switch (REFUND_EXECUTION_ENABLED) blocks admin refund initiation when disabled (503)" time="2.025">
+    </testcase>
+    <testcase classname="Refund execution kill switch (REFUND_EXECUTION_ENABLED) allows refund history queries when disabled" name="Refund execution kill switch (REFUND_EXECUTION_ENABLED) allows refund history queries when disabled" time="1.091">
+    </testcase>
+  </testsuite>
+  <testsuite name="OTP Endpoints" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:38:13" time="8.876" tests="16">
+    <testcase classname="OTP Endpoints POST /api/otp/verification/generate should generate verification OTP for authenticated user" name="OTP Endpoints POST /api/otp/verification/generate should generate verification OTP for authenticated user" time="1.693">
+    </testcase>
+    <testcase classname="OTP Endpoints POST /api/otp/verification/generate should generate verification OTP with phone in body" name="OTP Endpoints POST /api/otp/verification/generate should generate verification OTP with phone in body" time="0.677">
+    </testcase>
+    <testcase classname="OTP Endpoints POST /api/otp/verification/generate should not generate OTP without phone for unauthenticated user" name="OTP Endpoints POST /api/otp/verification/generate should not generate OTP without phone for unauthenticated user" time="0.146">
+    </testcase>
+    <testcase classname="OTP Endpoints POST /api/otp/verification/generate should validate phone number format" name="OTP Endpoints POST /api/otp/verification/generate should validate phone number format" time="0.038">
+    </testcase>
+    <testcase classname="OTP Endpoints POST /api/otp/payment/generate should generate payment OTP for valid order" name="OTP Endpoints POST /api/otp/payment/generate should generate payment OTP for valid order" time="0.321">
+    </testcase>
+    <testcase classname="OTP Endpoints POST /api/otp/payment/generate should not generate payment OTP for unauthorized order" name="OTP Endpoints POST /api/otp/payment/generate should not generate payment OTP for unauthorized order" time="0.564">
+    </testcase>
+    <testcase classname="OTP Endpoints POST /api/otp/payment/generate should validate required fields" name="OTP Endpoints POST /api/otp/payment/generate should validate required fields" time="0.181">
+    </testcase>
+    <testcase classname="OTP Endpoints POST /api/otp/payment/generate should validate card details" name="OTP Endpoints POST /api/otp/payment/generate should validate card details" time="0.262">
+    </testcase>
+    <testcase classname="OTP Endpoints POST /api/otp/payment/verify should verify payment OTP with correct OTP" name="OTP Endpoints POST /api/otp/payment/verify should verify payment OTP with correct OTP" time="0.302">
+    </testcase>
+    <testcase classname="OTP Endpoints POST /api/otp/payment/verify should not verify payment OTP with incorrect OTP" name="OTP Endpoints POST /api/otp/payment/verify should not verify payment OTP with incorrect OTP" time="0.201">
+    </testcase>
+    <testcase classname="OTP Endpoints POST /api/otp/payment/verify should not verify payment OTP without authentication" name="OTP Endpoints POST /api/otp/payment/verify should not verify payment OTP without authentication" time="0.177">
+    </testcase>
+    <testcase classname="OTP Endpoints POST /api/otp/payment/verify should validate required fields" name="OTP Endpoints POST /api/otp/payment/verify should validate required fields" time="0.157">
+    </testcase>
+    <testcase classname="OTP Endpoints POST /api/otp/payment/resend should resend payment OTP" name="OTP Endpoints POST /api/otp/payment/resend should resend payment OTP" time="0.178">
+    </testcase>
+    <testcase classname="OTP Endpoints POST /api/otp/payment/resend should not resend OTP without payment ID" name="OTP Endpoints POST /api/otp/payment/resend should not resend OTP without payment ID" time="0.206">
+    </testcase>
+    <testcase classname="OTP Endpoints POST /api/otp/payment/resend should not resend OTP for non-existent payment" name="OTP Endpoints POST /api/otp/payment/resend should not resend OTP for non-existent payment" time="0.154">
+    </testcase>
+    <testcase classname="OTP Endpoints POST /api/otp/payment/resend should not resend OTP without authentication" name="OTP Endpoints POST /api/otp/payment/resend should not resend OTP without authentication" time="0.148">
+    </testcase>
+  </testsuite>
+  <testsuite name="GET /internal/payments/verify (STEP 3B.2)" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:38:22" time="7.313" tests="4">
+    <testcase classname="GET /internal/payments/verify (STEP 3B.2) rejects non-admin" name="GET /internal/payments/verify (STEP 3B.2) rejects non-admin" time="1.308">
+    </testcase>
+    <testcase classname="GET /internal/payments/verify (STEP 3B.2) rejects missing params" name="GET /internal/payments/verify (STEP 3B.2) rejects missing params" time="0.43">
+    </testcase>
+    <testcase classname="GET /internal/payments/verify (STEP 3B.2) WEBHOOK_MISSING when gateway captured but internal not PAID; no DB mutation" name="GET /internal/payments/verify (STEP 3B.2) WEBHOOK_MISSING when gateway captured but internal not PAID; no DB mutation" time="0.621">
+    </testcase>
+    <testcase classname="GET /internal/payments/verify (STEP 3B.2) discrepancy classifications: AWAITING_CAPTURE / GATEWAY_FAILED / NO_GATEWAY_PAYMENT / CONSISTENT_PAID" name="GET /internal/payments/verify (STEP 3B.2) discrepancy classifications: AWAITING_CAPTURE / GATEWAY_FAILED / NO_GATEWAY_PAYMENT / CONSISTENT_PAID" time="0.37">
+    </testcase>
+  </testsuite>
+  <testsuite name="PaymentIntent creation safety invariants (Phase 0)" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:38:30" time="6.21" tests="2">
+    <testcase classname="PaymentIntent creation safety invariants (Phase 0) is idempotent: same idempotencyKey returns same PaymentIntent and does not create duplicates" name="PaymentIntent creation safety invariants (Phase 0) is idempotent: same idempotencyKey returns same PaymentIntent and does not create duplicates" time="1.522">
+    </testcase>
+    <testcase classname="PaymentIntent creation safety invariants (Phase 0) enforces attempt cap: allows attempts 1-3 and rejects attempt 4" name="PaymentIntent creation safety invariants (Phase 0) enforces attempt cap: allows attempts 1-3 and rejects attempt 4" time="0.83">
+    </testcase>
+  </testsuite>
+  <testsuite name="Internal finance reports (read-only)" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:38:36" time="6.203" tests="3">
+    <testcase classname="Internal finance reports (read-only) rejects non-admin users" name="Internal finance reports (read-only) rejects non-admin users" time="1.462">
+    </testcase>
+    <testcase classname="Internal finance reports (read-only) requires from/to range" name="Internal finance reports (read-only) requires from/to range" time="0.476">
+    </testcase>
+    <testcase classname="Internal finance reports (read-only) returns stable CSV headers" name="Internal finance reports (read-only) returns stable CSV headers" time="0.432">
+    </testcase>
+  </testsuite>
+  <testsuite name="GET /internal/payments/recovery-suggestion (STEP 3B.3)" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:38:43" time="6.844" tests="6">
+    <testcase classname="GET /internal/payments/recovery-suggestion (STEP 3B.3) rejects non-admin" name="GET /internal/payments/recovery-suggestion (STEP 3B.3) rejects non-admin" time="1.43">
+    </testcase>
+    <testcase classname="GET /internal/payments/recovery-suggestion (STEP 3B.3) rejects missing params or both params" name="GET /internal/payments/recovery-suggestion (STEP 3B.3) rejects missing params or both params" time="0.375">
+    </testcase>
+    <testcase classname="GET /internal/payments/recovery-suggestion (STEP 3B.3) WEBHOOK_MISSING -&gt; MARK_VERIFYING (HIGH), and no Razorpay client invocation" name="GET /internal/payments/recovery-suggestion (STEP 3B.3) WEBHOOK_MISSING -&gt; MARK_VERIFYING (HIGH), and no Razorpay client invocation" time="0.553">
+    </testcase>
+    <testcase classname="GET /internal/payments/recovery-suggestion (STEP 3B.3) canAutoExecute=true only when feature flag enabled and FSM allows action" name="GET /internal/payments/recovery-suggestion (STEP 3B.3) canAutoExecute=true only when feature flag enabled and FSM allows action" time="0.289">
+    </testcase>
+    <testcase classname="GET /internal/payments/recovery-suggestion (STEP 3B.3) locked intents always return NO_ACTION" name="GET /internal/payments/recovery-suggestion (STEP 3B.3) locked intents always return NO_ACTION" time="0.299">
+    </testcase>
+    <testcase classname="GET /internal/payments/recovery-suggestion (STEP 3B.3) CONSISTENT_PAID -&gt; NO_ACTION" name="GET /internal/payments/recovery-suggestion (STEP 3B.3) CONSISTENT_PAID -&gt; NO_ACTION" time="0.429">
+    </testcase>
+  </testsuite>
+  <testsuite name="Internal payments reconciliation (read-only)" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:38:50" time="7.185" tests="5">
+    <testcase classname="Internal payments reconciliation (read-only) rejects non-admin users" name="Internal payments reconciliation (read-only) rejects non-admin users" time="1.258">
+    </testcase>
+    <testcase classname="Internal payments reconciliation (read-only) returns only non-terminal intents and excludes PAID orders" name="Internal payments reconciliation (read-only) returns only non-terminal intents and excludes PAID orders" time="1.084">
+    </testcase>
+    <testcase classname="Internal payments reconciliation (read-only) computes ageMinutes and sorts oldest first" name="Internal payments reconciliation (read-only) computes ageMinutes and sorts oldest first" time="0.427">
+    </testcase>
+    <testcase classname="Internal payments reconciliation (read-only) applies filters and supports cursor pagination" name="Internal payments reconciliation (read-only) applies filters and supports cursor pagination" time="0.358">
+    </testcase>
+    <testcase classname="Internal payments reconciliation (read-only) returns empty for terminal-only status filter" name="Internal payments reconciliation (read-only) returns empty for terminal-only status filter" time="0.175">
+    </testcase>
+  </testsuite>
+  <testsuite name="Phase 4 admin tracking routes" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:38:57" time="6.734" tests="4">
+    <testcase classname="Phase 4 admin tracking routes requires admin auth for overview" name="Phase 4 admin tracking routes requires admin auth for overview" time="1.369">
+    </testcase>
+    <testcase classname="Phase 4 admin tracking routes supports ETag polling with 304 when unchanged" name="Phase 4 admin tracking routes supports ETag polling with 304 when unchanged" time="0.585">
+    </testcase>
+    <testcase classname="Phase 4 admin tracking routes allows OPS_ADMIN to toggle kill switch with reason and emits admin action metric" name="Phase 4 admin tracking routes allows OPS_ADMIN to toggle kill switch with reason and emits admin action metric" time="0.784">
+    </testcase>
+    <testcase classname="Phase 4 admin tracking routes blocks OPS_VIEWER from toggling kill switch" name="Phase 4 admin tracking routes blocks OPS_VIEWER from toggling kill switch" time="0.15">
+    </testcase>
+  </testsuite>
+  <testsuite name="Phase 2 tracking enrichment (internal-only)" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:39:05" time="6.683" tests="1">
+    <testcase classname="Phase 2 tracking enrichment (internal-only) writes Phase-2 enriched projection but does not leak via customer API" name="Phase 2 tracking enrichment (internal-only) writes Phase-2 enriched projection but does not leak via customer API" time="1.721">
+    </testcase>
+  </testsuite>
+  <testsuite name="Order timeline builder" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:39:12" time="3.789" tests="3">
+    <testcase classname="Order timeline builder Delivered order -&gt; full timeline with delivered as current/completed (no pending after)" name="Order timeline builder Delivered order -&gt; full timeline with delivered as current/completed (no pending after)" time="0.005">
+    </testcase>
+    <testcase classname="Order timeline builder Cancelled before assignment -&gt; timeline truncated with failed cancellation step" name="Order timeline builder Cancelled before assignment -&gt; timeline truncated with failed cancellation step" time="0.001">
+    </testcase>
+    <testcase classname="Order timeline builder In-transit with mixed casing -&gt; current step correct and resilient" name="Order timeline builder In-transit with mixed casing -&gt; current step correct and resilient" time="0.001">
+    </testcase>
+  </testsuite>
+  <testsuite name="Audit logging hardening" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:39:16" time="5.821" tests="2">
+    <testcase classname="Audit logging hardening writes an audit record exactly once for refund creation" name="Audit logging hardening writes an audit record exactly once for refund creation" time="1.861">
+    </testcase>
+    <testcase classname="Audit logging hardening does not block the main request when audit persistence fails" name="Audit logging hardening does not block the main request when audit persistence fails" time="0.582">
+    </testcase>
+  </testsuite>
+  <testsuite name="Order details exposes refunds (customer-safe)" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:39:22" time="7.032" tests="2">
+    <testcase classname="Order details exposes refunds (customer-safe) GET /api/orders/:id includes refunds[] when RefundRequest exists" name="Order details exposes refunds (customer-safe) GET /api/orders/:id includes refunds[] when RefundRequest exists" time="2.414">
+    </testcase>
+    <testcase classname="Order details exposes refunds (customer-safe) GET /api/orders/:id returns refunds=[] when no refunds exist" name="Order details exposes refunds (customer-safe) GET /api/orders/:id returns refunds=[] when no refunds exist" time="0.973">
+    </testcase>
+  </testsuite>
+  <testsuite name="Internal refunds (admin-only)" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:39:29" time="9.282" tests="2">
+    <testcase classname="Internal refunds (admin-only) creates an idempotent refund request and allows fetching refund history" name="Internal refunds (admin-only) creates an idempotent refund request and allows fetching refund history" time="2.359">
+    </testcase>
+    <testcase classname="Internal refunds (admin-only) rejects non-admin users" name="Internal refunds (admin-only) rejects non-admin users" time="0.473">
+    </testcase>
+  </testsuite>
+  <testsuite name="Phase 7 learning admin APIs" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:39:39" time="5.092" tests="1">
+    <testcase classname="Phase 7 learning admin APIs OPS_VIEWER can read learning insights; endpoints are read-only" name="Phase 7 learning admin APIs OPS_VIEWER can read learning insights; endpoints are read-only" time="1.458">
+    </testcase>
+  </testsuite>
+  <testsuite name="Phase 0 live tracking" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:39:44" time="6.058" tests="4">
+    <testcase classname="Phase 0 live tracking GET /api/orders/:id/tracking returns HIDDEN when kill switch is OFF" name="Phase 0 live tracking GET /api/orders/:id/tracking returns HIDDEN when kill switch is OFF" time="1.655">
+    </testcase>
+    <testcase classname="Phase 0 live tracking GET /api/orders/:id/tracking returns OFFLINE contract when customer read is enabled" name="Phase 0 live tracking GET /api/orders/:id/tracking returns OFFLINE contract when customer read is enabled" time="0.495">
+    </testcase>
+    <testcase classname="Phase 0 live tracking POST /internal/tracking/location rejects when kill switch is OFF" name="Phase 0 live tracking POST /internal/tracking/location rejects when kill switch is OFF" time="0.248">
+    </testcase>
+    <testcase classname="Phase 0 live tracking POST /internal/tracking/location accepts when kill switch is INGEST_ONLY" name="Phase 0 live tracking POST /internal/tracking/location accepts when kill switch is INGEST_ONLY" time="0.256">
+    </testcase>
+  </testsuite>
+  <testsuite name="Webhook capture idempotency (canonical truth pipeline)" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:39:51" time="5.079" tests="1">
+    <testcase classname="Webhook capture idempotency (canonical truth pipeline) processes payment.captured exactly once: inbox dedupe prevents reprocessing; ledger remains append-only" name="Webhook capture idempotency (canonical truth pipeline) processes payment.captured exactly once: inbox dedupe prevents reprocessing; ledger remains append-only" time="1.578">
+    </testcase>
+  </testsuite>
+  <testsuite name="Identity Domain - Auth Integration" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:39:56" time="4.23" tests="2">
+    <testcase classname="Identity Domain - Auth Integration POST /api/auth/signup registers a new user successfully" name="Identity Domain - Auth Integration POST /api/auth/signup registers a new user successfully" time="0.9">
+    </testcase>
+    <testcase classname="Identity Domain - Auth Integration POST /api/auth/signup rejects duplicate registration with same email" name="Identity Domain - Auth Integration POST /api/auth/signup rejects duplicate registration with same email" time="0.03">
+    </testcase>
+  </testsuite>
+  <testsuite name="Internal finance health (read-only)" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:40:00" time="5.779" tests="2">
+    <testcase classname="Internal finance health (read-only) returns deterministic health output (snapshot)" name="Internal finance health (read-only) returns deterministic health output (snapshot)" time="1.413">
+    </testcase>
+    <testcase classname="Internal finance health (read-only) rejects non-admin users" name="Internal finance health (read-only) rejects non-admin users" time="0.584">
+    </testcase>
+  </testsuite>
+  <testsuite name="financeHealthService" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:40:06" time="5.84" tests="6">
+    <testcase classname="financeHealthService flags refund exists without CAPTURE ledger" name="financeHealthService flags refund exists without CAPTURE ledger" time="1.026">
+    </testcase>
+    <testcase classname="financeHealthService flags refund amount &gt; captured amount" name="financeHealthService flags refund amount &gt; captured amount" time="0.336">
+    </testcase>
+    <testcase classname="financeHealthService flags orphan ledger entries (no order/paymentIntent)" name="financeHealthService flags orphan ledger entries (no order/paymentIntent)" time="0.235">
+    </testcase>
+    <testcase classname="financeHealthService flags refund marked COMPLETED but no ledger entry" name="financeHealthService flags refund marked COMPLETED but no ledger entry" time="0.231">
+    </testcase>
+    <testcase classname="financeHealthService classifies ledger total != order paymentStatus as WARN when capture exists but order is UNPAID" name="financeHealthService classifies ledger total != order paymentStatus as WARN when capture exists but order is UNPAID" time="0.221">
+    </testcase>
+    <testcase classname="financeHealthService flags duplicate ledger entries (same dedupeKey)" name="financeHealthService flags duplicate ledger entries (same dedupeKey)" time="0.183">
+    </testcase>
+  </testsuite>
+  <testsuite name="Simple API Tests" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:40:12" time="5.117" tests="3">
+    <testcase classname="Simple API Tests should return 404 for non-existent route" name="Simple API Tests should return 404 for non-existent route" time="1.361">
+    </testcase>
+    <testcase classname="Simple API Tests should handle health check" name="Simple API Tests should handle health check" time="0.26">
+    </testcase>
+    <testcase classname="Simple API Tests should handle CORS preflight" name="Simple API Tests should handle CORS preflight" time="0.256">
+    </testcase>
+  </testsuite>
+  <testsuite name="PaymentIntent gateway immutability" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:40:17" time="3.175" tests="1">
+    <testcase classname="PaymentIntent gateway immutability does not allow gateway to be mutated after creation" name="PaymentIntent gateway immutability does not allow gateway to be mutated after creation" time="0.501">
+    </testcase>
+  </testsuite>
+  <testsuite name="Phase 6 on-call &amp; escalation admin APIs" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:40:21" time="5.966" tests="1">
+    <testcase classname="Phase 6 on-call &amp; escalation admin APIs OPS_ADMIN can create policies/schedules, add notes, run escalation tick; OPS_VIEWER is read-only" name="Phase 6 on-call &amp; escalation admin APIs OPS_ADMIN can create policies/schedules, add notes, run escalation tick; OPS_VIEWER is read-only" time="1.861">
+    </testcase>
+  </testsuite>
+  <testsuite name="Refund service (Phase 2)" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:40:27" time="5.415" tests="6">
+    <testcase classname="Refund service (Phase 2) is idempotent by idempotencyKey" name="Refund service (Phase 2) is idempotent by idempotencyKey" time="1.152">
+    </testcase>
+    <testcase classname="Refund service (Phase 2) rejects idempotency key reuse with different parameters" name="Refund service (Phase 2) rejects idempotency key reuse with different parameters" time="0.452">
+    </testcase>
+    <testcase classname="Refund service (Phase 2) rejects when order is not PAID" name="Refund service (Phase 2) rejects when order is not PAID" time="0.169">
+    </testcase>
+    <testcase classname="Refund service (Phase 2) rejects refund before CAPTURE exists" name="Refund service (Phase 2) rejects refund before CAPTURE exists" time="0.173">
+    </testcase>
+    <testcase classname="Refund service (Phase 2) supports partial refunds until captured amount is exhausted" name="Refund service (Phase 2) supports partial refunds until captured amount is exhausted" time="0.21">
+    </testcase>
+    <testcase classname="Refund service (Phase 2) rejects a single over-refund attempt" name="Refund service (Phase 2) rejects a single over-refund attempt" time="0.23">
+    </testcase>
+  </testsuite>
+  <testsuite name="Test Setup" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:40:32" time="3.343" tests="7">
+    <testcase classname="Test Setup should have environment variables set" name="Test Setup should have environment variables set" time="0.01">
+    </testcase>
+    <testcase classname="Test Setup should have Redis mock available" name="Test Setup should have Redis mock available" time="0.008">
+    </testcase>
+    <testcase classname="Test Setup should have Razorpay mock available" name="Test Setup should have Razorpay mock available" time="0.002">
+    </testcase>
+    <testcase classname="Test Setup should have Cloudinary mock available" name="Test Setup should have Cloudinary mock available" time="0.001">
+    </testcase>
+    <testcase classname="Test Setup should have Twilio mock available" name="Test Setup should have Twilio mock available" time="0.005">
+    </testcase>
+    <testcase classname="Test Setup should have Nodemailer mock available" name="Test Setup should have Nodemailer mock available" time="0.006">
+    </testcase>
+    <testcase classname="Test Setup global test helpers should be available" name="Test Setup global test helpers should be available" time="0.001">
+    </testcase>
+  </testsuite>
+  <testsuite name="Phase 3 ETA + SLA enrichment (internal-only)" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:40:36" time="7.28" tests="1">
+    <testcase classname="Phase 3 ETA + SLA enrichment (internal-only) writes ETA/SLA fields in Redis projection but does not leak via customer API" name="Phase 3 ETA + SLA enrichment (internal-only) writes ETA/SLA fields in Redis projection but does not leak via customer API" time="1.619">
+    </testcase>
+  </testsuite>
+  <testsuite name="Razorpay verification (read-only)" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:40:44" time="4.998" tests="8">
+    <testcase classname="Razorpay verification (read-only) valid payment fetch (payment first) returns normalized payment + refunds + order" name="Razorpay verification (read-only) valid payment fetch (payment first) returns normalized payment + refunds + order" time="0.221">
+    </testcase>
+    <testcase classname="Razorpay verification (read-only) valid order fetch (order first) returns normalized order and most recent payment + refunds" name="Razorpay verification (read-only) valid order fetch (order first) returns normalized order and most recent payment + refunds" time="0.289">
+    </testcase>
+    <testcase classname="Razorpay verification (read-only) order exists but payment missing returns order only" name="Razorpay verification (read-only) order exists but payment missing returns order only" time="0.198">
+    </testcase>
+    <testcase classname="Razorpay verification (read-only) maps 404 from Razorpay to NOT_FOUND" name="Razorpay verification (read-only) maps 404 from Razorpay to NOT_FOUND" time="0.102">
+    </testcase>
+    <testcase classname="Razorpay verification (read-only) maps 401 from Razorpay to AUTH_FAILED" name="Razorpay verification (read-only) maps 401 from Razorpay to AUTH_FAILED" time="0.101">
+    </testcase>
+    <testcase classname="Razorpay verification (read-only) maps 429 from Razorpay to RATE_LIMITED" name="Razorpay verification (read-only) maps 429 from Razorpay to RATE_LIMITED" time="0.102">
+    </testcase>
+    <testcase classname="Razorpay verification (read-only) maps timeout to GATEWAY_TIMEOUT" name="Razorpay verification (read-only) maps timeout to GATEWAY_TIMEOUT" time="0.703">
+    </testcase>
+    <testcase classname="Razorpay verification (read-only) rejects invalid input when neither id is supplied" name="Razorpay verification (read-only) rejects invalid input when neither id is supplied" time="0.004">
+    </testcase>
+  </testsuite>
+  <testsuite name="Catalog Domain - Products Integration" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:40:49" time="4.28" tests="2">
+    <testcase classname="Catalog Domain - Products Integration GET /api/products returns the seeded products" name="Catalog Domain - Products Integration GET /api/products returns the seeded products" time="0.749">
+    </testcase>
+    <testcase classname="Catalog Domain - Products Integration GET /api/products/:id returns a single product by ID" name="Catalog Domain - Products Integration GET /api/products/:id returns a single product by ID" time="0.034">
+    </testcase>
+  </testsuite>
+  <testsuite name="Phase 2 privacy marker" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:40:54" time="6.312" tests="2">
+    <testcase classname="Phase 2 privacy marker is deterministic for the same orderId" name="Phase 2 privacy marker is deterministic for the same orderId" time="0.008">
+    </testcase>
+    <testcase classname="Phase 2 privacy marker increases radius near destination" name="Phase 2 privacy marker increases radius near destination" time="0.002">
+    </testcase>
+  </testsuite>
+  <testsuite name="LedgerEntry deduplication (dedupeKey)" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:41:00" time="3.366" tests="1">
+    <testcase classname="LedgerEntry deduplication (dedupeKey) returns created=false and does not create a second row when dedupeKey is reused" name="LedgerEntry deduplication (dedupeKey) returns created=false and does not create a second row when dedupeKey is reused" time="0.553">
+    </testcase>
+  </testsuite>
+  <testsuite name="stuckPaymentScanner" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:41:03" time="3.288" tests="3">
+    <testcase classname="stuckPaymentScanner Paid orders are never touched" name="stuckPaymentScanner Paid orders are never touched" time="0.021">
+    </testcase>
+    <testcase classname="stuckPaymentScanner Old PAYMENT_PROCESSING moves to VERIFYING" name="stuckPaymentScanner Old PAYMENT_PROCESSING moves to VERIFYING" time="0.002">
+    </testcase>
+    <testcase classname="stuckPaymentScanner Locked intents are skipped" name="stuckPaymentScanner Locked intents are skipped" time="0.003">
+    </testcase>
+  </testsuite>
+  <testsuite name="Phase 3 SLA risk engine" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:41:07" time="3.882" tests="3">
+    <testcase classname="Phase 3 SLA risk engine escalates to HIGH when etaP90 is after promised window end" name="Phase 3 SLA risk engine escalates to HIGH when etaP90 is after promised window end" time="0.006">
+    </testcase>
+    <testcase classname="Phase 3 SLA risk engine does not downgrade risk level across replays" name="Phase 3 SLA risk engine does not downgrade risk level across replays" time="0.001">
+    </testcase>
+    <testcase classname="Phase 3 SLA risk engine adds STALE_OR_OFFLINE when freshness is not LIVE" name="Phase 3 SLA risk engine adds STALE_OR_OFFLINE when freshness is not LIVE" time="0">
+    </testcase>
+  </testsuite>
+  <testsuite name="Phase 6 escalation engine" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:41:11" time="3.353" tests="2">
+    <testcase classname="Phase 6 escalation engine matches policies by incident type and severity" name="Phase 6 escalation engine matches policies by incident type and severity" time="0.004">
+    </testcase>
+    <testcase classname="Phase 6 escalation engine computes escalation decisions based on time since detected" name="Phase 6 escalation engine computes escalation decisions based on time since detected" time="0.001">
+    </testcase>
+  </testsuite>
+  <testsuite name="Phase 2 smoothing" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:41:14" time="3.294" tests="3">
+    <testcase classname="Phase 2 smoothing noisy input converges to stable output (EMA behavior)" name="Phase 2 smoothing noisy input converges to stable output (EMA behavior)" time="0.004">
+    </testcase>
+    <testcase classname="Phase 2 smoothing rejects impossible jumps by implied speed" name="Phase 2 smoothing rejects impossible jumps by implied speed" time="0.001">
+    </testcase>
+    <testcase classname="Phase 2 smoothing suppresses low confidence micro-jitter" name="Phase 2 smoothing suppresses low confidence micro-jitter" time="0.001">
+    </testcase>
+  </testsuite>
+  <testsuite name="Phase 5 incident detection" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:41:17" time="3.584" tests="4">
+    <testcase classname="Phase 5 incident detection detects TRACKING_STALE when freshness is not LIVE beyond threshold" name="Phase 5 incident detection detects TRACKING_STALE when freshness is not LIVE beyond threshold" time="0.003">
+    </testcase>
+    <testcase classname="Phase 5 incident detection detects ETA_DRIFT when etaP90 exceeds promised end + tolerance" name="Phase 5 incident detection detects ETA_DRIFT when etaP90 exceeds promised end + tolerance" time="0.001">
+    </testcase>
+    <testcase classname="Phase 5 incident detection detects SLA_BREACH_RISK when slaRiskLevel is HIGH" name="Phase 5 incident detection detects SLA_BREACH_RISK when slaRiskLevel is HIGH" time="0.001">
+    </testcase>
+    <testcase classname="Phase 5 incident detection detects KILLSWITCH_TRIGGERED when global kill switch is not CUSTOMER_READ_ENABLED" name="Phase 5 incident detection detects KILLSWITCH_TRIGGERED when global kill switch is not CUSTOMER_READ_ENABLED" time="0">
+    </testcase>
+  </testsuite>
+  <testsuite name="Phase 2 semantic FSM" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:41:21" time="3.046" tests="3">
+    <testcase classname="Phase 2 semantic FSM maps lifecycle picked_up to IN_TRANSIT" name="Phase 2 semantic FSM maps lifecycle picked_up to IN_TRANSIT" time="0.004">
+    </testcase>
+    <testcase classname="Phase 2 semantic FSM produces NEAR_DESTINATION when within radius" name="Phase 2 semantic FSM produces NEAR_DESTINATION when within radius" time="0">
+    </testcase>
+    <testcase classname="Phase 2 semantic FSM enforces one-way checkpoint progression" name="Phase 2 semantic FSM enforces one-way checkpoint progression" time="0">
+    </testcase>
+  </testsuite>
+  <testsuite name="Phase 3 ETA engine" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:41:24" time="3.198" tests="3">
+    <testcase classname="Phase 3 ETA engine suppresses small ETA flaps" name="Phase 3 ETA engine suppresses small ETA flaps" time="0.002">
+    </testcase>
+    <testcase classname="Phase 3 ETA engine widens ETA when stationary beyond idle threshold" name="Phase 3 ETA engine widens ETA when stationary beyond idle threshold" time="0">
+    </testcase>
+    <testcase classname="Phase 3 ETA engine does not shrink P90 aggressively on confidence downgrade" name="Phase 3 ETA engine does not shrink P90 aggressively on confidence downgrade" time="0.001">
+    </testcase>
+  </testsuite>
+  <testsuite name="Phase 6 incident timeline store" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:41:27" time="3.873" tests="1">
+    <testcase classname="Phase 6 incident timeline store adds immutable notes and dedupes identical writes" name="Phase 6 incident timeline store adds immutable notes and dedupes identical writes" time="0.269">
+    </testcase>
+  </testsuite>
+  <testsuite name="Tracking projection store" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:41:31" time="3.141" tests="1">
+    <testcase classname="Tracking projection store computeFreshnessState returns LIVE/STALE/OFFLINE based on thresholds" name="Tracking projection store computeFreshnessState returns LIVE/STALE/OFFLINE based on thresholds" time="0.298">
+    </testcase>
+  </testsuite>
+  <testsuite name="financeMetrics (PHASE 4.2)" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:41:34" time="3.134" tests="5">
+    <testcase classname="financeMetrics (PHASE 4.2) refunds are recognized on completion date (not sale date)" name="financeMetrics (PHASE 4.2) refunds are recognized on completion date (not sale date)" time="0.004">
+    </testcase>
+    <testcase classname="financeMetrics (PHASE 4.2) partial refunds are supported" name="financeMetrics (PHASE 4.2) partial refunds are supported" time="0.002">
+    </testcase>
+    <testcase classname="financeMetrics (PHASE 4.2) buildRevenueLedgerRows produces deterministic ordering" name="financeMetrics (PHASE 4.2) buildRevenueLedgerRows produces deterministic ordering" time="0.002">
+    </testcase>
+    <testcase classname="financeMetrics (PHASE 4.2) categorizePaymentIntentStatus is explicit and stable" name="financeMetrics (PHASE 4.2) categorizePaymentIntentStatus is explicit and stable" time="0.002">
+    </testcase>
+    <testcase classname="financeMetrics (PHASE 4.2) computeGatewayPerformance aggregates by gateway and status" name="financeMetrics (PHASE 4.2) computeGatewayPerformance aggregates by gateway and status" time="0.001">
+    </testcase>
+  </testsuite>
+  <testsuite name="Phase 7 learning insight generation" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:41:37" time="4.006" tests="1">
+    <testcase classname="Phase 7 learning insight generation is deterministic: same input -&gt; same insight ids" name="Phase 7 learning insight generation is deterministic: same input -&gt; same insight ids" time="0.003">
+    </testcase>
+  </testsuite>
+  <testsuite name="undefined" errors="0" failures="0" skipped="0" timestamp="2026-01-25T10:41:41" time="3.146" tests="1">
+    <testcase classname=" placeholder" name=" placeholder" time="0.001">
+    </testcase>
+  </testsuite>
+</testsuites>

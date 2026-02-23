@@ -28,6 +28,74 @@ groups:
           summary: "Inventory reservedStock drift detected"
           description: "reservedStock differs from sum(ACTIVE reservations). Check /api/admin/ops/inventory/drift."
 
+      - alert: InventoryNegativeStock
+        expr: ops_inventory_negative_stock_products > 0
+        for: 1m
+        labels:
+          severity: page
+        annotations:
+          summary: "Negative product stock detected"
+          description: "At least one Product has stock < 0. This must never happen."
+
+      - alert: InventoryNegativeReservedStock
+        expr: ops_inventory_negative_reserved_stock_products > 0
+        for: 1m
+        labels:
+          severity: page
+        annotations:
+          summary: "Negative product reservedStock detected"
+          description: "At least one Product has reservedStock < 0. This must never happen."
+
+      - alert: RazorpayWebhookFailureRateHigh
+        expr: |
+          (
+            sum(rate(payment_events_total{gateway="RAZORPAY",type="webhook",result=~"failed|invalid"}[5m]))
+            /
+            (sum(rate(payment_events_total{gateway="RAZORPAY",type="webhook"}[5m])) + 1e-9)
+          ) > 0.02
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: "Razorpay webhook failure rate high"
+          description: "High rate of invalid signatures or webhook processing failures. Check /api/admin/ops/metrics and webhook logs."
+
+      - alert: WebhookInboxBacklogHigh
+        expr: ops_webhook_inbox_backlog{status="RECEIVED"} > 100
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: "Webhook inbox backlog high"
+          description: "Webhook inbox RECEIVED backlog is high; indicates slow processing or webhook spikes."
+
+      - alert: WebhookInboxFailuresPresent
+        expr: ops_webhook_inbox_backlog{status="FAILED"} > 0
+        for: 5m
+        labels:
+          severity: warn
+        annotations:
+          summary: "Webhook inbox failures present"
+          description: "There are FAILED webhook inbox rows; indicates processing errors."
+
+      - alert: StuckPaymentsPresent
+        expr: ops_payment_intents_stuck_total > 0
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: "Stuck payments detected"
+          description: "PaymentIntents older than 30m exist in non-terminal states. Investigate PAYMENT_PROCESSING/VERIFYING flows."
+
+      - alert: PaymentFinalizationFailures
+        expr: rate(payment_events_total{gateway="RAZORPAY",type="webhook",result="failed"}[5m]) > 0
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "Payment finalization failures"
+          description: "Webhook processing failed during transactional finalization (ledger/paymentIntent/inventory/order). Investigate immediately."
+
       - alert: AssignmentConflictSpike
         expr: rate(ops_assignment_conflicts_total[5m]) > 5
         for: 5m

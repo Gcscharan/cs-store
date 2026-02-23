@@ -1,4 +1,4 @@
-import React, { ReactNode } from "react";
+import React, { ReactNode, Suspense } from "react";
 import { SkipLink } from "./KeyboardNavigation";
 import { ToastProvider, useToast } from "./AccessibleToast";
 import {
@@ -15,7 +15,7 @@ import { useState, useEffect, useRef } from "react";
 import { io, Socket } from "socket.io-client";
 import BottomNav from "./BottomNav";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useSelector, useDispatch } from "react-redux";
+import { useSelector, useDispatch, shallowEqual, useStore } from "react-redux";
 import { RootState } from "../store";
 import { useLogout } from "../hooks/useLogout";
 import { logout } from "../store/slices/authSlice";
@@ -38,6 +38,7 @@ import CartConfirmationBar from "./CartConfirmationBar";
 import GlobalCartConfirmationBar from "./GlobalCartConfirmationBar";
 import { CartFeedbackProvider } from "../contexts/CartFeedbackContext";
 import { getApiOrigin } from "../config/runtime";
+import { RouteShellSkeleton } from "./PageSkeletons";
 
 interface LayoutProps {
   children: ReactNode;
@@ -45,6 +46,63 @@ interface LayoutProps {
   description?: string;
   hideBottomNav?: boolean;
 }
+
+const CartIconButton = React.memo(function CartIconButton({
+  onClick,
+  cartPulse,
+  isAuthenticated,
+}: {
+  onClick: () => void;
+  cartPulse: boolean;
+  isAuthenticated: boolean;
+}) {
+  const cartItemsLength = useSelector((state: RootState) => state.cart.items.length);
+
+  return (
+    <button
+      onClick={onClick}
+      className={`relative p-3 bg-blue-100 hover:bg-blue-200 rounded-full transition-all duration-200 shadow-sm hover:shadow-md hover:scale-110 ${
+        cartPulse ? "cart-pulse-active" : ""
+      }`}
+      aria-label={`View cart with ${cartItemsLength ?? 0} items`}
+    >
+      <ShoppingCart className="h-5 w-5 text-blue-600 cart-icon" />
+      {isAuthenticated && cartItemsLength > 0 && (
+        <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold shadow-lg">
+          {cartItemsLength > 99 ? "99+" : cartItemsLength}
+        </div>
+      )}
+    </button>
+  );
+});
+
+const CartMenuButton = React.memo(function CartMenuButton({
+  onClick,
+  cartPulse,
+}: {
+  onClick: () => void;
+  cartPulse: boolean;
+}) {
+  const cartItemsLength = useSelector((state: RootState) => state.cart.items.length);
+
+  return (
+    <button
+      onClick={onClick}
+      className={`relative flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-600 transition-colors duration-200 px-2 py-1 ${
+        cartPulse ? "cart-pulse-active" : ""
+      }`}
+      aria-label={`View cart with ${cartItemsLength ?? 0} items`}
+    >
+      <ShoppingCart className="h-6 w-6 cart-icon" />
+      <span className="text-xs font-medium">Cart</span>
+      {cartItemsLength > 0 && (
+        <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center font-bold">
+          {cartItemsLength > 99 ? "99+" : cartItemsLength}
+        </div>
+      )}
+    </button>
+  );
+});
 
 const Layout: React.FC<LayoutProps> = ({
   children,
@@ -68,24 +126,30 @@ const Layout: React.FC<LayoutProps> = ({
   const location = useLocation();
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const auth = useSelector((state: RootState) => state.auth);
+  const store = useStore<RootState>();
+  const { isAuthenticated, userRole, userIsAdmin, accessToken } = useSelector(
+    (state: RootState) => ({
+      isAuthenticated: state.auth.isAuthenticated,
+      userRole: state.auth.user?.role,
+      userIsAdmin: Boolean(state.auth.user?.isAdmin || state.auth.user?.role === "admin"),
+      accessToken: state.auth.tokens?.accessToken || "",
+    }),
+    shallowEqual
+  );
   const performLogout = useLogout();
   
   // Fetch addresses from MongoDB
   const { data: addressesData, refetch: refetchAddresses } = useGetAddressesQuery(undefined, {
-    skip: !auth.isAuthenticated,
+    skip: !isAuthenticated,
   });
   
   // Fetch user profile data for displaying name
   const { data: profileData } = useGetProfileQuery(undefined, {
-    skip: !auth.isAuthenticated,
+    skip: !isAuthenticated,
   });
 
   const { data: unreadCountData } = useGetUnreadNotificationCountQuery(undefined, {
-    skip: !auth.isAuthenticated,
-    pollingInterval: 8000,
-    refetchOnFocus: true,
-    refetchOnReconnect: true,
+    skip: !isAuthenticated,
   });
   const unreadCount = Number((unreadCountData as any)?.count || 0);
 
@@ -101,10 +165,7 @@ const Layout: React.FC<LayoutProps> = ({
   const { data: latestNotifications } = useGetNotificationsV2Query(
     { limit: 1 },
     {
-      skip: !auth.isAuthenticated,
-      pollingInterval: 8000,
-      refetchOnFocus: true,
-      refetchOnReconnect: true,
+      skip: !isAuthenticated,
     }
   );
 
@@ -195,8 +256,7 @@ const Layout: React.FC<LayoutProps> = ({
   const addresses = addressesData?.addresses || [];
   const defaultAddressId = addressesData?.defaultAddressId || null;
   const defaultAddress = addresses.find((addr: any) => addr.id === defaultAddressId);
-  
-  const cart = useSelector((state: RootState) => state.cart);
+
   const { error: showError } = useToast();
   
   // Simple cart feedback state
@@ -233,12 +293,13 @@ const Layout: React.FC<LayoutProps> = ({
 
   // Function to trigger global confirmation bar (advanced Amazon-style)
   const triggerGlobalConfirmation = (productName: string, productImage?: string, cartCount?: number, cartTotal?: number) => {
+    const fallbackCart = store.getState().cart;
     setGlobalConfirmationBar({
       isVisible: true,
       productName,
       productImage: productImage || '',
-      cartCount: cartCount || cart.items.length || 0,
-      cartTotal: cartTotal || cart.total || 0
+      cartCount: typeof cartCount === "number" ? cartCount : fallbackCart.items.length,
+      cartTotal: typeof cartTotal === "number" ? cartTotal : fallbackCart.total
     });
     
     // Trigger cart pulse animation
@@ -265,22 +326,21 @@ const Layout: React.FC<LayoutProps> = ({
   };
   const { showOtpModal } = useOtpModal();
 
-  const isAdmin = !!(auth.user?.isAdmin || auth.user?.role === "admin");
-  const isDelivery = auth.user?.role === "delivery";
+  const isAdmin = userIsAdmin;
+  const isDelivery = userRole === "delivery";
   const isAdminPage = location.pathname.startsWith("/admin");
   const isDeliveryPage = location.pathname.startsWith("/delivery");
 
   const notifSocketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
-    if (!auth.isAuthenticated) return;
+    if (!isAuthenticated) return;
     if (isAdminPage || isDeliveryPage) return;
 
-    const token = auth.tokens?.accessToken || "";
-    if (!token) return;
+    if (!accessToken) return;
 
     const socket = io(getApiOrigin() || "/", {
-      auth: { token },
+      auth: { token: accessToken },
       transports: ["websocket", "polling"],
     });
 
@@ -298,7 +358,7 @@ const Layout: React.FC<LayoutProps> = ({
       }
       notifSocketRef.current = null;
     };
-  }, [auth.isAuthenticated, auth.tokens?.accessToken, dispatch, isAdminPage, isDeliveryPage]);
+  }, [accessToken, dispatch, isAdminPage, isAuthenticated, isDeliveryPage]);
 
   useEffect(() => {
     document.title = title;
@@ -546,7 +606,13 @@ const suggestions = suggestionList || [];
   };
 
   if (isDeliveryPage) {
-    return <main id="main-content">{children}</main>;
+    return (
+      <main id="main-content">
+        <Suspense fallback={<RouteShellSkeleton />}>
+          {children}
+        </Suspense>
+      </main>
+    );
   }
 
   return (
@@ -767,20 +833,11 @@ const suggestions = suggestionList || [];
                     </button>
 
                     {/* Cart Icon with Badge */}
-                    <button
+                    <CartIconButton
                       onClick={handleCartClick}
-                      className={`relative p-3 bg-blue-100 hover:bg-blue-200 rounded-full transition-all duration-200 shadow-sm hover:shadow-md hover:scale-110 ${
-                        cartPulse ? 'cart-pulse-active' : ''
-                      }`}
-                      aria-label={`View cart with ${cart.items.length ?? 0} items`}
-                    >
-                      <ShoppingCart className="h-5 w-5 text-blue-600 cart-icon" />
-                      {auth.isAuthenticated && cart.items.length > 0 && (
-                        <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold shadow-lg">
-                          {cart.items.length > 99 ? "99+" : cart.items.length}
-                        </div>
-                      )}
-                    </button>
+                      cartPulse={cartPulse}
+                      isAuthenticated={isAuthenticated}
+                    />
                   </div>
                 ) : isAdmin && isAdminPage ? (
                   // Admin pages - show profile and logout buttons
@@ -808,7 +865,7 @@ const suggestions = suggestionList || [];
                 ) : (
                   // Other pages - Flipkart-style right side buttons
                   <div className="flex items-center space-x-8">
-                    {auth.isAuthenticated ? (
+                    {isAuthenticated ? (
                       // User is logged in - show account menu
                       <div className="flex items-center space-x-8">
                         {/* Profile Dropdown */}
@@ -899,23 +956,7 @@ const suggestions = suggestionList || [];
                             </div>
                           )}
                         </button>
-                        <button
-                          onClick={handleCartClick}
-                          className={`relative flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-600 transition-colors duration-200 px-2 py-1 ${
-                            cartPulse ? 'cart-pulse-active' : ''
-                          }`}
-                          aria-label={`View cart with ${
-                            cart.items.length ?? 0
-                          } items`}
-                        >
-                          <ShoppingCart className="h-6 w-6 cart-icon" />
-                          <span className="text-xs font-medium">Cart</span>
-                          {cart.items.length > 0 && (
-                            <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center font-bold">
-                              {cart.items.length > 99 ? "99+" : cart.items.length}
-                            </div>
-                          )}
-                        </button>
+                        <CartMenuButton onClick={handleCartClick} cartPulse={cartPulse} />
                         {/* More Options Dropdown */}
                         <div className="relative more-dropdown">
                           <button
@@ -1195,25 +1236,22 @@ const suggestions = suggestionList || [];
           </header>
 
           {/* Main Content */}
-          <main
-            id="main-content"
-            className={`flex-1 z-base ${
-              auth.isAuthenticated || isDelivery ? "pb-16" : "pb-4"
-            }`}
-            role="main"
-            tabIndex={-1}
+          <CartFeedbackProvider
+            triggerCartConfirmation={triggerCartConfirmation}
+            triggerGlobalConfirmation={triggerGlobalConfirmation}
           >
-            <CartFeedbackProvider 
-              triggerCartConfirmation={triggerCartConfirmation}
-              triggerGlobalConfirmation={triggerGlobalConfirmation}
+            <main
+              id="main-content"
+              className={`flex-1 z-base ${!shouldHideBottomNav ? "pb-20" : ""}`}
             >
-              {children}
-            </CartFeedbackProvider>
-          </main>
+              <Suspense fallback={<RouteShellSkeleton />}>
+                {children}
+              </Suspense>
+            </main>
+          </CartFeedbackProvider>
 
-          {/* Bottom Navigation */}
-          {!shouldHideBottomNav && <BottomNav />}
-        </div>
+        {/* Bottom Navigation */}
+        {!shouldHideBottomNav && <BottomNav />}
 
         {/* Location Selection Modal */}
         <ChooseLocation
@@ -1243,6 +1281,7 @@ const suggestions = suggestionList || [];
         />
 
       </div>
+    </div>
     </ToastProvider>
   );
 };

@@ -45,20 +45,40 @@ const AdminRecentRoutesPage: React.FC = () => {
   const navigate = useNavigate();
   const { tokens } = useSelector((state: RootState) => state.auth);
 
+  const [isTabVisible, setIsTabVisible] = useState<boolean>(() => {
+    try {
+      return typeof document !== "undefined" && document.visibilityState === "visible";
+    } catch {
+      return true;
+    }
+  });
+
   const [routes, setRoutes] = useState<RecentRouteItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
 
   const aliveRef = useRef(true);
+  const pollAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     aliveRef.current = true;
     return () => {
       aliveRef.current = false;
+      pollAbortRef.current?.abort();
     };
   }, []);
 
-  const fetchRecent = useCallback(async () => {
+  useEffect(() => {
+    const onVis = () => {
+      setIsTabVisible(document.visibilityState === "visible");
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, []);
+
+  const fetchRecent = useCallback(async (signal?: AbortSignal) => {
     if (!tokens?.accessToken) return;
     try {
       setLoading(true);
@@ -67,6 +87,7 @@ const AdminRecentRoutesPage: React.FC = () => {
           "Content-Type": "application/json",
           Authorization: `Bearer ${tokens.accessToken}`,
         },
+        signal,
       });
 
       const data = await response.json().catch(() => ({}));
@@ -92,14 +113,37 @@ const AdminRecentRoutesPage: React.FC = () => {
 
   useEffect(() => {
     if (!tokens?.accessToken) return;
-    void fetchRecent();
 
-    const id = window.setInterval(() => {
-      void fetchRecent();
-    }, POLL_MS);
+    pollAbortRef.current?.abort();
+    const controller = new AbortController();
+    pollAbortRef.current = controller;
 
-    return () => window.clearInterval(id);
-  }, [tokens?.accessToken, fetchRecent]);
+    let timeoutId: number | null = null;
+
+    const loop = async () => {
+      if (controller.signal.aborted) return;
+      if (!aliveRef.current) return;
+
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+        timeoutId = window.setTimeout(loop, 60_000);
+        return;
+      }
+
+      await fetchRecent(controller.signal);
+
+      if (controller.signal.aborted) return;
+      if (!aliveRef.current) return;
+
+      timeoutId = window.setTimeout(loop, POLL_MS);
+    };
+
+    void loop();
+
+    return () => {
+      controller.abort();
+      if (timeoutId != null) window.clearTimeout(timeoutId);
+    };
+  }, [tokens?.accessToken, fetchRecent, isTabVisible]);
 
   const rows = useMemo(() => {
     return (routes || []).map((r) => {

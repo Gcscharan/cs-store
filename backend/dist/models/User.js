@@ -111,6 +111,16 @@ const UserSchema = new mongoose_1.Schema({
             "Please enter a valid Indian phone number (10 digits starting with 6-9)",
         ],
     },
+    isDeleted: {
+        type: Boolean,
+        default: false,
+        index: true,
+    },
+    deletedAt: {
+        type: Date,
+        default: null,
+        index: true,
+    },
     passwordHash: {
         type: String,
         minlength: [6, "Password must be at least 6 characters"],
@@ -169,6 +179,12 @@ const UserSchema = new mongoose_1.Schema({
     },
 }, {
     timestamps: true,
+});
+UserSchema.index({ phone: 1 }, {
+    unique: true,
+    partialFilterExpression: {
+        phone: { $type: "string", $ne: "" },
+    },
 });
 UserSchema.methods.comparePassword = async function (candidatePassword) {
     if (!this.passwordHash)

@@ -3,9 +3,16 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+require("./config/env");
 // Load environment variables FIRST before any other imports
+const path_1 = __importDefault(require("path"));
 const dotenv_1 = __importDefault(require("dotenv"));
-dotenv_1.default.config();
+const ENV_PATH = path_1.default.resolve(__dirname, "..", ".env");
+dotenv_1.default.config({ path: ENV_PATH });
+console.log("[CACHE] Product read cache enabled");
+if (!process.env.MONGODB_URI) {
+    throw new Error("❌ MONGODB_URI is missing. Backend refusing to start.");
+}
 const NODE_ENV = process.env.NODE_ENV || "development";
 const DEV_LOW_POWER = String(process.env.DEV_LOW_POWER || "").toLowerCase() === "true";
 const verboseLoggingEnabled = NODE_ENV === "production" ? true : !DEV_LOW_POWER;
@@ -18,10 +25,10 @@ function validateEnvironmentVariables() {
     }
     // JWT Secrets
     if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
-        errors.push(`❌ JWT_SECRET must be at least 32 characters long. Current length: ${process.env.JWT_SECRET?.length || 0}`);
+        errors.push(`❌ JWT_SECRET must be at least 32 characters long. Current length: ${process.env.JWT_SECRET.length}`);
     }
     if (!process.env.JWT_REFRESH_SECRET || process.env.JWT_REFRESH_SECRET.length < 32) {
-        errors.push(`❌ JWT_REFRESH_SECRET must be at least 32 characters long. Current length: ${process.env.JWT_REFRESH_SECRET?.length || 0}`);
+        errors.push(`❌ JWT_REFRESH_SECRET must be at least 32 characters long. Current length: ${process.env.JWT_REFRESH_SECRET.length}`);
     }
     // Cloudinary
     if (!process.env.CLOUDINARY_CLOUD_NAME) {
@@ -53,13 +60,13 @@ function validateEnvironmentVariables() {
     }
     // Razorpay
     if (!process.env.RAZORPAY_KEY_ID) {
-        errors.push("❌ RAZORPAY_KEY_ID is required");
+        errors.push(NODE_ENV === "production" ? "❌ RAZORPAY_KEY_ID is required" : "⚠️  RAZORPAY_KEY_ID is recommended");
     }
     if (!process.env.RAZORPAY_KEY_SECRET) {
-        errors.push("❌ RAZORPAY_KEY_SECRET is required");
+        errors.push(NODE_ENV === "production" ? "❌ RAZORPAY_KEY_SECRET is required" : "⚠️  RAZORPAY_KEY_SECRET is recommended");
     }
     if (!process.env.RAZORPAY_WEBHOOK_SECRET) {
-        errors.push("❌ RAZORPAY_WEBHOOK_SECRET is required");
+        errors.push(NODE_ENV === "production" ? "❌ RAZORPAY_WEBHOOK_SECRET is required" : "⚠️  RAZORPAY_WEBHOOK_SECRET is recommended");
     }
     // Google OAuth
     if (!process.env.GOOGLE_CLIENT_ID) {
@@ -89,6 +96,16 @@ function validateEnvironmentVariables() {
 }
 // Run validation immediately after dotenv config
 validateEnvironmentVariables();
+// Runtime proof (dev only): log DB name derived from MONGODB_URI
+if (NODE_ENV !== "production") {
+    try {
+        const dbPathname = new URL(String(process.env.MONGODB_URI)).pathname;
+        console.log("[BOOT] Connected DB:", dbPathname);
+    }
+    catch {
+        console.log("[BOOT] Connected DB:", "<unparseable>");
+    }
+}
 // Validate critical environment variables immediately
 if (verboseLoggingEnabled) {
     console.log("\n========================================");
@@ -116,8 +133,6 @@ const app_1 = __importDefault(require("./app"));
 const database_1 = require("./utils/database");
 const bootstrapDevAdmin_1 = require("./scripts/bootstrapDevAdmin");
 // import SocketService from "./services/socketService";
-const child_process_1 = require("child_process");
-const util_1 = require("util");
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const liveLocationStore_1 = require("./services/liveLocationStore");
 const User_1 = require("./models/User");
@@ -126,7 +141,7 @@ const orderEventBroadcaster_1 = require("./domains/orders/services/orderEventBro
 const notificationWriter_1 = require("./domains/communication/services/notificationWriter");
 const outboxDispatcher_1 = require("./domains/events/outboxDispatcher");
 const inventoryReservationSweeper_1 = require("./domains/orders/services/inventoryReservationSweeper");
-const execAsync = (0, util_1.promisify)(child_process_1.exec);
+const stuckPaymentScanner_1 = require("./domains/payments/services/stuckPaymentScanner");
 // Create HTTP server
 const server = (0, http_1.createServer)(app_1.default);
 // Initialize Socket.io
@@ -154,7 +169,11 @@ io.use(async (socket, next) => {
         if (!provided) {
             return next();
         }
-        const decoded = jsonwebtoken_1.default.verify(provided, process.env.JWT_SECRET || "your-secret-key");
+        const jwtSecret = process.env.JWT_SECRET;
+        if (!jwtSecret) {
+            return next();
+        }
+        const decoded = jsonwebtoken_1.default.verify(provided, jwtSecret);
         const userId = String(decoded?.userId || "");
         if (!userId) {
             return next();
@@ -228,7 +247,12 @@ io.on("connection", (socket) => {
                     console.warn("[Socket] Admin join denied: missing token", { socketId: socket.id });
                     return;
                 }
-                const decoded = jsonwebtoken_1.default.verify(provided, process.env.JWT_SECRET || "your-secret-key");
+                const jwtSecret = process.env.JWT_SECRET;
+                if (!jwtSecret) {
+                    console.warn("[Socket] Admin join denied: server misconfigured", { socketId: socket.id });
+                    return;
+                }
+                const decoded = jsonwebtoken_1.default.verify(provided, jwtSecret);
                 const adminId = String(decoded?.userId || "");
                 if (!adminId) {
                     console.warn("[Socket] Admin join denied: invalid token payload", { socketId: socket.id });
@@ -297,55 +321,7 @@ const closeExistingServer = async (port) => {
     if (NODE_ENV === "production") {
         return;
     }
-    try {
-        // Find processes using the port
-        const { stdout } = await execAsync(`lsof -ti:${port}`);
-        const pids = stdout
-            .trim()
-            .split("\n")
-            .filter((pid) => pid);
-        if (pids.length > 0) {
-            console.log(`🔄 Found existing processes on port ${port}, closing them gracefully...`);
-            // Try graceful shutdown first (SIGTERM)
-            for (const pid of pids) {
-                try {
-                    await execAsync(`kill -TERM ${pid}`);
-                    console.log(`📤 Sent SIGTERM to process ${pid}`);
-                }
-                catch (err) {
-                    console.log(`⚠️  Could not send SIGTERM to process ${pid}`);
-                }
-            }
-            // Wait a bit for graceful shutdown
-            await new Promise((resolve) => setTimeout(resolve, 2000));
-            // Check if processes are still running and force kill if needed
-            try {
-                const { stdout: remainingPids } = await execAsync(`lsof -ti:${port}`);
-                const stillRunning = remainingPids
-                    .trim()
-                    .split("\n")
-                    .filter((pid) => pid);
-                if (stillRunning.length > 0) {
-                    console.log(`🔨 Force closing remaining processes on port ${port}...`);
-                    for (const pid of stillRunning) {
-                        try {
-                            await execAsync(`kill -9 ${pid}`);
-                            console.log(`💥 Force killed process ${pid}`);
-                        }
-                        catch (err) {
-                            console.log(`⚠️  Could not force kill process ${pid}`);
-                        }
-                    }
-                }
-            }
-            catch (err) {
-                // No processes found, port is free
-            }
-        }
-    }
-    catch (err) {
-        console.warn(`⚠️  closeExistingServer failed for port ${port}`);
-    }
+    return;
 };
 const startServer = async () => {
     try {
@@ -355,6 +331,7 @@ const startServer = async () => {
         (0, notificationWriter_1.initializeNotificationWriter)();
         (0, outboxDispatcher_1.initializeOutboxDispatcher)();
         (0, inventoryReservationSweeper_1.initializeInventoryReservationSweeper)();
+        (0, stuckPaymentScanner_1.startStuckPaymentScanner)();
         // Bootstrap dev admin user in development
         await (0, bootstrapDevAdmin_1.bootstrapDevAdmin)();
         // Initialize Redis ZSET for delivery partner load tracking

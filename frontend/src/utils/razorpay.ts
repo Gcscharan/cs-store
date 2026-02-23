@@ -1,12 +1,16 @@
 import { openRazorpayCheckout as openCheckout } from "./razorpayHandler";
+import { toApiUrl } from "../config/runtime";
+import { authFetch } from "./authClient";
 
 type PaymentIntentResponse = {
   paymentIntentId: string;
   gateway: "RAZORPAY";
   expiresAt: string;
   checkoutPayload: {
-    keyId: string;
-    razorpayOrderId: string;
+    key?: string;
+    orderId?: string;
+    keyId?: string;
+    razorpayOrderId?: string;
     amount: number;
     currency: string;
   };
@@ -17,23 +21,32 @@ export const createRazorpayOrder = async (args: {
   accessToken: string;
   idempotencyKey: string;
 }): Promise<PaymentIntentResponse> => {
-  const res = await fetch("/api/payment-intents", {
+  const orderId = String(args.orderId || "").trim();
+  const idempotencyKey = String(args.idempotencyKey || "").trim();
+  if (!orderId) {
+    throw new Error("Missing orderId for payment intent");
+  }
+  if (!idempotencyKey) {
+    throw new Error("Missing idempotencyKey for payment intent");
+  }
+
+  const res = await authFetch(toApiUrl("/payment-intents"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${args.accessToken}`,
+      "Idempotency-Key": idempotencyKey,
     },
     body: JSON.stringify({
-      orderId: args.orderId,
+      orderId,
       method: "RAZORPAY",
-      idempotencyKey: args.idempotencyKey,
+      idempotencyKey,
     }),
   });
 
   const data = await res.json().catch(() => ({} as any));
   if (!res.ok) {
     const message = String((data as any)?.message || "Failed to create payment intent");
-    throw new Error(message);
+    throw new Error(`${message} (HTTP ${res.status})`);
   }
 
   return data as PaymentIntentResponse;

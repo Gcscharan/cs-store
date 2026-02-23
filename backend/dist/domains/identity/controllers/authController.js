@@ -46,8 +46,8 @@ const sms_1 = require("../../../utils/sms");
 const sendEmailOTP_1 = require("../../../utils/sendEmailOTP");
 const eventBus_1 = require("../../events/eventBus");
 const account_events_1 = require("../../events/account.events");
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || "your-refresh-secret";
+const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
 const signup = async (req, res) => {
     try {
         // FIX: accept both name and fullName from the frontend safely
@@ -301,6 +301,10 @@ const login = async (req, res) => {
             const cleanedPhone = String(phone).replace(/\D/g, "");
             user = await User_1.User.findOne({ phone: cleanedPhone });
         }
+        if (user && (user.isDeleted || user.deletedAt)) {
+            res.status(403).json({ message: "Account is deleted" });
+            return;
+        }
         if (!user || !user.passwordHash) {
             res.status(400).json({ message: "Invalid email or password" });
             return;
@@ -370,7 +374,7 @@ const oauth = async (req, res) => {
         if (!user) {
             // Check if user exists with same email
             user = await User_1.User.findOne({ email });
-            if (user) {
+            if (user && !user.isDeleted) {
                 // Link OAuth provider to existing user
                 user.oauthProviders = user.oauthProviders || [];
                 user.oauthProviders.push({ provider, providerId });
@@ -458,6 +462,7 @@ const refresh = async (req, res) => {
         res.json({
             message: "Token refreshed",
             accessToken,
+            refreshToken: newRefreshToken,
         });
     }
     catch (error) {
@@ -602,6 +607,9 @@ const changePassword = async (req, res) => {
         const user = await User_1.User.findById(userId);
         if (!user) {
             return res.status(404).json({ message: "User not found" });
+        }
+        if (user.isDeleted || user.deletedAt) {
+            return res.status(403).json({ message: "Account is deleted" });
         }
         // Verify current password
         const isCurrentPasswordValid = await user.comparePassword(currentPassword);

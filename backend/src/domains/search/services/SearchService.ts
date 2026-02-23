@@ -103,6 +103,8 @@ export class SearchService {
     const regex = new RegExp(escaped, "i");
 
     const dbQuery = {
+      deletedAt: null,
+      isSellable: { $ne: false },
       $or: [
         { name: regex },
         { description: regex },

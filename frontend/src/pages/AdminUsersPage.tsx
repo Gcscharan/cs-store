@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { RootState } from "../store";
+import { toApiUrl } from "../config/runtime";
 import {
   Search,
   ArrowLeft,
@@ -66,7 +67,7 @@ const AdminUsersPage: React.FC = () => {
         throw new Error("No authentication token available");
       }
 
-      const response = await fetch("/api/admin/users", {
+      const response = await fetch(toApiUrl("/admin/users"), {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${tokens.accessToken}`,
@@ -164,7 +165,7 @@ const AdminUsersPage: React.FC = () => {
     if (!confirmDelete) return;
 
     try {
-      const response = await fetch(`/api/admin/users/${userId}`, {
+      const response = await fetch(toApiUrl(`/admin/users/${userId}`), {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",

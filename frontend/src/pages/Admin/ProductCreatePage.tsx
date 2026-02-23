@@ -25,6 +25,12 @@ const ProductCreatePage: React.FC = () => {
     
     const form = e.target as HTMLFormElement;
     const formData = new FormData();
+
+    const weightValue = (form.elements.namedItem('weight') as HTMLInputElement).value;
+    if (!weightValue || weightValue.trim() === "") {
+      toast.error("Weight is required");
+      return;
+    }
     
     // Manually append all form fields
     formData.append('name', (form.elements.namedItem('name') as HTMLInputElement).value);
@@ -33,7 +39,7 @@ const ProductCreatePage: React.FC = () => {
     formData.append('price', (form.elements.namedItem('price') as HTMLInputElement).value);
     formData.append('stock', (form.elements.namedItem('stock') as HTMLInputElement).value);
     formData.append('mrp', (form.elements.namedItem('mrp') as HTMLInputElement).value);
-    formData.append('weight', (form.elements.namedItem('weight') as HTMLInputElement).value);
+    formData.append('weight', weightValue);
     formData.append('tags', (form.elements.namedItem('tags') as HTMLInputElement).value);
     
     // Append images with correct field name
@@ -46,7 +52,7 @@ const ProductCreatePage: React.FC = () => {
       toast.success("Product created successfully!");
       navigate("/admin/products");
     } catch (error: any) {
-      toast.error(error.message || "Failed to create product");
+      toast.error(error?.data?.message || error?.message || "Failed to create product");
     }
   };
 
@@ -276,6 +282,7 @@ const ProductCreatePage: React.FC = () => {
                     <input
                       type="number"
                       name="weight"
+                      required
                       min="0"
                       step="1"
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"

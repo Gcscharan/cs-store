@@ -31,7 +31,11 @@ class SocketService {
                 if (!token) {
                     return next(new Error("Authentication error: No token provided"));
                 }
-                const decoded = jsonwebtoken_1.default.verify(token, process.env.JWT_SECRET || "your-secret-key");
+                const jwtSecret = process.env.JWT_SECRET;
+                if (!jwtSecret) {
+                    return next(new Error("Authentication error: Server misconfigured"));
+                }
+                const decoded = jsonwebtoken_1.default.verify(token, jwtSecret);
                 const user = await User_1.User.findById(decoded.userId).select("-password");
                 if (!user) {
                     return next(new Error("Authentication error: User not found"));

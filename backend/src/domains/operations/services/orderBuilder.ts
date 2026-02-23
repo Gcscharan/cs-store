@@ -14,6 +14,11 @@ import {
   resolvePincodeDetails,
 } from "../../../utils/pincodeResolver";
 
+const SELLABLE_PRODUCT_FILTER: any = {
+  deletedAt: null,
+  isSellable: { $ne: false },
+};
+
 type PaymentMethod = "cod" | "upi" | "razorpay";
 
 export type CreateOrderFromCartResult = {
@@ -173,8 +178,8 @@ export async function createOrderFromCart(params: {
         }
 
         const product = useSession
-          ? await Product.findById(productId).session(s!)
-          : await Product.findById(productId);
+          ? await Product.findOne({ _id: productId, ...SELLABLE_PRODUCT_FILTER }).session(s!)
+          : await Product.findOne({ _id: productId, ...SELLABLE_PRODUCT_FILTER });
         if (!product) {
           const err: any = new Error("Product not found");
           err.statusCode = 400;
@@ -236,8 +241,7 @@ export async function createOrderFromCart(params: {
       };
 
       const orderStatus = OrderStatus.CREATED;
-      const paymentStatus =
-        paymentMethod === "upi" ? "AWAITING_UPI_APPROVAL" : ("PENDING" as any);
+      const paymentStatus = "PENDING";
 
       const order = new Order({
         userId,

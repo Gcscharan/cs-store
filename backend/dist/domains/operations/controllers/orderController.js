@@ -7,16 +7,12 @@ exports.updatePaymentStatus = exports.getPaymentStatus = exports.placeOrderCOD =
 const mongoose_1 = __importDefault(require("mongoose"));
 const Order_1 = require("../../../models/Order");
 const DeliveryBoy_1 = require("../../../models/DeliveryBoy");
-const Cart_1 = require("../../../models/Cart");
-const notificationService_1 = require("../../communication/services/notificationService");
 const orderBuilder_1 = require("../services/orderBuilder");
 const orderStateService_1 = require("../../orders/services/orderStateService");
 const OrderStatus_1 = require("../../orders/enums/OrderStatus");
-const eventBus_1 = require("../../events/eventBus");
-const eventId_1 = require("../../events/eventId");
-const payment_events_1 = require("../../events/payment.events");
-const inventoryReservationService_1 = require("../../orders/services/inventoryReservationService");
 const orderTimeline_1 = require("../../orders/services/orderTimeline");
+const RefundRequest_1 = require("../../payments/models/RefundRequest");
+const LedgerEntry_1 = require("../../payments/models/LedgerEntry");
 const getOrders = async (req, res) => {
     try {
         const { page = 1, limit = 20, status } = req.query;
@@ -75,6 +71,43 @@ const getOrderById = async (req, res) => {
             ...order.toObject(),
             status: order.orderStatus, // Map orderStatus to status for test compatibility
         };
+        const refundDocs = await RefundRequest_1.RefundRequest.find({ orderId: order._id })
+            .select("_id amount currency status createdAt")
+            .sort({ createdAt: 1, _id: 1 })
+            .lean();
+        const refundIds = refundDocs.map((d) => String(d?._id || "")).filter(Boolean);
+        const refundLedgerDocs = refundIds.length
+            ? await LedgerEntry_1.LedgerEntry.find({ eventType: "REFUND", refundId: { $in: refundIds } })
+                .select("refundId occurredAt recordedAt")
+                .sort({ recordedAt: 1, _id: 1 })
+                .lean()
+            : [];
+        const completedAtByRefundId = new Map();
+        for (const d of refundLedgerDocs) {
+            const refundId = String(d?.refundId || "");
+            if (!refundId || completedAtByRefundId.has(refundId))
+                continue;
+            const t = d?.occurredAt instanceof Date
+                ? d.occurredAt
+                : d?.recordedAt instanceof Date
+                    ? d.recordedAt
+                    : null;
+            if (t)
+                completedAtByRefundId.set(refundId, t.toISOString());
+        }
+        orderObj.refunds = refundDocs.map((r) => {
+            const refundId = String(r._id);
+            const status = String(r.status || "");
+            return {
+                refundId,
+                amount: Number(r.amount || 0),
+                currency: String(r.currency || "INR"),
+                status,
+                createdAt: (r.createdAt instanceof Date ? r.createdAt : new Date(0)).toISOString(),
+                completedAt: completedAtByRefundId.get(refundId),
+                failureReason: undefined,
+            };
+        });
         orderObj.timeline = (0, orderTimeline_1.buildOrderTimeline)(orderObj);
         const currentTimelineStep = Array.isArray(orderObj.timeline)
             ? orderObj.timeline.find((s) => String(s?.state || "") === "current")
@@ -263,134 +296,10 @@ exports.getPaymentStatus = getPaymentStatus;
  */
 const updatePaymentStatus = async (req, res) => {
     try {
-        const { orderId } = req.params;
-        const userId = req.user?._id;
-        const userRole = req.user?.role;
-        if (!userId) {
-            return res.status(401).json({ message: "User not authenticated" });
-        }
-        // Find the order
-        const order = await Order_1.Order.findById(orderId);
-        if (!order) {
-            return res.status(404).json({ message: "Order not found" });
-        }
-        // Verify the order belongs to the authenticated delivery boy or user (admin allowed)
-        const deliveryBoy = await DeliveryBoy_1.DeliveryBoy.findOne({ userId, isActive: true });
-        const isDeliveryBoy = deliveryBoy && order.deliveryBoyId?.toString() === deliveryBoy._id.toString();
-        const isOrderOwner = order.userId.toString() === userId.toString();
-        const isAdmin = userRole === "admin";
-        if (!isDeliveryBoy && !isOrderOwner && !isAdmin) {
-            return res.status(403).json({ message: "You are not authorized to update this order" });
-        }
-        if (order.paymentMethod === "upi") {
-            // UPI: confirm payment and clear cart atomically
-            const session = await mongoose_1.default.startSession();
-            try {
-                await session.withTransaction(async () => {
-                    const fresh = await Order_1.Order.findById(orderId).session(session);
-                    if (!fresh) {
-                        const err = new Error("Order not found");
-                        err.statusCode = 404;
-                        throw err;
-                    }
-                    if (fresh.paymentStatus === "PAID" || fresh.paymentStatus === "paid") {
-                        return;
-                    }
-                    if (fresh.paymentStatus !== "AWAITING_UPI_APPROVAL") {
-                        const err = new Error("Order is not awaiting payment");
-                        err.statusCode = 400;
-                        throw err;
-                    }
-                    const orderStatusUpper = String(fresh.orderStatus || "").toUpperCase();
-                    if (!["PENDING_PAYMENT", "CREATED", "PENDING"].includes(orderStatusUpper)) {
-                        const err = new Error("Order is not awaiting payment");
-                        err.statusCode = 400;
-                        throw err;
-                    }
-                    fresh.paymentStatus = "PAID";
-                    fresh.paymentReceivedAt = new Date();
-                    await fresh.save({ session });
-                    await inventoryReservationService_1.inventoryReservationService.commitReservationsForOrder({
-                        session,
-                        orderId: fresh._id,
-                    });
-                    await Cart_1.Cart.findOneAndUpdate({ userId: fresh.userId }, { items: [], total: 0, itemCount: 0 }, { new: true, session });
-                });
-            }
-            finally {
-                session.endSession();
-            }
-        }
-        else if (order.paymentMethod === "cod") {
-            // COD: allow marking paid (e.g. at delivery). Commit inventory reservation now.
-            const session = await mongoose_1.default.startSession();
-            try {
-                await session.withTransaction(async () => {
-                    const fresh = await Order_1.Order.findById(orderId).session(session);
-                    if (!fresh) {
-                        const err = new Error("Order not found");
-                        err.statusCode = 404;
-                        throw err;
-                    }
-                    const ps = String(fresh.paymentStatus || "").toUpperCase();
-                    if (ps === "PAID") {
-                        return;
-                    }
-                    fresh.paymentStatus = "PAID";
-                    fresh.paymentReceivedAt = new Date();
-                    await fresh.save({ session });
-                    await inventoryReservationService_1.inventoryReservationService.commitReservationsForOrder({
-                        session,
-                        orderId: fresh._id,
-                    });
-                });
-            }
-            finally {
-                session.endSession();
-            }
-        }
-        else {
-            return res.status(400).json({ message: "Unsupported payment method" });
-        }
-        console.log(`💰 Payment status updated for order ${orderId}: ${order.paymentStatus}`);
-        try {
-            const finalOrder = await Order_1.Order.findById(orderId).select("userId _id totalAmount paymentStatus");
-            if (finalOrder && String(finalOrder.paymentStatus || "").toUpperCase() === "PAID") {
-                const actorType = userRole === "admin" ? "admin" : "user";
-                await (0, eventBus_1.publish)((0, payment_events_1.createPaymentSuccessEvent)({
-                    source: "operations",
-                    actor: {
-                        type: actorType,
-                        id: String(userId),
-                    },
-                    eventId: (0, eventId_1.stableEventId)(`payment:order:${String(finalOrder._id)}:paid`),
-                    occurredAt: new Date().toISOString(),
-                    userId: String(finalOrder.userId),
-                    orderId: String(finalOrder._id),
-                    amount: Number(finalOrder.totalAmount),
-                }));
-            }
-        }
-        catch (e) {
-            console.error("[orderController] failed to publish PAYMENT_SUCCESS", e);
-        }
-        // Send payment success notification
-        try {
-            await (0, notificationService_1.dispatchNotification)(order.userId.toString(), 'PAYMENT_SUCCESS', {
-                orderId: order._id.toString(),
-                orderNumber: order._id.toString(),
-                amount: order.totalAmount,
-                paymentId: orderId
-            });
-        }
-        catch (notificationError) {
-            console.error("Failed to send payment success notification:", notificationError);
-        }
-        const updatedOrder = await Order_1.Order.findById(orderId);
-        return res.status(200).json({
-            success: true,
-            message: "Payment status updated successfully",
-            order: updatedOrder || order,
+        // SAFETY: Disabled to enforce single payment source-of-truth
+        return res.status(410).json({
+            error: "LEGACY_PAYMENT_PATH_DISABLED",
+            message: "This payment path has been permanently disabled. Use PaymentIntent flow.",
         });
     }
     catch (error) {

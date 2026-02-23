@@ -5,8 +5,21 @@ import { dispatchToAllUsers } from "../../communication/services/notificationSer
 import { ProductImage } from "../../../types/image";
 import multer from "multer";
 import { MediaImageService } from "../../media/services/MediaImageService";
+import { invalidateCache } from "../../../middleware/cache";
+import {
+  buildCategoriesCacheKey,
+  buildProductDetailCacheKey,
+  buildProductsListCacheKey,
+  cacheGetJson,
+  cacheSetJson,
+} from "../../../utils/productReadCache";
 
 const mediaService = new MediaImageService();
+
+const SELLABLE_PRODUCT_FILTER: any = {
+  deletedAt: null,
+  isSellable: { $ne: false },
+};
 
 // Valid product categories from schema
 const VALID_CATEGORIES = [
@@ -40,8 +53,15 @@ export const getCategories = async (
   res: Response
 ): Promise<Response | void> => {
   try {
+    const cacheKey = buildCategoriesCacheKey();
+    const cached = await cacheGetJson<{ categories: any[] }>(cacheKey);
+    if (cached && cached.categories) {
+      return res.json(cached);
+    }
+
     // Get product counts by category
     const categoryCounts = await Product.aggregate([
+      { $match: SELLABLE_PRODUCT_FILTER },
       { $group: { _id: "$category", count: { $sum: 1 } } },
       { $sort: { count: -1 } },
     ]);
@@ -54,7 +74,9 @@ export const getCategories = async (
       };
     });
 
-    res.json({ categories });
+    const responseData = { categories };
+    void cacheSetJson(cacheKey, responseData, 60);
+    return res.json(responseData);
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch categories" });
   }
@@ -94,8 +116,10 @@ export const getProducts = async (
     const parsedPage = Math.max(Number(page) || 1, 1);
     const skip = (parsedPage - 1) * parsedLimit;
 
+    const hasSearch = typeof search === "string" && String(search).trim().length > 0;
+
     // Build filter
-    const filter: any = {};
+    const filter: any = { ...SELLABLE_PRODUCT_FILTER };
     if (category) filter.category = category;
     if (minPrice || maxPrice) {
       filter.price = {};
@@ -114,6 +138,33 @@ export const getProducts = async (
     const sort: any = { createdAt: -1 }; // default sort
     if (sortBy) {
       sort[sortBy as string] = sortOrder === "asc" ? 1 : -1;
+    }
+
+    const lifecycleOk =
+      filter?.deletedAt === null &&
+      filter?.isSellable &&
+      typeof filter.isSellable === "object" &&
+      (filter.isSellable as any).$ne === false;
+
+    const cacheEligible = !hasSearch && lifecycleOk;
+    const cacheKey = cacheEligible
+      ? buildProductsListCacheKey({
+          page: parsedPage,
+          limit: parsedLimit,
+          category,
+          minPrice,
+          maxPrice,
+          sortBy,
+          sortOrder,
+          tags,
+        })
+      : "";
+
+    if (cacheEligible) {
+      const cached = await cacheGetJson<any>(cacheKey);
+      if (cached && cached.products && cached.pagination) {
+        return res.json(cached);
+      }
     }
 
     console.log('📊 [GetProducts] Query built:', { filter, sort });
@@ -138,7 +189,7 @@ export const getProducts = async (
 
     const safeProducts = normalized;
 
-    return res.json({
+    const responseData = {
       products: safeProducts,
       pagination: {
         page: parsedPage,
@@ -146,7 +197,13 @@ export const getProducts = async (
         total,
         pages: Math.ceil(total / parsedLimit),
       },
-    });
+    };
+
+    if (cacheEligible) {
+      void cacheSetJson(cacheKey, responseData, 30);
+    }
+
+    return res.json(responseData);
   } catch (error) {
     console.error("❌ [GetProducts] Error:", error);
     const err = error as any;
@@ -161,6 +218,12 @@ export const getProductById = async (
   try {
     const { id } = req.params;
 
+    const cacheKey = buildProductDetailCacheKey(id);
+    const cached = await cacheGetJson<any>(cacheKey);
+    if (cached && cached._id) {
+      return res.json(cached);
+    }
+
     console.log('🔍 [GetProductById] Request received:', { id });
 
     // Validate ID using mongoose.isValidObjectId
@@ -170,7 +233,7 @@ export const getProductById = async (
     }
 
     // Fetch from MongoDB
-    const product = await Product.findById(id);
+    const product = await Product.findOne({ _id: id, ...SELLABLE_PRODUCT_FILTER });
 
     if (!product) {
       console.log('❌ [GetProductById] Product not found in DB:', id);
@@ -190,6 +253,8 @@ export const getProductById = async (
     // Normalize images using the same function as debug endpoint
     const clean = product.toObject ? product.toObject() : product;
     const normalizedProduct = await normalizeProductImages(clean);
+
+    void cacheSetJson(cacheKey, normalizedProduct, 120);
 
     console.log('✅ [GetProductById] Response prepared:', {
       productId: id,
@@ -215,6 +280,13 @@ export const createProduct = async (
     console.log('🔥 Incoming body:', req.body);
     console.log('🔥 Incoming files count:', files.length);
 
+    const parseNumberField = (value: any): number | undefined => {
+      if (value === undefined || value === null) return undefined;
+      if (typeof value === "string" && value.trim() === "") return undefined;
+      const n = Number(value);
+      return Number.isFinite(n) ? n : NaN;
+    };
+
     // Basic validation
     const filtered = files.filter(f => f && (f.size ?? 0) > 0 && /^image\/(jpeg|png|webp|avif)$/.test((f.mimetype ?? '')));
     console.log('🔥 Valid files after filter (size>0 & image mimetype):', filtered.map(f=>({name:f.originalname,size:f.size,mime:f.mimetype})));
@@ -233,6 +305,35 @@ export const createProduct = async (
       weight,
       tags,
     } = req.body;
+
+    const parsedPrice = parseNumberField(price);
+    if (parsedPrice === undefined) {
+      return res.status(400).json({ message: "Price is required" });
+    }
+    if (Number.isNaN(parsedPrice)) {
+      return res.status(400).json({ message: "Invalid price" });
+    }
+
+    const parsedStock = parseNumberField(stock);
+    if (parsedStock === undefined) {
+      return res.status(400).json({ message: "Stock quantity is required" });
+    }
+    if (Number.isNaN(parsedStock)) {
+      return res.status(400).json({ message: "Invalid stock quantity" });
+    }
+
+    const parsedMrp = parseNumberField(mrp);
+    if (parsedMrp !== undefined && Number.isNaN(parsedMrp)) {
+      return res.status(400).json({ message: "Invalid MRP" });
+    }
+
+    const parsedWeight = parseNumberField(weight);
+    if (parsedWeight === undefined) {
+      return res.status(400).json({ message: "Weight is required" });
+    }
+    if (Number.isNaN(parsedWeight)) {
+      return res.status(400).json({ message: "Invalid weight" });
+    }
 
     // Upload via MediaImageService (production) / bypass in tests
     const buffers = filtered
@@ -274,15 +375,17 @@ export const createProduct = async (
       name,
       description,
       category,
-      price,
-      mrp,
-      stock,
-      weight,
+      price: parsedPrice,
+      mrp: parsedMrp,
+      stock: parsedStock,
+      weight: parsedWeight,
       tags,
       images: imageDocs,
     });
 
     const saved = await product.save();
+
+    await invalidateCache.products();
 
     // Normalize before sending to frontend
     const clean = saved.toObject ? saved.toObject() : saved;
@@ -292,8 +395,22 @@ export const createProduct = async (
       success: true,
       product: normalized,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("CREATE PRODUCT ERROR:", error);
+
+    if (error?.name === "ValidationError" && error?.errors) {
+      const fieldErrors: Record<string, string> = {};
+      for (const [field, err] of Object.entries<any>(error.errors)) {
+        const msg = err?.message;
+        if (msg) fieldErrors[field] = msg;
+      }
+      return res.status(400).json({
+        success: false,
+        message: "Validation failed",
+        errors: fieldErrors,
+      });
+    }
+
     return res.status(500).json({
       success: false,
       message: "Server error while creating product",
@@ -333,8 +450,8 @@ export const updateProduct = async (
     if (updateFields.mrp) updateFields.mrp = Number(updateFields.mrp);
     if (updateFields.weight) updateFields.weight = Number(updateFields.weight);
 
-    const product = await Product.findByIdAndUpdate(
-      id,
+    const product = await Product.findOneAndUpdate(
+      { _id: id, ...SELLABLE_PRODUCT_FILTER },
       updateFields,
       {
         new: true,
@@ -354,6 +471,8 @@ export const updateProduct = async (
 
     // Search indexing disabled (Algolia not configured)
     console.log('📝 [UpdateProduct] Search indexing disabled');
+
+    await invalidateCache.product(id);
 
     res.json({
       message: "Product updated successfully",
@@ -381,7 +500,11 @@ export const deleteProduct = async (
       return res.status(404).json({ message: "Product not found" });
     }
 
-    const product = await Product.findByIdAndDelete(id);
+    const product = await Product.findOneAndUpdate(
+      { _id: id, ...SELLABLE_PRODUCT_FILTER },
+      { $set: { isSellable: false, isActive: false, deletedAt: new Date() } },
+      { new: true }
+    );
 
     if (!product) {
       console.log('❌ [DeleteProduct] Product not found:', id);
@@ -395,6 +518,8 @@ export const deleteProduct = async (
 
     // Search indexing disabled (Algolia not configured)
     console.log('🗑️ [DeleteProduct] Search indexing disabled');
+
+    await invalidateCache.product(id);
 
     res.json({
       message: "Product deleted successfully",
@@ -436,13 +561,14 @@ export const getSimilarProducts = async (
     }
 
     // First, get the current product to find similar ones
-    const currentProduct = await Product.findById(id);
+    const currentProduct = await Product.findOne({ _id: id, ...SELLABLE_PRODUCT_FILTER });
     if (!currentProduct) {
       return res.status(404).json({ message: "Product not found" });
     }
 
     // Find similar products based on category, excluding the current product
     const similarProducts = await Product.find({
+      ...SELLABLE_PRODUCT_FILTER,
       _id: { $ne: id }, // Exclude current product
       category: currentProduct.category,
     })
@@ -454,6 +580,7 @@ export const getSimilarProducts = async (
     let fallbackProducts: any[] = [];
     if (similarProducts.length === 0) {
       fallbackProducts = await Product.find({
+        ...SELLABLE_PRODUCT_FILTER,
         _id: { $ne: id },
       })
         .limit(Number(limit))
@@ -511,7 +638,7 @@ export const debugProductImages = async (
 
     console.log('🔍 [Debug] Checking product images for:', id);
 
-    const product = await Product.findById(id);
+    const product = await Product.findOne({ _id: id, ...SELLABLE_PRODUCT_FILTER });
     if (!product) {
       console.log('❌ [Debug] Product not found:', id);
       return res.status(404).json({ message: "Product not found" });

@@ -9,9 +9,12 @@ export async function razorpayWebhook(req: Request, res: Response) {
       return res.status(400).json({ message: "Invalid webhook payload" });
     }
 
+    const io = (req as any).app?.get?.("io");
+
     const result = await processRazorpayWebhook({
       rawBody,
       headers: req.headers as any,
+      io,
     });
 
     if (result.ok) {

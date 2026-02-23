@@ -1,6 +1,17 @@
+import "./config/env";
+
 // Load environment variables FIRST before any other imports
+import path from "path";
 import dotenv from "dotenv";
-dotenv.config();
+
+const ENV_PATH = path.resolve(__dirname, "..", ".env");
+dotenv.config({ path: ENV_PATH });
+
+console.log("[CACHE] Product read cache enabled");
+
+if (!process.env.MONGODB_URI) {
+  throw new Error("❌ MONGODB_URI is missing. Backend refusing to start.");
+}
 
 const NODE_ENV = process.env.NODE_ENV || "development";
 const DEV_LOW_POWER = String(process.env.DEV_LOW_POWER || "").toLowerCase() === "true";
@@ -9,34 +20,34 @@ const verboseLoggingEnabled = NODE_ENV === "production" ? true : !DEV_LOW_POWER;
 // Comprehensive Environment Variable Validation
 function validateEnvironmentVariables() {
   const errors: string[] = [];
-  
+
   // Database
   if (!process.env.MONGODB_URI) {
     errors.push("❌ MONGODB_URI is required");
   }
-  
+
   // JWT Secrets
   if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
-    errors.push(`❌ JWT_SECRET must be at least 32 characters long. Current length: ${process.env.JWT_SECRET?.length || 0}`);
+    errors.push(`❌ JWT_SECRET must be at least 32 characters long. Current length: ${process.env.JWT_SECRET!.length}`);
   }
-  
+
   if (!process.env.JWT_REFRESH_SECRET || process.env.JWT_REFRESH_SECRET.length < 32) {
-    errors.push(`❌ JWT_REFRESH_SECRET must be at least 32 characters long. Current length: ${process.env.JWT_REFRESH_SECRET?.length || 0}`);
+    errors.push(`❌ JWT_REFRESH_SECRET must be at least 32 characters long. Current length: ${process.env.JWT_REFRESH_SECRET!.length}`);
   }
-  
+
   // Cloudinary
   if (!process.env.CLOUDINARY_CLOUD_NAME) {
     errors.push("❌ CLOUDINARY_CLOUD_NAME is required");
   }
-  
+
   if (!process.env.CLOUDINARY_API_KEY) {
     errors.push("❌ CLOUDINARY_API_KEY is required");
   }
-  
+
   if (!process.env.CLOUDINARY_API_SECRET) {
     errors.push("❌ CLOUDINARY_API_SECRET is required");
   }
-  
+
   // Redis
   if (!process.env.REDIS_URL) {
     if (NODE_ENV === "production") {
@@ -45,7 +56,7 @@ function validateEnvironmentVariables() {
       errors.push("⚠️  REDIS_URL is recommended");
     }
   }
-  
+
   // Frontend
   if (!process.env.FRONTEND_URL) {
     if (NODE_ENV === "production") {
@@ -54,33 +65,33 @@ function validateEnvironmentVariables() {
       errors.push("⚠️  FRONTEND_URL is recommended");
     }
   }
-  
+
   // Razorpay
   if (!process.env.RAZORPAY_KEY_ID) {
-    errors.push("❌ RAZORPAY_KEY_ID is required");
+    errors.push(NODE_ENV === "production" ? "❌ RAZORPAY_KEY_ID is required" : "⚠️  RAZORPAY_KEY_ID is recommended");
   }
-  
+
   if (!process.env.RAZORPAY_KEY_SECRET) {
-    errors.push("❌ RAZORPAY_KEY_SECRET is required");
+    errors.push(NODE_ENV === "production" ? "❌ RAZORPAY_KEY_SECRET is required" : "⚠️  RAZORPAY_KEY_SECRET is recommended");
   }
 
   if (!process.env.RAZORPAY_WEBHOOK_SECRET) {
-    errors.push("❌ RAZORPAY_WEBHOOK_SECRET is required");
+    errors.push(NODE_ENV === "production" ? "❌ RAZORPAY_WEBHOOK_SECRET is required" : "⚠️  RAZORPAY_WEBHOOK_SECRET is recommended");
   }
-  
+
   // Google OAuth
   if (!process.env.GOOGLE_CLIENT_ID) {
     errors.push("⚠️  GOOGLE_CLIENT_ID is recommended for OAuth login");
   }
-  
+
   if (!process.env.GOOGLE_CLIENT_SECRET) {
     errors.push("⚠️  GOOGLE_CLIENT_SECRET is recommended for OAuth login");
   }
-  
+
   // Critical errors that prevent startup
   const criticalErrors = errors.filter(err => err.startsWith("❌"));
   const warnings = errors.filter(err => err.startsWith("⚠️"));
-  
+
   if (criticalErrors.length > 0) {
     console.error("\n🚨 CRITICAL ENVIRONMENT ERRORS:");
     criticalErrors.forEach(err => console.error(err));
@@ -88,13 +99,13 @@ function validateEnvironmentVariables() {
     console.error("❌ Please check your .env file and restart the server.\n");
     process.exit(1);
   }
-  
+
   if (warnings.length > 0) {
     console.warn("\n⚠️  Environment warnings:");
     warnings.forEach(warn => console.warn(warn));
     console.warn("⚠️  Consider adding these variables for full functionality.\n");
   }
-  
+
   if (verboseLoggingEnabled) {
     console.log("✅ Environment variables validated successfully");
   }
@@ -102,6 +113,16 @@ function validateEnvironmentVariables() {
 
 // Run validation immediately after dotenv config
 validateEnvironmentVariables();
+
+// Runtime proof (dev only): log DB name derived from MONGODB_URI
+if (NODE_ENV !== "production") {
+  try {
+    const dbPathname = new URL(String(process.env.MONGODB_URI)).pathname;
+    console.log("[BOOT] Connected DB:", dbPathname);
+  } catch {
+    console.log("[BOOT] Connected DB:", "<unparseable>");
+  }
+}
 
 // Validate critical environment variables immediately
 if (verboseLoggingEnabled) {
@@ -132,8 +153,6 @@ import app from "./app";
 import { connectDB } from "./utils/database";
 import { bootstrapDevAdmin } from "./scripts/bootstrapDevAdmin";
 // import SocketService from "./services/socketService";
-import { exec } from "child_process";
-import { promisify } from "util";
 import jwt from "jsonwebtoken";
 import { liveLocationEvents, liveLocationStore } from "./services/liveLocationStore";
 import { User } from "./models/User";
@@ -142,8 +161,7 @@ import { OrderEventBroadcaster } from "./domains/orders/services/orderEventBroad
 import { initializeNotificationWriter } from "./domains/communication/services/notificationWriter";
 import { initializeOutboxDispatcher } from "./domains/events/outboxDispatcher";
 import { initializeInventoryReservationSweeper } from "./domains/orders/services/inventoryReservationSweeper";
-
-const execAsync = promisify(exec);
+import { startStuckPaymentScanner } from "./domains/payments/services/stuckPaymentScanner";
 
 // Create HTTP server
 const server = createServer(app);
@@ -179,7 +197,12 @@ io.use(async (socket, next) => {
       return next();
     }
 
-    const decoded = jwt.verify(provided, process.env.JWT_SECRET || "your-secret-key") as any;
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      return next();
+    }
+
+    const decoded = jwt.verify(provided, jwtSecret) as any;
     const userId = String(decoded?.userId || "");
     if (!userId) {
       return next();
@@ -264,7 +287,13 @@ io.on("connection", (socket) => {
           return;
         }
 
-        const decoded = jwt.verify(provided, process.env.JWT_SECRET || "your-secret-key") as any;
+        const jwtSecret = process.env.JWT_SECRET;
+        if (!jwtSecret) {
+          console.warn("[Socket] Admin join denied: server misconfigured", { socketId: socket.id });
+          return;
+        }
+
+        const decoded = jwt.verify(provided, jwtSecret) as any;
         const adminId = String(decoded?.userId || "");
         if (!adminId) {
           console.warn("[Socket] Admin join denied: invalid token payload", { socketId: socket.id });
@@ -341,60 +370,7 @@ const closeExistingServer = async (port: number): Promise<void> => {
   if (NODE_ENV === "production") {
     return;
   }
-  try {
-    // Find processes using the port
-    const { stdout } = await execAsync(`lsof -ti:${port}`);
-    const pids = stdout
-      .trim()
-      .split("\n")
-      .filter((pid) => pid);
-
-    if (pids.length > 0) {
-      console.log(
-        `🔄 Found existing processes on port ${port}, closing them gracefully...`
-      );
-
-      // Try graceful shutdown first (SIGTERM)
-      for (const pid of pids) {
-        try {
-          await execAsync(`kill -TERM ${pid}`);
-          console.log(`📤 Sent SIGTERM to process ${pid}`);
-        } catch (err) {
-          console.log(`⚠️  Could not send SIGTERM to process ${pid}`);
-        }
-      }
-
-      // Wait a bit for graceful shutdown
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      // Check if processes are still running and force kill if needed
-      try {
-        const { stdout: remainingPids } = await execAsync(`lsof -ti:${port}`);
-        const stillRunning = remainingPids
-          .trim()
-          .split("\n")
-          .filter((pid) => pid);
-
-        if (stillRunning.length > 0) {
-          console.log(
-            `🔨 Force closing remaining processes on port ${port}...`
-          );
-          for (const pid of stillRunning) {
-            try {
-              await execAsync(`kill -9 ${pid}`);
-              console.log(`💥 Force killed process ${pid}`);
-            } catch (err) {
-              console.log(`⚠️  Could not force kill process ${pid}`);
-            }
-          }
-        }
-      } catch (err) {
-        // No processes found, port is free
-      }
-    }
-  } catch (err) {
-    console.warn(`⚠️  closeExistingServer failed for port ${port}`);
-  }
+  return;
 };
 
 const startServer = async () => {
@@ -407,6 +383,8 @@ const startServer = async () => {
     initializeNotificationWriter();
     initializeOutboxDispatcher();
     initializeInventoryReservationSweeper();
+
+    startStuckPaymentScanner();
 
     // Bootstrap dev admin user in development
     await bootstrapDevAdmin();

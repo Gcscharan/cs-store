@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, ChevronDown, ChevronUp, Check } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, Check, RefreshCw } from "lucide-react";
 import { useSelector } from "react-redux";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { RootState } from "../store";
@@ -55,7 +55,31 @@ function parseCategoryFromSearchParam(value: string | null): CategoryFilter {
   if (["order", "delivery", "payment", "account", "promo"].includes(v)) {
     return v as NotificationCategory;
   }
+
   return "all";
+}
+
+function extractOrderIdFromMeta(meta: unknown): string | null {
+  if (!meta || typeof meta !== "object") return null;
+  const m: any = meta as any;
+  const direct = String(m.orderId || m.order_id || m.orderID || "").trim();
+  if (direct) return direct;
+  const nested = String(m.order?.id || m.order?._id || "").trim();
+  if (nested) return nested;
+  const alt = String(m.orderNumber || m.orderNo || "").trim();
+  if (alt) return alt;
+  return null;
+}
+
+function refundChipForEventType(eventType?: string): { label: string; className: string } | null {
+  const e = String(eventType || "").trim().toUpperCase();
+  if (e === "REFUND_INITIATED") {
+    return { label: "Processing", className: "bg-amber-100 text-amber-900" };
+  }
+  if (e === "REFUND_COMPLETED") {
+    return { label: "Completed", className: "bg-green-100 text-green-800" };
+  }
+  return null;
 }
 
 function startOfLocalDay(d: Date): Date {
@@ -123,7 +147,7 @@ const NotificationsPage = () => {
     },
     {
       skip: !pollingEnabled,
-      pollingInterval: 30000,
+      refetchOnMountOrArgChange: true,
       refetchOnReconnect: true,
       refetchOnFocus: false,
     }
@@ -356,6 +380,15 @@ const NotificationsPage = () => {
         return;
       }
 
+      const ev = String((n as any)?.eventType || "").trim().toUpperCase();
+      if (ev === "REFUND_INITIATED" || ev === "REFUND_COMPLETED") {
+        const orderId = extractOrderIdFromMeta((n as any)?.meta);
+        if (orderId) {
+          navigate(`/orders/${orderId}#refunds`);
+          return;
+        }
+      }
+
       setExpandedId((prev) => (prev === n.id ? null : n.id));
     },
     [markAsRead, navigate]
@@ -416,18 +449,28 @@ const NotificationsPage = () => {
         >
           <div className="flex items-center justify-between gap-3 mb-6">
             <h2 className="text-2xl font-bold text-gray-900">Notifications</h2>
-            <button
-              onClick={handleMarkAllAsRead}
-              disabled={!hasUnread}
-              className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                hasUnread
-                  ? "bg-blue-600 text-white hover:bg-blue-700"
-                  : "bg-gray-100 text-gray-400 cursor-not-allowed"
-              }`}
-            >
-              <Check className="h-4 w-4" />
-              Mark all as read
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={fetchFirstPage}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-gray-100 text-gray-800 hover:bg-gray-200"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Refresh
+              </button>
+
+              <button
+                onClick={handleMarkAllAsRead}
+                disabled={!hasUnread}
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  hasUnread
+                    ? "bg-blue-600 text-white hover:bg-blue-700"
+                    : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                }`}
+              >
+                <Check className="h-4 w-4" />
+                Mark all as read
+              </button>
+            </div>
           </div>
 
           <div className="mb-6 overflow-x-auto">
@@ -507,6 +550,7 @@ const NotificationsPage = () => {
                           fallbackTitle: n.title,
                           fallbackBody: n.body,
                         });
+                        const refundChip = refundChipForEventType((n as any)?.eventType);
                         return (
                           <div
                             key={n.id}
@@ -532,6 +576,11 @@ const NotificationsPage = () => {
                                   <p className={`text-sm ${n.isRead ? "font-medium" : "font-semibold"} text-gray-900`}> 
                                     {formatted.title}
                                   </p>
+                                  {refundChip ? (
+                                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${refundChip.className}`}>
+                                      {refundChip.label}
+                                    </span>
+                                  ) : null}
                                   {isHigh && (
                                     <span className="text-xs font-semibold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">
                                       Important

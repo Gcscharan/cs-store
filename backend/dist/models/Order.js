@@ -186,17 +186,14 @@ const OrderSchema = new mongoose_1.Schema({
         type: String,
         enum: ["upi", "cod", "razorpay"],
     },
+    // PAID is set ONLY by Razorpay payment.captured webhook.
+    // Any other transition is a bug.
     paymentStatus: {
         type: String,
         enum: [
             "PENDING",
-            "AWAITING_UPI_APPROVAL",
             "PAID",
             "FAILED",
-            "pending",
-            "paid",
-            "failed",
-            "refunded",
         ],
         default: "PENDING",
     },
@@ -301,6 +298,86 @@ const OrderSchema = new mongoose_1.Schema({
     estimatedDeliveryWindow: { type: EstimatedDeliveryWindowSchema, required: false },
 }, {
     timestamps: true,
+});
+const ALLOWED_PAID_SOURCE = "WEBHOOK_PAYMENT_CAPTURED";
+const PAID_SOURCE_OPTION_KEY = "paymentStatusSource";
+function extractSetPaymentStatus(update) {
+    if (!update || typeof update !== "object")
+        return "";
+    const direct = update.paymentStatus;
+    if (typeof direct === "string")
+        return direct;
+    const set = update.$set;
+    const fromSet = set && typeof set === "object" ? set.paymentStatus : undefined;
+    return typeof fromSet === "string" ? fromSet : "";
+}
+function extractPaidSourceFromOptions(opts) {
+    if (!opts || typeof opts !== "object")
+        return "";
+    const direct = opts[PAID_SOURCE_OPTION_KEY];
+    if (typeof direct === "string")
+        return direct;
+    const ctx = opts.context;
+    const fromCtx = ctx && typeof ctx === "object" ? ctx[PAID_SOURCE_OPTION_KEY] : undefined;
+    return typeof fromCtx === "string" ? fromCtx : "";
+}
+function throwIllegalPaidTransition(args) {
+    console.error("[SECURITY][ILLEGAL_PAID_TRANSITION]", {
+        model: "Order",
+        method: args.method,
+        orderId: args.orderId ? String(args.orderId) : undefined,
+        source: args.source,
+    });
+    const err = new Error("Illegal PAID transition");
+    err.code = "ILLEGAL_PAID_TRANSITION";
+    throw err;
+}
+async function assertPaidTransitionAllowedOnQuery() {
+    const update = this.getUpdate ? this.getUpdate() : undefined;
+    const nextStatus = String(extractSetPaymentStatus(update) || "").toUpperCase();
+    if (nextStatus !== "PAID")
+        return;
+    const opts = this.getOptions ? this.getOptions() : undefined;
+    const source = String(extractPaidSourceFromOptions(opts) || "");
+    if (source !== ALLOWED_PAID_SOURCE) {
+        throwIllegalPaidTransition({
+            method: String(this.op || "update"),
+            source,
+            orderId: (this.getQuery && this.getQuery()?._id) || undefined,
+        });
+    }
+}
+OrderSchema.pre("save", function (next) {
+    try {
+        const nextStatus = String(this.paymentStatus || "").toUpperCase();
+        if (!this.isModified("paymentStatus"))
+            return next();
+        if (nextStatus !== "PAID")
+            return next();
+        const source = String((this.$locals || {})[PAID_SOURCE_OPTION_KEY] || "");
+        if (source !== ALLOWED_PAID_SOURCE) {
+            throwIllegalPaidTransition({ method: "save", source, orderId: this._id });
+        }
+        return next();
+    }
+    catch (e) {
+        return next(e);
+    }
+});
+OrderSchema.pre("updateOne", function (next) {
+    assertPaidTransitionAllowedOnQuery.call(this)
+        .then(() => next())
+        .catch((e) => next(e));
+});
+OrderSchema.pre("updateMany", function (next) {
+    assertPaidTransitionAllowedOnQuery.call(this)
+        .then(() => next())
+        .catch((e) => next(e));
+});
+OrderSchema.pre("findOneAndUpdate", function (next) {
+    assertPaidTransitionAllowedOnQuery.call(this)
+        .then(() => next())
+        .catch((e) => next(e));
 });
 // Indexes
 OrderSchema.index({ userId: 1, createdAt: -1 });

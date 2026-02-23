@@ -26,7 +26,7 @@ describe("Admin CVRP routes operationalization", () => {
       phone: "9876543288",
       vehicleType: "AUTO",
       isActive: true,
-      availability: "busy",
+      availability: "available",
       currentLocation: { lat: 17.094, lng: 80.598, lastUpdatedAt: new Date() },
       userId: deliveryUser._id,
       earnings: 0,
@@ -70,16 +70,33 @@ describe("Admin CVRP routes operationalization", () => {
     }
 
     const compute = await request(app)
-      .post("/api/admin/routes/compute")
+      .post("/api/admin/routes/compute?mode=preview")
       .set(adminHeaders)
       .send({ orderIds, vehicle: { type: "AUTO" } })
       .expect(200);
 
     expect(compute.body.success).toBe(true);
-    expect(Array.isArray(compute.body.routes)).toBe(true);
-    expect(compute.body.routes.length).toBeGreaterThan(0);
+    expect(Array.isArray(compute.body.clusters)).toBe(true);
+    expect(compute.body.clusters.length).toBeGreaterThan(0);
 
-    const routeId = String(compute.body.routes[0].routeId);
+    const firstCluster = compute.body.clusters[0];
+    const clusterOrderIds = (Array.isArray(firstCluster?.orders) ? firstCluster.orders : [])
+      .map((o: any) => String(o?.orderId || "").trim())
+      .filter(Boolean);
+    expect(clusterOrderIds.length).toBeGreaterThanOrEqual(20);
+
+    const persisted = await request(app)
+      .post("/api/admin/routes/assign")
+      .set(adminHeaders)
+      .send({
+        deliveryBoyId: String(deliveryBoy._id),
+        orderIds: clusterOrderIds,
+        routePath: Array.isArray(firstCluster?.routePath) ? firstCluster.routePath : [],
+      })
+      .expect(200);
+
+    expect(persisted.body.success).toBe(true);
+    const routeId = String(persisted.body.route.routeId);
     expect(routeId).toContain("AUTO-");
 
     const list = await request(app)
@@ -90,14 +107,7 @@ describe("Admin CVRP routes operationalization", () => {
     expect(list.body.success).toBe(true);
     expect(Array.isArray(list.body.routes)).toBe(true);
 
-    const assign = await request(app)
-      .post(`/api/admin/routes/${encodeURIComponent(routeId)}/assign`)
-      .set(adminHeaders)
-      .send({ deliveryBoyId: String(deliveryBoy._id) })
-      .expect(200);
-
-    expect(assign.body.success).toBe(true);
-    expect(assign.body.route.routeId).toBe(routeId);
+    // Route is assigned during /routes/assign
 
     const current = await request(app)
       .get("/api/delivery/routes/current")
@@ -111,12 +121,40 @@ describe("Admin CVRP routes operationalization", () => {
     expect(current.body.route.routePath.length).toBeGreaterThanOrEqual(20);
     expect(current.body.route.nextStop).toBeTruthy();
 
-    // Complete all orders (COD => no OTP required)
-    for (const oid of orderIds) {
+    // Complete all orders via current workflow:
+    // arrived -> COD collection -> deliver attempt (OTP) -> verify OTP
+    for (let idx = 0; idx < orderIds.length; idx += 1) {
+      const oid = orderIds[idx];
+
       await request(app)
-        .post(`/api/delivery/orders/${encodeURIComponent(oid)}/complete`)
+        .post(`/api/delivery/orders/${encodeURIComponent(oid)}/arrived`)
         .set(deliveryHeaders)
         .send({})
+        .expect(200);
+
+      await request(app)
+        .post(`/api/delivery/orders/${encodeURIComponent(oid)}/cod-collection`)
+        .set(deliveryHeaders)
+        .send({
+          mode: "CASH",
+          idempotencyKey: `test_cvrp_cod_${oid}_${idx}`,
+        })
+        .expect(201);
+
+      await request(app)
+        .post(`/api/delivery/orders/${encodeURIComponent(oid)}/deliver`)
+        .set(deliveryHeaders)
+        .send({})
+        .expect(200);
+
+      const orderDoc: any = await Order.findById(oid).select("deliveryOtp").lean();
+      const otp = String(orderDoc?.deliveryOtp || "").trim();
+      expect(otp).toHaveLength(4);
+
+      await request(app)
+        .post(`/api/delivery/orders/${encodeURIComponent(oid)}/verify-otp`)
+        .set(deliveryHeaders)
+        .send({ otp })
         .expect(200);
     }
 
@@ -139,5 +177,5 @@ describe("Admin CVRP routes operationalization", () => {
     expect(status2.body.success).toBe(true);
     expect(status2.body.pendingCount).toBe(0);
     expect(String(status2.body.status)).toBe("COMPLETED");
-  }, 60_000);
+  }, 120_000);
 });

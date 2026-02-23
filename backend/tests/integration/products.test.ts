@@ -331,7 +331,9 @@ describe("Products Endpoints", () => {
       // Verify product is deleted
       const { Product } = await import("../../src/models/Product");
       const deletedProduct = await Product.findById(product._id);
-      expect(deletedProduct).toBeNull();
+      expect(deletedProduct).not.toBeNull();
+      expect((deletedProduct as any)?.deletedAt).toBeTruthy();
+      expect(Boolean((deletedProduct as any)?.isActive)).toBe(false);
     });
 
     it("should not delete product with invalid ID", async () => {

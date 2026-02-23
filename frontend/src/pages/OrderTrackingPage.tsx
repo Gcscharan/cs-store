@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { useParams } from "react-router-dom";
 import DeliveryListItem from "../components/DeliveryListItem";
@@ -94,7 +94,39 @@ const OrderTrackingPage = () => {
     if (order && paymentStatus && paymentStatus !== order.paymentStatus) {
       setOrder((prev: any) => ({ ...prev, paymentStatus }));
       if (paymentStatus === "paid") {
-        toast.success("Payment confirmed!");
+        const token = localStorage.getItem("accessToken");
+        const orderId = String(id || "").trim();
+        console.info("[FRONTEND][SUCCESS_DISPATCHED]", {
+          source: "OrderTrackingPage:socket",
+          orderId,
+          note: "Verifying backend paymentStatus before showing success",
+        });
+
+        fetch(`/api/orders/${orderId}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+          .then((r) => r.json().catch(() => ({})))
+          .then((payload: any) => {
+            const ps = String(payload?.order?.paymentStatus || payload?.paymentStatus || "").toUpperCase();
+            if (ps === "PAID") {
+              toast.success("Payment confirmed!");
+            } else {
+              console.warn("[FRONTEND][SUCCESS_DISPATCHED_BLOCKED]", {
+                source: "OrderTrackingPage:socket",
+                orderId,
+                paymentStatus: ps,
+              });
+            }
+          })
+          .catch(() => {
+            console.warn("[FRONTEND][SUCCESS_DISPATCHED_BLOCKED]", {
+              source: "OrderTrackingPage:socket",
+              orderId,
+              reason: "VERIFY_FAILED",
+            });
+          });
       } else if (paymentStatus === "failed") {
         toast.error("Payment failed");
       }
@@ -145,6 +177,102 @@ const OrderTrackingPage = () => {
 
   const backendTimeline = Array.isArray((order as any)?.timeline) ? ((order as any).timeline as any[]) : [];
   const timeline = buildCustomerOrderTimeline(backendTimeline);
+
+  const refunds = useMemo(() => {
+    return Array.isArray((order as any)?.refunds) ? (((order as any).refunds as any[]) || []) : [];
+  }, [order]);
+
+  const refundTimeline = useMemo(() => {
+    if (!refunds.length) return [] as any[];
+
+    const normalizeStatus = (raw: any) => String(raw || "").trim().toUpperCase();
+    const statuses = refunds.map((r) => normalizeStatus(r?.status));
+
+    const hasCompleted = statuses.includes("COMPLETED");
+    const hasProcessing = statuses.includes("PROCESSING") || statuses.includes("INITIATED");
+    const hasFailed = statuses.includes("FAILED");
+    const hasPartial = statuses.includes("PARTIAL");
+
+    const stage: "REQUESTED" | "PROCESSING" | "COMPLETED" | "FAILED" | "PARTIAL" =
+      hasFailed && !hasCompleted ? "FAILED" :
+      hasPartial ? "PARTIAL" :
+      hasCompleted && !hasProcessing ? "COMPLETED" :
+      hasProcessing ? "PROCESSING" :
+      "REQUESTED";
+
+    const earliestCreatedAt = refunds
+      .map((r) => String(r?.createdAt || r?.updatedAt || "").trim())
+      .filter(Boolean)
+      .sort((a, b) => new Date(a).getTime() - new Date(b).getTime())[0];
+
+    const latestUpdatedAt = refunds
+      .map((r) => String(r?.updatedAt || r?.createdAt || "").trim())
+      .filter(Boolean)
+      .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
+
+    const steps: any[] = [];
+
+    steps.push({
+      key: "CUSTOMER_REFUND_INITIATED",
+      label: stage === "REQUESTED" ? "Refund requested" : "Refund initiated",
+      timestamp: earliestCreatedAt,
+      state: stage === "REQUESTED" ? "current" : "completed",
+      description:
+        stage === "REQUESTED"
+          ? "We’ve received your request. Refund timelines depend on your bank and payment method."
+          : undefined,
+    });
+
+    steps.push({
+      key: "CUSTOMER_REFUND_PROCESSING",
+      label: "Refund processing",
+      timestamp: stage === "COMPLETED" || stage === "FAILED" || stage === "PARTIAL" ? latestUpdatedAt : undefined,
+      state:
+        stage === "PROCESSING"
+          ? "current"
+          : stage === "REQUESTED"
+            ? "pending"
+            : "completed",
+      description:
+        stage === "PROCESSING"
+          ? "Banks may take 2–7 business days to reflect the amount."
+          : undefined,
+    });
+
+    steps.push({
+      key: "CUSTOMER_REFUND_FINAL",
+      label:
+        stage === "FAILED"
+          ? "Refund failed"
+          : stage === "PARTIAL"
+            ? "Partial refund completed"
+            : "Refund completed",
+      timestamp: stage === "COMPLETED" || stage === "FAILED" || stage === "PARTIAL" ? latestUpdatedAt : undefined,
+      state:
+        stage === "FAILED"
+          ? "failed"
+          : stage === "COMPLETED"
+            ? "completed"
+            : stage === "PARTIAL"
+              ? (hasProcessing ? "current" : "completed")
+              : "pending",
+      description:
+        stage === "FAILED"
+          ? "Refund could not be completed. Our support team may contact you."
+          : stage === "PARTIAL"
+            ? "Some of the amount has been refunded. Remaining amount is still under review."
+            : stage === "COMPLETED"
+              ? "If you don’t see it yet, please check again in 24–48 hours."
+              : undefined,
+    });
+
+    return steps;
+  }, [refunds]);
+
+  const combinedTimeline = useMemo(() => {
+    if (!refundTimeline.length) return timeline as any[];
+    return [...timeline, ...refundTimeline] as any[];
+  }, [refundTimeline, timeline]);
   const currentStep = timeline.find((s: any) => String(s?.state || "") === "current");
   const showPartner = shouldShowDeliveryPartner({
     currentCustomerStepKey: String((currentStep as any)?.key || ""),
@@ -199,7 +327,7 @@ const OrderTrackingPage = () => {
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
               Order Status
             </h3>
-            <OrderTimeline steps={timeline as any} />
+            <OrderTimeline steps={combinedTimeline as any} />
           </div>
         </div>
       </div>

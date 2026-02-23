@@ -37,7 +37,7 @@ async function globalSetup(config: FullConfig) {
 }
 
 async function setupTestData(page: any) {
-  const backendUrl = process.env.BACKEND_URL || "http://localhost:5000";
+  const backendUrl = process.env.BACKEND_URL || "http://localhost:5001";
 
   // Create test users
   const testUsers = [

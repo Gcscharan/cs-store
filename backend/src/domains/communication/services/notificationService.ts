@@ -1,4 +1,5 @@
 import { User } from "../../../models/User";
+import { Order } from "../../../models/Order";
 import { sendEmail } from "./mailService";
 import { sendSMS } from "../../../utils/sms";
 
@@ -74,6 +75,31 @@ export class NotificationService {
     data: NotificationData
   ): Promise<void> {
     try {
+      if (event === "PAYMENT_SUCCESS") {
+        const orderId = String((data as any)?.orderId || "").trim();
+        if (!orderId) {
+          console.error("[BACKEND][NOTIFICATION_BLOCKED]", {
+            event,
+            userId,
+            reason: "MISSING_ORDER_ID",
+          });
+          return;
+        }
+
+        const order = await Order.findById(orderId).select("paymentStatus").lean();
+        const ps = String((order as any)?.paymentStatus || "").toUpperCase();
+        if (ps !== "PAID") {
+          console.error("[BACKEND][NOTIFICATION_BLOCKED]", {
+            event,
+            userId,
+            orderId,
+            paymentStatus: ps,
+            reason: "ORDER_NOT_PAID",
+          });
+          return;
+        }
+      }
+
       console.log(`🔔 Dispatching notification: ${event} for user: ${userId}`);
       
       // Fetch user with preferences and contact info
@@ -222,6 +248,15 @@ export class NotificationService {
         html
       });
 
+      if (event === "PAYMENT_SUCCESS" || event === "PAYMENT_FAILED") {
+        console.info("[BACKEND][NOTIFICATION_SENT]", {
+          channel: "email",
+          event,
+          userId: String(user?._id || ""),
+          orderId: String((data as any)?.orderId || ""),
+        });
+      }
+
       console.log(`✅ Email sent for ${event} to: ${user.email}`);
     } catch (error) {
       console.error(`❌ Email send error:`, error);
@@ -268,6 +303,15 @@ export class NotificationService {
       // Generate and send SMS
       const message = this.generateSMSContent(event, data, user.name);
       await sendSMS(user.phone, message);
+
+      if (event === "PAYMENT_SUCCESS" || event === "PAYMENT_FAILED") {
+        console.info("[BACKEND][NOTIFICATION_SENT]", {
+          channel: "sms",
+          event,
+          userId: String(user?._id || ""),
+          orderId: String((data as any)?.orderId || ""),
+        });
+      }
 
       console.log(`✅ SMS sent for ${event} to: ${user.phone}`);
     } catch (error) {
@@ -624,7 +668,7 @@ export class NotificationUtils {
 
       const pendingPayments = await Order.find({
         paymentMethod: 'cod',
-        paymentStatus: 'pending',
+        paymentStatus: { $regex: /^PENDING$/i },
         deliveryStatus: 'delivered',
         deliveredAt: { $lt: cutoffTime }
       });

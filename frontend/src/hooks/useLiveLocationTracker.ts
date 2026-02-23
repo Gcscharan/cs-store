@@ -9,6 +9,7 @@ type LiveLocationTrackerOptions = {
 
 type RouteState = {
   routeId: string | null;
+  routeStatus: string | null;
   lastCheckedAt: number | null;
 };
 
@@ -59,6 +60,7 @@ export function useLiveLocationTracker({
 
   const [routeState, setRouteState] = useState<RouteState>({
     routeId: null,
+    routeStatus: null,
     lastCheckedAt: null,
   });
   const [isTracking, setIsTracking] = useState(false);
@@ -87,8 +89,8 @@ export function useLiveLocationTracker({
     }
   }, [verboseLoggingEnabled]);
 
-  const fetchCurrentRoute = useCallback(async (): Promise<string | null> => {
-    if (!accessToken) return null;
+  const fetchCurrentRoute = useCallback(async (): Promise<{ routeId: string | null; routeStatus: string | null }> => {
+    if (!accessToken) return { routeId: null, routeStatus: null };
 
     try {
       const res = await fetch(`${apiBase}/api/delivery/routes/current`, {
@@ -102,17 +104,18 @@ export function useLiveLocationTracker({
         if (verboseLoggingEnabled) {
           console.warn("[LiveLocation] current route fetch failed", res.status);
         }
-        return null;
+        return { routeId: null, routeStatus: null };
       }
 
       const data = await res.json();
       const routeId = data?.route?.routeId ? String(data.route.routeId) : null;
-      return routeId;
+      const routeStatusRaw = data?.route?.status ? String(data.route.status) : null;
+      return { routeId, routeStatus: routeStatusRaw };
     } catch (e) {
       if (verboseLoggingEnabled) {
         console.warn("[LiveLocation] current route fetch error", e);
       }
-      return null;
+      return { routeId: null, routeStatus: null };
     }
   }, [accessToken, apiBase, verboseLoggingEnabled]);
 
@@ -125,17 +128,28 @@ export function useLiveLocationTracker({
 
   useEffect(() => {
     if (!canRun) {
-      setRouteState({ routeId: null, lastCheckedAt: Date.now() });
+      setRouteState({ routeId: null, routeStatus: null, lastCheckedAt: Date.now() });
       clearWatch("disabled");
       return;
     }
 
     let cancelled = false;
+    const controller = new AbortController();
+
+    const computeIntervalMs = (status: string | null): number => {
+      if (document.visibilityState !== "visible") return 60_000;
+      const s = String(status || "").toUpperCase();
+      if (s === "OUT_FOR_DELIVERY") return 5000;
+      if (s === "ASSIGNED") return 15_000;
+      if (s) return 60_000;
+      return 10_000;
+    };
 
     const refresh = async () => {
-      const routeId = await fetchCurrentRoute();
+      if (controller.signal.aborted) return;
+      const { routeId, routeStatus } = await fetchCurrentRoute();
       if (cancelled) return;
-      setRouteState({ routeId, lastCheckedAt: Date.now() });
+      setRouteState({ routeId, routeStatus, lastCheckedAt: Date.now() });
       if (verboseLoggingEnabled) {
         console.log(`[LiveLocation] route check => routeId=${routeId || "null"}`);
       }
@@ -143,15 +157,32 @@ export function useLiveLocationTracker({
 
     void refresh();
 
-    const id = window.setInterval(() => {
-      void refresh();
-    }, 10_000);
+    let timeoutId: number | null = null;
+    const schedule = (ms: number) => {
+      if (timeoutId != null) window.clearTimeout(timeoutId);
+      timeoutId = window.setTimeout(async () => {
+        if (controller.signal.aborted) return;
+        await refresh();
+        if (controller.signal.aborted) return;
+        schedule(computeIntervalMs(routeState.routeStatus));
+      }, ms);
+    };
+
+    schedule(computeIntervalMs(routeState.routeStatus));
+
+    const onVis = () => {
+      schedule(computeIntervalMs(routeState.routeStatus));
+    };
+
+    document.addEventListener("visibilitychange", onVis);
 
     return () => {
       cancelled = true;
-      window.clearInterval(id);
+      controller.abort();
+      if (timeoutId != null) window.clearTimeout(timeoutId);
+      document.removeEventListener("visibilitychange", onVis);
     };
-  }, [canRun, clearWatch, fetchCurrentRoute]);
+  }, [canRun, clearWatch, fetchCurrentRoute, routeState.routeStatus]);
 
   const sendLocation = useCallback(
     async (payload: any) => {

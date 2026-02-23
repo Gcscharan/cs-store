@@ -29,9 +29,11 @@ interface Product {
 interface ProductCardProps {
   product: Product;
   onQuickView?: (product: Product) => void;
+  disableInitialAnimation?: boolean;
+  imagePriority?: boolean;
 }
 
-const ProductCard = memo(({ product, onQuickView }: ProductCardProps) => {
+const ProductCard = memo(({ product, onQuickView, disableInitialAnimation = false, imagePriority = false }: ProductCardProps) => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const auth = useSelector((state: RootState) => state.auth);
@@ -125,7 +127,7 @@ const ProductCard = memo(({ product, onQuickView }: ProductCardProps) => {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={disableInitialAnimation ? false : { opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -5 }}
       className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300"
@@ -148,6 +150,8 @@ const ProductCard = memo(({ product, onQuickView }: ProductCardProps) => {
           className="w-full h-full"
           productId={product._id}
           debug={false}
+          priority={imagePriority}
+          fetchPriority={imagePriority ? "high" : "auto"}
         />
         {discountPercentage > 0 && (
           <div className="absolute top-2 left-2 bg-red-500 text-white px-2 py-1 rounded-full text-xs font-semibold">

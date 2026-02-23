@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { RootState } from "../store";
 import { toast } from "react-hot-toast";
+import { toApiUrl } from "../config/runtime";
 import {
   Users,
   CheckCircle,
@@ -71,7 +72,7 @@ const AdminDeliveryBoysPage: React.FC = () => {
         throw new Error("No authentication token available");
       }
 
-      const response = await fetch("/api/admin/delivery-boys-list", {
+      const response = await fetch(toApiUrl("/admin/delivery-boys-list"), {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${tokens.accessToken}`,
@@ -122,7 +123,7 @@ const AdminDeliveryBoysPage: React.FC = () => {
         throw new Error("No authentication token available");
       }
 
-      const response = await fetch(`/api/admin/delivery-boys/${userId}/approve`, {
+      const response = await fetch(toApiUrl(`/admin/delivery-boys/${userId}/approve`), {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${tokens.accessToken}`,
@@ -154,7 +155,7 @@ const AdminDeliveryBoysPage: React.FC = () => {
         throw new Error("No authentication token available");
       }
 
-      const response = await fetch(`/api/admin/delivery-boys/${userId}/suspend`, {
+      const response = await fetch(toApiUrl(`/admin/delivery-boys/${userId}/suspend`), {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",

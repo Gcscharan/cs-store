@@ -10,6 +10,25 @@ export default defineConfig(() => {
         "@": path.resolve(__dirname, "./src"),
       },
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes("/src/pages/HomePage")) return "page-home";
+            if (id.includes("/src/pages/ProductsPage") || id.includes("/src/pages/SearchResultsPage")) return "page-products";
+            if (id.includes("/src/pages/ProductDetailPage")) return "page-product-detail";
+            if (id.includes("/src/pages/CartPage")) return "page-cart";
+            if (id.includes("/src/pages/CheckoutPage")) return "page-checkout";
+            if (id.includes("/src/pages/OrdersPage") || id.includes("/src/pages/Order")) return "page-orders";
+            if (id.includes("/src/pages/ProfilePage") || id.includes("/src/pages/Account")) return "page-account";
+            if (id.includes("/src/pages/Admin") || id.includes("/src/pages/Admin")) return "page-admin";
+            if (id.includes("/src/admin/ops")) return "page-admin-ops";
+            if (id.includes("/src/pages/Delivery")) return "page-delivery";
+            return undefined;
+          },
+        },
+      },
+    },
     test: {
       environment: "node",
       include: ["src/**/*.test.ts"],

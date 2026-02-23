@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { User } from "../../src/models/User";
 import { Product } from "../../src/models/Product";
 import { Order } from "../../src/models/Order";
-import { Otp } from "../../src/models/Otp";
+import Otp from "../../src/models/Otp";
 import { Pincode } from "../../src/models/Pincode";
 
 async function seedDatabase() {
@@ -114,7 +114,7 @@ async function seedDatabase() {
           phone: "919876543210",
         },
         paymentMethod: "cod",
-        paymentStatus: "pending",
+        paymentStatus: "PENDING",
       },
       {
         userId: regularUser._id,
@@ -136,7 +136,7 @@ async function seedDatabase() {
           phone: "919876543210",
         },
         paymentMethod: "online",
-        paymentStatus: "paid",
+        paymentStatus: "PENDING",
         paymentId: "pay_test123",
       },
     ]);

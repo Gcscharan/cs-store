@@ -44,9 +44,26 @@ export function initializeInventoryReservationSweeper(params?: {
             continue;
           }
 
+          const qty = Math.max(0, Number((r as any).qty) || 0);
           await Product.updateOne(
             { _id: (r as any).productId },
-            { $inc: { reservedStock: -Number((r as any).qty) } },
+            [
+              {
+                $set: {
+                  reservedStock: {
+                    $max: [
+                      0,
+                      {
+                        $subtract: [
+                          { $ifNull: ["$reservedStock", 0] },
+                          qty,
+                        ],
+                      },
+                    ],
+                  },
+                },
+              },
+            ] as any,
             { session }
           );
         }

@@ -1,8 +1,16 @@
 export type PaymentMethod = "RAZORPAY" | "COD";
 
+// Canonical persisted payment state (high-level).
+// This is intentionally simpler than PaymentIntentStatus (which includes gateway/UX stages).
+export const PAYMENT_STATES = ["CREATED", "AUTHORIZED", "PAID", "FAILED"] as const;
+export type PaymentState = (typeof PAYMENT_STATES)[number];
+
 export const PAYMENT_INTENT_STATUSES = [
   "CREATED",
   "GATEWAY_ORDER_CREATED",
+  "PAYMENT_PROCESSING",
+  "PAYMENT_RECOVERABLE",
+  "VERIFYING",
   "CAPTURED",
   "FAILED",
   "CANCELLED",

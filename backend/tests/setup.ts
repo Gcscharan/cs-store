@@ -288,3 +288,5 @@ jest.mock("nodemailer", () => ({
 
 // Mock services are defined above - they will be loaded before any tests run
 // Global test setup and helpers are in setup-globals.ts
+
+process.env.MONGOMS_STARTUP_TIMEOUT = process.env.MONGOMS_STARTUP_TIMEOUT || "60000";

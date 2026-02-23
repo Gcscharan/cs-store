@@ -2,36 +2,88 @@
 import dotenv from 'dotenv';
 dotenv.config({ path: '.env.test', override: true });
 
+process.env.NODE_ENV = "test";
+process.env.MONGOMS_STARTUP_TIMEOUT = process.env.MONGOMS_STARTUP_TIMEOUT || "60000";
+process.env.MOCK_OTP = process.env.MOCK_OTP || "true";
+process.env.JWT_SECRET = process.env.JWT_SECRET || "test-jwt-secret-key";
+process.env.JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || "test-jwt-refresh-secret-key";
+process.env.RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || "test-razorpay-key";
+process.env.RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || "test-razorpay-secret";
+process.env.RAZORPAY_WEBHOOK_SECRET = process.env.RAZORPAY_WEBHOOK_SECRET || "test-webhook-secret";
+process.env.CLOUDINARY_CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME || "test-cloud";
+process.env.CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY || "test-key";
+process.env.CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET || "test-secret";
+
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import mongoose from "mongoose";
 
-let mongoServer: MongoMemoryReplSet;
+type GlobalWithMongo = typeof globalThis & {
+  __mongoMemoryReplSet?: MongoMemoryReplSet;
+  __mongoSuiteRefCount?: number;
+  __jestOriginalSetInterval?: typeof globalThis.setInterval;
+  __jestIntervalIds?: any[];
+};
 
 beforeAll(async () => {
-  process.env.NODE_ENV = "test";
-  process.env.MOCK_OTP = "true";
-  process.env.JWT_SECRET = "test-jwt-secret-key";
-  process.env.JWT_REFRESH_SECRET = "test-jwt-refresh-secret-key";
-  process.env.RAZORPAY_KEY_ID = "test-razorpay-key";
-  process.env.RAZORPAY_KEY_SECRET = "test-razorpay-secret";
-  process.env.CLOUDINARY_CLOUD_NAME = "test-cloud";
-  process.env.CLOUDINARY_API_KEY = "test-key";
-  process.env.CLOUDINARY_API_SECRET = "test-secret";
-  
+  const g = globalThis as GlobalWithMongo;
+
+  g.__mongoSuiteRefCount = Number(g.__mongoSuiteRefCount || 0) + 1;
+
+  if (!g.__jestOriginalSetInterval) {
+    g.__jestOriginalSetInterval = globalThis.setInterval;
+    g.__jestIntervalIds = [];
+    (globalThis as any).setInterval = (...args: any[]) => {
+      const id = (g.__jestOriginalSetInterval as any)(...args);
+      (g.__jestIntervalIds as any[]).push(id);
+      return id;
+    };
+  }
+
+  if (!g.__mongoMemoryReplSet) {
+    g.__mongoMemoryReplSet = await MongoMemoryReplSet.create({
+      replSet: { count: 1 },
+      instanceOpts: [{ instance: { launchTimeout: 60000 } }],
+    });
+  }
+
   if (mongoose.connection.readyState === 0) {
-    mongoServer = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
-    await mongoose.connect(mongoServer.getUri());
+    await mongoose.connect(g.__mongoMemoryReplSet.getUri());
   }
 });
 
 afterAll(async () => {
+  const g = globalThis as GlobalWithMongo;
+
   if (mongoose.connection.readyState !== 0) {
     await mongoose.connection.dropDatabase().catch(() => undefined);
-    await mongoose.disconnect().catch(() => undefined);
-    await mongoose.connection.close().catch(() => undefined);
   }
-  if (mongoServer) {
-    await mongoServer.stop();
+
+  g.__mongoSuiteRefCount = Math.max(0, Number(g.__mongoSuiteRefCount || 0) - 1);
+  if (g.__mongoSuiteRefCount === 0) {
+    if (g.__jestIntervalIds?.length) {
+      for (const id of g.__jestIntervalIds) {
+        try {
+          clearInterval(id);
+        } catch {
+          // ignore
+        }
+      }
+    }
+    if (g.__jestOriginalSetInterval) {
+      (globalThis as any).setInterval = g.__jestOriginalSetInterval;
+    }
+
+    if (mongoose.connection.readyState !== 0) {
+      await mongoose.disconnect().catch(() => undefined);
+    }
+
+    if (g.__mongoMemoryReplSet) {
+      await g.__mongoMemoryReplSet.stop().catch(() => undefined);
+      delete g.__mongoMemoryReplSet;
+    }
+
+    delete g.__jestOriginalSetInterval;
+    delete g.__jestIntervalIds;
   }
 });
 
@@ -126,6 +178,17 @@ beforeEach(async () => {
   };
   // Remove the status field to avoid conflicts
   delete mappedOverrides.status;
+
+  const rawPaymentStatus = (mappedOverrides as any).paymentStatus;
+  if (typeof rawPaymentStatus === "string") {
+    const trimmed = rawPaymentStatus.trim();
+    const upper = trimmed.toUpperCase();
+    if (upper === "FAILED" || trimmed.toLowerCase() === "failed") {
+      (mappedOverrides as any).paymentStatus = "FAILED";
+    } else {
+      (mappedOverrides as any).paymentStatus = "PENDING";
+    }
+  }
   
   return await Order.create({
     userId: typeof user === 'string' ? user : user._id,
@@ -138,7 +201,7 @@ beforeEach(async () => {
       },
     ],
     totalAmount: defaultProduct.price,
-    paymentStatus: "pending",
+    paymentStatus: "PENDING",
     orderStatus: "pending",
     deliveryStatus: "unassigned",
     address: {
@@ -156,6 +219,35 @@ beforeEach(async () => {
     history: [],
     ...mappedOverrides,
   });
+};
+
+(global as any).createTestPaidOrder = async (user: any, productOverrides: any = {}, orderOverrides: any = {}) => {
+  const { Order } = await import("../src/models/Order");
+  const { finalizeOrderOnCapturedPayment } = await import(
+    "../src/domains/payments/services/orderPaymentFinalizer"
+  );
+
+  const product = await (global as any).createTestProduct({
+    price: 100,
+    stock: 10,
+    reservedStock: 0,
+    ...productOverrides,
+  });
+
+  const order = await (global as any).createTestOrder(user, product, {
+    ...orderOverrides,
+    paymentStatus: "PENDING",
+    totalAmount: typeof orderOverrides?.totalAmount === "number" ? orderOverrides.totalAmount : product.price,
+  });
+
+  await finalizeOrderOnCapturedPayment({
+    orderId: String(order._id),
+    razorpayOrderId: orderOverrides?.razorpayOrderId,
+    razorpayPaymentId: orderOverrides?.razorpayPaymentId,
+    capturedAt: new Date(),
+  } as any);
+
+  return await Order.findById(order._id);
 };
 
 (global as any).createTestOTP = async (phone: any, type: string = "verification", overrides: any = {}) => {

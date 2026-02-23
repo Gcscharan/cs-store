@@ -163,9 +163,30 @@ const OrdersPage: React.FC = () => {
     }
   };
 
+  const formatPaymentStatusLabel = (paymentStatus?: string): string => {
+    const s = String(paymentStatus || "").trim().toLowerCase();
+    if (s === "paid") return "Paid";
+    if (s === "refund_pending") return "Refund in progress";
+    if (s === "refunded") return "Refunded";
+    if (s === "partially_refunded") return "Partially refunded";
+    if (!s) return "Pending";
+    return s.replace(/_/g, " ");
+  };
+
   const formatPaymentInfo = (order: Order) => {
     const method = order.paymentMethod || "cod";
     const status = order.paymentStatus || "pending";
+
+    const normalized = String(status || "").trim().toLowerCase();
+    if (normalized === "refund_pending") {
+      return "Refund in progress";
+    }
+    if (normalized === "refunded") {
+      return "Refunded";
+    }
+    if (normalized === "partially_refunded") {
+      return "Partially refunded";
+    }
     
     if (status === "paid" && order.paymentReceivedAt) {
       if (method === "cod") {
@@ -416,7 +437,7 @@ const OrdersPage: React.FC = () => {
                       Payment Status
                     </h4>
                     <p className="text-sm text-gray-900 mb-1">
-                      {order.paymentStatus === "paid" ? "Paid" : "Pending"}
+                      {formatPaymentStatusLabel(order.paymentStatus)}
                     </p>
                     <p className="text-xs text-gray-600">
                       {formatPaymentInfo(order)}

@@ -1,9 +1,11 @@
 import React, { useState } from "react";
 import { useGetProductsQuery } from "../store/api";
 import ProductCard from "../components/ProductCard";
+import VirtualizedProductGrid from "../components/VirtualizedProductGrid";
 import ProductFilters from "../components/ProductFilters";
 import SortingDropdown, { SortOption } from "../components/SortingDropdown";
-import SkeletonLoader from "../components/SkeletonLoader";
+import SkeletonBox from "../components/SkeletonBox";
+import { ProductGridSkeleton } from "../components/PageSkeletons";
 import { motion } from "framer-motion";
 
 const ProductsPage: React.FC = () => {
@@ -78,7 +80,7 @@ const ProductsPage: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
           <div className="mb-4 sm:mb-0">
             <p className="text-sm text-gray-600">
-              {isLoading ? "Loading..." : `${products.length} products found`}
+              {isLoading ? <SkeletonBox height={14} width={140} /> : `${products.length} products found`}
             </p>
           </div>
           <div className="flex items-center space-x-4">
@@ -129,11 +131,7 @@ const ProductsPage: React.FC = () => {
 
         {/* Products Grid/List */}
         {isLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {Array.from({ length: 8 }).map((_, index) => (
-              <SkeletonLoader key={index} />
-            ))}
-          </div>
+          <ProductGridSkeleton count={8} />
         ) : products.length === 0 ? (
           <div className="text-center py-12">
             <div className="text-gray-400 text-6xl mb-4">📦</div>
@@ -170,20 +168,26 @@ const ProductsPage: React.FC = () => {
             )}
           </div>
         ) : (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.3 }}
-            className={
-              viewMode === "grid"
-                ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
-                : "space-y-4"
-            }
-          >
-            {products.map((product: any) => (
-              <ProductCard key={product._id} product={product} />
-            ))}
-          </motion.div>
+          viewMode === "grid" ? (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.3 }}
+            >
+              <VirtualizedProductGrid products={products} />
+            </motion.div>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.3 }}
+              className="space-y-4"
+            >
+              {products.map((product: any, index: number) => (
+                <ProductCard key={product._id} product={product} imagePriority={index === 0} />
+              ))}
+            </motion.div>
+          )
         )}
       </div>
     </div>

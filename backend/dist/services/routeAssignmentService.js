@@ -208,6 +208,7 @@ class RouteAssignmentService {
         if (userIds.length === 0) {
             return [];
         }
+        // Redis is advisory only; MongoDB is authoritative and must verify eligibility.
         // Get least loaded delivery partners using Redis ZSET (O(log N))
         const leastLoadedPartners = await deliveryPartnerLoadService_1.deliveryPartnerLoadService.getLeastLoadedPartners(50);
         // Filter to only include partners assigned to this pincode
@@ -223,12 +224,29 @@ class RouteAssignmentService {
             }).sort({ currentLoad: 1 });
             return session ? await query2.session(session) : await query2;
         }
-        // Get delivery boy documents for the sorted partners
+        // Get delivery boy documents for the sorted partners (MongoDB verification step)
+        // NOTE: Redis must not be able to select an ineligible partner.
         const query2 = DeliveryBoy_1.DeliveryBoy.find({
-            userId: { $in: assignedPartnerIds.map(id => new mongoose_1.default.Types.ObjectId(id)) },
+            userId: { $in: assignedPartnerIds.map((id) => new mongoose_1.default.Types.ObjectId(id)) },
             isActive: true,
+        }).populate({
+            path: "userId",
+            match: {
+                role: "delivery",
+                "deliveryProfile.assignedAreas": pincode,
+            },
+            select: "role deliveryProfile.assignedAreas",
         });
-        const deliveryBoys = session ? await query2.session(session) : await query2;
+        const deliveryBoysRaw = session ? await query2.session(session) : await query2;
+        const deliveryBoys = (deliveryBoysRaw || []).filter((b) => Boolean(b.userId));
+        if (deliveryBoys.length === 0) {
+            console.log(`📭 Redis suggested partners for pincode ${pincode}, but none passed DB verification; falling back to MongoDB`);
+            const fallbackQuery = DeliveryBoy_1.DeliveryBoy.find({
+                userId: { $in: userIds.map((id) => new mongoose_1.default.Types.ObjectId(id)) },
+                isActive: true,
+            }).sort({ currentLoad: 1 });
+            return session ? await fallbackQuery.session(session) : await fallbackQuery;
+        }
         // Sort delivery boys according to Redis ZSET order
         const sortedDeliveryBoys = deliveryBoys.sort((a, b) => {
             const indexA = assignedPartnerIds.indexOf(a.userId?.toString() || '');
@@ -257,13 +275,31 @@ class RouteAssignmentService {
             }).sort({ currentLoad: 1 });
             return session ? await query3.session(session) : await query3;
         }
-        // Get the delivery boy document for the least loaded bike partner
+        // Get the delivery boy document for the least loaded bike partner (MongoDB verification step)
         const partnerId = leastLoadedPartners[0].id;
         const query3 = DeliveryBoy_1.DeliveryBoy.findOne({
             userId: new mongoose_1.default.Types.ObjectId(partnerId),
             isActive: true,
+        }).populate({
+            path: "userId",
+            match: { "deliveryProfile.vehicleType": "bike" },
+            select: "deliveryProfile.vehicleType",
         });
-        const bikeDeliveryBoy = session ? await query3.session(session) : await query3;
+        const bikeDeliveryBoyRaw = session ? await query3.session(session) : await query3;
+        const bikeDeliveryBoy = bikeDeliveryBoyRaw && bikeDeliveryBoyRaw.userId ? bikeDeliveryBoyRaw : null;
+        if (!bikeDeliveryBoy) {
+            console.log(`📭 Redis suggested bike partner ${partnerId}, but it failed DB verification; falling back to MongoDB`);
+            const fallbackQuery = DeliveryBoy_1.DeliveryBoy.findOne({
+                isActive: true,
+            })
+                .populate({
+                path: "userId",
+                match: { "deliveryProfile.vehicleType": "bike" },
+                select: "deliveryProfile.vehicleType",
+            })
+                .sort({ currentLoad: 1 });
+            return session ? await fallbackQuery.session(session) : await fallbackQuery;
+        }
         console.log(`🎯 Found bike delivery partner ${partnerId} with load ${leastLoadedPartners[0].load} using Redis ZSET`);
         return bikeDeliveryBoy;
     }
@@ -287,13 +323,31 @@ class RouteAssignmentService {
             }).sort({ currentLoad: 1 });
             return session ? await query4.session(session) : await query4;
         }
-        // Get delivery boy documents for the sorted partners
+        // Get delivery boy documents for the sorted partners (MongoDB verification step)
         const partnerIds = leastLoadedPartners.map((p) => p.id);
         const query4 = DeliveryBoy_1.DeliveryBoy.find({
             userId: { $in: partnerIds.map((id) => new mongoose_1.default.Types.ObjectId(id)) },
             isActive: true,
+        }).populate({
+            path: "userId",
+            match: { "deliveryProfile.vehicleType": { $in: ["car", "auto", "scooter"] } },
+            select: "deliveryProfile.vehicleType",
         });
-        const deliveryBoys = session ? await query4.session(session) : await query4;
+        const deliveryBoysRaw = session ? await query4.session(session) : await query4;
+        const deliveryBoys = (deliveryBoysRaw || []).filter((b) => Boolean(b.userId));
+        if (deliveryBoys.length === 0) {
+            console.log("📭 Redis suggested auto/car partners, but none passed DB verification; falling back to MongoDB");
+            const fallbackQuery = DeliveryBoy_1.DeliveryBoy.find({
+                isActive: true,
+            })
+                .populate({
+                path: "userId",
+                match: { "deliveryProfile.vehicleType": { $in: ["car", "auto", "scooter"] } },
+                select: "deliveryProfile.vehicleType",
+            })
+                .sort({ currentLoad: 1 });
+            return session ? await fallbackQuery.session(session) : await fallbackQuery;
+        }
         // Sort according to Redis ZSET order
         const sortedDeliveryBoys = deliveryBoys.sort((a, b) => {
             const indexA = partnerIds.indexOf(a.userId?.toString() || '');

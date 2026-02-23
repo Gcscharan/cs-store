@@ -19,10 +19,13 @@ import {
 import { calculatePriceBreakdown, formatPrice } from "../utils/priceCalculator";
 import { getProductImage, handleImageError } from "../utils/image";
 import ConfirmationDialog from "../components/ConfirmationDialog";
+import { CartPageSkeleton } from "../components/PageSkeletons";
+import { useCartPersistence } from "../hooks/useCartPersistence";
 
 const CartPage = () => {
   const cart = useSelector((state: RootState) => state.cart);
   const auth = useSelector((state: RootState) => state.auth);
+  const { isLoadingCart } = useCartPersistence();
   const dispatch = useDispatch();
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
   const [addressUpdateTrigger, setAddressUpdateTrigger] = useState(0);
@@ -175,6 +178,10 @@ const CartPage = () => {
       itemName: "",
     });
   };
+
+  if (auth.isAuthenticated && isLoadingCart && cart.items.length === 0) {
+    return <CartPageSkeleton />;
+  }
 
   return (
     <motion.div

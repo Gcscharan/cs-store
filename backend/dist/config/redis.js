@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.redis = void 0;
 const redis_1 = require("redis");
+const opsMetrics_1 = require("../ops/opsMetrics");
 const g = globalThis;
 function createInMemoryRedisClient() {
     if (!g.__redisKv)
@@ -195,7 +196,16 @@ function wrapFailOpen(client) {
                     const out = value.apply(target, args);
                     if (!out || typeof out.then !== "function")
                         return out;
-                    return out.catch((e) => {
+                    return out
+                        .then((val) => {
+                        (0, opsMetrics_1.incCounterWithLabels)("redis_ops_total", { op: prop, result: "ok" }, 1);
+                        if (prop === "get") {
+                            const hit = val !== null && typeof val !== "undefined";
+                            (0, opsMetrics_1.incCounterWithLabels)("redis_get_total", { result: hit ? "hit" : "miss" }, 1);
+                        }
+                        return val;
+                    })
+                        .catch((e) => {
                         if (!warnedOnce) {
                             warnedOnce = true;
                             console.warn("⚠️ Redis unavailable; continuing without Redis (non-fatal)");

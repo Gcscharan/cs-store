@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { RootState } from "../store";
@@ -7,6 +7,7 @@ import { CheckCircle, MapPin, User, ArrowLeft } from "lucide-react";
 import OrderTimeline from "../components/OrderTimeline";
 import { buildCustomerOrderTimeline } from "../utils/customerOrderTimeline";
 import { shouldShowDeliveryPartner } from "../utils/deliveryPartnerVisibility";
+import { isRefundsUiEnabled } from "../config/featureFlags";
 
 interface OrderItem {
   productId?: {
@@ -52,6 +53,16 @@ interface Order {
   paymentMethod?: string;
   paymentStatus?: string;
   paymentReceivedAt?: string;
+  refunds?: Array<{
+    refundId?: string;
+    amount?: number;
+    currency?: string;
+    status?: string;
+    reason?: string;
+    failureReason?: string;
+    createdAt?: string;
+    updatedAt?: string;
+  }>;
   createdAt: string;
   updatedAt: string;
   timeline?: any[];
@@ -129,6 +140,70 @@ const OrderDetailsPage: React.FC = () => {
       setIsLoading(false);
     }
   };
+
+  const formatPaymentStatusLabel = (paymentStatus?: string): string => {
+    const s = String(paymentStatus || "").trim().toLowerCase();
+    if (s === "paid") return "Paid";
+    if (s === "refund_pending") return "Refund in progress";
+    if (s === "refunded") return "Refunded";
+    if (s === "partially_refunded") return "Partially refunded";
+    if (!s) return "Pending";
+    return s.replace(/_/g, " ");
+  };
+
+  const refunds = useMemo(() => {
+    return Array.isArray((order as any)?.refunds) ? (((order as any).refunds as any[]) || []) : [];
+  }, [order]);
+
+  const refundsUiEnabled = useMemo(() => isRefundsUiEnabled(), []);
+
+  const refundSummary = useMemo(() => {
+    const totalAmount = Number((order as any)?.totalAmount || 0);
+    const refundedAmount = refunds.reduce((acc, r) => {
+      const status = String(r?.status || "").trim().toUpperCase();
+      if (status === "COMPLETED" || status === "PARTIAL") {
+        return acc + Number(r?.amount || 0);
+      }
+      return acc;
+    }, 0);
+    return {
+      totalAmount,
+      refundedAmount,
+    };
+  }, [order, refunds]);
+
+  const getRefundBadge = (statusRaw?: string): { label: string; className: string } => {
+    const s = String(statusRaw || "").trim().toUpperCase();
+    if (s === "REQUESTED") return { label: "Refund requested", className: "bg-gray-100 text-gray-800" };
+    if (s === "INITIATED" || s === "PROCESSING") return { label: "Processing", className: "bg-amber-100 text-amber-900" };
+    if (s === "COMPLETED") return { label: "Completed", className: "bg-green-100 text-green-800" };
+    if (s === "FAILED") return { label: "Failed", className: "bg-red-100 text-red-800" };
+    if (s === "PARTIAL") return { label: "Partial", className: "bg-blue-100 text-blue-800" };
+    if (!s) return { label: "Refund", className: "bg-gray-100 text-gray-800" };
+    return { label: s.replace(/_/g, " ").toLowerCase(), className: "bg-gray-100 text-gray-800" };
+  };
+
+  const refundHeadlineCopy = (statusRaw?: string): string => {
+    const s = String(statusRaw || "").trim().toUpperCase();
+    if (s === "REQUESTED") return "We’ve received your refund request.";
+    if (s === "INITIATED") return "Your refund has been initiated. Banks may take 2–7 business days to reflect the amount.";
+    if (s === "PROCESSING") return "Your bank is processing the refund. Timelines depend on your bank and payment method.";
+    if (s === "COMPLETED") return "Refund completed. If you don’t see it yet, please check again in 24–48 hours.";
+    if (s === "FAILED") return "Refund could not be completed. Our support team may contact you.";
+    if (s === "PARTIAL") return "A partial refund has been completed. Remaining amount is still under review.";
+    return "Refund timelines depend on your bank and payment method.";
+  };
+
+  useEffect(() => {
+    try {
+      if (typeof window === "undefined") return;
+      if (window.location.hash !== "#refunds") return;
+      const el = document.getElementById("refunds");
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch {
+    }
+  }, [refunds.length]);
 
 
   if (isLoading) {
@@ -503,7 +578,7 @@ const OrderDetailsPage: React.FC = () => {
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Payment Status</span>
                     <span className="text-gray-900 font-medium">
-                      {order.paymentStatus === "paid" ? "Paid" : "Pending"}
+                      {formatPaymentStatusLabel(order.paymentStatus)}
                     </span>
                   </div>
                   {order.paymentMethod === "cod" && order.paymentReceivedAt && (
@@ -529,6 +604,63 @@ const OrderDetailsPage: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            {refundsUiEnabled && refunds.length > 0 ? (
+              <div id="refunds" className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Refund</h3>
+                    <p className="text-sm text-gray-600 mt-1">Refund timelines depend on your bank and payment method.</p>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm text-gray-600">Summary</div>
+                    <div className="text-sm font-semibold text-gray-900">
+                      ₹{Math.max(0, refundSummary.refundedAmount).toLocaleString("en-IN")} refunded of ₹{Math.max(0, refundSummary.totalAmount).toLocaleString("en-IN")}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 space-y-3">
+                  {refunds.map((r: any, idx: number) => {
+                    const badge = getRefundBadge(r?.status);
+                    const createdAt = String(r?.createdAt || r?.updatedAt || "").trim();
+                    const reason = String(r?.reason || "").trim();
+                    const failureReason = String(r?.failureReason || "").trim();
+                    const amount = Number(r?.amount || 0);
+                    const currency = String(r?.currency || "INR").trim() || "INR";
+                    const id = String(r?.refundId || "").trim();
+
+                    return (
+                      <div key={id || String(idx)} className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${badge.className}`}> 
+                                {badge.label}
+                              </span>
+                              {id ? <span className="text-xs text-gray-500 font-mono">{id}</span> : null}
+                            </div>
+                            <p className="text-sm text-gray-800 mt-2">{refundHeadlineCopy(r?.status)}</p>
+                            {reason ? <p className="text-xs text-gray-600 mt-2">Reason: {reason}</p> : null}
+                            {badge.label === "Failed" && failureReason ? (
+                              <p className="text-xs text-red-700 mt-2">{failureReason}</p>
+                            ) : null}
+                            {createdAt ? (
+                              <p className="text-xs text-gray-500 mt-2">Created: {new Date(createdAt).toLocaleString()}</p>
+                            ) : null}
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <div className="text-sm font-semibold text-gray-900">
+                              {currency === "INR" ? "₹" : ""}{amount > 0 ? amount.toLocaleString("en-IN") : "—"}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

@@ -95,15 +95,12 @@ export interface IOrder extends Document {
   grandTotal?: number;
   totalAmount: number;
   paymentMethod: "cod" | "upi" | "razorpay";
+  // PAID is set ONLY by Razorpay payment.captured webhook.
+  // Any other transition is a bug.
   paymentStatus:
     | "PENDING"
-    | "AWAITING_UPI_APPROVAL"
     | "PAID"
-    | "FAILED"
-    | "pending"
-    | "paid"
-    | "failed"
-    | "refunded";
+    | "FAILED";
   paymentReceivedAt?: Date; // Timestamp when payment was confirmed by delivery boy
   orderStatus:
     | "PENDING_PAYMENT"
@@ -325,17 +322,14 @@ const OrderSchema = new Schema<IOrder>(
       type: String,
       enum: ["upi", "cod", "razorpay"],
     },
+    // PAID is set ONLY by Razorpay payment.captured webhook.
+    // Any other transition is a bug.
     paymentStatus: {
       type: String,
       enum: [
         "PENDING",
-        "AWAITING_UPI_APPROVAL",
         "PAID",
         "FAILED",
-        "pending",
-        "paid",
-        "failed",
-        "refunded",
       ],
       default: "PENDING",
     },
@@ -443,6 +437,93 @@ const OrderSchema = new Schema<IOrder>(
     timestamps: true,
   }
 );
+
+const ALLOWED_PAID_SOURCE = "WEBHOOK_PAYMENT_CAPTURED" as const;
+const PAID_SOURCE_OPTION_KEY = "paymentStatusSource" as const;
+
+function extractSetPaymentStatus(update: any): string {
+  if (!update || typeof update !== "object") return "";
+  const direct = (update as any).paymentStatus;
+  if (typeof direct === "string") return direct;
+  const set = (update as any).$set;
+  const fromSet = set && typeof set === "object" ? (set as any).paymentStatus : undefined;
+  return typeof fromSet === "string" ? fromSet : "";
+}
+
+function extractPaidSourceFromOptions(opts: any): string {
+  if (!opts || typeof opts !== "object") return "";
+  const direct = (opts as any)[PAID_SOURCE_OPTION_KEY];
+  if (typeof direct === "string") return direct;
+  const ctx = (opts as any).context;
+  const fromCtx = ctx && typeof ctx === "object" ? (ctx as any)[PAID_SOURCE_OPTION_KEY] : undefined;
+  return typeof fromCtx === "string" ? fromCtx : "";
+}
+
+function throwIllegalPaidTransition(args: {
+  method: string;
+  source: string;
+  orderId?: any;
+}) {
+  console.error("[SECURITY][ILLEGAL_PAID_TRANSITION]", {
+    model: "Order",
+    method: args.method,
+    orderId: args.orderId ? String(args.orderId) : undefined,
+    source: args.source,
+  });
+  const err: any = new Error("Illegal PAID transition");
+  err.code = "ILLEGAL_PAID_TRANSITION";
+  throw err;
+}
+
+async function assertPaidTransitionAllowedOnQuery(this: any): Promise<void> {
+  const update = this.getUpdate ? this.getUpdate() : undefined;
+  const nextStatus = String(extractSetPaymentStatus(update) || "").toUpperCase();
+  if (nextStatus !== "PAID") return;
+
+  const opts = this.getOptions ? this.getOptions() : undefined;
+  const source = String(extractPaidSourceFromOptions(opts) || "");
+  if (source !== ALLOWED_PAID_SOURCE) {
+    throwIllegalPaidTransition({
+      method: String(this.op || "update"),
+      source,
+      orderId: (this.getQuery && (this.getQuery() as any)?._id) || undefined,
+    });
+  }
+}
+
+OrderSchema.pre("save", function (next) {
+  try {
+    const nextStatus = String((this as any).paymentStatus || "").toUpperCase();
+    if (!this.isModified("paymentStatus")) return next();
+    if (nextStatus !== "PAID") return next();
+
+    const source = String(((this as any).$locals || {})[PAID_SOURCE_OPTION_KEY] || "");
+    if (source !== ALLOWED_PAID_SOURCE) {
+      throwIllegalPaidTransition({ method: "save", source, orderId: (this as any)._id });
+    }
+    return next();
+  } catch (e) {
+    return next(e as any);
+  }
+});
+
+OrderSchema.pre("updateOne", function (next) {
+  assertPaidTransitionAllowedOnQuery.call(this)
+    .then(() => next())
+    .catch((e) => next(e));
+});
+
+OrderSchema.pre("updateMany", function (next) {
+  assertPaidTransitionAllowedOnQuery.call(this)
+    .then(() => next())
+    .catch((e) => next(e));
+});
+
+OrderSchema.pre("findOneAndUpdate", function (next) {
+  assertPaidTransitionAllowedOnQuery.call(this)
+    .then(() => next())
+    .catch((e) => next(e));
+});
 
 // Indexes
 OrderSchema.index({ userId: 1, createdAt: -1 });

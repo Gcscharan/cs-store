@@ -2,6 +2,7 @@ import axios from "axios";
 import { store } from "../store";
 
 import { getApiOrigin } from "./runtime";
+import { refreshAccessToken } from "../utils/authClient";
 
 const API_URL = getApiOrigin();
 
@@ -24,31 +25,22 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (error?.response?.status === 401) {
-      // Try to refresh token
-      try {
-        const refreshResponse = await axios.post(`${API_URL}/api/auth/refresh`);
-        if (refreshResponse.data?.accessToken) {
-          // Update Redux store with new token
-          store.dispatch({
-            type: 'auth/setTokens',
-            payload: {
-              accessToken: refreshResponse.data.accessToken,
-              refreshToken: refreshResponse.data.refreshToken || null
-            }
-          });
-          
-          // Retry the original request
-          error.config.headers.Authorization = `Bearer ${refreshResponse.data.accessToken}`;
-          return api.request(error.config);
-        }
-      } catch (refreshError) {
-        // Refresh failed, clear auth state and redirect to login
-        console.log("Auto-logout: refresh token failed");
-        store.dispatch({ type: 'auth/logout' });
-        window.location.href = "/login";
+    const status = Number(error?.response?.status || 0);
+    const code = String(error?.response?.data?.code || "").trim();
+    const msg = String(error?.response?.data?.message || "").trim().toLowerCase();
+
+    const isExpired = status === 401 && (code === "TOKEN_EXPIRED" || msg === "token expired");
+    const cfg = error?.config as any;
+    if (isExpired && cfg && !cfg.__retryOnce) {
+      cfg.__retryOnce = true;
+      const next = await refreshAccessToken();
+      if (next) {
+        cfg.headers = cfg.headers || {};
+        cfg.headers.Authorization = `Bearer ${next}`;
+        return api.request(cfg);
       }
     }
+
     return Promise.reject(error);
   }
 );

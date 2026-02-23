@@ -42,8 +42,8 @@ const DeliveryBoy_1 = require("../models/DeliveryBoy");
 const Notification_1 = __importDefault(require("../models/Notification"));
 const bcrypt = __importStar(require("bcryptjs"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || "your-refresh-secret";
+const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
 /**
  * Delivery Boy Signup
  * POST /api/delivery/auth/signup

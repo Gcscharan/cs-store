@@ -1,4 +1,5 @@
 import { createClient } from "redis";
+import { incCounterWithLabels } from "../ops/opsMetrics";
 
 const g = globalThis as any;
 
@@ -187,7 +188,16 @@ function wrapFailOpen(client: any): any {
           const out = value.apply(target, args);
           if (!out || typeof out.then !== "function") return out;
 
-          return out.catch((e: any) => {
+          return out
+            .then((val: any) => {
+              incCounterWithLabels("redis_ops_total", { op: prop, result: "ok" }, 1);
+              if (prop === "get") {
+                const hit = val !== null && typeof val !== "undefined";
+                incCounterWithLabels("redis_get_total", { result: hit ? "hit" : "miss" }, 1);
+              }
+              return val;
+            })
+            .catch((e: any) => {
             if (!warnedOnce) {
               warnedOnce = true;
               console.warn("⚠️ Redis unavailable; continuing without Redis (non-fatal)");

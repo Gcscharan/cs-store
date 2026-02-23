@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import { toApiUrl } from "../config/runtime";
 import {
   CreditCard,
   Smartphone,
@@ -71,7 +72,7 @@ const PaymentLogs: React.FC = () => {
         ...(methodFilter && { method: methodFilter }),
       });
 
-      const response = await fetch(`/api/payment?${params}`, {
+      const response = await fetch(toApiUrl(`/payment?${params}`), {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -92,7 +93,7 @@ const PaymentLogs: React.FC = () => {
   const fetchStats = async () => {
     try {
       const token = localStorage.getItem("accessToken");
-      const response = await fetch("/api/payment/stats/overview", {
+      const response = await fetch(toApiUrl("/payment/stats/overview"), {
         headers: {
           Authorization: `Bearer ${token}`,
         },

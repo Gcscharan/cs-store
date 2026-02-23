@@ -10,6 +10,9 @@ export interface IProduct extends Document {
   stock: number;
   reservedStock?: number;
   weight: number;
+  isActive?: boolean;
+  isSellable?: boolean;
+  deletedAt?: Date | null;
   images: {
     publicId?: string;
     variants?: {
@@ -95,6 +98,20 @@ const ProductSchema = new Schema<IProduct>(
       min: [0, "Reserved stock cannot be negative"],
       default: 0,
     },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+    isSellable: {
+      type: Boolean,
+      default: true,
+      index: true,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
     weight: {
       type: Number,
       required: [true, "Weight is required"],
@@ -145,5 +162,6 @@ const ProductSchema = new Schema<IProduct>(
 ProductSchema.index({ name: "text", description: "text", tags: "text" });
 ProductSchema.index({ category: 1 });
 ProductSchema.index({ price: 1 });
+ProductSchema.index({ isSellable: 1, category: 1, price: 1 });
 
 export const Product = mongoose.model<IProduct>("Product", ProductSchema);

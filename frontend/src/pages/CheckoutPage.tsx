@@ -1,12 +1,10 @@
 import React, { useState } from "react";
-import { motion } from "framer-motion";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "../store";
 import { clearCart } from "../store/slices/cartSlice";
 import { useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
 import ChooseLocation from "../components/ChooseLocation";
-import DeliveryFeeDisplay from "../components/DeliveryFeeDisplay";
 import {
   calculatePriceBreakdown,
   formatPrice,
@@ -16,18 +14,72 @@ import {
   calculateDeliveryFee,
 } from "../utils/deliveryFeeCalculator";
 import toast from "react-hot-toast";
-import { MapPin, Shield } from "lucide-react";
-import api, {
+import { CreditCard, Landmark, MapPin, Shield, Wallet } from "lucide-react";
+import {
   useClearCartMutation,
   useGetAddressesQuery,
   useSetDefaultAddressMutation,
 } from "../store/api";
-import RazorpayCheckout from "../components/RazorpayCheckout";
 import { createRazorpayOrder, openRazorpayCheckout } from "../utils/razorpay";
+import PaymentStatusBanner from "../payments/PaymentStatusBanner";
+import { toApiUrl } from "../config/runtime";
+import { authFetch } from "../utils/authClient";
+import {
+  PaymentStates,
+  type PaymentState,
+  transition as transitionPaymentState,
+} from "../payments/paymentStateMachine";
+import {
+  clearPaymentSession,
+  loadPaymentSession,
+  isSessionExpired,
+  savePaymentSession,
+  updatePaymentSession,
+  type PaymentSession,
+} from "../payments/paymentSession";
+import { CheckoutPageSkeleton } from "../components/PageSkeletons";
+import { useCartPersistence } from "../hooks/useCartPersistence";
+
+const PaymentOption = (props: {
+  value: string;
+  selected: boolean;
+  onChange: () => void;
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  testId?: string;
+}) => {
+  return (
+    <label
+      className={
+        "flex items-start gap-4 rounded-lg border p-4 cursor-pointer bg-white hover:border-orange-300 transition-colors " +
+        (props.selected ? "border-orange-500 ring-1 ring-orange-200" : "border-gray-200")
+      }
+    >
+      <input
+        type="radio"
+        name="payment"
+        value={props.value}
+        data-testid={props.testId}
+        checked={props.selected}
+        onChange={props.onChange}
+        className="mt-1 h-5 w-5 text-orange-500 focus:ring-orange-500"
+      />
+      <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-md bg-orange-50 text-orange-700">
+        {props.icon}
+      </div>
+      <div className="min-w-0">
+        <div className="text-[17px] font-semibold text-gray-900">{props.title}</div>
+        <div className="mt-1 text-[15px] text-gray-800">{props.description}</div>
+      </div>
+    </label>
+  );
+};
 
 const CheckoutPage = () => {
   const cart = useSelector((state: RootState) => state.cart);
   const { user, isAuthenticated, tokens } = useSelector((state: RootState) => state.auth);
+  const { isLoadingCart } = useCartPersistence();
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const [clearCartMutation] = useClearCartMutation();
@@ -35,70 +87,479 @@ const CheckoutPage = () => {
   const [isPincodeServiceable, setIsPincodeServiceable] = useState<boolean | null>(null);
   
   // Fetch addresses using RTK Query (same as navbar and Layout)
-  const { data: addressesData, refetch: refetchAddresses } = useGetAddressesQuery(undefined, {
+  const { data: addressesData, refetch: refetchAddresses, isLoading: isLoadingAddresses } = useGetAddressesQuery(undefined, {
     skip: !isAuthenticated,
   });
   const [setDefaultAddressMutation] = useSetDefaultAddressMutation();
 
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"cod" | "upi" | "razorpay">("upi");
+  const LAST_METHOD_KEY = "cs_store_last_payment_method_v1";
+  const loadLastMethod = (): "cod" | "upi" | "card" | "netbanking" => {
+    try {
+      const v = String(localStorage.getItem(LAST_METHOD_KEY) || "").trim();
+      if (v === "cod" || v === "upi" || v === "card" || v === "netbanking") return v;
+      return "upi";
+    } catch {
+      return "upi";
+    }
+  };
+
+  const invalidateExistingOrder = () => {
+    pollAbortRef.current?.abort();
+
+    if (expiryIntervalRef.current) {
+      window.clearInterval(expiryIntervalRef.current);
+      expiryIntervalRef.current = null;
+    }
+    setExpiresAt(null);
+    setRemainingSeconds(0);
+
+    try {
+      sessionStorage.removeItem("cs_order_create_idem_razorpay_v1");
+      sessionStorage.removeItem("cs_order_create_idem_cod_v1");
+    } catch {
+    }
+
+    try {
+      clearPaymentSession();
+    } catch {
+    }
+    setPaymentSession(null);
+    setPaymentBannerHidden(true);
+    setPaymentBannerNotice(undefined);
+    setRetryAvailableAtMs(null);
+    setFailureReason(null);
+    setTerminalHelper(null);
+    razorpayFlowInFlightRef.current = false;
+    setIsRazorpayPolling(false);
+    setIsPlacingOrder(false);
+    setRazorpayAttempt(1);
+    safeSetPaymentState(PaymentStates.IDLE);
+  };
+  const saveLastMethod = (m: "cod" | "upi" | "card" | "netbanking") => {
+    try {
+      localStorage.setItem(LAST_METHOD_KEY, m);
+    } catch {
+    }
+  };
+
+  const clearCartCompletely = async () => {
+    try {
+      dispatch(clearCart());
+      if (isAuthenticated) {
+        await clearCartMutation(undefined).unwrap();
+      }
+    } catch {
+    }
+  };
+
+  if (isAuthenticated && isLoadingCart && cart.items.length === 0) {
+    return <CheckoutPageSkeleton />;
+  }
+
+  if (isAuthenticated && isLoadingAddresses && cart.items.length > 0) {
+    return <CheckoutPageSkeleton />;
+  }
+
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"cod" | "upi" | "card" | "netbanking">(() => loadLastMethod());
   const [upiVpa, setUpiVpa] = useState("");
-  const [createdUpiOrderId, setCreatedUpiOrderId] = useState<string | null>(null);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
-  const [isConfirmingPayment, setIsConfirmingPayment] = useState(false);
   const [razorpayAttempt, setRazorpayAttempt] = useState(1);
   const [isRazorpayPolling, setIsRazorpayPolling] = useState(false);
 
-  // Helper function to clear both Redux cart and backend MongoDB cart
-  const clearCartCompletely = async () => {
-    try {
-      // Clear Redux state (in-memory only, no localStorage)
-      dispatch(clearCart());
-      
-      // Clear backend MongoDB cart if user is authenticated
-      if (isAuthenticated) {
-        await clearCartMutation(undefined).unwrap();
-        console.log("✅ Backend MongoDB cart cleared successfully");
+  const [terminalHelper, setTerminalHelper] = useState<string | null>(null);
+
+  const [expiresAt, setExpiresAt] = useState<Date | null>(null);
+  const [remainingSeconds, setRemainingSeconds] = useState<number>(0);
+
+  const [paymentSession, setPaymentSession] = useState<PaymentSession | null>(null);
+  const [paymentState, setPaymentState] = useState<PaymentState>(PaymentStates.IDLE);
+  const [paymentBannerHidden, setPaymentBannerHidden] = useState(false);
+  const [paymentBannerNotice, setPaymentBannerNotice] = useState<string | undefined>(undefined);
+  const [retryAvailableAtMs, setRetryAvailableAtMs] = useState<number | null>(null);
+  const [failureReason, setFailureReason] = useState<"MODAL_CLOSED" | "GATEWAY_ERROR" | "POLL_TIMEOUT" | null>(null);
+
+  const pollAbortRef = React.useRef<AbortController | null>(null);
+  const expiryIntervalRef = React.useRef<number | null>(null);
+  const didInitPaymentSessionRef = React.useRef(false);
+  const razorpayFlowInFlightRef = React.useRef(false);
+
+  React.useEffect(() => {
+    return () => {
+      pollAbortRef.current?.abort();
+      if (expiryIntervalRef.current) {
+        window.clearInterval(expiryIntervalRef.current);
+        expiryIntervalRef.current = null;
       }
-    } catch (error) {
-      console.error("Error clearing backend cart:", error);
-      // Even if backend fails, Redux state will still be cleared
+    };
+  }, []);
+
+  React.useEffect(() => {
+    if (!expiresAt) {
+      setRemainingSeconds(0);
+      if (expiryIntervalRef.current) {
+        window.clearInterval(expiryIntervalRef.current);
+        expiryIntervalRef.current = null;
+      }
+      return;
+    }
+
+    if (expiryIntervalRef.current) {
+      window.clearInterval(expiryIntervalRef.current);
+      expiryIntervalRef.current = null;
+    }
+
+    const tick = () => {
+      const ms = expiresAt.getTime() - Date.now();
+      const sec = Math.max(0, Math.floor(ms / 1000));
+      setRemainingSeconds(sec);
+
+      if (sec <= 0) {
+        setRemainingSeconds(0);
+
+        if (expiryIntervalRef.current) {
+          window.clearInterval(expiryIntervalRef.current);
+          expiryIntervalRef.current = null;
+        }
+
+        resetCheckoutPaymentFlow({ message: "Payment expired. Please try again." });
+      }
+    };
+
+    tick();
+    expiryIntervalRef.current = window.setInterval(tick, 1000);
+
+    return () => {
+      if (expiryIntervalRef.current) {
+        window.clearInterval(expiryIntervalRef.current);
+        expiryIntervalRef.current = null;
+      }
+    };
+  }, [expiresAt]);
+
+  React.useEffect(() => {
+    if (didInitPaymentSessionRef.current) return;
+    if (isAuthenticated && isLoadingAddresses) return;
+    didInitPaymentSessionRef.current = true;
+
+    const existing = loadPaymentSession();
+    if (!existing) return;
+
+    const storedAddressId = String((existing as any).addressId || "").trim();
+    const storedCartTotal = Number.isFinite(Number((existing as any).cartTotal))
+      ? Number((existing as any).cartTotal)
+      : null;
+    const nextAddressId = String(currentAddressId || "").trim();
+    const nextCartTotal = Number(cart.total);
+
+    const addressMismatch = !!nextAddressId && (!storedAddressId || storedAddressId !== nextAddressId);
+    const cartMismatch = storedCartTotal !== null && storedCartTotal !== nextCartTotal;
+
+    if (addressMismatch || cartMismatch) {
+      invalidateExistingOrder();
+      return;
+    }
+
+    if (isSessionExpired(existing)) {
+      clearPaymentSession();
+      setPaymentSession(null);
+      safeSetPaymentState(PaymentStates.IDLE);
+      return;
+    }
+
+    if (existing.state === PaymentStates.PAYMENT_FAILED) {
+      resetCheckoutPaymentFlow({ message: "Payment failed. Please try again." });
+      return;
+    }
+
+    if (existing.state === PaymentStates.PAYMENT_CONFIRMED) {
+      resetCheckoutPaymentFlow({ message: "Previous payment was confirmed. Please place a new order." });
+      return;
+    }
+
+    setPaymentSession(existing);
+    setPaymentBannerHidden(false);
+    setPaymentBannerNotice("Resuming payment status…");
+    safeSetPaymentState(existing.state);
+
+    const accessToken = tokens?.accessToken;
+    if (!accessToken) return;
+
+    if (existing.paymentMethod === "razorpay") {
+      if (
+        existing.state === PaymentStates.PAYMENT_PROCESSING ||
+        existing.state === PaymentStates.PAYMENT_INITIATED ||
+        existing.state === PaymentStates.PAYMENT_RECOVERABLE ||
+        existing.state === PaymentStates.ORDER_CREATED
+      ) {
+        void startReconciliationPolling({ orderId: existing.orderId, accessToken });
+      }
+    }
+  }, [tokens?.accessToken]);
+
+  const safeSetPaymentState = (next: PaymentState) => {
+    setPaymentState((prev) => {
+      try {
+        return transitionPaymentState(prev, next);
+      } catch {
+        return next;
+      }
+    });
+    updatePaymentSession({ state: next });
+  };
+
+  const hidePaymentBanner = () => {
+    setPaymentBannerHidden(true);
+    setPaymentBannerNotice(undefined);
+  };
+
+  const getPaymentBannerMessage = (state: PaymentState): string => {
+    if (state === PaymentStates.ORDER_CREATED) return "Order created. Complete payment to confirm.";
+    if (state === PaymentStates.PAYMENT_INITIATED) return "Payment initiated. Complete the Razorpay checkout.";
+    if (state === PaymentStates.PAYMENT_PROCESSING) return "Payment received by gateway. Awaiting backend confirmation…";
+    if (state === PaymentStates.PAYMENT_RECOVERABLE) return "Payment not confirmed yet. You can resume or retry.";
+    if (state === PaymentStates.PAYMENT_FAILED) return "Payment failed. You can retry within attempt limits.";
+    return "";
+  };
+
+  const showPaymentBanner =
+    !paymentBannerHidden &&
+    paymentSession &&
+    paymentSession.paymentMethod === "razorpay" &&
+    paymentState !== PaymentStates.IDLE;
+
+  const waitForVisible = async (signal?: AbortSignal): Promise<void> => {
+    if (typeof document === "undefined") return;
+    if (document.visibilityState === "visible") return;
+
+    await new Promise<void>((resolve, reject) => {
+      const onChange = () => {
+        if (document.visibilityState === "visible") {
+          document.removeEventListener("visibilitychange", onChange);
+          resolve();
+        }
+      };
+
+      document.addEventListener("visibilitychange", onChange);
+
+      if (signal) {
+        const onAbort = () => {
+          document.removeEventListener("visibilitychange", onChange);
+          reject(new DOMException("Aborted", "AbortError"));
+        };
+        if (signal.aborted) {
+          onAbort();
+          return;
+        }
+        signal.addEventListener("abort", onAbort, { once: true });
+      }
+    });
+  };
+
+  const startReconciliationPolling = async (args: { orderId: string; accessToken: string }) => {
+    if (!args.orderId) return;
+
+    pollAbortRef.current?.abort();
+    const controller = new AbortController();
+    pollAbortRef.current = controller;
+
+    setIsRazorpayPolling(true);
+    setRetryAvailableAtMs(null);
+
+    const deadlineMs = Date.now() + 120_000;
+
+    try {
+      while (Date.now() < deadlineMs) {
+        if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
+
+        if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+          await waitForVisible(controller.signal);
+        }
+
+        const res = await authFetch(toApiUrl(`/orders/${args.orderId}?ts=${Date.now()}`), {
+          method: "GET",
+          cache: "no-store",
+          headers: {
+            "Content-Type": "application/json",
+            "Cache-Control": "no-cache",
+            Pragma: "no-cache",
+          },
+          signal: controller.signal,
+        });
+
+        if (res.status !== 304 && res.ok) {
+          const data = await res.json().catch(() => ({} as any));
+          const status = String(
+            (data as any)?.order?.paymentStatus || (data as any)?.paymentStatus || ""
+          ).toUpperCase();
+
+          const intentStatus = String(
+            (data as any)?.order?.paymentIntent?.status || (data as any)?.paymentIntent?.status || ""
+          ).toUpperCase();
+
+          if (intentStatus === "EXPIRED") {
+            resetCheckoutPaymentFlow({ message: "Payment expired. Please try again." });
+            return;
+          }
+          if (intentStatus === "FAILED" || intentStatus === "CANCELLED") {
+            resetCheckoutPaymentFlow({ message: "Payment was cancelled. Please try again." });
+            return;
+          }
+
+          if (status === "PAID") {
+            safeSetPaymentState(PaymentStates.PAYMENT_CONFIRMED);
+            await clearCartCompletely();
+            clearPaymentSession();
+            setExpiresAt(null);
+            setRemainingSeconds(0);
+            navigate(`/order-success/${args.orderId}`);
+            return;
+          }
+          if (status === "FAILED") {
+            resetCheckoutPaymentFlow({ message: "Payment failed. Please try again." });
+            return;
+          }
+        }
+
+        await new Promise((r) => setTimeout(r, 3000));
+      }
+
+      safeSetPaymentState(PaymentStates.PAYMENT_RECOVERABLE);
+      setFailureReason("POLL_TIMEOUT");
+      setRetryAvailableAtMs(Date.now() + 30_000);
+    } catch (err: any) {
+      if (err?.name === "AbortError") return;
+      safeSetPaymentState(PaymentStates.PAYMENT_RECOVERABLE);
+      setFailureReason("POLL_TIMEOUT");
+      setRetryAvailableAtMs(Date.now() + 30_000);
+    } finally {
+      setIsRazorpayPolling(false);
+      razorpayFlowInFlightRef.current = false;
     }
   };
 
-  const pollOrderUntilPaid = async (args: {
-    orderId: string;
-    accessToken: string;
-    timeoutMs?: number;
-    intervalMs?: number;
-  }): Promise<boolean> => {
-    const timeoutMs = Number(args.timeoutMs || 60_000);
-    const intervalMs = Number(args.intervalMs || 2_000);
-    const start = Date.now();
+  const resumeRazorpayPaymentForOrder = async (args: { orderId: string }) => {
+    const accessToken = tokens?.accessToken;
+    if (!accessToken) {
+      toast.error("Please log in to continue");
+      navigate("/login");
+      return;
+    }
+    if (!args.orderId) return;
 
-    while (Date.now() - start < timeoutMs) {
-      const res = await fetch(`/api/orders/${args.orderId}`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${args.accessToken}`,
-        },
+    try {
+      if (razorpayFlowInFlightRef.current) return;
+      razorpayFlowInFlightRef.current = true;
+
+      setIsPlacingOrder(true);
+      setPaymentBannerHidden(false);
+      setFailureReason(null);
+      setTerminalHelper(null);
+
+      const intent = await createRazorpayOrder({
+        orderId: args.orderId,
+        accessToken,
+        idempotencyKey: `order_${args.orderId}_attempt_${razorpayAttempt}`,
       });
 
-      const data = await res.json().catch(() => ({} as any));
-      if (res.ok) {
-        const ps = String((data as any)?.order?.paymentStatus || "").toUpperCase();
-        if (ps === "PAID") return true;
+      const intentStatus = String((intent as any)?.status || "").toUpperCase();
+      if (intentStatus === "FAILED") {
+        resetCheckoutPaymentFlow({ message: "Payment failed. Please try again." });
+        return;
+      }
+      if (intentStatus === "EXPIRED") {
+        resetCheckoutPaymentFlow({ message: "Payment expired. Please try again." });
+        return;
       }
 
-      await new Promise((r) => setTimeout(r, intervalMs));
-    }
+      try {
+        const exp = new Date(String((intent as any)?.expiresAt || ""));
+        if (!isNaN(exp.getTime())) {
+          setExpiresAt(exp);
+        }
+      } catch {
+      }
 
-    return false;
+      safeSetPaymentState(PaymentStates.PAYMENT_INITIATED);
+      await openRazorpayCheckout({
+        orderId: String((intent as any)?.checkoutPayload?.orderId || (intent as any)?.checkoutPayload?.razorpayOrderId || ""),
+        key: String((intent as any)?.checkoutPayload?.key || (intent as any)?.checkoutPayload?.keyId || ""),
+        amount: Number((intent as any)?.checkoutPayload?.amount),
+        currency: String((intent as any)?.checkoutPayload?.currency || "INR"),
+        upiId: (() => {
+          if (selectedPaymentMethod !== "upi") return undefined;
+          const upiVpaRegex = /^[\w.-]{2,}@[\w.-]{2,}$/;
+          const normalizedUpiVpa = String(upiVpa || "").trim().toLowerCase();
+          return upiVpaRegex.test(normalizedUpiVpa) ? normalizedUpiVpa : undefined;
+        })(),
+        prefill: {
+          name: (user as any)?.name,
+          email: (user as any)?.email,
+          contact: (user as any)?.phone,
+          vpa: (() => {
+            const upiVpaRegex = /^[\w.-]{2,}@[\w.-]{2,}$/;
+            const normalizedUpiVpa = String(upiVpa || "").trim().toLowerCase();
+            return upiVpaRegex.test(normalizedUpiVpa) ? normalizedUpiVpa : undefined;
+          })(),
+        },
+        onSuccess: async () => {
+          safeSetPaymentState(PaymentStates.PAYMENT_PROCESSING);
+          toast("Waiting for payment confirmation…");
+          void startReconciliationPolling({ orderId: args.orderId, accessToken });
+        },
+        onDismiss: () => {
+          resetCheckoutPaymentFlow({ message: "Payment was cancelled. Please try again." });
+        },
+        onFailure: () => {
+          resetCheckoutPaymentFlow({ message: "Payment failed. Please try again." });
+        },
+      });
+    } catch (error: any) {
+      const msg = String(error?.message || "");
+      if (msg.includes("Invalid order amount") || msg.includes("Order not found")) {
+        sessionStorage.removeItem("cs_order_create_idem_razorpay_v1");
+      }
+      if (msg.includes("(HTTP 410)")) {
+        resetCheckoutPaymentFlow({ message: "Payment expired. Please try again." });
+      } else {
+        toast.error(error?.message || "Failed to process payment", { duration: 5000 });
+        safeSetPaymentState(PaymentStates.PAYMENT_RECOVERABLE);
+        razorpayFlowInFlightRef.current = false;
+      }
+    } finally {
+      setIsPlacingOrder(false);
+    }
   };
 
   const handleRazorpayPayment = async () => {
+    const idemKeyStorage = "cs_order_create_idem_razorpay_v1";
+    if (razorpayFlowInFlightRef.current) return;
+
     try {
+      const upiVpaRegex = /^[\w.-]{2,}@[\w.-]{2,}$/;
+      const normalizedUpiVpa = String(upiVpa || "").trim().toLowerCase();
+
+      const shouldPrefillVpa = selectedPaymentMethod === "upi" && !!normalizedUpiVpa;
+      if (selectedPaymentMethod === "upi" && !upiVpaRegex.test(normalizedUpiVpa)) {
+        toast.error("Please enter a valid UPI ID");
+        return;
+      }
+
       if (!canAttemptCheckout) {
         toast.error("Please select a valid delivery address");
+        return;
+      }
+
+      if (!hasValidCoordinates) {
+        toast.error(
+          "Your delivery address is missing GPS coordinates. Please delete and recreate your address with complete details.",
+          { duration: 6000 }
+        );
+        return;
+      }
+
+      const isDeliverable = await checkPincodeDeliverable(String((userAddress as any).pincode));
+      if (!isDeliverable) {
+        toast.error("Pincode not serviceable");
         return;
       }
 
@@ -109,32 +570,54 @@ const CheckoutPage = () => {
         return;
       }
 
-      if (razorpayAttempt > 3) {
-        toast.error("Max payment attempts exceeded");
-        return;
+      razorpayFlowInFlightRef.current = true;
+      setIsPlacingOrder(true);
+      setPaymentBannerHidden(false);
+      setFailureReason(null);
+      setTerminalHelper(null);
+
+      const existingIdem = String(sessionStorage.getItem(idemKeyStorage) || "").trim();
+      const orderCreateIdempotencyKey = existingIdem || `order_create_razorpay_${Date.now()}`;
+      if (!existingIdem) {
+        sessionStorage.setItem(idemKeyStorage, orderCreateIdempotencyKey);
       }
 
-      setIsPlacingOrder(true);
-
-      const orderRes = await fetch("/api/orders", {
+      const orderRes = await authFetch(toApiUrl("/orders"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
+          "Idempotency-Key": orderCreateIdempotencyKey,
         },
-        body: JSON.stringify({ paymentMethod: "razorpay" }),
+        body: JSON.stringify({ paymentMethod: "razorpay", idempotencyKey: orderCreateIdempotencyKey }),
       });
 
       const orderData = await orderRes.json().catch(() => ({} as any));
       if (!orderRes.ok) {
-        const message = String((orderData as any)?.message || (orderData as any)?.error || "Failed to create order");
-        throw new Error(message);
+        throw new Error(String((orderData as any)?.message || (orderData as any)?.error || "Failed to create order"));
       }
 
-      const dbOrderId = String((orderData as any)?.order?._id || "");
-      if (!dbOrderId) {
-        throw new Error("Failed to create order");
-      }
+      const dbOrderId = String(
+        (orderData as any)?.order?._id ||
+          (orderData as any)?.order?.id ||
+          (orderData as any)?.orderId ||
+          (orderData as any)?._id ||
+          ""
+      ).trim();
+      if (!dbOrderId) throw new Error("Failed to create order");
+
+      sessionStorage.removeItem(idemKeyStorage);
+
+      const session: PaymentSession = {
+        orderId: dbOrderId,
+        paymentMethod: "razorpay",
+        state: PaymentStates.ORDER_CREATED,
+        createdAt: Date.now(),
+        addressId: String(currentAddressId || "").trim() || undefined,
+        cartTotal: Number(cart.total),
+      };
+      setPaymentSession(session);
+      savePaymentSession(session);
+      safeSetPaymentState(PaymentStates.ORDER_CREATED);
 
       const intent = await createRazorpayOrder({
         orderId: dbOrderId,
@@ -142,52 +625,64 @@ const CheckoutPage = () => {
         idempotencyKey: `order_${dbOrderId}_attempt_${razorpayAttempt}`,
       });
 
-      await openRazorpayCheckout({
-        checkoutPayload: intent.checkoutPayload,
+      const intentStatus = String((intent as any)?.status || "").toUpperCase();
+      if (intentStatus === "FAILED") {
+        resetCheckoutPaymentFlow({ message: "Payment failed. Please try again." });
+        return;
+      }
+      if (intentStatus === "EXPIRED") {
+        resetCheckoutPaymentFlow({ message: "Payment expired. Please try again." });
+        return;
+      }
+
+      try {
+        const exp = new Date(String((intent as any)?.expiresAt || ""));
+        if (!isNaN(exp.getTime())) {
+          setExpiresAt(exp);
+        }
+      } catch {
+      }
+
+      safeSetPaymentState(PaymentStates.PAYMENT_INITIATED);
+
+      const checkoutArgs = {
+        orderId: String((intent as any)?.checkoutPayload?.orderId || (intent as any)?.checkoutPayload?.razorpayOrderId || ""),
+        key: String((intent as any)?.checkoutPayload?.key || (intent as any)?.checkoutPayload?.keyId || ""),
+        amount: Number((intent as any)?.checkoutPayload?.amount),
+        currency: String((intent as any)?.checkoutPayload?.currency || "INR"),
+        upiId: selectedPaymentMethod === "upi" && isUpiValid ? normalizedUpiVpa : undefined,
         prefill: {
           name: (user as any)?.name,
           email: (user as any)?.email,
           contact: (user as any)?.phone,
+          vpa: shouldPrefillVpa ? normalizedUpiVpa : undefined,
         },
         onSuccess: async () => {
-          try {
-            setIsRazorpayPolling(true);
-            toast.success("Processing payment…");
-
-            const ok = await pollOrderUntilPaid({
-              orderId: dbOrderId,
-              accessToken,
-            });
-
-            if (ok) {
-              await clearCartCompletely();
-              toast.success("Payment confirmed");
-              navigate(`/orders/${dbOrderId}`);
-            } else {
-              toast.error("Payment processing. If amount is debited it will be confirmed shortly.");
-              navigate("/orders");
-            }
-          } finally {
-            setIsRazorpayPolling(false);
-          }
+          safeSetPaymentState(PaymentStates.PAYMENT_PROCESSING);
+          toast("Waiting for payment confirmation…");
+          void startReconciliationPolling({ orderId: dbOrderId, accessToken });
         },
         onDismiss: () => {
-          setRazorpayAttempt((n) => n + 1);
-          toast.error("Payment cancelled or failed");
+          resetCheckoutPaymentFlow({ message: "Payment was cancelled. Please try again." });
         },
         onFailure: () => {
-          setRazorpayAttempt((n) => n + 1);
+          resetCheckoutPaymentFlow({ message: "Payment failed. Please try again." });
         },
-      });
+      };
+      await openRazorpayCheckout(checkoutArgs);
     } catch (error: any) {
-      console.error("Razorpay payment error:", error);
-      toast.error(error.message || "Failed to process payment", { duration: 5000 });
+      const msg = String(error?.message || "");
+      if (msg.includes("(HTTP 410)")) {
+        resetCheckoutPaymentFlow({ message: "Payment expired. Please try again." });
+      } else {
+        toast.error(error?.message || "Failed to process payment", { duration: 5000 });
+        safeSetPaymentState(PaymentStates.PAYMENT_RECOVERABLE);
+        razorpayFlowInFlightRef.current = false;
+      }
     } finally {
       setIsPlacingOrder(false);
     }
   };
-
-  const upiVpaRegex = /^[\w.-]{2,}@[\w.-]{2,}$/;
 
   // Removed minimum order requirement - delivery charges will apply for all orders
 
@@ -211,6 +706,61 @@ const CheckoutPage = () => {
     // If no default address exists, return null to trigger requiresAddress state
     return null;
   }, [addressesData]);
+
+  const currentAddressId = React.useMemo(() => {
+    return String((userAddress as any)?._id || (userAddress as any)?.id || "").trim();
+  }, [userAddress]);
+
+  function resetCheckoutPaymentFlow(args: { message: string }) {
+    try {
+      pollAbortRef.current?.abort();
+    } catch {
+    }
+
+    if (expiryIntervalRef.current) {
+      window.clearInterval(expiryIntervalRef.current);
+      expiryIntervalRef.current = null;
+    }
+
+    try {
+      (window as any).__razorpayInstance?.close?.();
+    } catch {
+    }
+
+    try {
+      sessionStorage.removeItem("cs_order_create_idem_razorpay_v1");
+      sessionStorage.removeItem("cs_order_create_idem_cod_v1");
+    } catch {
+    }
+
+    try {
+      clearPaymentSession();
+    } catch {
+    }
+
+    setPaymentSession(null);
+    setExpiresAt(null);
+    setRemainingSeconds(0);
+    setRetryAvailableAtMs(null);
+    setFailureReason(null);
+    setPaymentBannerNotice(undefined);
+    setPaymentBannerHidden(true);
+    setIsRazorpayPolling(false);
+    setIsPlacingOrder(false);
+    setRazorpayAttempt(1);
+    razorpayFlowInFlightRef.current = false;
+
+    setTerminalHelper(args.message);
+    safeSetPaymentState(PaymentStates.IDLE);
+
+    try {
+      document.getElementById("checkout-payment-method")?.scrollIntoView({
+        behavior: "auto",
+        block: "start",
+      });
+    } catch {
+    }
+  }
 
   // Calculate delivery fee using the same logic as CartPage
   const calculatedDeliveryFeeDetails = calculateDeliveryFee(
@@ -260,7 +810,7 @@ const CheckoutPage = () => {
 
     (async () => {
       try {
-        const res = await fetch(`/api/pincode/check/${pincode}`);
+        const res = await fetch(toApiUrl(`/pincode/check/${pincode}`));
         const data = await res.json().catch(() => ({}));
         const deliverable = !!(data as any)?.deliverable;
         if (!cancelled) {
@@ -276,11 +826,30 @@ const CheckoutPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [(userAddress as any)?.pincode]);
+  }, [userAddress, cart.total]);
+
+  React.useEffect(() => {
+    const stored = loadPaymentSession();
+    if (!stored) return;
+
+    const storedAddressId = String((stored as any).addressId || "").trim();
+    const storedCartTotal = Number.isFinite(Number((stored as any).cartTotal)) ? Number((stored as any).cartTotal) : null;
+
+    const hasNewAddressId = !!String(currentAddressId || "").trim();
+
+    const addressMismatch =
+      hasNewAddressId && (!storedAddressId || storedAddressId !== String(currentAddressId || "").trim());
+
+    const cartMismatch = storedCartTotal !== null && storedCartTotal !== Number(cart.total);
+
+    if (!addressMismatch && !cartMismatch) return;
+
+    invalidateExistingOrder();
+  }, [currentAddressId, cart.total]);
 
   const checkPincodeDeliverable = async (pincode: string): Promise<boolean> => {
     try {
-      const res = await fetch(`/api/pincode/check/${pincode}`);
+      const res = await fetch(toApiUrl(`/pincode/check/${pincode}`));
       const data = await res.json().catch(() => ({}));
       if (!res.ok) return false;
       return !!(data as any)?.deliverable;
@@ -290,6 +859,7 @@ const CheckoutPage = () => {
   };
 
   const handleCODOrder = async () => {
+    const idemKeyStorage = "cs_order_create_idem_cod_v1";
     try {
       // Validate address before attempting order
       if (!canAttemptCheckout) {
@@ -327,35 +897,36 @@ const CheckoutPage = () => {
       }
 
       setIsPlacingOrder(true);
-      const response = await fetch("/api/orders", {
+
+      const existingIdem = String(sessionStorage.getItem(idemKeyStorage) || "").trim();
+      const orderCreateIdempotencyKey = existingIdem || `order_create_cod_${Date.now()}`;
+      if (!existingIdem) {
+        sessionStorage.setItem(idemKeyStorage, orderCreateIdempotencyKey);
+      }
+
+      const response = await authFetch(toApiUrl("/orders"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
+          "Idempotency-Key": orderCreateIdempotencyKey,
         },
-        body: JSON.stringify({ paymentMethod: "cod" }),
+        body: JSON.stringify({ paymentMethod: "cod", idempotencyKey: orderCreateIdempotencyKey }),
       });
 
+      const data = await response.json().catch(() => ({} as any));
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        // Backend may return error in 'message' or 'error' field
-        const errorMessage = errorData.message || errorData.error || "Failed to place order";
-        
-        // Handle specific error cases with actionable messages
-        if (errorMessage.includes("coordinates") || errorMessage.includes("Address coordinates")) {
-          throw new Error(
-            "Your delivery address is missing location coordinates. Please update your address with complete details (street name, landmark, area)."
-          );
-        }
-        
-        throw new Error(errorMessage);
+        throw new Error(String((data as any)?.message || (data as any)?.error || "Failed to place order"));
       }
 
-      await clearCartCompletely();
-      toast.success("Order placed with Cash on Delivery");
+      const orderId = String((data as any)?.order?._id || "");
+      if (!orderId) {
+        throw new Error("Failed to place COD order");
+      }
 
-      dispatch(api.util.invalidateTags(["Notification", "NotificationUnreadCount"]));
-      navigate("/orders");
+      sessionStorage.removeItem(idemKeyStorage);
+      saveLastMethod("cod");
+      await clearCartCompletely();
+      navigate(`/order-success/${orderId}`);
     } catch (error: any) {
       console.error("COD order error:", error);
       toast.error(error.message || "Failed to place order", { duration: 5000 });
@@ -364,132 +935,10 @@ const CheckoutPage = () => {
     }
   };
 
-  const handleCreateUpiOrder = async () => {
-    try {
-      // Validate address before attempting order
-      if (!canAttemptCheckout) {
-        if (!hasValidCoordinates) {
-          toast.error(
-            "Address coordinates are missing. Please update your delivery address with complete location details.",
-            { duration: 5000 }
-          );
-        } else {
-          toast.error("Please select a valid delivery address");
-        }
-        return;
-      }
-
-      // Additional explicit coordinate check before API call
-      if (!hasValidCoordinates) {
-        toast.error(
-          "Your delivery address is missing GPS coordinates. Please delete and recreate your address with complete details.",
-          { duration: 6000 }
-        );
-        return;
-      }
-
-      const isDeliverable = await checkPincodeDeliverable(String((userAddress as any).pincode));
-      if (!isDeliverable) {
-        toast.error("Pincode not serviceable");
-        return;
-      }
-
-      const accessToken = tokens?.accessToken;
-      if (!accessToken) {
-        toast.error("Please log in to continue");
-        navigate("/login");
-        return;
-      }
-
-      const vpa = upiVpa.trim();
-      if (!upiVpaRegex.test(vpa)) {
-        toast.error("Please enter a valid UPI ID");
-        return;
-      }
-
-      setIsPlacingOrder(true);
-      const response = await fetch("/api/orders", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ paymentMethod: "upi", upiVpa: vpa }),
-      });
-
-      const data = await response.json().catch(() => ({} as any));
-      if (!response.ok) {
-        const errorMessage = (data as any)?.message || (data as any)?.error || "Failed to create UPI order";
-        
-        // Handle specific error cases with actionable messages
-        if (errorMessage.includes("coordinates") || errorMessage.includes("Address coordinates")) {
-          throw new Error(
-            "Your delivery address is missing location coordinates. Please update your address with complete details (street name, landmark, area)."
-          );
-        }
-        
-        throw new Error(errorMessage);
-      }
-
-      const orderId = String((data as any)?.order?._id || "");
-      if (!orderId) {
-        throw new Error("Failed to create UPI order");
-      }
-
-      setCreatedUpiOrderId(orderId);
-      toast.success("UPI request sent. Approve it in your UPI app");
-      dispatch(api.util.invalidateTags(["Notification", "NotificationUnreadCount"]));
-    } catch (error: any) {
-      console.error("UPI order error:", error);
-      toast.error(error.message || "Failed to place order", { duration: 5000 });
-    } finally {
-      setIsPlacingOrder(false);
-    }
-  };
-
-  const handleConfirmUpiPayment = async () => {
-    try {
-      if (!createdUpiOrderId) return;
-
-      const accessToken = tokens?.accessToken;
-      if (!accessToken) {
-        toast.error("Please log in to continue");
-        navigate("/login");
-        return;
-      }
-
-      setIsConfirmingPayment(true);
-      const response = await fetch(`/api/orders/${createdUpiOrderId}/payment-status`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
-
-      const data = await response.json().catch(() => ({} as any));
-      if (!response.ok) {
-        throw new Error((data as any)?.message || (data as any)?.error || "Failed to confirm payment");
-      }
-
-      await clearCartCompletely();
-      toast.success("Payment confirmed");
-      navigate(`/orders/${createdUpiOrderId}`);
-    } catch (error: any) {
-      console.error("UPI confirm error:", error);
-      toast.error(error.message || "Failed to confirm payment");
-    } finally {
-      setIsConfirmingPayment(false);
-    }
-  };
 
   if (cart.items.length === 0) {
     return (
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="min-h-screen bg-gray-50 py-8 px-4"
-      >
+      <div className="min-h-screen bg-gray-50 py-8 px-4">
         <div className="max-w-7xl mx-auto">
           <h1 className="text-3xl font-bold text-gray-900 mb-8">Checkout</h1>
           <div className="text-center py-12">
@@ -506,17 +955,28 @@ const CheckoutPage = () => {
             </Link>
           </div>
         </div>
-      </motion.div>
+      </div>
     );
   }
 
+  const upiVpaRegex = /^[\w.-]{2,}@[\w.-]{2,}$/;
+  const normalizedUpiVpa = String(upiVpa || "").trim().toLowerCase();
+  const isUpiValid = upiVpaRegex.test(normalizedUpiVpa);
+  const isPrimaryDisabled =
+    !canAttemptCheckout ||
+    isPlacingOrder ||
+    isRazorpayPolling ||
+    (selectedPaymentMethod === "upi" && !isUpiValid);
+  const primaryActionLabel =
+    isPlacingOrder || isRazorpayPolling
+      ? "Processing…"
+      : selectedPaymentMethod === "cod"
+        ? "Place Order"
+        : `Pay ₹${priceBreakdown.total}`;
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="min-h-screen bg-gray-50"
-    >
-      <div className="max-w-7xl mx-auto px-4 py-8">
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 py-8 text-[17px]">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
@@ -526,11 +986,11 @@ const CheckoutPage = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left Column - Delivery & Payment */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-8">
             {/* Delivery Address Section */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+                <h2 className="text-xl font-semibold text-gray-900 flex items-center">
                   <MapPin className="h-5 w-5 mr-2 text-orange-500" />
                   Delivery Address
                 </h2>
@@ -577,253 +1037,156 @@ const CheckoutPage = () => {
                     </div>
                   </div>
                 </div>
-                <div className="mt-4 flex space-x-3">
+                <div className="mt-4 flex flex-wrap gap-4">
                   <button
+                    type="button"
                     onClick={() => setShowLocationModal(true)}
-                    className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors text-sm font-medium"
+                    className="text-[15px] font-semibold text-blue-700 hover:text-blue-800 underline"
                   >
                     Change Address
                   </button>
-                  <button className="text-orange-500 hover:text-orange-600 text-sm font-medium">
-                    Add delivery instructions
-                  </button>
                 </div>
               </div>
             </div>
+
+            {showPaymentBanner ? (
+              <PaymentStatusBanner
+                session={paymentSession!}
+                state={paymentState}
+                message={getPaymentBannerMessage(paymentState)}
+                notice={paymentBannerNotice}
+                retryAvailableAtMs={retryAvailableAtMs}
+                attemptNo={razorpayAttempt}
+                maxAttempts={3}
+                failureReason={failureReason}
+                onResume={() => {
+                  const accessToken = tokens?.accessToken;
+                  if (!accessToken) {
+                    toast.error("Please log in to continue");
+                    navigate("/login");
+                    return;
+                  }
+
+                  // UX intent: "Continue checking" should not reopen the gateway; it should resume existing polling.
+                  if (paymentState === PaymentStates.PAYMENT_PROCESSING) {
+                    void startReconciliationPolling({ orderId: paymentSession!.orderId, accessToken });
+                    return;
+                  }
+
+                  void resumeRazorpayPaymentForOrder({ orderId: paymentSession!.orderId });
+                }}
+                onHide={hidePaymentBanner}
+              />
+            ) : null}
+
+            {showPaymentBanner && expiresAt && remainingSeconds > 0 ? (
+              <div className="mt-2 text-sm text-gray-700 font-medium">
+                ⏳ Payment expires in {String(Math.floor(remainingSeconds / 60)).padStart(2, "0")}:
+                {String(remainingSeconds % 60).padStart(2, "0")}
+              </div>
+            ) : null}
 
             {/* Payment Method Section */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                Payment method
-              </h2>
+              <div className="flex items-center justify-between gap-4 mb-4">
+                <h2 className="text-xl font-semibold text-gray-900">Payment Method</h2>
+                <button
+                  type="button"
+                  onClick={() => {
+                    document.getElementById("checkout-payment-method")?.scrollIntoView({
+                      behavior: "auto",
+                      block: "start",
+                    });
+                  }}
+                  className="text-[15px] font-semibold text-blue-700 hover:text-blue-800 underline"
+                >
+                  Edit Payment Method
+                </button>
+              </div>
 
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-orange-300 transition-colors">
-                  <div className="flex items-center space-x-3">
-                    <input
-                      type="radio"
-                      name="payment"
-                      value="upi"
-                      data-testid="payment-method-upi"
-                      checked={selectedPaymentMethod === "upi"}
-                      onChange={() => setSelectedPaymentMethod("upi")}
-                      className="h-4 w-4 text-orange-500 focus:ring-orange-500"
-                    />
-                    <div className="text-2xl">📱</div>
-                    <div>
-                      <div className="font-medium text-gray-900">UPI</div>
-                      <div className="text-sm text-gray-500">Pay using your UPI ID</div>
-                    </div>
-                  </div>
+              {terminalHelper ? (
+                <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-[15px] font-semibold text-blue-900">
+                  {terminalHelper}
                 </div>
+              ) : null}
 
-                {selectedPaymentMethod === "upi" && (
-                  <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">UPI ID</label>
+              <div id="checkout-payment-method" className="space-y-4">
+                <PaymentOption
+                  value="upi"
+                  testId="payment-method-upi"
+                  selected={selectedPaymentMethod === "upi"}
+                  onChange={() => {
+                    setSelectedPaymentMethod("upi");
+                    saveLastMethod("upi");
+                  }}
+                  icon={<Wallet className="h-5 w-5" />}
+                  title="UPI (Recommended)"
+                  description="Pay using Google Pay, PhonePe, Paytm"
+                />
+
+                {selectedPaymentMethod === "upi" ? (
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                    <label className="block text-[16px] font-semibold text-gray-900 mb-2">
+                      UPI ID
+                    </label>
                     <input
                       type="text"
                       data-testid="upi-id-input"
-                      placeholder="example@bank"
+                      placeholder="example@upi"
                       value={upiVpa}
-                      onChange={(e) => setUpiVpa(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                      onChange={(e) => {
+                        setUpiVpa(e.target.value);
+                      }}
+                      className={
+                        "w-full h-14 px-4 text-[16px] border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent " +
+                        (upiVpa.length === 0 || isUpiValid ? "border-gray-300" : "border-red-400")
+                      }
                     />
-                    <p className="text-xs text-gray-600 mt-2">You will receive a payment request in your UPI app</p>
-
-                    {createdUpiOrderId ? (
-                      <button
-                        onClick={handleConfirmUpiPayment}
-                        disabled={isConfirmingPayment}
-                        data-testid="upi-confirm-button"
-                        className={`mt-4 w-full py-3 px-4 font-medium rounded-lg transition-colors ${
-                          isConfirmingPayment
-                            ? "bg-gray-400 text-gray-600 cursor-not-allowed"
-                            : "bg-amber-500 text-white hover:bg-amber-600"
-                        }`}
-                      >
-                        {isConfirmingPayment ? "Confirming..." : "I've Paid"}
-                      </button>
-                    ) : (
-                      <button
-                        onClick={handleCreateUpiOrder}
-                        disabled={!canAttemptCheckout || isPlacingOrder}
-                        data-testid="upi-create-order-button"
-                        className={`mt-4 w-full py-3 px-4 font-medium rounded-lg transition-colors ${
-                          !canAttemptCheckout || isPlacingOrder
-                            ? "bg-gray-400 text-gray-600 cursor-not-allowed"
-                            : "bg-amber-500 text-white hover:bg-amber-600"
-                        }`}
-                      >
-                        {isPlacingOrder ? "Creating order..." : `Pay ₹${priceBreakdown.total}`}
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-orange-300 transition-colors">
-                  <div className="flex items-center space-x-3">
-                    <input
-                      type="radio"
-                      name="payment"
-                      value="razorpay"
-                      checked={selectedPaymentMethod === "razorpay"}
-                      onChange={() => setSelectedPaymentMethod("razorpay")}
-                      className="h-4 w-4 text-orange-500 focus:ring-orange-500"
-                    />
-                    <div className="text-2xl">💳</div>
-                    <div>
-                      <div className="font-medium text-gray-900">Card / UPI (Razorpay)</div>
-                      <div className="text-sm text-gray-500">Secure checkout via Razorpay</div>
+                    <div className="mt-2 text-[14px] text-gray-800">
+                      Enter your UPI ID. A payment request will be sent to your phone.
                     </div>
                   </div>
-                </div>
+                ) : null}
 
-                {selectedPaymentMethod === "razorpay" && (
-                  <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
-                    <RazorpayCheckout
-                      disabled={!canAttemptCheckout || isPlacingOrder || isRazorpayPolling}
-                      label={isRazorpayPolling ? "Processing…" : `Pay ₹${priceBreakdown.total}`}
-                      onClick={handleRazorpayPayment}
-                    />
-                    <p className="text-xs text-gray-600 mt-2">
-                      Do not close this page until payment is confirmed.
-                    </p>
-                  </div>
-                )}
+                <PaymentOption
+                  value="card"
+                  selected={selectedPaymentMethod === "card"}
+                  onChange={() => {
+                    setSelectedPaymentMethod("card");
+                    saveLastMethod("card");
+                  }}
+                  icon={<CreditCard className="h-5 w-5" />}
+                  title="Credit / Debit Card"
+                  description="Visa, Mastercard, RuPay"
+                />
 
-                <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-orange-300 transition-colors">
-                  <div className="flex items-center space-x-3">
-                    <input
-                      type="radio"
-                      name="payment"
-                      value="cod"
-                      data-testid="payment-method-cod"
-                      checked={selectedPaymentMethod === "cod"}
-                      onChange={() => setSelectedPaymentMethod("cod")}
-                      className="h-4 w-4 text-orange-500 focus:ring-orange-500"
-                    />
-                    <div className="text-2xl">💰</div>
-                    <div>
-                      <div className="font-medium text-gray-900">Cash on Delivery</div>
-                      <div className="text-sm text-gray-500">Pay when the order arrives</div>
-                    </div>
-                  </div>
-                </div>
+                <PaymentOption
+                  value="netbanking"
+                  selected={selectedPaymentMethod === "netbanking"}
+                  onChange={() => {
+                    setSelectedPaymentMethod("netbanking");
+                    saveLastMethod("netbanking");
+                  }}
+                  icon={<Landmark className="h-5 w-5" />}
+                  title="Net Banking"
+                  description="Pay directly from your bank"
+                />
 
-                {selectedPaymentMethod === "cod" && (
-                  <button
-                    onClick={handleCODOrder}
-                    disabled={!canAttemptCheckout || isPlacingOrder}
-                    data-testid="cod-place-order-button"
-                    className={`w-full py-3 px-4 font-medium rounded-lg transition-colors ${
-                      !canAttemptCheckout || isPlacingOrder
-                        ? "bg-gray-400 text-gray-600 cursor-not-allowed"
-                        : "bg-amber-500 text-white hover:bg-amber-600"
-                    }`}
-                  >
-                    {isPlacingOrder ? "Placing order..." : "Place Order"}
-                  </button>
-                )}
-              </div>
-
-              {/* Delivery Fee Debug Section */}
-              {!requiresAddress && calculatedDeliveryFeeDetails.distance !== null && (
-              <div className="mt-6 p-4 bg-yellow-50 border-2 border-yellow-300 rounded-lg">
-                <h3 className="text-sm font-bold text-yellow-900 mb-3 flex items-center">
-                  🐛 Delivery Fee Debug Information
-                </h3>
-                <div className="space-y-2 text-xs text-gray-800">
-                  <div className="bg-white p-2 rounded">
-                    <p className="font-semibold text-blue-700">📍 Admin Warehouse:</p>
-                    <p className="ml-4">Location: Tiruvuru (Boya Bazar), Andhra Pradesh</p>
-                    <p className="ml-4">Coordinates: 17.0956, 80.6089</p>
-                    <p className="ml-4">Pincode: 521235</p>
-                  </div>
-                  
-                  <div className="bg-white p-2 rounded">
-                    <p className="font-semibold text-green-700">📍 Your Default Address:</p>
-                    <p className="ml-4">Location: {userAddress?.city}, {userAddress?.state}</p>
-                    <p className="ml-4">Coordinates: {userAddress?.lat || 'N/A'}, {userAddress?.lng || 'N/A'}</p>
-                    <p className="ml-4">Pincode: {userAddress?.pincode}</p>
-                  </div>
-                  
-                  <div className="bg-white p-2 rounded">
-                    <p className="font-semibold text-purple-700">📏 Distance Calculation:</p>
-                    <p className="ml-4">Distance: {calculatedDeliveryFeeDetails.distance.toFixed(2)} km</p>
-                    <p className="ml-4">Method: Haversine Formula (straight-line)</p>
-                  </div>
-                  
-                  <div className="bg-white p-2 rounded">
-                    <p className="font-semibold text-orange-700">💰 Pricing Breakdown:</p>
-                    <p className="ml-4">Cart Subtotal: ₹{cart.total.toFixed(2)}</p>
-                    <p className="ml-4">
-                      {(!userAddress?.lat || !userAddress?.lng || userAddress.lat === 0 || userAddress.lng === 0) ? (
-                        <span className="text-red-600 font-bold">❌ CANNOT CALCULATE (Invalid coordinates)</span>
-                      ) : calculatedDeliveryFeeDetails.isFreeDelivery ? (
-                        <span className="text-green-600 font-bold">✅ FREE DELIVERY (Cart ≥ ₹2000)</span>
-                      ) : calculatedDeliveryFeeDetails.distance <= 2 ? (
-                        <>Pricing Tier: Up to 2 km → ₹25</>
-                      ) : calculatedDeliveryFeeDetails.distance <= 6 ? (
-                        <>Pricing Tier: 2-6 km → ₹{Math.round(35 + ((calculatedDeliveryFeeDetails.distance - 2) / 4) * 25)} (progressive)</>
-                      ) : (
-                        <>Pricing Tier: Beyond 6 km → ₹60 + ({(calculatedDeliveryFeeDetails.distance - 6).toFixed(2)} km × ₹8) = ₹{Math.round(60 + (calculatedDeliveryFeeDetails.distance - 6) * 8)}</>
-                      )}
-                    </p>
-                    <p className="ml-4 font-bold text-red-600 text-base mt-1">
-                      Final Delivery Fee: ₹{calculatedDeliveryFeeDetails.finalFee}
-                    </p>
-                  </div>
-                  
-                  <div className="bg-red-50 p-2 rounded border border-red-200">
-                    <p className="font-semibold text-red-700">⚠️ Issue Detection:</p>
-                    {!userAddress?.lat || !userAddress?.lng || calculatedDeliveryFeeDetails.distance === 0 ? (
-                      <div className="ml-4 text-red-600 space-y-1">
-                        <p><strong>❌ CRITICAL ERROR:</strong> Your address has invalid GPS coordinates!</p>
-                        <p className="text-xs">• Coordinates: {userAddress?.lat || 'N/A'}, {userAddress?.lng || 'N/A'}</p>
-                        <p className="text-xs">• This causes incorrect delivery fee calculation</p>
-                        <p className="text-xs font-bold">• Charging penalty fee of ₹500</p>
-                        <p className="text-xs bg-yellow-100 p-1 rounded mt-1">
-                          🔧 <strong>Fix:</strong> Delete this address and create a new one with complete details (street name, landmark, area) so the system can locate it accurately
-                        </p>
-                      </div>
-                    ) : userAddress?.pincode === "521235" && calculatedDeliveryFeeDetails.finalFee > 100 ? (
-                      <p className="ml-4 text-red-600">
-                        <strong>⚠️ WARNING:</strong> Your address pincode matches warehouse (521235) but distance is {calculatedDeliveryFeeDetails.distance.toFixed(2)} km. 
-                        This suggests incorrect coordinates are stored for your address!
-                      </p>
-                    ) : (
-                      <p className="ml-4 text-green-600">✓ Calculation looks normal</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-              )}
-
-              {/* Payment Security Info */}
-              <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-                <div className="flex items-center space-x-3">
-                  <Shield className="h-5 w-5 text-green-600" />
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-900">
-                      Secure Payment
-                    </h4>
-                    <p className="text-xs text-gray-600">
-                      Your payment is secured with 256-bit SSL encryption
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Delivery Fee Display */}
-            {userAddress && userAddress.pincode && !requiresAddress && (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <DeliveryFeeDisplay
-                  pincode={userAddress.pincode}
-                  cartValue={cart.total}
+                <PaymentOption
+                  value="cod"
+                  testId="payment-method-cod"
+                  selected={selectedPaymentMethod === "cod"}
+                  onChange={() => {
+                    setSelectedPaymentMethod("cod");
+                    saveLastMethod("cod");
+                  }}
+                  icon={<span className="text-[18px] font-bold">₹</span>}
+                  title="Cash on Delivery"
+                  description="Pay when the order arrives"
                 />
               </div>
-            )}
+
+            </div>
 
             {/* Review Items Section */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -861,46 +1224,65 @@ const CheckoutPage = () => {
           <div className="lg:col-span-1">
             <div className="sticky top-8">
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6" data-testid="order-summary">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (selectedPaymentMethod === "cod") {
+                      void handleCODOrder();
+                      return;
+                    }
+                    void handleRazorpayPayment();
+                  }}
+                  disabled={isPrimaryDisabled}
+                  data-testid={selectedPaymentMethod === "cod" ? "cod-place-order-button" : "pay-primary-button"}
+                  className={
+                    "w-full rounded-lg px-4 py-4 text-[18px] font-bold transition-colors " +
+                    (isPrimaryDisabled
+                      ? "bg-gray-300 text-gray-600 cursor-not-allowed"
+                      : "bg-[#FFD814] text-gray-900 hover:bg-[#F7CA00] border border-[#FCD200]")
+                  }
+                >
+                  {primaryActionLabel}
+                </button>
+
                 {/* Order Summary */}
-                <div className="mt-8 space-y-3">
+                <div className="mt-6 space-y-3">
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">
-                      Price ({priceBreakdown.itemCount} items):
-                    </span>
+                    <span className="text-gray-900">Items ({priceBreakdown.itemCount}):</span>
                     <span className="font-medium">
                       {formatPrice(priceBreakdown.subtotal)}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Discount:</span>
+                    <span className="text-gray-900">Discount:</span>
                     <span className="font-medium text-green-600">
                       - {formatPrice(priceBreakdown.discount)}
                     </span>
                   </div>
                   {!requiresAddress ? (
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Delivery:</span>
+                      <span className="text-gray-900">Delivery:</span>
                       <span className="font-medium">
                         {formatDeliveryFee(calculatedDeliveryFeeDetails)}
                       </span>
                     </div>
                   ) : (
-                    <div className="text-sm text-amber-700">
+                    <div className="text-sm text-amber-800">
                       Add delivery address to calculate delivery fee
                     </div>
                   )}
-                  <div className="border-t pt-3">
-                    <div className="flex justify-between text-lg font-semibold">
-                      <span>Order Total:</span>
+                  <div className="border-t pt-4">
+                    <div className="flex justify-between text-[20px] font-bold text-gray-900">
+                      <span>Order Total</span>
                       <span>{formatPrice(priceBreakdown.total)}</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Security Badge */}
-                <div className="mt-6 flex items-center justify-center space-x-2 text-xs text-gray-500">
-                  <Shield className="h-4 w-4" />
-                  <span>Secured by CS Store</span>
+                <div className="mt-6 flex items-center justify-center space-x-2 text-xs text-gray-700">
+                  <Shield className="h-4 w-4 text-green-700" />
+                  <span>Secure payment by Razorpay</span>
                 </div>
               </div>
             </div>
@@ -926,7 +1308,7 @@ const CheckoutPage = () => {
           defaultAddressId={addressesData?.defaultAddressId || null}
         />
       </div>
-    </motion.div>
+    </div>
   );
 };
 

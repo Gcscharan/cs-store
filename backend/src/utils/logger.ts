@@ -215,9 +215,24 @@ export const initializeSentry = () => {
 
 // Express middleware for Sentry
 export const sentryMiddleware = {
-  requestHandler: () => (req: any, res: any, next: any) => next(),
-  tracingHandler: () => (req: any, res: any, next: any) => next(),
-  errorHandler: () => (err: any, req: any, res: any, next: any) => next(err),
+  requestHandler: () => {
+    if (!process.env.SENTRY_DSN) return (req: any, res: any, next: any) => next();
+    return (Sentry as any).Handlers?.requestHandler()
+      ? (Sentry as any).Handlers.requestHandler()
+      : (req: any, res: any, next: any) => next();
+  },
+  tracingHandler: () => {
+    if (!process.env.SENTRY_DSN) return (req: any, res: any, next: any) => next();
+    return (Sentry as any).Handlers?.tracingHandler()
+      ? (Sentry as any).Handlers.tracingHandler()
+      : (req: any, res: any, next: any) => next();
+  },
+  errorHandler: () => {
+    if (!process.env.SENTRY_DSN) return (err: any, req: any, res: any, next: any) => next(err);
+    return (Sentry as any).Handlers?.errorHandler()
+      ? (Sentry as any).Handlers.errorHandler()
+      : (err: any, req: any, res: any, next: any) => next(err);
+  },
 };
 
 // Helper functions for common logging patterns

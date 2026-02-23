@@ -92,7 +92,7 @@ describe("Distributed reliability verification", () => {
       items: [{ productId: product._id, name: "P", price: 100, qty: 1 }],
       totalAmount: 100,
       paymentMethod: "upi",
-      paymentStatus: "AWAITING_UPI_APPROVAL",
+      paymentStatus: "PENDING",
       orderStatus: "CREATED",
       deliveryStatus: "unassigned",
       address: {
@@ -115,7 +115,7 @@ describe("Distributed reliability verification", () => {
       items: [{ productId: product._id, name: "P", price: 100, qty: 1 }],
       totalAmount: 100,
       paymentMethod: "upi",
-      paymentStatus: "AWAITING_UPI_APPROVAL",
+      paymentStatus: "PENDING",
       orderStatus: "CREATED",
       deliveryStatus: "unassigned",
       address: {
@@ -184,7 +184,7 @@ describe("Distributed reliability verification", () => {
       items: [{ productId: product._id, name: "P", price: 100, qty: 1 }],
       totalAmount: 100,
       paymentMethod: "upi",
-      paymentStatus: "AWAITING_UPI_APPROVAL",
+      paymentStatus: "PENDING",
       orderStatus: "CREATED",
       deliveryStatus: "unassigned",
       address: {
@@ -240,7 +240,7 @@ describe("Distributed reliability verification", () => {
       items: [{ productId: product._id, name: "P", price: 100, qty: 1 }],
       totalAmount: 100,
       paymentMethod: "upi",
-      paymentStatus: "AWAITING_UPI_APPROVAL",
+      paymentStatus: "PENDING",
       orderStatus: "CREATED",
       deliveryStatus: "unassigned",
       address: {
@@ -321,7 +321,23 @@ describe("Distributed reliability verification", () => {
     initializeNotificationWriter();
     initializeOutboxDispatcher({ pollIntervalMs: 25, lockTtlMs: 200, maxAttempts: 5 });
 
-    await wait(250);
+    const start = Date.now();
+    while (Date.now() - start < 8000) {
+      const notifications = await Notification.find({ userId: user._id }).lean();
+      const processed = await ProcessedEvent.find({}).lean();
+      const outboxAfter = await OutboxEvent.find({}).lean();
+
+      if (
+        notifications.length === 1 &&
+        processed.length === 1 &&
+        outboxAfter.length === 1 &&
+        String((outboxAfter[0] as any).status) === "DISPATCHED"
+      ) {
+        break;
+      }
+
+      await wait(150);
+    }
 
     const notifications = await Notification.find({ userId: user._id }).lean();
     expect(notifications.length).toBe(1);
@@ -582,7 +598,7 @@ describe("Distributed reliability verification", () => {
       items: [{ productId: product._id, name: "P", price: 100, qty: 1 }],
       totalAmount: 100,
       paymentMethod: "upi",
-      paymentStatus: "AWAITING_UPI_APPROVAL",
+      paymentStatus: "PENDING",
       orderStatus: "PACKED",
       deliveryStatus: "unassigned",
       address: {

@@ -245,6 +245,7 @@ export class RouteAssignmentService {
       return [];
     }
 
+    // Redis is advisory only; MongoDB is authoritative and must verify eligibility.
     // Get least loaded delivery partners using Redis ZSET (O(log N))
     const leastLoadedPartners = await deliveryPartnerLoadService.getLeastLoadedPartners(50);
     
@@ -263,12 +264,33 @@ export class RouteAssignmentService {
       return session ? await query2.session(session) : await query2;
     }
 
-    // Get delivery boy documents for the sorted partners
+    // Get delivery boy documents for the sorted partners (MongoDB verification step)
+    // NOTE: Redis must not be able to select an ineligible partner.
     const query2 = DeliveryBoy.find({
-      userId: { $in: assignedPartnerIds.map(id => new mongoose.Types.ObjectId(id)) },
+      userId: { $in: assignedPartnerIds.map((id) => new mongoose.Types.ObjectId(id)) },
       isActive: true,
+    }).populate({
+      path: "userId",
+      match: {
+        role: "delivery",
+        "deliveryProfile.assignedAreas": pincode,
+      },
+      select: "role deliveryProfile.assignedAreas",
     });
-    const deliveryBoys = session ? await query2.session(session) : await query2;
+    const deliveryBoysRaw = session ? await query2.session(session) : await query2;
+
+    const deliveryBoys = (deliveryBoysRaw || []).filter((b: any) => Boolean(b.userId));
+
+    if (deliveryBoys.length === 0) {
+      console.log(
+        `📭 Redis suggested partners for pincode ${pincode}, but none passed DB verification; falling back to MongoDB`
+      );
+      const fallbackQuery = DeliveryBoy.find({
+        userId: { $in: userIds.map((id: string) => new mongoose.Types.ObjectId(id)) },
+        isActive: true,
+      }).sort({ currentLoad: 1 });
+      return session ? await fallbackQuery.session(session) : await fallbackQuery;
+    }
 
     // Sort delivery boys according to Redis ZSET order
     const sortedDeliveryBoys = deliveryBoys.sort((a, b) => {
@@ -304,13 +326,35 @@ export class RouteAssignmentService {
       return session ? await query3.session(session) : await query3;
     }
 
-    // Get the delivery boy document for the least loaded bike partner
+    // Get the delivery boy document for the least loaded bike partner (MongoDB verification step)
     const partnerId = leastLoadedPartners[0].id;
     const query3 = DeliveryBoy.findOne({
       userId: new mongoose.Types.ObjectId(partnerId),
       isActive: true,
+    }).populate({
+      path: "userId",
+      match: { "deliveryProfile.vehicleType": "bike" },
+      select: "deliveryProfile.vehicleType",
     });
-    const bikeDeliveryBoy = session ? await query3.session(session) : await query3;
+    const bikeDeliveryBoyRaw = session ? await query3.session(session) : await query3;
+
+    const bikeDeliveryBoy = bikeDeliveryBoyRaw && bikeDeliveryBoyRaw.userId ? bikeDeliveryBoyRaw : null;
+
+    if (!bikeDeliveryBoy) {
+      console.log(
+        `📭 Redis suggested bike partner ${partnerId}, but it failed DB verification; falling back to MongoDB`
+      );
+      const fallbackQuery = DeliveryBoy.findOne({
+        isActive: true,
+      })
+        .populate({
+          path: "userId",
+          match: { "deliveryProfile.vehicleType": "bike" },
+          select: "deliveryProfile.vehicleType",
+        })
+        .sort({ currentLoad: 1 });
+      return session ? await fallbackQuery.session(session) : await fallbackQuery;
+    }
 
     console.log(`🎯 Found bike delivery partner ${partnerId} with load ${leastLoadedPartners[0].load} using Redis ZSET`);
     return bikeDeliveryBoy;
@@ -342,13 +386,32 @@ export class RouteAssignmentService {
       return session ? await query4.session(session) : await query4;
     }
 
-    // Get delivery boy documents for the sorted partners
+    // Get delivery boy documents for the sorted partners (MongoDB verification step)
     const partnerIds = leastLoadedPartners.map((p: { id: string }) => p.id);
     const query4 = DeliveryBoy.find({
       userId: { $in: partnerIds.map((id: string) => new mongoose.Types.ObjectId(id)) },
       isActive: true,
+    }).populate({
+      path: "userId",
+      match: { "deliveryProfile.vehicleType": { $in: ["car", "auto", "scooter"] } },
+      select: "deliveryProfile.vehicleType",
     });
-    const deliveryBoys = session ? await query4.session(session) : await query4;
+    const deliveryBoysRaw = session ? await query4.session(session) : await query4;
+    const deliveryBoys = (deliveryBoysRaw || []).filter((b: any) => Boolean(b.userId));
+
+    if (deliveryBoys.length === 0) {
+      console.log("📭 Redis suggested auto/car partners, but none passed DB verification; falling back to MongoDB");
+      const fallbackQuery = DeliveryBoy.find({
+        isActive: true,
+      })
+        .populate({
+          path: "userId",
+          match: { "deliveryProfile.vehicleType": { $in: ["car", "auto", "scooter"] } },
+          select: "deliveryProfile.vehicleType",
+        })
+        .sort({ currentLoad: 1 });
+      return session ? await fallbackQuery.session(session) : await fallbackQuery;
+    }
 
     // Sort according to Redis ZSET order
     const sortedDeliveryBoys = deliveryBoys.sort((a, b) => {

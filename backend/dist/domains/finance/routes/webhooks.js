@@ -6,7 +6,12 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const webhookController_1 = require("../controllers/webhookController");
 const razorpayWebhook_1 = require("../../../middleware/razorpayWebhook");
+const deprecatedRoute_1 = require("../../../middleware/deprecatedRoute");
 const router = express_1.default.Router();
+router.use((0, deprecatedRoute_1.deprecatedRoute)({
+    label: "legacy_finance_webhooks",
+    replacement: "POST /api/webhooks/razorpay",
+}));
 // Webhook routes
 router.post("/razorpay", razorpayWebhook_1.verifyRazorpayWebhook, (req, res) => {
     // Pass socket.io instance to the webhook handler

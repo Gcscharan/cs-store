@@ -15,7 +15,7 @@ describe("Simple API Tests", () => {
       .get("/health")
       .expect(200);
 
-    expect(response.body).toHaveProperty("status", "OK");
+    expect(response.body).toHaveProperty("status", "ok");
   });
 
   test("should handle CORS preflight", async () => {

@@ -11,9 +11,14 @@ dotenv_1.default.config();
 // Environment variable validation
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-const GOOGLE_CALLBACK_URL = process.env.GOOGLE_CALLBACK_URL ||
-    (process.env.BACKEND_URL
-        ? `${String(process.env.BACKEND_URL).replace(/\/+$/, "")}/api/auth/google/callback`
+const NODE_ENV = process.env.NODE_ENV || "development";
+const PORT = String(process.env.PORT || "5001").trim() || "5001";
+const backendBaseUrl = String(process.env.BACKEND_URL || "").trim().replace(/\/+$/, "");
+const googleCallbackUrlFromEnv = String(process.env.GOOGLE_CALLBACK_URL || "").trim();
+const GOOGLE_CALLBACK_URL = (googleCallbackUrlFromEnv ? googleCallbackUrlFromEnv : undefined) ||
+    (backendBaseUrl ? `${backendBaseUrl}/api/auth/google/callback` : undefined) ||
+    (NODE_ENV !== "production"
+        ? "http://localhost:5001/api/auth/google/callback"
         : undefined);
 console.log("Google OAuth credentials:", {
     clientId: GOOGLE_CLIENT_ID ? "Present" : "Missing",
@@ -72,9 +77,14 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && callbackURL) {
     }));
 }
 else {
-    console.warn("⚠️  Google OAuth credentials not found. Google login will be disabled.");
+    if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
+        console.warn("⚠️  Google OAuth credentials not found. Google login will be disabled.");
+    }
+    else if (!callbackURL) {
+        console.warn("⚠️  Google OAuth callback URL is not configured (GOOGLE_CALLBACK_URL or BACKEND_URL). Google login will be disabled.");
+    }
 }
-if (process.env.NODE_ENV === "production" && GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && !callbackURL) {
+if (NODE_ENV === "production" && GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && !callbackURL) {
     console.warn("⚠️  GOOGLE_CALLBACK_URL (or BACKEND_URL) is not set. Google OAuth will be disabled in production.");
 }
 exports.default = passport_1.default;

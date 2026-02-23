@@ -7,7 +7,12 @@ const express_1 = __importDefault(require("express"));
 const razorpayController_1 = require("../controllers/razorpayController");
 const auth_1 = require("../../../middleware/auth");
 const razorpayWebhook_1 = require("../../../middleware/razorpayWebhook");
+const deprecatedRoute_1 = require("../../../middleware/deprecatedRoute");
 const router = express_1.default.Router();
+router.use((0, deprecatedRoute_1.deprecatedRoute)({
+    label: "legacy_finance_razorpay_routes",
+    replacement: "POST /api/payment-intents + POST /api/webhooks/razorpay",
+}));
 // Razorpay payment routes
 router.post("/create-order", auth_1.authenticateToken, razorpayController_1.createRazorpayOrder);
 router.post("/verify-payment", auth_1.authenticateToken, razorpayController_1.verifyRazorpayPayment);

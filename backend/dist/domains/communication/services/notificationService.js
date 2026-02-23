@@ -35,6 +35,7 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.NotificationUtils = exports.dispatchToAllUsers = exports.dispatchNotification = exports.NotificationService = void 0;
 const User_1 = require("../../../models/User");
+const Order_1 = require("../../../models/Order");
 const mailService_1 = require("./mailService");
 const sms_1 = require("../../../utils/sms");
 // Event to Category Mapping
@@ -66,6 +67,29 @@ class NotificationService {
      */
     static async dispatchNotification(userId, event, data) {
         try {
+            if (event === "PAYMENT_SUCCESS") {
+                const orderId = String(data?.orderId || "").trim();
+                if (!orderId) {
+                    console.error("[BACKEND][NOTIFICATION_BLOCKED]", {
+                        event,
+                        userId,
+                        reason: "MISSING_ORDER_ID",
+                    });
+                    return;
+                }
+                const order = await Order_1.Order.findById(orderId).select("paymentStatus").lean();
+                const ps = String(order?.paymentStatus || "").toUpperCase();
+                if (ps !== "PAID") {
+                    console.error("[BACKEND][NOTIFICATION_BLOCKED]", {
+                        event,
+                        userId,
+                        orderId,
+                        paymentStatus: ps,
+                        reason: "ORDER_NOT_PAID",
+                    });
+                    return;
+                }
+            }
             console.log(`🔔 Dispatching notification: ${event} for user: ${userId}`);
             // Fetch user with preferences and contact info
             const user = await User_1.User.findById(userId).select('notificationPreferences email phone name');
@@ -186,6 +210,14 @@ class NotificationService {
                 subject,
                 html
             });
+            if (event === "PAYMENT_SUCCESS" || event === "PAYMENT_FAILED") {
+                console.info("[BACKEND][NOTIFICATION_SENT]", {
+                    channel: "email",
+                    event,
+                    userId: String(user?._id || ""),
+                    orderId: String(data?.orderId || ""),
+                });
+            }
             console.log(`✅ Email sent for ${event} to: ${user.email}`);
         }
         catch (error) {
@@ -222,6 +254,14 @@ class NotificationService {
             // Generate and send SMS
             const message = this.generateSMSContent(event, data, user.name);
             await (0, sms_1.sendSMS)(user.phone, message);
+            if (event === "PAYMENT_SUCCESS" || event === "PAYMENT_FAILED") {
+                console.info("[BACKEND][NOTIFICATION_SENT]", {
+                    channel: "sms",
+                    event,
+                    userId: String(user?._id || ""),
+                    orderId: String(data?.orderId || ""),
+                });
+            }
             console.log(`✅ SMS sent for ${event} to: ${user.phone}`);
         }
         catch (error) {
@@ -533,7 +573,7 @@ class NotificationUtils {
             const cutoffTime = new Date(Date.now() - 24 * 60 * 60 * 1000); // 24 hours ago
             const pendingPayments = await Order.find({
                 paymentMethod: 'cod',
-                paymentStatus: 'pending',
+                paymentStatus: { $regex: /^PENDING$/i },
                 deliveryStatus: 'delivered',
                 deliveredAt: { $lt: cutoffTime }
             });

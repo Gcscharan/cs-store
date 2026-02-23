@@ -168,6 +168,8 @@ export interface IUser extends Document {
   name: string;
   email: string;
   phone: string;
+  isDeleted?: boolean;
+  deletedAt?: Date | null;
   passwordHash?: string;
   oauthProviders?: IOAuthProvider[];
   role: "customer" | "admin" | "delivery";
@@ -269,6 +271,16 @@ const UserSchema = new Schema<IUser>(
         "Please enter a valid Indian phone number (10 digits starting with 6-9)",
       ],
     },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
     passwordHash: {
       type: String,
       minlength: [6, "Password must be at least 6 characters"],
@@ -328,6 +340,16 @@ const UserSchema = new Schema<IUser>(
   },
   {
     timestamps: true,
+  }
+);
+
+UserSchema.index(
+  { phone: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      phone: { $type: "string", $ne: "" },
+    },
   }
 );
 

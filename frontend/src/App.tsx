@@ -17,74 +17,262 @@ import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
 import RoleProtectedRoute from "./components/RoleProtectedRoute";
 import GlobalErrorBoundary from "./components/GlobalErrorBoundary";
-import HomePage from "./pages/HomePage";
-import DashboardPage from "./pages/DashboardPage";
-import ProductsPage from "./pages/ProductsPage";
-import ProductDetailPage from "./pages/ProductDetailPage";
-import CartPage from "./pages/CartPage";
-import CheckoutPage from "./pages/CheckoutPage";
-import OrdersPage from "./pages/OrdersPage";
-import OrderDetailsPage from "./pages/OrderDetailsPage";
-import OrderTrackingPage from "./pages/OrderTrackingPage";
-import ProfilePage from "./pages/ProfilePage";
-import AddressesPage from "./pages/AddressesPage";
-import SignupPage from "./pages/SignupPage";
-import LoginPage from "./pages/LoginPage";
-import MenuPage from "./pages/MenuPage";
-import AdminDashboard from "./pages/AdminDashboard";
-import AdminProductsPage from "./pages/AdminProductsPage";
-import ProductCreatePage from "./pages/Admin/ProductCreatePage";
-import AdminUsersPage from "./pages/AdminUsersPage";
-import AdminOrdersPage from "./pages/AdminOrdersPage";
-import AdminOrderDetailsPage from "./pages/AdminOrderDetailsPage";
-import AdminRoutesPage from "./pages/AdminRoutesPage";
-import AdminRoutesPreviewPage from "./pages/AdminRoutesPreviewPage";
-import AdminRecentRoutesPage from "./pages/AdminRecentRoutesPage";
-import AdminRouteDetailPage from "./pages/AdminRouteDetailPage";
-import AdminRouteMapPage from "./pages/AdminRouteMapPage";
-import AdminDeliveryBoysPage from "./pages/AdminDeliveryBoysPage";
-import AdminAnalyticsPage from "./pages/AdminAnalyticsPage";
-import AdminProfilePage from "./pages/AdminProfilePage";
-import PaymentLogs from "./components/PaymentLogs";
 import AdminRoute from "./components/AdminRoute";
-import DeliveryDashboard from "./pages/DeliveryDashboard";
-import DeliverySignup from "./pages/DeliverySignup";
-import DeliveryLogin from "./pages/DeliveryLogin";
-import DeliveryProfilePage from "./pages/DeliveryProfilePage";
-import DeliverySelfiePage from "./pages/DeliverySelfiePage";
-import DeliveryEmergencyPage from "./pages/DeliveryEmergencyPage";
-import DeliveryHelpCenterPage from "./pages/DeliveryHelpCenterPage";
-import WaysToEarnPage from "./pages/WaysToEarnPage";
-import ReferAndEarnPage from "./pages/ReferAndEarnPage";
-import HelpSupportPage from "./pages/HelpSupportPage";
-import MessageCenterPage from "./pages/MessageCenterPage";
-import DeliverySettingsPage from "./pages/DeliverySettingsPage";
-import CategoriesPage from "./pages/CategoriesPage";
-import AccountPage from "./pages/AccountPage";
-import EditProfilePage from "./pages/EditProfilePage";
-import NotificationsPage from "./pages/NotificationsPage";
-import OAuthCallbackPage from "./pages/OAuthCallbackPage";
-import OnboardingPage from "./pages/OnboardingPage";
-import TestOtpPage from "./pages/TestOtpPage";
-import DebugPage from "./pages/DebugPage";
-import ComingSoonPage from "./pages/ComingSoonPage";
-import DownloadAppPage from "./pages/DownloadAppPage";
-import SearchResultsPage from "./pages/SearchResultsPage";
-import ContactUsPage from "./pages/ContactUsPage";
-import AboutUsPage from "./pages/AboutUsPage";
-import CareersPage from "./pages/CareersPage";
-import CSStoreStoriesPage from "./pages/CSStoreStoriesPage";
-import CorporateInformationPage from "./pages/CorporateInformationPage";
-import CustomerCarePage from "./pages/CustomerCarePage";
-import NotificationPreferencesPage from "./pages/NotificationPreferencesPage";
-import SettingsPage from "./pages/SettingsPage";
-import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
-import TermsConditionsPage from "./pages/TermsConditionsPage";
-import CancellationReturnsPage from "./pages/CancellationReturnsPage";
-import { ReactNode } from "react";
+import { ReactNode, lazy } from "react";
 import CartInitializer from "./components/CartInitializer";
 import AuthInitializer from "./components/AuthInitializer";
 import { authRedirect } from "./utils/authRedirect";
+
+const loadHomePage = () =>
+  import(/* webpackChunkName: "page-home" */ "./pages/HomePage");
+const HomePage = lazy(loadHomePage);
+if (typeof window !== "undefined") {
+  loadHomePage();
+}
+
+const DashboardPage = lazy(() =>
+  import(/* webpackChunkName: "page-dashboard" */ "./pages/DashboardPage")
+);
+const ProductsPage = lazy(() =>
+  import(/* webpackChunkName: "page-products" */ "./pages/ProductsPage")
+);
+const ProductDetailPage = lazy(() =>
+  import(
+    /* webpackChunkName: "page-product-detail" */ "./pages/ProductDetailPage"
+  )
+);
+const CartPage = lazy(() => import(/* webpackChunkName: "page-cart" */ "./pages/CartPage"));
+const CheckoutPage = lazy(() =>
+  import(/* webpackChunkName: "page-checkout" */ "./pages/CheckoutPage")
+);
+const OrderSuccessPage = lazy(() =>
+  import(/* webpackChunkName: "page-order-success" */ "./pages/OrderSuccessPage")
+);
+const OrdersPage = lazy(() =>
+  import(/* webpackChunkName: "page-orders" */ "./pages/OrdersPage")
+);
+const OrderDetailsPage = lazy(() =>
+  import(/* webpackChunkName: "page-order-details" */ "./pages/OrderDetailsPage")
+);
+const OrderTrackingPage = lazy(() =>
+  import(/* webpackChunkName: "page-order-tracking" */ "./pages/OrderTrackingPage")
+);
+const ProfilePage = lazy(() =>
+  import(/* webpackChunkName: "page-profile" */ "./pages/ProfilePage")
+);
+const AddressesPage = lazy(() =>
+  import(/* webpackChunkName: "page-addresses" */ "./pages/AddressesPage")
+);
+const SignupPage = lazy(() =>
+  import(/* webpackChunkName: "page-signup" */ "./pages/SignupPage")
+);
+const LoginPage = lazy(() =>
+  import(/* webpackChunkName: "page-login" */ "./pages/LoginPage")
+);
+const MenuPage = lazy(() => import(/* webpackChunkName: "page-menu" */ "./pages/MenuPage"));
+const AdminDashboard = lazy(() =>
+  import(/* webpackChunkName: "page-admin" */ "./pages/AdminDashboard")
+);
+const AdminProductsPage = lazy(() =>
+  import(/* webpackChunkName: "page-admin" */ "./pages/AdminProductsPage")
+);
+const ProductCreatePage = lazy(() =>
+  import(
+    /* webpackChunkName: "page-admin" */ "./pages/Admin/ProductCreatePage"
+  )
+);
+const AdminUsersPage = lazy(() =>
+  import(/* webpackChunkName: "page-admin" */ "./pages/AdminUsersPage")
+);
+const AdminOrdersPage = lazy(() =>
+  import(/* webpackChunkName: "page-admin" */ "./pages/AdminOrdersPage")
+);
+const AdminOrderDetailsPage = lazy(() =>
+  import(
+    /* webpackChunkName: "page-admin" */ "./pages/AdminOrderDetailsPage"
+  )
+);
+const AdminRoutesPage = lazy(() =>
+  import(/* webpackChunkName: "page-admin" */ "./pages/AdminRoutesPage")
+);
+const AdminRoutesPreviewPage = lazy(() =>
+  import(
+    /* webpackChunkName: "page-admin" */ "./pages/AdminRoutesPreviewPage"
+  )
+);
+const AdminRecentRoutesPage = lazy(() =>
+  import(
+    /* webpackChunkName: "page-admin" */ "./pages/AdminRecentRoutesPage"
+  )
+);
+const AdminRouteDetailPage = lazy(() =>
+  import(
+    /* webpackChunkName: "page-admin" */ "./pages/AdminRouteDetailPage"
+  )
+);
+const AdminRouteMapPage = lazy(() =>
+  import(/* webpackChunkName: "page-admin" */ "./pages/AdminRouteMapPage")
+);
+const AdminDeliveryBoysPage = lazy(() =>
+  import(
+    /* webpackChunkName: "page-admin" */ "./pages/AdminDeliveryBoysPage"
+  )
+);
+const AdminAnalyticsPage = lazy(() =>
+  import(/* webpackChunkName: "page-admin" */ "./pages/AdminAnalyticsPage")
+);
+const AdminProfilePage = lazy(() =>
+  import(/* webpackChunkName: "page-admin" */ "./pages/AdminProfilePage")
+);
+const PaymentLogs = lazy(() =>
+  import(/* webpackChunkName: "page-admin" */ "./components/PaymentLogs")
+);
+const PaymentsRecoveryPage = lazy(() =>
+  import(
+    /* webpackChunkName: "page-admin-ops" */ "./admin/ops/payments/recovery/PaymentsRecoveryPage"
+  )
+);
+const FinanceReportsPage = lazy(() =>
+  import(
+    /* webpackChunkName: "page-admin-ops" */ "./admin/ops/finance/FinanceReportsPage"
+  )
+);
+const DeliveryDashboard = lazy(() =>
+  import(
+    /* webpackChunkName: "page-delivery" */ "./pages/DeliveryDashboard"
+  )
+);
+const DeliverySignup = lazy(() =>
+  import(/* webpackChunkName: "page-delivery" */ "./pages/DeliverySignup")
+);
+const DeliveryLogin = lazy(() =>
+  import(/* webpackChunkName: "page-delivery" */ "./pages/DeliveryLogin")
+);
+const DeliveryProfilePage = lazy(() =>
+  import(
+    /* webpackChunkName: "page-delivery" */ "./pages/DeliveryProfilePage"
+  )
+);
+const DeliverySelfiePage = lazy(() =>
+  import(
+    /* webpackChunkName: "page-delivery" */ "./pages/DeliverySelfiePage"
+  )
+);
+const DeliveryEmergencyPage = lazy(() =>
+  import(
+    /* webpackChunkName: "page-delivery" */ "./pages/DeliveryEmergencyPage"
+  )
+);
+const DeliveryHelpCenterPage = lazy(() =>
+  import(
+    /* webpackChunkName: "page-delivery" */ "./pages/DeliveryHelpCenterPage"
+  )
+);
+const WaysToEarnPage = lazy(() =>
+  import(/* webpackChunkName: "page-delivery" */ "./pages/WaysToEarnPage")
+);
+const ReferAndEarnPage = lazy(() =>
+  import(
+    /* webpackChunkName: "page-delivery" */ "./pages/ReferAndEarnPage"
+  )
+);
+const HelpSupportPage = lazy(() =>
+  import(
+    /* webpackChunkName: "page-delivery" */ "./pages/HelpSupportPage"
+  )
+);
+const MessageCenterPage = lazy(() =>
+  import(
+    /* webpackChunkName: "page-delivery" */ "./pages/MessageCenterPage"
+  )
+);
+const DeliverySettingsPage = lazy(() =>
+  import(
+    /* webpackChunkName: "page-delivery" */ "./pages/DeliverySettingsPage"
+  )
+);
+const CategoriesPage = lazy(() =>
+  import(/* webpackChunkName: "page-misc" */ "./pages/CategoriesPage")
+);
+const AccountPage = lazy(() =>
+  import(/* webpackChunkName: "page-account" */ "./pages/AccountPage")
+);
+const EditProfilePage = lazy(() =>
+  import(/* webpackChunkName: "page-account" */ "./pages/EditProfilePage")
+);
+const NotificationsPage = lazy(() =>
+  import(
+    /* webpackChunkName: "page-account" */ "./pages/NotificationsPage"
+  )
+);
+const OAuthCallbackPage = lazy(() =>
+  import(
+    /* webpackChunkName: "page-misc" */ "./pages/OAuthCallbackPage"
+  )
+);
+const OnboardingPage = lazy(() =>
+  import(/* webpackChunkName: "page-misc" */ "./pages/OnboardingPage")
+);
+const TestOtpPage = lazy(() =>
+  import(/* webpackChunkName: "page-misc" */ "./pages/TestOtpPage")
+);
+const DebugPage = lazy(() =>
+  import(/* webpackChunkName: "page-misc" */ "./pages/DebugPage")
+);
+const ComingSoonPage = lazy(() =>
+  import(/* webpackChunkName: "page-misc" */ "./pages/ComingSoonPage")
+);
+const DownloadAppPage = lazy(() =>
+  import(/* webpackChunkName: "page-misc" */ "./pages/DownloadAppPage")
+);
+const SearchResultsPage = lazy(() =>
+  import(
+    /* webpackChunkName: "page-products" */ "./pages/SearchResultsPage"
+  )
+);
+const ContactUsPage = lazy(() =>
+  import(/* webpackChunkName: "page-misc" */ "./pages/ContactUsPage")
+);
+const AboutUsPage = lazy(() =>
+  import(/* webpackChunkName: "page-misc" */ "./pages/AboutUsPage")
+);
+const CareersPage = lazy(() =>
+  import(/* webpackChunkName: "page-misc" */ "./pages/CareersPage")
+);
+const CSStoreStoriesPage = lazy(() =>
+  import(
+    /* webpackChunkName: "page-misc" */ "./pages/CSStoreStoriesPage"
+  )
+);
+const CorporateInformationPage = lazy(() =>
+  import(
+    /* webpackChunkName: "page-misc" */ "./pages/CorporateInformationPage"
+  )
+);
+const CustomerCarePage = lazy(() =>
+  import(
+    /* webpackChunkName: "page-misc" */ "./pages/CustomerCarePage"
+  )
+);
+const NotificationPreferencesPage = lazy(() =>
+  import(
+    /* webpackChunkName: "page-misc" */ "./pages/NotificationPreferencesPage"
+  )
+);
+const SettingsPage = lazy(() =>
+  import(/* webpackChunkName: "page-account" */ "./pages/SettingsPage")
+);
+const PrivacyPolicyPage = lazy(() =>
+  import(/* webpackChunkName: "page-misc" */ "./pages/PrivacyPolicyPage")
+);
+const TermsConditionsPage = lazy(() =>
+  import(/* webpackChunkName: "page-misc" */ "./pages/TermsConditionsPage")
+);
+const CancellationReturnsPage = lazy(() =>
+  import(
+    /* webpackChunkName: "page-misc" */ "./pages/CancellationReturnsPage"
+  )
+);
 
 // Centralized auth guard using Redux auth state (authoritative)
 function AuthGuard({ children }: { children: ReactNode }) {
@@ -255,6 +443,14 @@ function OtherRoutes() {
           element={
             <ProtectedRoute>
               <CheckoutPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/order-success/:orderId"
+          element={
+            <ProtectedRoute>
+              <OrderSuccessPage />
             </ProtectedRoute>
           }
         />
@@ -437,6 +633,22 @@ function OtherRoutes() {
           element={
             <AdminRoute>
               <PaymentLogs />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/ops/payments/recovery"
+          element={
+            <AdminRoute>
+              <PaymentsRecoveryPage />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/ops/finance"
+          element={
+            <AdminRoute>
+              <FinanceReportsPage />
             </AdminRoute>
           }
         />

@@ -166,7 +166,6 @@ const EnhancedHomeTab: React.FC<HomeTabProps> = () => {
   const [_arrivedTimestamp, _setArrivedTimestamp] = useState<{ [key: string]: number }>({});
   const [resendTimer, setResendTimer] = useState<{ [key: string]: number }>({});
   const [deliveryAttempted, setDeliveryAttempted] = useState<{ [key: string]: boolean }>({});
-  const [monitoringPayments, setMonitoringPayments] = useState<{ [key: string]: boolean }>({});
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
   const [retryCount, setRetryCount] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -185,7 +184,6 @@ const EnhancedHomeTab: React.FC<HomeTabProps> = () => {
   const [collectSubmitting, setCollectSubmitting] = useState(false);
   const touchStartY = useRef<number | null>(null);
   const maxRetries = 3;
-  const ENABLE_COD_AUTO_COMPLETE = false;
 
   const apiBase = getApiOrigin();
 
@@ -385,99 +383,6 @@ const EnhancedHomeTab: React.FC<HomeTabProps> = () => {
       connectSocket();
     }
   }, [deliveryInfo]);
-
-  // Automatic payment monitoring for COD orders
-  useEffect(() => {
-    if (!ENABLE_COD_AUTO_COMPLETE) return;
-    if (!activeOrders || activeOrders.length === 0) return;
-
-    const codOrdersWithQR = activeOrders.filter(
-      (order) =>
-        order.paymentMethod === "cod" &&
-        String(order.paymentStatus || "").toLowerCase() !== "paid" &&
-        (order.orderStatus === "arrived" || order.orderStatus === "in_transit")
-    );
-
-    if (codOrdersWithQR.length === 0) return;
-
-    const monitorPaymentStatus = async (orderId: string) => {
-      try {
-        if (!tokens?.accessToken) return;
-
-        const response = await fetch(toApiUrl(`/orders/${orderId}/payment-status`), {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${tokens.accessToken}`,
-          },
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          if (String(data.paymentStatus || "").toLowerCase() === "paid") {
-            // Payment detected - automatically complete the order
-            setMonitoringPayments((prev) => ({ ...prev, [orderId]: false }));
-            await autoCompleteDelivery(orderId);
-          }
-        }
-      } catch (error) {
-        console.error("Payment monitoring error:", error);
-      }
-    };
-
-    // Start monitoring for each COD order
-    codOrdersWithQR.forEach((order) => {
-      if (!monitoringPayments[order._id]) {
-        setMonitoringPayments((prev) => ({ ...prev, [order._id]: true }));
-
-        // Check every 3 seconds
-        const interval = setInterval(() => {
-          monitorPaymentStatus(order._id);
-        }, 3000);
-
-        // Cleanup interval after 30 minutes (failsafe)
-        setTimeout(() => {
-          clearInterval(interval);
-          setMonitoringPayments((prev) => ({ ...prev, [order._id]: false }));
-        }, 30 * 60 * 1000);
-
-        // Store interval reference for cleanup
-        return () => clearInterval(interval);
-      }
-    });
-  }, [activeOrders, tokens, monitoringPayments]);
-
-  const autoCompleteDelivery = async (orderId: string) => {
-    try {
-      throw new Error("Auto-complete is disabled. Delivery must be completed via OTP verification.");
-      if (!tokens?.accessToken) return;
-
-      const response = await fetch(toApiUrl(`/delivery/orders/${orderId}/complete`), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${tokens.accessToken}`,
-        },
-        body: JSON.stringify({}), // Empty body for COD orders
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to auto-complete delivery");
-      }
-
-      const data = await response.json();
-      toast.success(`Payment Received – Order Completed Successfully! Earned ₹${data.earnings || 0}`, {
-        duration: 4000,
-        icon: "🎉",
-      });
-
-      // Refresh orders to reflect the completion
-      fetchOrders();
-    } catch (error) {
-      console.error("Auto-completion error:", error);
-      toast.error("Payment detected but failed to complete delivery automatically");
-    }
-  };
 
   const openCancelModal = (orderId: string) => {
     setCancelOrderId(orderId);

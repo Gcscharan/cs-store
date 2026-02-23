@@ -100,8 +100,11 @@ export class UserAccountService {
         await this.userRepository.save(user);
         await this.otpRepository.deleteMany({ phone: user.phone, type: "verification", isUsed: false });
 
-        const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
-        const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || "your-refresh-secret";
+        const JWT_SECRET = process.env.JWT_SECRET;
+        const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
+        if (!JWT_SECRET || !JWT_REFRESH_SECRET) {
+          throw new Error("Server misconfigured");
+        }
         const accessToken = jwt.sign(
           { userId: user._id, email: user.email, role: user.role },
           JWT_SECRET,
@@ -162,8 +165,11 @@ export class UserAccountService {
       await this.pendingUserRepository.deleteOne({ _id: pendingUser._id });
       await this.otpRepository.deleteMany({ phone, type: "verification", isUsed: false });
 
-      const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
-      const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || "your-refresh-secret";
+      const JWT_SECRET = process.env.JWT_SECRET;
+      const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
+      if (!JWT_SECRET || !JWT_REFRESH_SECRET) {
+        throw new Error("Server misconfigured");
+      }
       const accessToken = jwt.sign(
         { userId: user._id, email: user.email, role: user.role },
         JWT_SECRET,
@@ -226,13 +232,25 @@ export class UserAccountService {
         session
       );
 
-      const paymentDeleteResult = await this.paymentRepository.deleteMany({ userId }, session);
+      // Preserve historical payments (do not delete)
+      const paymentDeleteResult = { deletedCount: 0 } as any;
 
       const otpDeleteResult = await this.otpRepository.deleteMany({ phone: user.phone }, session);
 
       const notificationDeleteResult = await this.notificationRepository.deleteMany({ userId }, session);
 
-      await this.userRepository.findByIdAndDelete(userId, session);
+      await this.userRepository.findByIdAndUpdate(
+        userId,
+        {
+          $set: {
+            isDeleted: true,
+            deletedAt: new Date(),
+            status: "suspended",
+          },
+        },
+        { new: true },
+        session
+      );
 
       await session.commitTransaction();
 
