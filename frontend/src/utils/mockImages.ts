@@ -1,5 +1,5 @@
 /**
- * Mock Images Utility for CS Store
+ * Mock Images Utility for Vyapara Setu
  * Provides LQIP (Low Quality Image Placeholder) placeholders for initial development
  */
 

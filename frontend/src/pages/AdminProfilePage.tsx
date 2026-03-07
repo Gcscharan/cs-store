@@ -452,6 +452,33 @@ const AdminProfilePage: React.FC = () => {
                     Track and update orders
                   </p>
                 </button>
+                <button
+                  onClick={() => navigate("/admin/analytics")}
+                  className="p-4 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors text-left"
+                >
+                  <h4 className="font-medium text-indigo-900">Sales Analytics</h4>
+                  <p className="text-sm text-indigo-600">
+                    View sales reports and metrics
+                  </p>
+                </button>
+                <button
+                  onClick={() => navigate("/admin/delivery-boys")}
+                  className="p-4 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors text-left"
+                >
+                  <h4 className="font-medium text-purple-900">Manage Delivery</h4>
+                  <p className="text-sm text-purple-600">
+                    Manage delivery personnel
+                  </p>
+                </button>
+                <button
+                  onClick={() => navigate("/admin/payments")}
+                  className="p-4 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors text-left"
+                >
+                  <h4 className="font-medium text-emerald-900">Payment Logs</h4>
+                  <p className="text-sm text-emerald-600">
+                    Monitor payment transactions
+                  </p>
+                </button>
               </div>
             </div>
           </div>

@@ -3,6 +3,7 @@ import crypto from "crypto";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import { body, validationResult } from "express-validator";
+import { captureSecurityEvent, logger } from "../utils/logger";
 
 interface ExtendedRequest extends Request {
   verifiedPayment?: any;
@@ -30,7 +31,12 @@ export const apiLimiter = isTestEnv
 export const createRateLimit = (
   windowMs: number,
   max: number,
-  message?: string
+  message?: string,
+  options?: {
+    keyGenerator?: (req: Request) => string;
+    skip?: (req: Request) => boolean;
+    tag?: string;
+  }
 ) => {
   if (isTestEnv) {
     return noOpMiddleware;
@@ -42,7 +48,30 @@ export const createRateLimit = (
       message || "Too many requests from this IP, please try again later.",
     standardHeaders: true,
     legacyHeaders: false,
+    keyGenerator: options?.keyGenerator,
+    skip: options?.skip,
     handler: (req, res) => {
+      const ip = req.ip || req.connection.remoteAddress || "unknown";
+      const userId = (req as any).user?._id || "anonymous";
+      const tag = options?.tag || "rate_limit";
+
+      // Log rate limit breach
+      logger.security(`Rate limit exceeded: ${tag}`, {
+        ip,
+        userId,
+        path: req.path,
+        method: req.method,
+        tag,
+      });
+
+      // Send to Sentry with SECURITY tag
+      captureSecurityEvent(`rate_limit_exceeded_${tag}`, "medium", {
+        ip,
+        userId,
+        path: req.path,
+        method: req.method,
+      });
+
       res.status(429).json({
         error: "Rate limit exceeded",
         message: "Too many requests, please try again later.",
@@ -53,23 +82,62 @@ export const createRateLimit = (
 };
 
 // Specific rate limits for different endpoints
-export const authRateLimit = createRateLimit(
+
+// Login: max 10 requests per 15 min per IP
+export const loginRateLimit = createRateLimit(
   15 * 60 * 1000, // 15 minutes
-  5, // 5 attempts
-  "Too many authentication attempts, please try again later."
+  10, // 10 attempts
+  "Too many login attempts, please try again later.",
+  { tag: "login" }
 );
 
+// Signup: max 5 per hour per IP
+export const signupRateLimit = createRateLimit(
+  60 * 60 * 1000, // 1 hour
+  5, // 5 attempts
+  "Too many signup attempts, please try again later.",
+  { tag: "signup" }
+);
+
+// Checkout: max 20 per hour per user (or per IP if not authenticated)
+export const checkoutRateLimit = createRateLimit(
+  60 * 60 * 1000, // 1 hour
+  20, // 20 attempts
+  "Too many checkout attempts, please try again later.",
+  {
+    keyGenerator: (req: Request) => {
+      const userId = (req as any).user?._id;
+      if (userId) return `user_${userId}`;
+      return req.ip || "unknown";
+    },
+    tag: "checkout",
+  }
+);
+
+// Payment verification: strict limit - 5 per 5 min per user/IP
+export const paymentVerificationRateLimit = createRateLimit(
+  5 * 60 * 1000, // 5 minutes
+  5, // 5 attempts
+  "Too many payment verification attempts, please try again later.",
+  {
+    keyGenerator: (req: Request) => {
+      const userId = (req as any).user?._id;
+      if (userId) return `payment_verify_user_${userId}`;
+      return `payment_verify_ip_${req.ip || "unknown"}`;
+    },
+    tag: "payment_verification",
+  }
+);
+
+// Legacy exports for backward compatibility
+export const authRateLimit = loginRateLimit;
 export const apiRateLimit = createRateLimit(
   15 * 60 * 1000, // 15 minutes
   100, // 100 requests
-  "Too many API requests, please try again later."
+  "Too many API requests, please try again later.",
+  { tag: "api" }
 );
-
-export const paymentRateLimit = createRateLimit(
-  5 * 60 * 1000, // 5 minutes
-  3, // 3 payment attempts
-  "Too many payment attempts, please try again later."
-);
+export const paymentRateLimit = paymentVerificationRateLimit;
 
 // Security headers middleware
 export const securityHeaders = helmet({
@@ -115,15 +183,31 @@ export const sanitizeInput = (
 
     const sanitized: any = {};
     for (const [key, value] of Object.entries(obj)) {
+      // Remove undefined fields - they should not be sent
+      if (value === undefined) {
+        continue;
+      }
+      
       if (typeof value === "string") {
-        // Remove potentially dangerous characters
-        sanitized[key] = value
+        // Remove potentially dangerous characters but preserve empty strings
+        // Controllers will validate and reject empty strings explicitly
+        let sanitizedValue = value
           .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
           .replace(/javascript:/gi, "")
-          .replace(/on\w+\s*=/gi, "")
-          .trim();
+          .replace(/on\w+\s*=/gi, "");
+        
+        // Preserve empty strings so controllers can validate and return 400
+        sanitized[key] = sanitizedValue;
+      } else if (typeof value === "object" && value !== null) {
+        // Recursively sanitize nested objects
+        const nested = sanitizeObject(value);
+        // Only include nested object if it has properties after sanitization
+        if (Object.keys(nested).length > 0) {
+          sanitized[key] = nested;
+        }
       } else {
-        sanitized[key] = sanitizeObject(value);
+        // Keep non-string, non-object values as-is (numbers, booleans, null)
+        sanitized[key] = value;
       }
     }
     return sanitized;

@@ -14,7 +14,7 @@ const DeliveryEmergencyPage: React.FC = () => {
     };
 
     const labels = {
-      helpline: "CS Store Helpline",
+      helpline: "Vyapara Setu Helpline",
       police: "Police",
       ambulance: "Ambulance",
     };
@@ -169,7 +169,7 @@ const DeliveryEmergencyPage: React.FC = () => {
             <div className="flex items-start space-x-3">
               <div className="w-2 h-2 bg-blue-600 rounded-full mt-2 flex-shrink-0"></div>
               <p>
-                <strong>Report:</strong> Always report any incidents to CS Store
+                <strong>Report:</strong> Always report any incidents to Vyapara Setu
                 support for proper documentation and follow-up.
               </p>
             </div>

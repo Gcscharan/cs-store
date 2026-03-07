@@ -49,6 +49,10 @@ function extractImageUrl(img: any): string {
   return "/placeholder-product.svg";
 }
 
+export function getImageUrl(img: any): string {
+  return extractImageUrl(img);
+}
+
 /**
  * Get primary thumbnail image for a product
  */

@@ -40,7 +40,7 @@ const DeliveryHelpCenterPage: React.FC = () => {
     },
     {
       id: "leave-cs-store",
-      title: "I Want to Leave CS Store",
+      title: "I Want to Leave Vyapara Setu",
       description: "Information about leaving the delivery partner program",
       icon: LogOut,
       color: "bg-red-50 text-red-600",

@@ -57,7 +57,7 @@ const ComingSoonPage: React.FC = () => {
           transition={{ delay: 0.2 }}
           className="flex justify-between items-center mb-12 px-4"
         >
-          <h1 className="text-2xl font-bold">CS Store</h1>
+          <h1 className="text-2xl font-bold">Vyapara Setu</h1>
           <Link
             to="/"
             className="flex items-center text-white hover:text-blue-200 transition-colors"
@@ -215,7 +215,7 @@ const ComingSoonPage: React.FC = () => {
               className="mt-20 text-sm text-blue-200"
             >
               <p>
-                &copy; {new Date().getFullYear()} CS Store. All rights reserved.
+                &copy; {new Date().getFullYear()} Vyapara Setu. All rights reserved.
               </p>
               <p className="mt-2">
                 For seller inquiries, please contact{" "}

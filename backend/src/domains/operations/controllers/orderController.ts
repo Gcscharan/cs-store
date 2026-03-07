@@ -15,6 +15,7 @@ import { inventoryReservationService } from "../../orders/services/inventoryRese
 import { buildOrderTimeline } from "../../orders/services/orderTimeline";
 import { RefundRequest } from "../../payments/models/RefundRequest";
 import { LedgerEntry } from "../../payments/models/LedgerEntry";
+import { safeDoc } from "../../../utils/safeDoc";
 
 export const getOrders = async (
   req: Request,
@@ -40,7 +41,7 @@ export const getOrders = async (
 
     // Map orderStatus to status for test compatibility
     const ordersWithStatus = orders.map(order => ({
-      ...order.toObject(),
+      ...safeDoc(order),
       status: order.orderStatus
     }));
 
@@ -87,7 +88,7 @@ export const getOrderById = async (
     }
 
     const orderObj: any = {
-      ...order.toObject(),
+      ...safeDoc(order),
       status: (order as any).orderStatus, // Map orderStatus to status for test compatibility
     };
 
@@ -271,11 +272,15 @@ export const placeOrderCOD = async (req: Request, res: Response) => {
     const idempotencyKeyBody = String(req.body?.idempotencyKey || "").trim();
     const idempotencyKey = idempotencyKeyHeader || idempotencyKeyBody || undefined;
 
+    console.log("[DEBUG] placeOrderCOD: userId:", userId, "idempotencyKey:", idempotencyKey);
+
     const result = await createOrderFromCart({
       userId,
       paymentMethod: "cod",
       idempotencyKey,
     });
+
+    console.log("[DEBUG] placeOrderCOD: Order created:", result.order?._id, "created:", result.created);
 
     return res.status(200).json({
       message: "Order placed with Cash on Delivery",
@@ -283,12 +288,17 @@ export const placeOrderCOD = async (req: Request, res: Response) => {
       created: result.created,
     });
   } catch (error: any) {
+    console.error("[DEBUG] placeOrderCOD error:", {
+      message: error.message,
+      statusCode: error.statusCode,
+      stack: error.stack,
+    });
     const statusCode = Number(error?.statusCode) || 500;
     if (statusCode >= 400 && statusCode < 500) {
-      return res.status(statusCode).json({ message: error.message || "Bad request" });
+      return res.status(statusCode).json({ message: error.message || "Bad request", error: error.message });
     }
     console.error("COD order placement error:", error);
-    return res.status(500).json({ message: "Failed to place order (COD)" });
+    return res.status(500).json({ message: "Failed to place order (COD)", error: error.message });
   }
 };
 

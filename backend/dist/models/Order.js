@@ -70,6 +70,11 @@ const OrderItemSchema = new mongoose_1.Schema({
         type: Number,
         min: 0,
     },
+    gstRate: {
+        type: Number,
+        min: 0,
+        max: 100,
+    },
 });
 const OrderAddressSchema = new mongoose_1.Schema({
     name: { type: String }, // Recipient name
@@ -141,6 +146,13 @@ const EstimatedDeliveryWindowSchema = new mongoose_1.Schema({
     end: { type: Date, required: true },
     confidence: { type: String, enum: ["high", "medium"], required: true },
 }, { _id: false });
+const GstBreakdownSchema = new mongoose_1.Schema({
+    type: { type: String, enum: ['CGST_SGST', 'IGST'], required: true },
+    cgst: { type: Number, min: 0 },
+    sgst: { type: Number, min: 0 },
+    igst: { type: Number, min: 0 },
+    totalGst: { type: Number, required: true, min: 0 },
+}, { _id: false });
 const OrderSchema = new mongoose_1.Schema({
     userId: {
         type: mongoose_1.Schema.Types.ObjectId,
@@ -153,6 +165,21 @@ const OrderSchema = new mongoose_1.Schema({
     },
     items: [OrderItemSchema],
     itemsTotal: {
+        type: Number,
+        min: 0,
+    },
+    subtotalBeforeTax: {
+        type: Number,
+        min: 0,
+    },
+    gstAmount: {
+        type: Number,
+        min: 0,
+    },
+    gstBreakdown: {
+        type: GstBreakdownSchema,
+    },
+    totalTax: {
         type: Number,
         min: 0,
     },
@@ -210,20 +237,12 @@ const OrderSchema = new mongoose_1.Schema({
             "PICKED_UP",
             "IN_TRANSIT",
             "OUT_FOR_DELIVERY",
+            "ARRIVED",
             "DELIVERED",
             "FAILED",
             "RETURNED",
             "CANCELLED",
             "CREATED",
-            "pending",
-            "confirmed",
-            "created",
-            "assigned",
-            "picked_up",
-            "in_transit",
-            "arrived",
-            "delivered",
-            "cancelled",
         ],
         default: "CREATED",
     },
@@ -296,11 +315,75 @@ const OrderSchema = new mongoose_1.Schema({
     arrivedAt: { type: Date },
     deliveredAt: { type: Date },
     estimatedDeliveryWindow: { type: EstimatedDeliveryWindowSchema, required: false },
+    // ============================================
+    // INVOICE FIELDS (GST Compliance)
+    // ============================================
+    invoiceNumber: {
+        type: String,
+        unique: true,
+        sparse: true, // Only indexed if present
+        trim: true,
+    },
+    invoiceGeneratedAt: {
+        type: Date,
+    },
+    invoiceItems: [{
+            productId: { type: mongoose_1.Schema.Types.ObjectId, ref: "Product", required: true },
+            productName: { type: String, required: true },
+            hsnCode: { type: String, required: true },
+            quantity: { type: Number, required: true, min: 1 },
+            unitPrice: { type: Number, required: true, min: 0 },
+            taxableValue: { type: Number, required: true, min: 0 },
+            gstRate: { type: Number, required: true, min: 0 },
+            cgstAmount: { type: Number, required: true, min: 0 },
+            sgstAmount: { type: Number, required: true, min: 0 },
+            igstAmount: { type: Number, required: true, min: 0 },
+            totalAmount: { type: Number, required: true, min: 0 },
+        }],
+    sellerDetails: {
+        legalName: { type: String, required: false },
+        tradeName: { type: String },
+        gstin: { type: String, required: false },
+        addressLine1: { type: String, required: false },
+        addressLine2: { type: String },
+        city: { type: String, required: false },
+        state: { type: String, required: false },
+        stateCode: { type: String, required: false },
+        pincode: { type: String, required: false },
+        phone: { type: String },
+        email: { type: String },
+    },
 }, {
     timestamps: true,
 });
 const ALLOWED_PAID_SOURCE = "WEBHOOK_PAYMENT_CAPTURED";
 const PAID_SOURCE_OPTION_KEY = "paymentStatusSource";
+// Migration-safe orderStatus mapping (lowercase -> uppercase)
+const ORDER_STATUS_MIGRATION_MAP = {
+    "pending": "PENDING_PAYMENT",
+    "confirmed": "CONFIRMED",
+    "created": "CREATED",
+    "assigned": "ASSIGNED",
+    "picked_up": "PICKED_UP",
+    "in_transit": "IN_TRANSIT",
+    "arrived": "ARRIVED",
+    "delivered": "DELIVERED",
+    "cancelled": "CANCELLED",
+};
+function normalizeOrderStatus(status) {
+    const upper = status.toUpperCase();
+    // If already uppercase and valid, return as-is
+    const validStatuses = [
+        "PENDING_PAYMENT", "CONFIRMED", "PACKED", "ASSIGNED", "PICKED_UP",
+        "IN_TRANSIT", "OUT_FOR_DELIVERY", "ARRIVED", "DELIVERED",
+        "FAILED", "RETURNED", "CANCELLED", "CREATED"
+    ];
+    if (validStatuses.includes(upper)) {
+        return upper;
+    }
+    // Try migration map for lowercase values
+    return ORDER_STATUS_MIGRATION_MAP[status.toLowerCase()] || status;
+}
 function extractSetPaymentStatus(update) {
     if (!update || typeof update !== "object")
         return "";
@@ -310,6 +393,16 @@ function extractSetPaymentStatus(update) {
     const set = update.$set;
     const fromSet = set && typeof set === "object" ? set.paymentStatus : undefined;
     return typeof fromSet === "string" ? fromSet : "";
+}
+function extractSetOrderStatus(update) {
+    if (!update || typeof update !== "object")
+        return null;
+    const direct = update.orderStatus;
+    if (typeof direct === "string")
+        return direct;
+    const set = update.$set;
+    const fromSet = set && typeof set === "object" ? set.orderStatus : undefined;
+    return typeof fromSet === "string" ? fromSet : null;
 }
 function extractPaidSourceFromOptions(opts) {
     if (!opts || typeof opts !== "object")
@@ -347,8 +440,66 @@ async function assertPaidTransitionAllowedOnQuery() {
         });
     }
 }
+function normalizeOrderStatusInUpdate() {
+    const update = this.getUpdate ? this.getUpdate() : undefined;
+    if (!update || typeof update !== "object")
+        return;
+    const rawStatus = extractSetOrderStatus(update);
+    if (!rawStatus)
+        return;
+    const normalized = normalizeOrderStatus(rawStatus);
+    if (rawStatus !== normalized) {
+        console.log(`[Order][Migration] Normalizing orderStatus in update: "${rawStatus}" -> "${normalized}"`);
+        // Update in $set if present
+        if (update.$set && typeof update.$set === "object") {
+            update.$set.orderStatus = normalized;
+        }
+        else if (update.orderStatus) {
+            // Direct update
+            update.orderStatus = normalized;
+        }
+    }
+}
 OrderSchema.pre("save", function (next) {
     try {
+        // Allow initial orderStatus assignment for new orders (no previous status to transition from)
+        if (this.isNew && this.orderStatus) {
+            const rawStatus = String(this.orderStatus);
+            const normalized = normalizeOrderStatus(rawStatus);
+            if (rawStatus !== normalized) {
+                console.log(`[Order][Migration] Normalized orderStatus on new order: "${rawStatus}" -> "${normalized}"`);
+                this.orderStatus = normalized;
+            }
+            // Initial status on new order is allowed - skip authorization check
+            return next();
+        }
+        // Migration: Auto-convert lowercase orderStatus to uppercase
+        if (this.isModified("orderStatus") && this.orderStatus) {
+            const rawStatus = String(this.orderStatus);
+            const normalized = normalizeOrderStatus(rawStatus);
+            // Check if this is just a normalization (same status, different case)
+            // This is allowed without the authorized symbol
+            const isJustNormalization = rawStatus !== normalized;
+            if (isJustNormalization) {
+                console.log(`[Order][Migration] Normalized orderStatus: "${rawStatus}" -> "${normalized}" (orderId: ${this._id})`);
+                this.orderStatus = normalized;
+            }
+            else {
+                // Not a normalization - check for authorized transition
+                const AUTHORIZED_TRANSITION_SYMBOL = Symbol.for("orderStateService.authorizedTransition");
+                const isAuthorized = this[AUTHORIZED_TRANSITION_SYMBOL] === true;
+                if (!isAuthorized) {
+                    const err = new Error(`Order status must be changed via orderStateService.transition(). ` +
+                        `Direct modification of orderStatus is not allowed. ` +
+                        `(orderId: ${this._id}, attempted status: ${rawStatus})`);
+                    err.statusCode = 403;
+                    return next(err);
+                }
+                // Clear the authorization flag after use
+                delete this[AUTHORIZED_TRANSITION_SYMBOL];
+            }
+        }
+        // Payment status security check
         const nextStatus = String(this.paymentStatus || "").toUpperCase();
         if (!this.isModified("paymentStatus"))
             return next();
@@ -365,16 +516,59 @@ OrderSchema.pre("save", function (next) {
     }
 });
 OrderSchema.pre("updateOne", function (next) {
+    normalizeOrderStatusInUpdate.call(this);
+    // Block direct orderStatus modifications via updateOne
+    // All status transitions must go through orderStateService.transition()
+    const update = this.getUpdate ? this.getUpdate() : undefined;
+    if (update && typeof update === "object") {
+        const rawStatus = extractSetOrderStatus(update);
+        if (rawStatus) {
+            const normalized = normalizeOrderStatus(rawStatus);
+            // Only allow if it's purely a normalization (lowercase -> uppercase of same status)
+            // Any actual status change must go through orderStateService
+            const err = new Error(`Order status must be changed via orderStateService.transition(). ` +
+                `Direct update of orderStatus via updateOne() is not allowed. ` +
+                `(attempted status: ${rawStatus})`);
+            err.statusCode = 403;
+            return next(err);
+        }
+    }
     assertPaidTransitionAllowedOnQuery.call(this)
         .then(() => next())
         .catch((e) => next(e));
 });
 OrderSchema.pre("updateMany", function (next) {
+    normalizeOrderStatusInUpdate.call(this);
+    // Block direct orderStatus modifications via updateMany
+    const update = this.getUpdate ? this.getUpdate() : undefined;
+    if (update && typeof update === "object") {
+        const rawStatus = extractSetOrderStatus(update);
+        if (rawStatus) {
+            const err = new Error(`Order status must be changed via orderStateService.transition(). ` +
+                `Direct update of orderStatus via updateMany() is not allowed. ` +
+                `(attempted status: ${rawStatus})`);
+            err.statusCode = 403;
+            return next(err);
+        }
+    }
     assertPaidTransitionAllowedOnQuery.call(this)
         .then(() => next())
         .catch((e) => next(e));
 });
 OrderSchema.pre("findOneAndUpdate", function (next) {
+    normalizeOrderStatusInUpdate.call(this);
+    // Block direct orderStatus modifications via findOneAndUpdate
+    const update = this.getUpdate ? this.getUpdate() : undefined;
+    if (update && typeof update === "object") {
+        const rawStatus = extractSetOrderStatus(update);
+        if (rawStatus) {
+            const err = new Error(`Order status must be changed via orderStateService.transition(). ` +
+                `Direct update of orderStatus via findOneAndUpdate() is not allowed. ` +
+                `(attempted status: ${rawStatus})`);
+            err.statusCode = 403;
+            return next(err);
+        }
+    }
     assertPaidTransitionAllowedOnQuery.call(this)
         .then(() => next())
         .catch((e) => next(e));
@@ -384,6 +578,8 @@ OrderSchema.index({ userId: 1, createdAt: -1 });
 OrderSchema.index({ deliveryBoyId: 1, orderStatus: 1 });
 OrderSchema.index({ orderStatus: 1 });
 OrderSchema.index({ paymentStatus: 1 });
+// Compound index for GST report aggregation (DELIVERED + PAID + date range)
+OrderSchema.index({ orderStatus: 1, paymentStatus: 1, createdAt: -1 });
 OrderSchema.index({ userId: 1, idempotencyKey: 1 }, {
     unique: true,
     partialFilterExpression: {

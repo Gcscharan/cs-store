@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isOnline, saveOfflineAction } from "../utils/offlineSync";
+import { getApiOrigin } from "../config/runtime";
 
 type LiveLocationTrackerOptions = {
   accessToken: string | null | undefined;
@@ -71,10 +72,7 @@ export function useLiveLocationTracker({
   const isSendingRef = useRef<boolean>(false);
   const mountedRef = useRef<boolean>(false);
 
-  const apiBase = useMemo(() => {
-    const raw = (import.meta as any)?.env?.VITE_API_URL;
-    return typeof raw === "string" && raw.length > 0 ? raw : "";
-  }, []);
+  const apiBase = useMemo(() => getApiOrigin(), []);
 
   const canRun = Boolean(enabled && accessToken && isOnDuty);
 

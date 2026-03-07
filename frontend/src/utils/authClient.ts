@@ -1,17 +1,14 @@
 import { toApiUrl } from "../config/runtime";
+import axiosApi from "../api/axiosInstance";
 
 let refreshInFlight: Promise<string | null> | null = null;
 
-let storeModulePromise: Promise<any> | null = null;
-async function getStoreModule(): Promise<any | null> {
-  try {
-    if (!storeModulePromise) {
-      storeModulePromise = import("../store");
-    }
-    return await storeModulePromise;
-  } catch {
-    return null;
-  }
+type AuthClientDispatch = (action: { type: string; payload?: any }) => void;
+
+let authClientDispatch: AuthClientDispatch | null = null;
+
+export function registerAuthClientDispatch(dispatch: AuthClientDispatch | null) {
+  authClientDispatch = dispatch;
 }
 
 function loadFromLocalStorage(key: string): string | null {
@@ -43,13 +40,10 @@ function safeCloseRazorpayIfOpen() {
 
 function handleRefreshFailure() {
   console.info("[AUTH][TOKEN_REFRESH_FAILED]");
-  (async () => {
-    const mod = await getStoreModule();
-    try {
-      mod?.store?.dispatch?.({ type: "auth/logout" });
-    } catch {
-    }
-  })();
+  try {
+    authClientDispatch?.({ type: "auth/logout" });
+  } catch {
+  }
 
   safeCloseRazorpayIfOpen();
 
@@ -103,17 +97,14 @@ export async function refreshAccessToken(): Promise<string | null> {
     }
 
     try {
-      const res = await fetch(toApiUrl("/auth/refresh"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refreshToken }),
-      });
+      // Use axios directly to avoid circular dependency with interceptor
+      const res = await axiosApi.post(toApiUrl("/auth/refresh"), { refreshToken });
 
-      const data = await res.json().catch(() => ({} as any));
-      const nextAccessToken = String((data as any)?.accessToken || "").trim();
-      const nextRefreshToken = String((data as any)?.refreshToken || "").trim();
+      const data = res.data;
+      const nextAccessToken = String(data?.accessToken || "").trim();
+      const nextRefreshToken = String(data?.refreshToken || "").trim();
 
-      if (!res.ok || !nextAccessToken) {
+      if (!nextAccessToken) {
         handleRefreshFailure();
         return null;
       }
@@ -123,9 +114,8 @@ export async function refreshAccessToken(): Promise<string | null> {
         saveToLocalStorage("refreshToken", nextRefreshToken);
       }
 
-      const mod = await getStoreModule();
       try {
-        mod?.store?.dispatch?.({
+        authClientDispatch?.({
           type: "auth/setTokens",
           payload: {
             accessToken: nextAccessToken,
@@ -156,51 +146,64 @@ export async function ensureAccessTokenFresh(minValidityMs: number): Promise<str
   return await refreshAccessToken();
 }
 
-function isTokenExpired401Response(data: any): boolean {
-  const code = String(data?.code || "").trim();
-  const msg = String(data?.message || "").trim();
-  return code === "TOKEN_EXPIRED" || msg.toLowerCase() === "token expired";
-}
-
+/**
+ * Auth-aware fetch wrapper using axios instance
+ * 
+ * Token refresh is handled EXCLUSIVELY by axiosInstance.ts interceptor.
+ * This function delegates to axios which handles TOKEN_EXPIRED automatically.
+ */
 export async function authFetch(
   input: RequestInfo | URL,
-  init: RequestInit = {},
-  opts?: { retryOnce?: boolean }
+  init: RequestInit = {}
 ): Promise<Response> {
-  const retryOnce = opts?.retryOnce !== false;
-
-  const token = String(loadFromLocalStorage("accessToken") || "").trim();
-
-  const headers = new Headers(init.headers || {});
-  if (token && !headers.has("Authorization") && !headers.has("authorization")) {
-    headers.set("Authorization", `Bearer ${token}`);
+  const url = typeof input === "string" ? input : input.toString();
+  const method = init.method || "GET";
+  const body = init.body;
+  
+  // Extract headers
+  const headers: Record<string, string> = {};
+  if (init.headers) {
+    if (init.headers instanceof Headers) {
+      init.headers.forEach((value, key) => {
+        headers[key] = value;
+      });
+    } else if (typeof init.headers === "object") {
+      Object.assign(headers, init.headers);
+    }
   }
 
-  const res = await fetch(input, { ...init, headers });
-
-  if (res.status !== 401 || !retryOnce) {
-    return res;
-  }
-
-  let data: any = null;
   try {
-    const clone = res.clone();
-    data = await clone.json();
-  } catch {
-    data = null;
+    const response = await axiosApi({
+      url,
+      method,
+      data: body ? (typeof body === "string" ? JSON.parse(body) : body) : undefined,
+      headers,
+    });
+
+    // Convert axios response to fetch-like Response object
+    return {
+      ok: response.status >= 200 && response.status < 300,
+      status: response.status,
+      statusText: response.statusText,
+      headers: new Headers(response.headers as any),
+      json: async () => response.data,
+      text: async () => JSON.stringify(response.data),
+      clone: function() { return this; },
+    } as Response;
+  } catch (error: any) {
+    // Axios interceptor already handled refresh if it was TOKEN_EXPIRED
+    // Return error as Response-like object for compatibility
+    const status = error?.response?.status || 500;
+    const data = error?.response?.data || { message: error.message };
+    
+    return {
+      ok: false,
+      status,
+      statusText: error.message || "Error",
+      headers: new Headers(),
+      json: async () => data,
+      text: async () => JSON.stringify(data),
+      clone: function() { return this; },
+    } as Response;
   }
-
-  if (!isTokenExpired401Response(data)) {
-    return res;
-  }
-
-  const next = await refreshAccessToken();
-  if (!next) {
-    throw new Error("Session expired");
-  }
-
-  const retryHeaders = new Headers(init.headers || {});
-  retryHeaders.set("Authorization", `Bearer ${next}`);
-
-  return await fetch(input, { ...init, headers: retryHeaders });
 }

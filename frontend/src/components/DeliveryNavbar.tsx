@@ -9,25 +9,25 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { RootState } from "../store";
-import { useGetProfileQuery } from "../store/api";
+import { useGetDeliveryProfileQuery } from "../store/api";
 
 interface DeliveryNavbarProps {}
 
 const DeliveryNavbar: React.FC<DeliveryNavbarProps> = () => {
   const navigate = useNavigate();
-  const { user, isAuthenticated } = useSelector((state: RootState) => state.auth);
+  const { isAuthenticated } = useSelector((state: RootState) => state.auth);
   
-  // Fetch profile from MongoDB for name display
-  const { data: profile } = useGetProfileQuery(undefined, {
+  // Fetch delivery profile from DeliveryBoy collection for correct name
+  const { data: deliveryProfile } = useGetDeliveryProfileQuery(undefined, {
     skip: !isAuthenticated,
   });
 
   return (
     <div className="bg-gradient-to-r from-purple-900 via-purple-800 to-indigo-900 text-white">
-      {/* Status Bar - Top Line with CS Store Logo Position */}
+      {/* Status Bar - Top Line with Vyapara Setu Logo Position */}
       <div className="flex justify-between items-center px-4 py-2 text-xs">
         <div className="flex items-center space-x-3">
-          {/* CS Store Logo */}
+          {/* Vyapara Setu Logo */}
           <button
             onClick={() => navigate("/")}
             className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
@@ -37,20 +37,20 @@ const DeliveryNavbar: React.FC<DeliveryNavbarProps> = () => {
             </div>
             <div className="flex flex-col">
               <span className="text-white font-bold text-sm leading-tight">
-                CS
+                VYAPARA
               </span>
               <span className="text-white font-bold text-xs leading-tight">
-                STORE
+                SETU
               </span>
             </div>
           </button>
 
-          {/* Delivery Boy Name - from MongoDB profile */}
-          {(profile?.name || user?.email) && (
+          {/* Delivery Boy Name - from DeliveryBoy profile */}
+          {deliveryProfile?.name && (
             <div className="flex items-center space-x-2 ml-4 bg-white/10 px-3 py-1.5 rounded-lg">
               <User className="h-4 w-4 text-white" />
               <span className="text-white font-medium text-sm">
-                {profile?.name || user?.email}
+                {deliveryProfile.name}
               </span>
             </div>
           )}

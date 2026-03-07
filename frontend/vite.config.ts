@@ -1,3 +1,5 @@
+/// <reference types="vitest" />
+
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
@@ -30,12 +32,49 @@ export default defineConfig(() => {
       },
     },
     test: {
+      globals: true,
       environment: "node",
-      include: ["src/**/*.test.ts"],
+      include: ["src/test/logic/**/*.test.ts"],
+      exclude: ["tests/**"],
+      coverage: {
+        provider: "v8",
+        reporter: ["text"],
+        reportsDirectory: "./coverage",
+
+        include: [
+          "src/utils/**/*.ts",
+          "src/hooks/**/*.ts",
+          "src/store/**/*.ts",
+          "src/config/**/*.ts",
+        ],
+
+        exclude: [
+          "src/pages/**",
+          "src/components/**",
+          "src/test/**",
+          "tests/**",
+          "**/*.d.ts",
+        ],
+
+        all: false,
+
+        thresholds: {
+          lines: 80,
+          functions: 80,
+          branches: 70,
+          statements: 80,
+        },
+      },
     },
     server: {
       port: 3000,
       host: true,
+      proxy: {
+        "/api": {
+          target: "http://localhost:5001",
+          changeOrigin: true,
+        },
+      },
       watch: {
         usePolling: false,
         ignored: ["**/node_modules/**", "**/.git/**", "**/dist/**"],

@@ -45,7 +45,11 @@ const formatCartItem = (item: any) => {
       price: populatedProduct.price,
       image: typeof populatedProduct.images?.[0] === 'string' 
         ? populatedProduct.images[0] 
-        : (populatedProduct.images?.[0] as any)?.thumb || (populatedProduct.images?.[0] as any)?.full || "",
+        : (populatedProduct.images?.[0] as any)?.variants?.thumb 
+          || (populatedProduct.images?.[0] as any)?.variants?.small 
+          || (populatedProduct.images?.[0] as any)?.variants?.medium
+          || (populatedProduct.images?.[0] as any)?.variants?.original
+          || "",
       quantity: item.quantity,
     };
   } else {
@@ -154,7 +158,11 @@ export const addToCart = async (
         price: product.price,
         image: typeof product.images[0] === 'string' 
           ? product.images[0] 
-          : (product.images[0] as any)?.thumb || (product.images[0] as any)?.full || "/placeholder-product.svg",
+          : (product.images[0] as any)?.variants?.thumb 
+            || (product.images[0] as any)?.variants?.small 
+            || (product.images[0] as any)?.variants?.medium
+            || (product.images[0] as any)?.variants?.original
+            || "/placeholder-product.svg",
         quantity,
       });
     }

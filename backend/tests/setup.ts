@@ -20,8 +20,11 @@ g.__resetRedisMockStore = () => {
 // Mock external services before any imports
 jest.mock("redis", () => ({
   createClient: jest.fn(() => {
-    const __redisKv: Map<string, string> = (globalThis as any).__redisKv;
-    const __redisExpiries: Map<string, number> = (globalThis as any).__redisExpiries;
+    const gAny = globalThis as any;
+    if (gAny.__redisMockClient) return gAny.__redisMockClient;
+
+    const __redisKv: Map<string, string> = gAny.__redisKv;
+    const __redisExpiries: Map<string, number> = gAny.__redisExpiries;
 
     const isExpired = (key: string): boolean => {
       const exp = __redisExpiries.get(key);
@@ -33,8 +36,18 @@ jest.mock("redis", () => ({
     };
 
     const client: any = {
-      connect: jest.fn(async () => true),
-      disconnect: jest.fn(async () => true),
+      isOpen: true,
+      isReady: true,
+      connect: jest.fn(async () => {
+        client.isOpen = true;
+        client.isReady = true;
+        return true;
+      }),
+      disconnect: jest.fn(async () => {
+        client.isOpen = false;
+        client.isReady = false;
+        return true;
+      }),
       get: jest.fn(async (key: string) => {
         const k = String(key);
         isExpired(k);
@@ -110,11 +123,11 @@ jest.mock("redis", () => ({
       once: jest.fn(),
       emit: jest.fn(),
       quit: jest.fn(async () => true),
-      isOpen: true,
-      isReady: true,
       __kv: __redisKv,
       __expiries: __redisExpiries,
     };
+
+    gAny.__redisMockClient = client;
     return client;
   }),
 }));
@@ -184,29 +197,34 @@ jest.mock("razorpay", () => ({
   })),
 }));
 
-jest.mock("twilio", () => ({
-  __esModule: true,
-  default: jest.fn(() => ({
-    messages: {
-      create: jest.fn(async () => ({
-        sid: "SMtest123",
-        dateCreated: "2023-01-01T00:00:00.000Z",
-        dateUpdated: "2023-01-01T00:00:00.000Z",
-        dateSent: "2023-01-01T00:00:00.000Z",
-        accountSid: "ACtest123",
-        to: "+919876543210",
-        from: "+1234567890",
-        body: "Test message",
-        status: "sent",
-        direction: "outbound-api",
-        price: null,
-        priceUnit: null,
-        apiVersion: "2010-04-01",
-        subresourceUris: {},
-      })),
-    },
-  })),
-}));
+
+jest.mock(
+  "twilio",
+  () => ({
+    __esModule: true,
+    default: jest.fn(() => ({
+      messages: {
+        create: jest.fn(async () => ({
+          sid: "SMtest123",
+          dateCreated: "2023-01-01T00:00:00.000Z",
+          dateUpdated: "2023-01-01T00:00:00.000Z",
+          dateSent: "2023-01-01T00:00:00.000Z",
+          accountSid: "ACtest123",
+          to: "+919876543210",
+          from: "+1234567890",
+          body: "Test message",
+          status: "sent",
+          direction: "outbound-api",
+          price: null,
+          priceUnit: null,
+          apiVersion: "2010-04-01",
+          subresourceUris: {},
+        })),
+      },
+    })),
+  }),
+  { virtual: true }
+);
 
 jest.mock("cloudinary", () => ({
   v2: {

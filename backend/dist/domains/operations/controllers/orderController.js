@@ -13,6 +13,7 @@ const OrderStatus_1 = require("../../orders/enums/OrderStatus");
 const orderTimeline_1 = require("../../orders/services/orderTimeline");
 const RefundRequest_1 = require("../../payments/models/RefundRequest");
 const LedgerEntry_1 = require("../../payments/models/LedgerEntry");
+const safeDoc_1 = require("../../../utils/safeDoc");
 const getOrders = async (req, res) => {
     try {
         const { page = 1, limit = 20, status } = req.query;
@@ -30,7 +31,7 @@ const getOrders = async (req, res) => {
         const total = await Order_1.Order.countDocuments(query);
         // Map orderStatus to status for test compatibility
         const ordersWithStatus = orders.map(order => ({
-            ...order.toObject(),
+            ...(0, safeDoc_1.safeDoc)(order),
             status: order.orderStatus
         }));
         res.json({
@@ -68,7 +69,7 @@ const getOrderById = async (req, res) => {
             return res.status(404).json({ message: "Order not found" });
         }
         const orderObj = {
-            ...order.toObject(),
+            ...(0, safeDoc_1.safeDoc)(order),
             status: order.orderStatus, // Map orderStatus to status for test compatibility
         };
         const refundDocs = await RefundRequest_1.RefundRequest.find({ orderId: order._id })
@@ -231,11 +232,13 @@ const placeOrderCOD = async (req, res) => {
         const idempotencyKeyHeader = String(req.header("Idempotency-Key") || "").trim();
         const idempotencyKeyBody = String(req.body?.idempotencyKey || "").trim();
         const idempotencyKey = idempotencyKeyHeader || idempotencyKeyBody || undefined;
+        console.log("[DEBUG] placeOrderCOD: userId:", userId, "idempotencyKey:", idempotencyKey);
         const result = await (0, orderBuilder_1.createOrderFromCart)({
             userId,
             paymentMethod: "cod",
             idempotencyKey,
         });
+        console.log("[DEBUG] placeOrderCOD: Order created:", result.order?._id, "created:", result.created);
         return res.status(200).json({
             message: "Order placed with Cash on Delivery",
             order: result.order,
@@ -243,12 +246,17 @@ const placeOrderCOD = async (req, res) => {
         });
     }
     catch (error) {
+        console.error("[DEBUG] placeOrderCOD error:", {
+            message: error.message,
+            statusCode: error.statusCode,
+            stack: error.stack,
+        });
         const statusCode = Number(error?.statusCode) || 500;
         if (statusCode >= 400 && statusCode < 500) {
-            return res.status(statusCode).json({ message: error.message || "Bad request" });
+            return res.status(statusCode).json({ message: error.message || "Bad request", error: error.message });
         }
         console.error("COD order placement error:", error);
-        return res.status(500).json({ message: "Failed to place order (COD)" });
+        return res.status(500).json({ message: "Failed to place order (COD)", error: error.message });
     }
 };
 exports.placeOrderCOD = placeOrderCOD;

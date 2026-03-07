@@ -51,10 +51,12 @@ router.get("/orders/:orderId/cod-collection", auth_1.authenticateToken, (0, auth
 // router.post("/orders/:orderId/decline", authenticateToken, requireRole(["admin"]), declineOrder);
 router.patch("/orders/:orderId/assign", auth_1.authenticateToken, (0, auth_1.requireRole)(["admin"]), orderAssignmentController_1.assignDeliveryBoyToOrder);
 router.get("/delivery-boys", auth_1.authenticateToken, (0, auth_1.requireRole)(["admin"]), adminController_1.getAdminDeliveryBoys);
+// GST Report - aggregated CGST, SGST, IGST totals for a date range
+router.get("/gst-report", auth_1.authenticateToken, (0, auth_1.requireRole)(["admin"]), adminController_1.getGstReportHandler);
 router.get("/delivery-boys-list", auth_1.authenticateToken, (0, auth_1.requireRole)(["admin"]), adminController_1.getAdminDeliveryBoys // Using getAdminDeliveryBoys instead of getDeliveryBoysList
 );
 router.put("/delivery-boys/:id/approve", auth_1.authenticateToken, (0, auth_1.requireRole)(["admin"]), adminController_1.approveDeliveryBoy);
-// router.put("/delivery-boys/:id/suspend", authenticateToken, requireRole(["admin"]), suspendDeliveryBoy);
+router.put("/delivery-boys/:id/suspend", auth_1.authenticateToken, (0, auth_1.requireRole)(["admin"]), adminController_1.suspendDeliveryBoy);
 // router.post("/assign-deliveries", authenticateToken, requireRole(["admin"]), autoAssignDeliveries);
 router.post("/orders/purge", auth_1.authenticateToken, (0, auth_1.requireRole)(["admin"]), auditLog_1.auditLog, adminController_1.purgeOrders);
 router.get("/orders/export", auth_1.authenticateToken, (0, auth_1.requireRole)(["admin"]), adminController_1.exportOrders);

@@ -17,6 +17,7 @@ import { DeliveryAttempt } from "../../../models/DeliveryAttempt";
 import { CodCollection } from "../../../models/CodCollection";
 import { updateRouteAfterOrderStatusChange } from "../../routes/routeLifecycleService";
 import { liveLocationStore } from "../../../services/liveLocationStore";
+import { safeDoc } from "../../../utils/safeDoc";
 
 const getApprovedDeliveryBoy = async (user: any): Promise<any | null> => {
   if (!user || user.role !== "delivery") return null;
@@ -283,43 +284,33 @@ export const recordDeliveryAttempt = async (
     }
 
     if (status === "FAILED") {
-      const cancelAt = new Date();
+      // Use orderStateService for authorized state transition
+      // IN_TRANSIT -> FAILED is the correct transition for failed delivery
+      await orderStateService.transition({
+        orderId: String(orderId),
+        toStatus: OrderStatus.FAILED,
+        actorRole: "DELIVERY_PARTNER",
+        actorId: String((deliveryBoy as any)._id),
+        meta: {
+          failureReasonCode: failureReason,
+          failureNotes: failureNotes || undefined,
+        },
+      });
+
+      // Update deliveryStatus separately (not part of order state machine)
       await Order.updateOne(
         { _id: orderObjectId },
-        {
-          $set: {
-            orderStatus: "CANCELLED",
-            deliveryStatus: "cancelled",
-            cancelledAt: cancelAt,
-            cancelledBy: "system",
-            cancelReason: failureReason,
-            failureReasonCode: failureReason,
-            failureNotes: failureNotes || undefined,
-          },
-          $push: {
-            history: {
-              from: (order as any).orderStatus,
-              to: "CANCELLED",
-              actorRole: "DELIVERY_PARTNER",
-              actorId: String((deliveryBoy as any)._id),
-              at: cancelAt,
-              meta: {
-                failureReason,
-                failureNotes: failureNotes || null,
-              },
-            },
-          },
-        }
+        { $set: { deliveryStatus: "failed" } }
       );
 
       try {
         await updateRouteAfterOrderStatusChange({
           orderId: String(orderId),
-          newStatus: OrderStatus.CANCELLED,
-          occurredAt: cancelAt,
+          newStatus: OrderStatus.FAILED,
+          occurredAt: now,
         });
       } catch (e) {
-        console.error("Route lifecycle update failed (CANCELLED):", e);
+        console.error("Route lifecycle update failed (FAILED):", e);
       }
     }
 
@@ -511,6 +502,7 @@ export const getDeliveryOrders = async (
       $or: [
         { deliveryBoyId: deliveryBoy._id },
         { deliveryBoyId: user._id },
+        { deliveryPartnerId: user._id },
       ],
       orderStatus: {
         $in: [
@@ -542,9 +534,9 @@ export const getDeliveryOrders = async (
     const normalizedOrders = orders.map((o: any) => {
       const raw = String(o.orderStatus || "").toUpperCase();
       if (raw === "OUT_FOR_DELIVERY") {
-        return { ...o.toObject(), orderStatus: "IN_TRANSIT" };
+        return { ...safeDoc(o), orderStatus: "IN_TRANSIT" };
       }
-      return o;
+      return safeDoc(o);
     });
 
     const computedCompletedOrdersCount = await Order.countDocuments({
@@ -764,7 +756,7 @@ export const updateLocation = async (
 
     // Anti-spoof: reject impossible jumps using server receive time (do not trust client time).
     const driverIdStr = String((deliveryBoy as any)._id);
-    const prev = liveLocationStore.get(driverIdStr);
+    const prev = await liveLocationStore.getAsync(driverIdStr);
     if (prev) {
       const dtSec = Math.max(0.001, (now - prev.receivedAt) / 1000);
       const distM = haversineMeters({ lat: prev.lat, lng: prev.lng }, { lat: latNum, lng: lngNum });
@@ -782,16 +774,25 @@ export const updateLocation = async (
       ? (activeRoute as any).orderIds.map((x: any) => String(x))
       : [];
 
-    liveLocationStore.update(driverIdStr, {
-      routeId: routeIdStr,
-      orderIds,
-      lat: latNum,
-      lng: lngNum,
-      accuracy: accuracyNum,
-      speed: Number.isFinite(speedNum as any) ? (speedNum as number) : null,
-      heading: Number.isFinite(headingNum as any) ? (headingNum as number) : null,
-      timestamp: tsNum,
-    });
+    try {
+      await liveLocationStore.updateAsync(driverIdStr, {
+        routeId: routeIdStr,
+        orderIds,
+        lat: latNum,
+        lng: lngNum,
+        accuracy: accuracyNum,
+        speed: Number.isFinite(speedNum as any) ? (speedNum as number) : null,
+        heading: Number.isFinite(headingNum as any) ? (headingNum as number) : null,
+        timestamp: tsNum,
+      });
+    } catch (e: any) {
+      // Preserve previous behavior: silently drop excess updates.
+      if (Number(e?.statusCode) === 429 || String(e?.message || "").toUpperCase() === "RATE_LIMITED") {
+        res.status(204).send();
+        return;
+      }
+      throw e;
+    }
 
     res.status(204).send();
     return;

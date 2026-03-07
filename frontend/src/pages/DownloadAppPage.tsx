@@ -16,7 +16,7 @@ const DownloadAppPage = () => {
               <ArrowLeft className="h-5 w-5" />
               <span className="font-medium">Back to Home</span>
             </Link>
-            <h1 className="text-2xl font-bold text-gray-900">CS Store</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Vyapara Setu</h1>
             <div className="w-24"></div> {/* Spacer for centering */}
           </div>
         </div>

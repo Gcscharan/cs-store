@@ -61,6 +61,13 @@ const DeliveryLogin: React.FC = () => {
       // Store auth data
       dispatch(setUser(data.user));
       dispatch(setTokens(data.tokens));
+      try {
+        // Ensure boot-time AuthInitializer treats this as a fully ACTIVE session
+        // and does not re-validate via the customer /auth/me endpoint.
+        localStorage.setItem("authState", "ACTIVE");
+      } catch {
+        // ignore storage errors
+      }
 
       toast.success("Login successful!");
       navigate("/delivery/dashboard");

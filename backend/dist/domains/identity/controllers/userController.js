@@ -20,6 +20,7 @@ const pincodeResolver_1 = require("../../../utils/pincodeResolver");
 const eventBus_1 = require("../../events/eventBus");
 const eventId_1 = require("../../events/eventId");
 const account_events_1 = require("../../events/account.events");
+const safeDoc_1 = require("../../../utils/safeDoc");
 // Get user profile
 const getUserProfile = async (req, res) => {
     try {
@@ -314,13 +315,13 @@ const addUserAddress = async (req, res) => {
         }
         // Get the saved address from the user document
         const savedAddress = user.addresses[user.addresses.length - 1];
+        // Convert Mongoose subdocument to plain object to prevent leaking internal properties
+        const cleanAddress = (0, safeDoc_1.safeDoc)(savedAddress);
+        cleanAddress.id = savedAddress._id.toString();
         res.status(201).json({
             success: true,
             message: "Address added successfully",
-            address: {
-                ...(savedAddress.toObject ? savedAddress.toObject() : savedAddress),
-                id: savedAddress._id.toString(),
-            },
+            address: cleanAddress,
         });
     }
     catch (error) {
@@ -487,13 +488,13 @@ const updateUserAddress = async (req, res) => {
         address.postal_district = resolved.postal_district;
         address.admin_district = resolved.admin_district;
         await user.save();
+        // Convert Mongoose subdocument to plain object to prevent leaking internal properties
+        const cleanAddress = (0, safeDoc_1.safeDoc)(address);
+        cleanAddress.id = address._id.toString();
         res.status(200).json({
             success: true,
             message: "Address updated successfully",
-            address: {
-                ...address,
-                id: address._id.toString(),
-            },
+            address: cleanAddress,
         });
     }
     catch (error) {
@@ -584,13 +585,13 @@ const setDefaultAddress = async (req, res) => {
         // Set the selected address as default
         address.isDefault = true;
         await user.save();
+        // Convert Mongoose subdocument to plain object to prevent leaking internal properties
+        const cleanAddress = (0, safeDoc_1.safeDoc)(address);
+        cleanAddress.id = address._id.toString();
         res.status(200).json({
             success: true,
             message: "Default address updated successfully",
-            address: {
-                ...address,
-                id: address._id.toString(),
-            },
+            address: cleanAddress,
         });
     }
     catch (error) {

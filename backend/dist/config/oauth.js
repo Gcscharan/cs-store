@@ -41,6 +41,11 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && callbackURL) {
             }
             // Strict lookup: only allow login if a user with this exact email already exists
             const user = await User_1.User.findOne({ email });
+            console.log("=== GOOGLE STRATEGY VERIFY ===");
+            console.log("Email from Google:", email);
+            console.log("User found:", !!user);
+            console.log("Returning signupRequired:", !user);
+            console.log("================================");
             if (!user) {
                 // No user with this email exists -> create a temporary user object for redirect
                 // We'll handle the signup_required logic in the callback

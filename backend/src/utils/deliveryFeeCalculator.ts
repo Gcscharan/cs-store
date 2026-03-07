@@ -45,25 +45,18 @@ export function validateAddressCoordinates(address: IAddress): { isValid: boolea
     return { isValid: false, error: 'Address is required' };
   }
 
-  // Convert to numbers, handling various input types
-  let lat: number;
-  let lng: number;
+  const lat = address.lat;
+  const lng = address.lng;
 
-  try {
-    lat = typeof address.lat === 'number' ? address.lat : parseFloat(String(address.lat || ''));
-    lng = typeof address.lng === 'number' ? address.lng : parseFloat(String(address.lng || ''));
-  } catch (e) {
-    return { isValid: false, error: 'Address coordinates are invalid (parsing error)' };
+  // STRICT validation: must be finite numbers
+  // null, undefined, NaN, Infinity are all rejected
+  // Note: 0 is valid (equator/prime meridian)
+  if (typeof lat !== 'number' || typeof lng !== 'number') {
+    return { isValid: false, error: 'Address coordinates are missing' };
   }
 
-  // Check if coordinates exist and are valid numbers
-  if (isNaN(lat) || isNaN(lng)) {
-    return { isValid: false, error: 'Address coordinates are invalid (NaN)' };
-  }
-
-  // Check if coordinates are zero (invalid)
-  if (lat === 0 || lng === 0) {
-    return { isValid: false, error: 'Address coordinates are invalid (zero values)' };
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    return { isValid: false, error: 'Address coordinates are invalid' };
   }
 
   // Validate coordinates are within India bounds

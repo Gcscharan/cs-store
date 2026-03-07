@@ -154,6 +154,15 @@ const AdminDashboard: React.FC = () => {
       path: "/admin/analytics",
     },
     {
+      id: "finance",
+      title: "Finance Reports",
+      description: "Ledger-based revenue and refund reports",
+      icon: BarChart3,
+      color: "bg-teal-500",
+      hoverColor: "hover:bg-teal-600",
+      path: "/admin/finance",
+    },
+    {
       id: "payments",
       title: "Payment Logs",
       description: "Monitor all payment transactions",
@@ -278,7 +287,10 @@ const AdminDashboard: React.FC = () => {
                 <div
                   key={item.id}
                   className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer"
-                  onClick={() => navigate(item.path)}
+                  onClick={() => {
+                    console.log("[AdminDashboard] Navigating to:", item.path);
+                    navigate(item.path);
+                  }}
                 >
                   <div className="flex items-center mb-4">
                     <div className={`p-3 ${item.color} rounded-lg`}>
@@ -290,6 +302,11 @@ const AdminDashboard: React.FC = () => {
                   </div>
                   <p className="text-gray-600 mb-4">{item.description}</p>
                   <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      console.log("[AdminDashboard] Button navigating to:", item.path);
+                      navigate(item.path);
+                    }}
                     className={`w-full py-2 px-4 ${item.color} ${item.hoverColor} text-white rounded-md transition-colors`}
                   >
                     Manage

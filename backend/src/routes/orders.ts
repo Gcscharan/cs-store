@@ -14,6 +14,7 @@ import {
   getOptimalDeliveryBoy,
 } from "../controllers/orderAssignmentController";
 import { authenticateToken, requireRole } from "../middleware/auth";
+import { checkoutRateLimit } from "../middleware/security";
 import { Order } from "../models/Order";
 import { getTrackingKillSwitchMode } from "../domains/tracking/services/trackingKillSwitch";
 import { getTrackingProjection } from "../domains/tracking/services/trackingProjectionStore";
@@ -23,9 +24,9 @@ const router = express.Router();
 // Order routes
 router.get("/", authenticateToken, getOrders);
 router.get("/:id", authenticateToken, getOrderById);
-router.post("/", authenticateToken, createOrder);
-router.post("/create", authenticateToken, placeOrderCOD); // Add missing create route
-router.post("/cod", authenticateToken, placeOrderCOD);
+router.post("/", authenticateToken, checkoutRateLimit, createOrder);
+router.post("/create", authenticateToken, checkoutRateLimit, placeOrderCOD); // Add missing create route
+router.post("/cod", authenticateToken, checkoutRateLimit, placeOrderCOD);
 router.put("/:id/cancel", authenticateToken, cancelOrder); // Changed from POST to PUT
 router.get("/:id/tracking", authenticateToken, async (req, res) => {
   try {

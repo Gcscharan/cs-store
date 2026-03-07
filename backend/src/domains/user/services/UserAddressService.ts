@@ -3,6 +3,7 @@ import { IAddress } from "../../../models/User";
 import mongoose from "mongoose";
 import { geocodeByPincode, smartGeocode } from "../../../utils/geocoding";
 import { resolvePincodeForAddressSave } from "../../../utils/pincodeResolver";
+import { safeDoc } from "../../../utils/safeDoc";
 
 export interface AddressData {
   id: string;
@@ -64,10 +65,11 @@ export class UserAddressService {
         return { success: false, addresses: [], defaultAddressId: null };
       }
 
-      const transformedAddresses = (user.addresses || []).map((addr: any) => ({
-        ...addr.toObject(),
-        id: addr._id.toString(),
-      }));
+      const transformedAddresses = (user.addresses || []).map((addr: any) => {
+        const clean = safeDoc(addr);
+        (clean as any).id = addr._id.toString();
+        return clean;
+      });
 
       const defaultAddress = user.addresses.find((addr: any) => addr.isDefault);
       const defaultAddressId = defaultAddress ? defaultAddress._id.toString() : null;
@@ -147,10 +149,10 @@ export class UserAddressService {
 
       const savedAddress: any = user.addresses[user.addresses.length - 1];
 
-      return {
-        ...(savedAddress.toObject ? savedAddress.toObject() : savedAddress),
-        id: savedAddress._id.toString(),
-      };
+      const cleanAddress = safeDoc(savedAddress);
+      (cleanAddress as any).id = savedAddress._id.toString();
+
+      return cleanAddress;
     } catch (error) {
       console.error("Error adding user address:", error);
       throw error;

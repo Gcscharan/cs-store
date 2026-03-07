@@ -44,6 +44,9 @@ const bcrypt = __importStar(require("bcryptjs"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
+// Token expiry configuration
+const ACCESS_TOKEN_EXPIRY = process.env.ACCESS_TOKEN_EXPIRY || "24h";
+const REFRESH_TOKEN_EXPIRY = process.env.REFRESH_TOKEN_EXPIRY || "7d";
 /**
  * Delivery Boy Signup
  * POST /api/delivery/auth/signup
@@ -186,7 +189,9 @@ exports.getDeliveryMessages = getDeliveryMessages;
  */
 const deliveryLogin = async (req, res) => {
     try {
-        const { email, password } = req.body;
+        const rawEmail = req.body?.email;
+        const { password } = req.body;
+        const email = String(rawEmail || "").trim().toLowerCase();
         // Validate required fields
         if (!email || !password) {
             res.status(400).json({
@@ -195,7 +200,7 @@ const deliveryLogin = async (req, res) => {
             return;
         }
         // Find user by email
-        const user = await User_1.User.findOne({ email });
+        const user = await User_1.User.findOne({ email }).select("+passwordHash");
         if (!user) {
             res.status(401).json({
                 error: "Invalid email or password",
@@ -260,11 +265,11 @@ const deliveryLogin = async (req, res) => {
             role: user.role,
             status: user.status,
             deliveryBoyId: deliveryBoy._id,
-        }, JWT_SECRET, { expiresIn: "7d" });
+        }, JWT_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRY });
         const refreshToken = jsonwebtoken_1.default.sign({
             userId: user._id,
             role: user.role,
-        }, JWT_REFRESH_SECRET, { expiresIn: "30d" });
+        }, JWT_REFRESH_SECRET, { expiresIn: REFRESH_TOKEN_EXPIRY });
         res.json({
             success: true,
             message: "Login successful",
@@ -279,6 +284,7 @@ const deliveryLogin = async (req, res) => {
                 phone: user.phone,
                 role: user.role,
                 status: user.status,
+                authState: "ACTIVE",
             },
             deliveryBoy: {
                 id: deliveryBoy._id,
@@ -404,13 +410,45 @@ const updateDeliveryProfile = async (req, res) => {
                 return;
             }
         }
-        // Update fields from request body
+        // Validate and collect updates with explicit empty string checks
         const allowedUpdates = ['name', 'phone', 'vehicleType', 'email'];
         const updates = {};
         for (const key of allowedUpdates) {
             if (req.body[key] !== undefined) {
                 updates[key] = req.body[key];
             }
+        }
+        // Validate name - reject empty strings
+        if (updates.name !== undefined) {
+            const nameValue = String(updates.name).trim();
+            if (nameValue === "") {
+                res.status(400).json({ error: "Name cannot be empty" });
+                return;
+            }
+            updates.name = nameValue;
+        }
+        // Validate email - reject empty strings and invalid format
+        if (updates.email !== undefined) {
+            const emailValue = String(updates.email).trim();
+            if (emailValue === "") {
+                res.status(400).json({ error: "Email cannot be empty" });
+                return;
+            }
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(emailValue)) {
+                res.status(400).json({ error: "Invalid email format" });
+                return;
+            }
+            updates.email = emailValue.toLowerCase();
+        }
+        // Validate phone - reject empty strings
+        if (updates.phone !== undefined) {
+            const phoneValue = String(updates.phone).trim();
+            if (phoneValue === "") {
+                res.status(400).json({ error: "Phone cannot be empty" });
+                return;
+            }
+            updates.phone = phoneValue;
         }
         // Update DeliveryBoy document
         Object.assign(deliveryBoy, updates);

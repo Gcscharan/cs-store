@@ -22,11 +22,15 @@ import deliveryFeeRoutes from "./routes/deliveryFee";
 import enhancedDeliveryFeeRoutes from "./routes/enhancedDeliveryFeeRoutes";
 import deliveryPersonnelRoutes from "./routes/deliveryPersonnel";
 import deliveryAuthRoutes from "./routes/deliveryAuth";
-import pincodeRoutes from "./routes/pincode";
+import pincodeRoutes from "./routes/pincodeRoutes";
 import locationRoutes from "./routes/locationRoutes";
 import adminRoutes from "./routes/admin";
 import adminOpsRoutes from "./routes/adminOps";
 import adminTrackingRoutes from "./routes/adminTracking";
+import adminTrackingLearningRoutes from "./routes/adminTrackingLearning";
+import adminTrackingOncallRoutes from "./routes/adminTrackingOncall";
+import adminTrackingEscalationsRoutes from "./routes/adminTrackingEscalations";
+import debugDbTestRoutes from "./routes/debugDbTest";
 import internalTrackingRoutes from "./routes/internalTracking";
 import internalPaymentsReconciliationRoutes from "./routes/internalPaymentsReconciliation";
 import internalPaymentsRecoveryRoutes from "./routes/internalPaymentsRecovery";
@@ -45,6 +49,9 @@ import paymentRoutes from "./domains/finance/routes/paymentRoutes";
 // Payments (new architecture)
 import paymentIntentsRoutes from "./domains/payments/routes/paymentIntents.routes";
 import paymentWebhooksRoutes from "./domains/payments/routes/webhooks.routes";
+
+// Invoice
+import invoiceRoutes from "./domains/invoice/routes/invoice.routes";
 
 console.log("✅ App.ts loaded");
 
@@ -129,6 +136,7 @@ app.use("/api/users", mobileVerifyRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/orders", orderRoutes);
+app.use("/api/orders", invoiceRoutes); // Invoice routes mounted under /api/orders
 app.use("/api/delivery-fee", deliveryFeeRoutes);
 app.use("/api/delivery-fee-v2", enhancedDeliveryFeeRoutes);
 app.use("/api/delivery-personnel", deliveryPersonnelRoutes);
@@ -166,6 +174,8 @@ app.use("/internal", internalRefundsRoutes);
 
 // Internal Finance (read-only)
 app.use("/internal/finance", internalFinanceReportsRoutes);
+
+app.use("/debug", debugDbTestRoutes);
 
 /* ======================================================
    404 HANDLER

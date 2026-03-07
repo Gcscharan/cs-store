@@ -47,6 +47,9 @@ function sanitizeValue(v, depth) {
 function inferEntity(req) {
     const p = req?.params || {};
     const b = req?.body || {};
+    const routeId = String(p.routeId || b.routeId || b.clusterRouteId || "").trim();
+    if (routeId)
+        return { entityType: "Route", entityId: routeId };
     const paymentIntentId = String(p.paymentIntentId || b.paymentIntentId || "").trim();
     if (paymentIntentId)
         return { entityType: "PaymentIntent", entityId: paymentIntentId };
@@ -64,7 +67,11 @@ const auditLog = async (req, _res, next) => {
         const actorId = user?._id ? String(user._id) : "";
         const actorRole = user?.role ? String(user.role) : "";
         const action = `${String(req.method || "").toUpperCase()} ${String(req.originalUrl || "")}`;
-        const { entityType, entityId } = inferEntity(req);
+        const inferred = inferEntity(req);
+        const entityType = inferred.entityId ? inferred.entityType : "Request";
+        const entityId = inferred.entityId
+            ? inferred.entityId
+            : `${String(req.method || "").toUpperCase()} ${String(req.baseUrl || "")}${String(req.route?.path || req.path || "")}`.trim();
         const metadata = sanitizeValue({
             ip: String(req.ip || ""),
             userAgent: String(req.headers?.["user-agent"] || ""),
@@ -80,9 +87,12 @@ const auditLog = async (req, _res, next) => {
             entityId,
             metadata,
             createdAt: new Date(),
-        }).catch(() => undefined);
+        }).catch((err) => {
+            console.error("[AUDIT_LOG_ERROR]", err?.message || err);
+        });
     }
-    catch {
+    catch (err) {
+        console.error("[AUDIT_LOG_ERROR]", err?.message || err);
     }
     next();
 };

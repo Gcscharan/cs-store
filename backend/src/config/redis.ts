@@ -1,238 +1,127 @@
 import { createClient } from "redis";
 import { incCounterWithLabels } from "../ops/opsMetrics";
 
-const g = globalThis as any;
-
-function createInMemoryRedisClient(): any {
-  if (!g.__redisKv) g.__redisKv = new Map<string, string>();
-  if (!g.__redisExpiries) g.__redisExpiries = new Map<string, number>();
-
-  const kv: Map<string, string> = g.__redisKv;
-  const expiries: Map<string, number> = g.__redisExpiries;
-
-  const isExpired = (key: string): boolean => {
-    const exp = expiries.get(key);
-    if (!exp) return false;
-    if (Date.now() <= exp) return false;
-    kv.delete(key);
-    expiries.delete(key);
-    return true;
-  };
-
-  const client: any = {
-    connect: async () => true,
-    disconnect: async () => true,
-    get: async (key: string) => {
-      const k = String(key);
-      isExpired(k);
-      return kv.has(k) ? kv.get(k) : null;
-    },
-    set: async (key: string, value: string, opts?: any) => {
-      const k = String(key);
-      kv.set(k, String(value));
-      if (opts && typeof opts === "object" && Number.isFinite(Number((opts as any).EX))) {
-        expiries.set(k, Date.now() + Number((opts as any).EX) * 1000);
-      } else {
-        expiries.delete(k);
-      }
-      return true;
-    },
-    del: async (key: any) => {
-      const keys = Array.isArray(key) ? key.map(String) : [String(key)];
-      let removed = 0;
-      for (const k of keys) {
-        const existed = kv.delete(k);
-        expiries.delete(k);
-        if (existed) removed++;
-      }
-      return removed;
-    },
-    exists: async (key: string) => {
-      const k = String(key);
-      isExpired(k);
-      return kv.has(k) ? 1 : 0;
-    },
-    incr: async (key: string) => {
-      const k = String(key);
-      isExpired(k);
-      const cur = Number(kv.get(k) || 0);
-      const next = Number.isFinite(cur) ? cur + 1 : 1;
-      kv.set(k, String(next));
-      return next;
-    },
-    incrBy: async (key: string, by: number) => {
-      const k = String(key);
-      isExpired(k);
-      const cur = Number(kv.get(k) || 0);
-      const inc = Number(by || 0);
-      const next = (Number.isFinite(cur) ? cur : 0) + inc;
-      kv.set(k, String(next));
-      return next;
-    },
-    expire: async (key: string, seconds: number) => {
-      const k = String(key);
-      if (!kv.has(k)) return false;
-      const s = Math.max(1, Number(seconds || 1));
-      expiries.set(k, Date.now() + s * 1000);
-      return true;
-    },
-    ttl: async (key: string) => {
-      const k = String(key);
-      isExpired(k);
-      const exp = expiries.get(k);
-      if (!kv.has(k)) return -2;
-      if (!exp) return -1;
-      return Math.max(0, Math.floor((exp - Date.now()) / 1000));
-    },
-    scanIterator: async function* (opts?: any) {
-      const match = opts && typeof opts === "object" ? String((opts as any).MATCH || "*") : "*";
-      const pattern = new RegExp(
-        "^" +
-          match
-            .replace(/[.+^${}()|[\\]\\]/g, "\\$&")
-            .replace(/\*/g, ".*")
-            .replace(/\?/g, ".") +
-          "$"
-      );
-      for (const k of kv.keys()) {
-        isExpired(k);
-        if (pattern.test(k)) yield k;
-      }
-    },
-    on: () => undefined,
-    once: () => undefined,
-    emit: () => undefined,
-    quit: async () => true,
-    isOpen: true,
-    isReady: true,
-    __kv: kv,
-    __expiries: expiries,
-  };
-
-  return client;
-}
+const resolvedRedisUrl =
+  process.env.REDIS_URL || (process.env.NODE_ENV === "development" ? "redis://127.0.0.1:6379" : undefined);
+const isTlsUrl = Boolean(resolvedRedisUrl && /^rediss:\/\//i.test(resolvedRedisUrl));
 
 export const redis = createClient({
-  url: process.env.REDIS_URL,
+  url: resolvedRedisUrl,
   socket: {
-    tls: true,
+    tls: isTlsUrl,
     keepAlive: 10_000,
     reconnectStrategy: (retries) => Math.min(retries * 100, 3000),
   },
 });
 
+if (process.env.NODE_ENV === "test") {
+  try {
+    // In tests we use a mocked redis client; calling connect ensures any internal
+    // connection state is initialized for consumers that expect an open client.
+    if (!redis.isOpen) {
+      void redis.connect();
+    }
+
+    // Some mocked clients don't emit events; ensure test runs see a ready client.
+    (redis as any).isOpen = true;
+    (redis as any).isReady = true;
+  } catch {
+    // ignore
+  }
+}
+
+// Connection state tracking
+let redisConnectionReady = false;
+let redisConnectionError: Error | null = null;
+
 redis.on("connect", () => {
   console.log("⚡ Redis connected successfully");
+  redisConnectionReady = true;
+  redisConnectionError = null;
+});
+
+redis.on("ready", () => {
+  redisConnectionReady = true;
 });
 
 redis.on("error", (err) => {
-  console.warn("⚠️ Redis error (non-fatal):", err.message);
+  console.error("⚠️ Redis error:", err.message);
+  redisConnectionError = err;
 });
 
-const baseRedisClient =
-  process.env.NODE_ENV === "test"
-    ? createInMemoryRedisClient()
-    : !process.env.REDIS_URL
-      ? createInMemoryRedisClient()
-      : redis;
+redis.on("end", () => {
+  redisConnectionReady = false;
+});
 
-let warnedOnce = false;
+const redisClient = redis;
 
-function failOpenDefault(method: string): any {
-  if (method === "get") return null;
-  if (method === "set") return null;
-  if (method === "del") return 0;
-  if (method === "exists") return 0;
-  if (method === "incr") return 0;
-  if (method === "incrBy") return 0;
-  if (method === "expire") return false;
-  if (method === "ttl") return -2;
-  return null;
-}
-
-function wrapFailOpen(client: any): any {
-  return new Proxy(client, {
-    get(target, prop, receiver) {
-      const value = Reflect.get(target, prop, receiver);
-      if (typeof prop !== "string") return value;
-      if (typeof value !== "function") return value;
-
-      if (prop === "scanIterator") {
-        return (...args: any[]) => {
-          try {
-            const it = value.apply(target, args);
-            return (async function* () {
-              try {
-                for await (const k of it) yield k;
-              } catch (e: any) {
-                if (!warnedOnce) {
-                  warnedOnce = true;
-                  console.warn("⚠️ Redis unavailable; continuing without Redis (non-fatal)");
-                }
-                console.warn("⚠️ Redis scanIterator failed (non-fatal):", e?.message || e);
-              }
-            })();
-          } catch (e: any) {
-            if (!warnedOnce) {
-              warnedOnce = true;
-              console.warn("⚠️ Redis unavailable; continuing without Redis (non-fatal)");
-            }
-            console.warn("⚠️ Redis scanIterator threw (non-fatal):", e?.message || e);
-            return (async function* () {})();
-          }
-        };
-      }
-
-      return (...args: any[]) => {
-        try {
-          const out = value.apply(target, args);
-          if (!out || typeof out.then !== "function") return out;
-
-          return out
-            .then((val: any) => {
-              incCounterWithLabels("redis_ops_total", { op: prop, result: "ok" }, 1);
-              if (prop === "get") {
-                const hit = val !== null && typeof val !== "undefined";
-                incCounterWithLabels("redis_get_total", { result: hit ? "hit" : "miss" }, 1);
-              }
-              return val;
-            })
-            .catch((e: any) => {
-            if (!warnedOnce) {
-              warnedOnce = true;
-              console.warn("⚠️ Redis unavailable; continuing without Redis (non-fatal)");
-            }
-            console.warn("⚠️ Redis command failed (non-fatal):", prop, e?.message || e);
-            return failOpenDefault(prop);
-          });
-        } catch (e: any) {
-          if (!warnedOnce) {
-            warnedOnce = true;
-            console.warn("⚠️ Redis unavailable; continuing without Redis (non-fatal)");
-          }
-          console.warn("⚠️ Redis command threw (non-fatal):", prop, e?.message || e);
-          return failOpenDefault(prop);
-        }
-      };
-    },
-  });
-}
-
-const redisClient = wrapFailOpen(baseRedisClient);
-
-if (process.env.NODE_ENV === "production" && !process.env.REDIS_URL) {
-  console.warn("⚠️  REDIS_URL is not set; continuing without Redis (non-fatal)");
-}
-
-// Auto-connect without top-level await (best-effort)
-(async () => {
-  try {
-    if (baseRedisClient === redis && !redis.isOpen) {
-      await redis.connect();
-    }
-  } catch (error: any) {
-    console.warn("⚠️ Redis auto-connect failed (non-fatal):", error?.message || error);
+// Production Redis check - call this at startup to enforce Redis availability
+export async function ensureRedisConnection(): Promise<{ connected: boolean; error?: Error }> {
+  if (!resolvedRedisUrl) {
+    console.error("\n" + "=".repeat(60));
+    console.error("🚨 CRITICAL: REDIS_URL is not configured");
+    console.error("=".repeat(60));
+    console.error("❌ Redis is MANDATORY");
+    console.error("❌ The application cannot start without Redis");
+    console.error("");
+    console.error("Please set REDIS_URL in your environment variables:");
+    console.error("  Example: REDIS_URL=redis://user:password@host:6379");
+    console.error("=".repeat(60) + "\n");
+    return { connected: false, error: new Error("REDIS_URL is not configured") };
   }
-})();
+
+  // Wait for connection with timeout
+  if (!redis.isOpen) {
+    try {
+      console.log("🔌 Connecting to Redis...");
+      await redis.connect();
+    } catch (error: any) {
+      console.error("\n" + "=".repeat(60));
+      console.error("🚨 CRITICAL: Redis connection failed");
+      console.error("=".repeat(60));
+      console.error("❌ Error:", error?.message || error);
+      console.error("❌ Redis is MANDATORY");
+      console.error("❌ The application cannot start without Redis");
+      console.error("");
+      console.error("Please check:");
+      console.error("  1. Redis server is running and accessible");
+      console.error("  2. REDIS_URL is correct");
+      console.error("  3. Network connectivity to Redis host");
+      console.error("=".repeat(60) + "\n");
+      return { connected: false, error };
+    }
+  }
+
+  // Wait for ready state with timeout
+  const maxWaitMs = 5000;
+  const start = Date.now();
+  while (!redisConnectionReady && Date.now() - start < maxWaitMs) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+
+  if (!redisConnectionReady) {
+    const error = redisConnectionError || new Error("Redis connection timeout");
+    console.error("\n" + "=".repeat(60));
+    console.error("🚨 CRITICAL: Redis connection timeout");
+    console.error("=".repeat(60));
+    console.error("❌ Redis did not become ready within 5 seconds");
+    console.error("❌ Redis is MANDATORY");
+    console.error("❌ The application cannot start without Redis");
+    console.error("=".repeat(60) + "\n");
+    return { connected: false, error };
+  }
+
+  console.log("✅ Redis connection verified");
+  return { connected: true };
+}
+
+// Export connection state for health checks
+export function getRedisConnectionState() {
+  return {
+    ready: redisConnectionReady,
+    error: redisConnectionError?.message || null,
+    isRealRedis: true,
+  };
+}
 
 export default redisClient;

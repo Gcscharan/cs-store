@@ -101,7 +101,7 @@ const ReferAndEarnPage: React.FC = () => {
     }
     if (navigator.share) {
       navigator.share({
-        title: "Join CS Store as a Delivery Partner",
+        title: "Join Vyapara Setu as a Delivery Partner",
         text: `Earn money by delivering orders! Use my referral code: ${referralCode}`,
         url: referralLink,
       });

@@ -16,9 +16,9 @@ const CorporateInformationPage: React.FC = () => {
 
   const leadership = [
     {
-      name: "CS Store",
+      name: "Vyapara Setu",
       position: "Proprietor",
-      bio: "CS Store is operated by an individual proprietor in India.",
+      bio: "Vyapara Setu is operated by an individual proprietor in India.",
       image:
         "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&h=300&fit=crop&crop=face",
     },
@@ -90,7 +90,7 @@ const CorporateInformationPage: React.FC = () => {
             Business Information
           </h2>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Learn about CS Store and how we operate, with a commitment to
+            Learn about Vyapara Setu and how we operate, with a commitment to
             transparency and ethical business practices.
           </p>
         </motion.div>
@@ -108,10 +108,10 @@ const CorporateInformationPage: React.FC = () => {
           <div className="grid md:grid-cols-2 gap-8">
             <div>
               <h4 className="text-xl font-semibold text-gray-900 mb-4">
-                About CS Store
+                About Vyapara Setu
               </h4>
               <p className="text-gray-600 mb-4">
-                CS Store is an online store operated by an individual proprietor
+                Vyapara Setu is an online store operated by an individual proprietor
                 in India.
               </p>
               <p className="text-gray-600">
@@ -274,7 +274,7 @@ const CorporateInformationPage: React.FC = () => {
           <div className="grid md:grid-cols-2 gap-8">
             <div>
               <h4 className="text-xl font-semibold mb-4">Mail Us</h4>
-              <p className="mb-2">CS Store</p>
+              <p className="mb-2">Vyapara Setu</p>
               <p className="mb-2">Tiruvuru, Krishna District</p>
               <p className="mb-2">Andhra Pradesh, India – 521235</p>
               <p className="mb-4">Phone: +91-9391795162</p>

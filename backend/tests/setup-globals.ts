@@ -14,6 +14,14 @@ process.env.CLOUDINARY_CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME || "test-c
 process.env.CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY || "test-key";
 process.env.CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET || "test-secret";
 
+process.env.SELLER_LEGAL_NAME = process.env.SELLER_LEGAL_NAME || "Test Seller Pvt Ltd";
+process.env.SELLER_GSTIN = process.env.SELLER_GSTIN || "29AABCU9603R1ZM";
+process.env.SELLER_ADDRESS_LINE1 = process.env.SELLER_ADDRESS_LINE1 || "123 Test Address";
+process.env.SELLER_CITY = process.env.SELLER_CITY || "Bengaluru";
+process.env.SELLER_STATE = process.env.SELLER_STATE || "Karnataka";
+process.env.SELLER_STATE_CODE = process.env.SELLER_STATE_CODE || "29";
+process.env.SELLER_PINCODE = process.env.SELLER_PINCODE || "560001";
+
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import mongoose from "mongoose";
 
@@ -149,6 +157,46 @@ beforeEach(async () => {
 
 (global as any).createTestOrder = async (user: any, productOrOverrides?: any, overrides: any = {}) => {
   const { Order } = await import("../src/models/Order");
+  const VALID_ORDER_STATUSES = [
+    "PENDING_PAYMENT",
+    "CONFIRMED",
+    "PACKED",
+    "ASSIGNED",
+    "PICKED_UP",
+    "IN_TRANSIT",
+    "OUT_FOR_DELIVERY",
+    "ARRIVED",
+    "DELIVERED",
+    "FAILED",
+    "RETURNED",
+    "CANCELLED",
+    "CREATED",
+  ];
+  const ORDER_STATUS_MAP: Record<string, string> = {
+    pending: "PENDING_PAYMENT",
+    confirmed: "CONFIRMED",
+    packed: "PACKED",
+    assigned: "ASSIGNED",
+    picked_up: "PICKED_UP",
+    in_transit: "IN_TRANSIT",
+    out_for_delivery: "OUT_FOR_DELIVERY",
+    arrived: "ARRIVED",
+    delivered: "DELIVERED",
+    failed: "FAILED",
+    returned: "RETURNED",
+    cancelled: "CANCELLED",
+    created: "CREATED",
+  };
+  const normalizeOrderStatus = (raw: any): string => {
+    const s = String(raw || "").trim();
+    if (!s) return "PENDING_PAYMENT";
+    const upper = s.toUpperCase();
+    if (VALID_ORDER_STATUSES.includes(upper)) return upper;
+    const lower = s.toLowerCase();
+    const mapped = ORDER_STATUS_MAP[lower];
+    if (mapped) return mapped;
+    return "PENDING_PAYMENT";
+  };
   
   // Check if the second parameter is a product or overrides
   let product: any;
@@ -174,7 +222,7 @@ beforeEach(async () => {
   // Handle field name mapping for test compatibility
   const mappedOverrides = {
     ...finalOverrides,
-    orderStatus: finalOverrides.status || "pending",
+    orderStatus: normalizeOrderStatus(finalOverrides.orderStatus ?? finalOverrides.status ?? "PENDING_PAYMENT"),
   };
   // Remove the status field to avoid conflicts
   delete mappedOverrides.status;
@@ -202,7 +250,7 @@ beforeEach(async () => {
     ],
     totalAmount: defaultProduct.price,
     paymentStatus: "PENDING",
-    orderStatus: "pending",
+    orderStatus: "PENDING_PAYMENT",
     deliveryStatus: "unassigned",
     address: {
       name: "Test User",

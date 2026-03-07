@@ -3,11 +3,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.corsOptions = exports.requestSizeLimit = exports.securityLogger = exports.productValidationRules = exports.addressValidationRules = exports.userValidationRules = exports.validateInput = exports.verifyRazorpaySignature = exports.sanitizeInput = exports.securityHeaders = exports.paymentRateLimit = exports.apiRateLimit = exports.authRateLimit = exports.createRateLimit = exports.apiLimiter = void 0;
+exports.corsOptions = exports.requestSizeLimit = exports.securityLogger = exports.productValidationRules = exports.addressValidationRules = exports.userValidationRules = exports.validateInput = exports.verifyRazorpaySignature = exports.sanitizeInput = exports.securityHeaders = exports.paymentRateLimit = exports.apiRateLimit = exports.authRateLimit = exports.paymentVerificationRateLimit = exports.checkoutRateLimit = exports.signupRateLimit = exports.loginRateLimit = exports.createRateLimit = exports.apiLimiter = void 0;
 const crypto_1 = __importDefault(require("crypto"));
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const helmet_1 = __importDefault(require("helmet"));
 const express_validator_1 = require("express-validator");
+const logger_1 = require("../utils/logger");
 const isTestEnv = process.env.NODE_ENV === "test";
 const noOpMiddleware = (req, res, next) => next();
 // Global API rate limiter
@@ -24,7 +25,7 @@ exports.apiLimiter = isTestEnv
  * Implements security best practices and input validation
  */
 // Rate limiting configurations
-const createRateLimit = (windowMs, max, message) => {
+const createRateLimit = (windowMs, max, message, options) => {
     if (isTestEnv) {
         return noOpMiddleware;
     }
@@ -34,7 +35,27 @@ const createRateLimit = (windowMs, max, message) => {
         message: message || "Too many requests from this IP, please try again later.",
         standardHeaders: true,
         legacyHeaders: false,
+        keyGenerator: options?.keyGenerator,
+        skip: options?.skip,
         handler: (req, res) => {
+            const ip = req.ip || req.connection.remoteAddress || "unknown";
+            const userId = req.user?._id || "anonymous";
+            const tag = options?.tag || "rate_limit";
+            // Log rate limit breach
+            logger_1.logger.security(`Rate limit exceeded: ${tag}`, {
+                ip,
+                userId,
+                path: req.path,
+                method: req.method,
+                tag,
+            });
+            // Send to Sentry with SECURITY tag
+            (0, logger_1.captureSecurityEvent)(`rate_limit_exceeded_${tag}`, "medium", {
+                ip,
+                userId,
+                path: req.path,
+                method: req.method,
+            });
             res.status(429).json({
                 error: "Rate limit exceeded",
                 message: "Too many requests, please try again later.",
@@ -45,15 +66,44 @@ const createRateLimit = (windowMs, max, message) => {
 };
 exports.createRateLimit = createRateLimit;
 // Specific rate limits for different endpoints
-exports.authRateLimit = (0, exports.createRateLimit)(15 * 60 * 1000, // 15 minutes
+// Login: max 10 requests per 15 min per IP
+exports.loginRateLimit = (0, exports.createRateLimit)(15 * 60 * 1000, // 15 minutes
+10, // 10 attempts
+"Too many login attempts, please try again later.", { tag: "login" });
+// Signup: max 5 per hour per IP
+exports.signupRateLimit = (0, exports.createRateLimit)(60 * 60 * 1000, // 1 hour
 5, // 5 attempts
-"Too many authentication attempts, please try again later.");
+"Too many signup attempts, please try again later.", { tag: "signup" });
+// Checkout: max 20 per hour per user (or per IP if not authenticated)
+exports.checkoutRateLimit = (0, exports.createRateLimit)(60 * 60 * 1000, // 1 hour
+20, // 20 attempts
+"Too many checkout attempts, please try again later.", {
+    keyGenerator: (req) => {
+        const userId = req.user?._id;
+        if (userId)
+            return `user_${userId}`;
+        return req.ip || "unknown";
+    },
+    tag: "checkout",
+});
+// Payment verification: strict limit - 5 per 5 min per user/IP
+exports.paymentVerificationRateLimit = (0, exports.createRateLimit)(5 * 60 * 1000, // 5 minutes
+5, // 5 attempts
+"Too many payment verification attempts, please try again later.", {
+    keyGenerator: (req) => {
+        const userId = req.user?._id;
+        if (userId)
+            return `payment_verify_user_${userId}`;
+        return `payment_verify_ip_${req.ip || "unknown"}`;
+    },
+    tag: "payment_verification",
+});
+// Legacy exports for backward compatibility
+exports.authRateLimit = exports.loginRateLimit;
 exports.apiRateLimit = (0, exports.createRateLimit)(15 * 60 * 1000, // 15 minutes
 100, // 100 requests
-"Too many API requests, please try again later.");
-exports.paymentRateLimit = (0, exports.createRateLimit)(5 * 60 * 1000, // 5 minutes
-3, // 3 payment attempts
-"Too many payment attempts, please try again later.");
+"Too many API requests, please try again later.", { tag: "api" });
+exports.paymentRateLimit = exports.paymentVerificationRateLimit;
 // Security headers middleware
 exports.securityHeaders = (0, helmet_1.default)({
     contentSecurityPolicy: {
@@ -90,16 +140,31 @@ const sanitizeInput = (req, res, next) => {
         }
         const sanitized = {};
         for (const [key, value] of Object.entries(obj)) {
+            // Remove undefined fields - they should not be sent
+            if (value === undefined) {
+                continue;
+            }
             if (typeof value === "string") {
-                // Remove potentially dangerous characters
-                sanitized[key] = value
+                // Remove potentially dangerous characters but preserve empty strings
+                // Controllers will validate and reject empty strings explicitly
+                let sanitizedValue = value
                     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
                     .replace(/javascript:/gi, "")
-                    .replace(/on\w+\s*=/gi, "")
-                    .trim();
+                    .replace(/on\w+\s*=/gi, "");
+                // Preserve empty strings so controllers can validate and return 400
+                sanitized[key] = sanitizedValue;
+            }
+            else if (typeof value === "object" && value !== null) {
+                // Recursively sanitize nested objects
+                const nested = sanitizeObject(value);
+                // Only include nested object if it has properties after sanitization
+                if (Object.keys(nested).length > 0) {
+                    sanitized[key] = nested;
+                }
             }
             else {
-                sanitized[key] = sanitizeObject(value);
+                // Keep non-string, non-object values as-is (numbers, booleans, null)
+                sanitized[key] = value;
             }
         }
         return sanitized;

@@ -1,89 +1,78 @@
 // frontend/src/store/api.ts
-import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import { createApi } from "@reduxjs/toolkit/query/react";
 import type { BaseQueryFn } from "@reduxjs/toolkit/query";
-import type { FetchArgs, FetchBaseQueryError } from "@reduxjs/toolkit/query";
-import { RootState } from "./index"; // adjust path if needed
+import type { AxiosError, AxiosRequestConfig } from "axios";
 import { logout as logoutAction } from "./slices/authSlice";
-import { Mutex } from "async-mutex";
-import { API_BASE_URL, getApiBaseUrl } from "../config/runtime";
 import { publicApi } from "../config/publicApi";
-import { refreshAccessToken } from "../utils/authClient";
+import axiosApi from "../api/axiosInstance";
+import { toApiUrl } from "../config/runtime";
 
 /**
- * Robust RTK Query API with:
- * - token-attachment via prepareHeaders
- * - automatic refresh-on-401 (retry once)
- * - transformResponse normalizing _id -> id for products
- *
- * NOTE: adjust baseUrl if your env var name/path differs
+ * RTK Query API with axios baseQuery
+ * 
+ * Token refresh is handled EXCLUSIVELY by axiosInstance.ts interceptor.
+ * This file does NOT handle 401 TOKEN_EXPIRED - axios handles it automatically.
+ * 
+ * Architecture:
+ * - RTK Query calls axios via axiosBaseQuery
+ * - Axios attaches token via request interceptor
+ * - On 401 TOKEN_EXPIRED, axios refreshes and retries
+ * - RTK Query receives successful response or final error
  */
 
-const API_ROOT = getApiBaseUrl();
+// -------- Axios Base Query --------
+// Uses axios instance which has built-in refresh interceptor
 
-// Mutex for token refresh race condition prevention
-const mutex = new Mutex();
+interface AxiosBaseQueryArgs {
+  url: string;
+  method?: AxiosRequestConfig["method"];
+  body?: any;
+  params?: any;
+  headers?: Record<string, string>;
+}
 
-// raw baseQuery used for actual fetch calls
-const rawBaseQuery = fetchBaseQuery({
-  baseUrl: API_ROOT,
-  credentials: "include", // send cookies if used
-  timeout: 10000, // 10 second timeout
-  prepareHeaders: (headers, { getState }) => {
-    try {
-      const token = (getState() as RootState).auth?.tokens?.accessToken;
-      if (token) {
-        headers.set("authorization", `Bearer ${token}`);
-      }
-    } catch (e) {
-      // silent
-    }
-    return headers;
-  },
-});
+interface AxiosBaseQueryError {
+  status: number;
+  data: any;
+}
 
-// wrapper baseQuery to handle 401 --> attempt refresh --> retry original
-const baseQueryWithReauth: BaseQueryFn<
-  string | FetchArgs,
+const axiosBaseQuery: BaseQueryFn<
+  AxiosBaseQueryArgs,
   unknown,
-  FetchBaseQueryError
-> = async (args, api, extraOptions) => {
-  await mutex.waitForUnlock();
+  AxiosBaseQueryError
+> = async (args) => {
+  try {
+    const response = await axiosApi({
+      url: args.url,
+      method: args.method || "GET",
+      data: args.body,
+      params: args.params,
+      headers: args.headers,
+    });
 
-  let result = await rawBaseQuery(args, api, extraOptions);
+    return { data: response.data };
+  } catch (error) {
+    const axiosError = error as AxiosError<any>;
 
-  if (result.error && result.error.status === 401) {
-    const errorData: any = (result.error as any)?.data;
-    const code = String(errorData?.code || "").trim();
-    const msg = String(errorData?.message || "").trim().toLowerCase();
-    const isExpired = code === "TOKEN_EXPIRED" || msg === "token expired";
-    if (!isExpired) {
-      return result;
+    // Axios interceptor already handled refresh if it was a TOKEN_EXPIRED
+    // If we get here with 401, it means refresh failed or it's not a token expiry
+    if (axiosError.response) {
+      return {
+        error: {
+          status: axiosError.response.status,
+          data: axiosError.response.data,
+        },
+      };
     }
 
-    const currentAuthState = (api.getState() as any)?.auth?.authState;
-    if (currentAuthState === "GOOGLE_AUTH_ONLY") {
-      return result;
-    }
-
-    if (!mutex.isLocked()) {
-      const release = await mutex.acquire();
-      try {
-        const next = await refreshAccessToken();
-        if (next) {
-          result = await rawBaseQuery(args, api, extraOptions);
-        } else {
-          api.dispatch({ type: "auth/logout" });
-        }
-      } finally {
-        release();
-      }
-    } else {
-      await mutex.waitForUnlock();
-      result = await rawBaseQuery(args, api, extraOptions);
-    }
+    // Network error or other non-HTTP error
+    return {
+      error: {
+        status: "FETCH_ERROR" as any,
+        data: axiosError.message || "Network error",
+      },
+    };
   }
-
-  return result;
 };
 
 function findWasUnreadInNotificationsV2Cache(getState: () => unknown, notificationId: string): boolean | null {
@@ -142,7 +131,7 @@ function listNotificationsV2CachedArgs(getState: () => unknown): any[] {
 
 export const api = createApi({
   reducerPath: "api",
-  baseQuery: baseQueryWithReauth,
+  baseQuery: axiosBaseQuery,
   refetchOnFocus: false,
   refetchOnReconnect: false,
   keepUnusedDataFor: 60,
@@ -155,33 +144,34 @@ export const api = createApi({
     "Address",
     "Notification",
     "NotificationUnreadCount",
+    "DeliveryProfile",
   ],
   endpoints: (builder) => ({
     // ---------- AUTH ----------
     login: builder.mutation({
       query: (credentials: { identifier: string; password: string }) => ({
-        url: "/auth/login",
+        url: toApiUrl("/auth/login"),
         method: "POST",
         body: credentials,
       }),
     }),
     signup: builder.mutation({
       query: (payload: any) => ({
-        url: "/auth/signup",
+        url: toApiUrl("/auth/signup"),
         method: "POST",
         body: payload,
       }),
     }),
     refreshToken: builder.mutation({
       query: (refreshToken: string) => ({
-        url: "/auth/refresh",
+        url: toApiUrl("/auth/refresh"),
         method: "POST",
         body: { refreshToken },
       }),
     }),
     changePassword: builder.mutation({
       query: (payload: { currentPassword: string; newPassword: string }) => ({
-        url: "/auth/change-password",
+        url: toApiUrl("/auth/change-password"),
         method: "POST",
         body: payload,
       }),
@@ -189,7 +179,7 @@ export const api = createApi({
     }),
     logout: builder.mutation({
       query: (payload?: { refreshToken?: string }) => ({
-        url: "/auth/logout",
+        url: toApiUrl("/auth/logout"),
         method: "POST",
         body: payload,
       }),
@@ -205,13 +195,13 @@ export const api = createApi({
 
     // ---------- USER ----------
     getProfile: builder.query({
-      query: () => "/auth/me",
+      query: () => ({ url: toApiUrl("/auth/me") }),
       providesTags: ["User"],
       transformResponse: (response: any) => (response && response.user ? response.user : response), // backend returns { user: { ..., profileCompleted } }
     }),
     updateProfile: builder.mutation({
       query: (profileData: any) => ({
-        url: "/user/profile",
+        url: toApiUrl("/user/profile"),
         method: "PUT",
         body: profileData,
       }),
@@ -219,7 +209,7 @@ export const api = createApi({
     }),
     deleteAccount: builder.mutation({
       query: () => ({
-        url: "/user/delete-account",
+        url: toApiUrl("/user/delete-account"),
         method: "DELETE",
       }),
       invalidatesTags: ["User", "Cart", "Order", "Notification"],
@@ -343,12 +333,12 @@ export const api = createApi({
 
     // ---------- CART ----------
     getCart: builder.query({
-      query: () => "/cart",
+      query: () => ({ url: toApiUrl("/cart") }),
       providesTags: ["Cart"],
     }),
     addToCart: builder.mutation({
       query: (cartData: any) => ({
-        url: "/cart",
+        url: toApiUrl("/cart"),
         method: "POST",
         body: cartData,
       }),
@@ -356,7 +346,7 @@ export const api = createApi({
     }),
     updateCartItem: builder.mutation({
       query: (cartData: any) => ({
-        url: "/cart",
+        url: toApiUrl("/cart"),
         method: "PUT",
         body: cartData,
       }),
@@ -364,14 +354,14 @@ export const api = createApi({
     }),
     removeFromCart: builder.mutation({
       query: (productId: string) => ({
-        url: `/cart/${productId}`,
+        url: toApiUrl(`/cart/${productId}`),
         method: "DELETE",
       }),
       invalidatesTags: ["Cart"],
     }),
     clearCart: builder.mutation({
       query: () => ({
-        url: "/cart/clear",
+        url: toApiUrl("/cart/clear"),
         method: "DELETE",
       }),
       invalidatesTags: ["Cart"],
@@ -379,12 +369,12 @@ export const api = createApi({
 
     // ---------- ORDERS ----------
     getOrders: builder.query({
-      query: () => "/orders",
+      query: () => ({ url: toApiUrl("/orders") }),
       providesTags: ["Order"],
     }),
     createOrder: builder.mutation({
       query: (orderData: any) => ({
-        url: "/orders",
+        url: toApiUrl("/orders"),
         method: "POST",
         body: orderData,
       }),
@@ -393,18 +383,22 @@ export const api = createApi({
 
     // ---------- ADDRESS ----------
     getAddresses: builder.query({
-      query: () => "/user/addresses",
+      query: () => ({ url: toApiUrl("/user/addresses") }),
       providesTags: ["Address"],
       transformResponse: (response: any) => {
-        return {
+        // DEBUG: Log raw API response
+        console.log("[getAddresses] Raw API response:", JSON.stringify(response, null, 2));
+        const result = {
           addresses: response?.addresses || [],
           defaultAddressId: response?.defaultAddressId || null,
         };
+        console.log("[getAddresses] Transformed result:", JSON.stringify(result, null, 2));
+        return result;
       },
     }),
     addAddress: builder.mutation({
       query: (addressData: any) => ({
-        url: "/user/addresses",
+        url: toApiUrl("/user/addresses"),
         method: "POST",
         body: addressData,
       }),
@@ -412,7 +406,7 @@ export const api = createApi({
     }),
     updateAddress: builder.mutation({
       query: ({ addressId, ...addressData }: any) => ({
-        url: `/user/addresses/${addressId}`,
+        url: toApiUrl(`/user/addresses/${addressId}`),
         method: "PUT",
         body: addressData,
       }),
@@ -420,14 +414,14 @@ export const api = createApi({
     }),
     deleteAddress: builder.mutation({
       query: (addressId: string) => ({
-        url: `/user/addresses/${addressId}`,
+        url: toApiUrl(`/user/addresses/${addressId}`),
         method: "DELETE",
       }),
       invalidatesTags: ["Address"],
     }),
     setDefaultAddress: builder.mutation({
       query: (addressId: string) => ({
-        url: `/user/addresses/${addressId}/default`,
+        url: toApiUrl(`/user/addresses/${addressId}/default`),
         method: "PATCH",
       }),
       invalidatesTags: ["Address"],
@@ -435,12 +429,12 @@ export const api = createApi({
 
     // ---------- NOTIFICATIONS ----------
     getNotifications: builder.query({
-      query: () => "/notifications",
+      query: () => ({ url: toApiUrl("/notifications") }),
       providesTags: ["Notification"],
     }),
     getNotificationsV2: builder.query({
       query: (params?: { cursor?: string; limit?: number; category?: string }) => ({
-        url: "/notifications/v2",
+        url: toApiUrl("/notifications/v2"),
         method: "GET",
         params: {
           ...(params?.cursor ? { cursor: params.cursor } : {}),
@@ -451,12 +445,12 @@ export const api = createApi({
       providesTags: ["Notification"],
     }),
     getUnreadNotificationCount: builder.query<{ count: number }, void>({
-      query: () => "/notifications/unread/count",
+      query: () => ({ url: toApiUrl("/notifications/unread/count") }),
       providesTags: ["NotificationUnreadCount"],
     }),
     markAsRead: builder.mutation({
       query: (notificationId: string) => ({
-        url: `/notifications/${notificationId}/read`,
+        url: toApiUrl(`/notifications/${notificationId}/read`),
         method: "PUT",
       }),
       async onQueryStarted(notificationId: string, { dispatch, getState, queryFulfilled }) {
@@ -515,7 +509,7 @@ export const api = createApi({
 
     deleteNotification: builder.mutation({
       query: (notificationId: string) => ({
-        url: `/notifications/${notificationId}`,
+        url: toApiUrl(`/notifications/${notificationId}`),
         method: "DELETE",
       }),
       async onQueryStarted(notificationId: string, { dispatch, getState, queryFulfilled }) {
@@ -563,7 +557,7 @@ export const api = createApi({
 
     markAllAsRead: builder.mutation({
       query: () => ({
-        url: "/notifications/read-all",
+        url: toApiUrl("/notifications/read-all"),
         method: "PUT",
       }),
       async onQueryStarted(_arg, { dispatch, getState, queryFulfilled }) {
@@ -611,12 +605,12 @@ export const api = createApi({
 
     // ---------- NOTIFICATION PREFERENCES ----------
     getNotificationPreferences: builder.query({
-      query: () => "/user/notification-preferences",
+      query: () => ({ url: toApiUrl("/user/notification-preferences") }),
       providesTags: ["User"],
     }),
     updateNotificationPreferences: builder.mutation({
       query: (preferences: any) => ({
-        url: "/user/notification-preferences",
+        url: toApiUrl("/user/notification-preferences"),
         method: "PUT",
         // Backend expects full-object updates under a `preferences` key
         body: { preferences },
@@ -627,23 +621,22 @@ export const api = createApi({
     // ---------- ADMIN (upload/product management) ----------
     getPresignedUploadUrl: builder.mutation({
       query: (payload: any) => ({
-        url: `${API_BASE_URL}/api/products/upload-url`,
+        url: toApiUrl("/products/upload-url"),
         method: "POST",
         body: payload,
       }),
     }),
     createProduct: builder.mutation({
       query: (productData: any) => ({
-        url: `${API_BASE_URL}/api/products`,
+        url: toApiUrl("/products"),
         method: "POST",
-        // productData could be FormData - keep body as-is
         body: productData,
       }),
       invalidatesTags: ["Product"],
     }),
     updateProduct: builder.mutation({
       query: ({ id, ...productData }: any) => ({
-        url: `${API_BASE_URL}/api/products/${id}`,
+        url: toApiUrl(`/products/${id}`),
         method: "PUT",
         body: productData,
       }),
@@ -651,7 +644,7 @@ export const api = createApi({
     }),
     deleteProduct: builder.mutation({
       query: (id: string) => ({
-        url: `${API_BASE_URL}/api/admin/products/${id}`,
+        url: toApiUrl(`/admin/products/${id}`),
         method: "DELETE",
       }),
       invalidatesTags: ["Product"],
@@ -659,7 +652,13 @@ export const api = createApi({
 
     // ---------- PINCODE / MISC ----------
     checkPincode: builder.query({
-      query: (pincode: string) => `/pincode/check/${pincode}`,
+      query: (pincode: string) => ({ url: toApiUrl(`/pincode/check/${pincode}`) }),
+    }),
+
+    // ---------- DELIVERY ----------
+    getDeliveryProfile: builder.query({
+      query: () => ({ url: toApiUrl("/delivery/profile") }),
+      providesTags: ["DeliveryProfile"],
     }),
   }),
 });
@@ -705,6 +704,7 @@ export const {
   useUpdateProductMutation,
   useDeleteProductMutation,
   useCheckPincodeQuery,
+  useGetDeliveryProfileQuery,
 } = api;
 
 export default api;

@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.logBusinessMetric = exports.logPerformance = exports.logSecurityEvent = exports.logOrderEvent = exports.logPaymentEvent = exports.logAuthAttempt = exports.sentryMiddleware = exports.initializeSentry = exports.logger = void 0;
+exports.logBusinessMetric = exports.logPerformance = exports.captureSecurityEvent = exports.captureInventoryError = exports.capturePaymentError = exports.logSecurityEvent = exports.logOrderEvent = exports.logPaymentEvent = exports.logAuthAttempt = exports.sentryMiddleware = exports.initializeSentry = exports.logger = void 0;
 const Sentry = __importStar(require("@sentry/node"));
 class Logger {
     constructor() {
@@ -105,9 +105,37 @@ class Logger {
         this.setContext({ component: "payment" });
         this.info(message, data);
     }
+    // Payment error logging with explicit Sentry capture
+    paymentError(message, error, data) {
+        this.setContext({ component: "payment" });
+        this.error(message, error, data);
+        Sentry.captureException(error || new Error(message), {
+            level: "error",
+            tags: {
+                component: "payment",
+                type: "PAYMENT",
+                ...this.context,
+            },
+            extra: data,
+        });
+    }
     order(message, data) {
         this.setContext({ component: "order" });
         this.info(message, data);
+    }
+    // Inventory error logging with explicit Sentry capture
+    inventoryError(message, error, data) {
+        this.setContext({ component: "inventory" });
+        this.error(message, error, data);
+        Sentry.captureException(error || new Error(message), {
+            level: "error",
+            tags: {
+                component: "inventory",
+                type: "INVENTORY",
+                ...this.context,
+            },
+            extra: data,
+        });
     }
     delivery(message, data) {
         this.setContext({ component: "delivery" });
@@ -126,6 +154,7 @@ class Logger {
             level: "warning",
             tags: {
                 component: "security",
+                type: "SECURITY",
                 ...this.context,
             },
             extra: data,
@@ -271,6 +300,24 @@ const logSecurityEvent = (event, severity, data) => {
     });
 };
 exports.logSecurityEvent = logSecurityEvent;
+// Tagged error capture helpers
+const capturePaymentError = (message, error, data) => {
+    exports.logger.paymentError(message, error, data);
+};
+exports.capturePaymentError = capturePaymentError;
+const captureInventoryError = (message, error, data) => {
+    exports.logger.inventoryError(message, error, data);
+};
+exports.captureInventoryError = captureInventoryError;
+const captureSecurityEvent = (event, severity, data) => {
+    exports.logger.security(`Security event: ${event} (${severity})`, {
+        event,
+        severity,
+        timestamp: new Date().toISOString(),
+        ...data,
+    });
+};
+exports.captureSecurityEvent = captureSecurityEvent;
 const logPerformance = (operation, startTime, data) => {
     const duration = Date.now() - startTime;
     exports.logger.performance(operation, duration, data);

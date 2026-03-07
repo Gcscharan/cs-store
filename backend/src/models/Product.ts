@@ -7,6 +7,7 @@ export interface IProduct extends Document {
   category: string;
   price: number;
   mrp?: number;
+  gstRate?: number; // GST rate as percentage (e.g., 18 for 18%)
   stock: number;
   reservedStock?: number;
   weight: number;
@@ -86,6 +87,12 @@ const ProductSchema = new Schema<IProduct>(
     mrp: {
       type: Number,
       min: [0, "MRP cannot be negative"],
+    },
+    gstRate: {
+      type: Number,
+      min: [0, "GST rate cannot be negative"],
+      max: [100, "GST rate cannot exceed 100"],
+      default: 18, // Default 18% GST
     },
     stock: {
       type: Number,

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { RootState } from "../store";
 import toast from "react-hot-toast";
+import { toApiUrl } from "../config/runtime";
 import {
   ArrowLeft,
   BarChart3,
@@ -17,7 +18,7 @@ import {
 
 const AdminAnalyticsPage: React.FC = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, user, tokens } = useSelector(
+  const { isAuthenticated, tokens } = useSelector(
     (state: RootState) => state.auth
   );
   const [analytics, setAnalytics] = useState({
@@ -34,45 +35,77 @@ const AdminAnalyticsPage: React.FC = () => {
       status: string;
     }[],
   });
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Check authentication
+  // Debug log on mount
   useEffect(() => {
-    if (!isAuthenticated || !user?.isAdmin) {
-      navigate("/login");
+    console.log("[AdminAnalyticsPage] Mounted, isAuthenticated:", isAuthenticated, "hasToken:", !!tokens?.accessToken);
+  }, []);
+
+  // Fetch analytics when authenticated
+  useEffect(() => {
+    if (!isAuthenticated || !tokens?.accessToken) {
+      console.log("[AdminAnalyticsPage] Skipping fetch - not authenticated");
       return;
     }
     fetchAnalytics();
-  }, [isAuthenticated, user, navigate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, tokens?.accessToken]);
 
   const fetchAnalytics = async () => {
     try {
       setIsLoading(true);
+      setError(null);
+      console.log("[AdminAnalyticsPage] Fetching analytics...");
 
-      const response = await fetch("/api/admin/analytics", {
+      const response = await fetch(toApiUrl("/admin/analytics"), {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${tokens?.accessToken}`,
         },
       });
 
+      console.log("[AdminAnalyticsPage] Response status:", response.status);
+
       if (!response.ok) {
-        throw new Error("Failed to fetch analytics");
+        const errorText = await response.text();
+        console.error("[AdminAnalyticsPage] Error response:", errorText);
+        throw new Error(`Failed to fetch analytics: ${response.status}`);
       }
 
       const data = await response.json();
+      console.log("[AdminAnalyticsPage] Data received:", data);
+      
+      // Calculate totals from backend response
+      const totalRevenue = (data.salesData || []).reduce((sum: number, item: any) => sum + (item.totalSales || 0), 0);
+      const totalOrders = (data.ordersByStatus || []).reduce((sum: number, item: any) => sum + (item.count || 0), 0);
+      const totalUsers = data.userStats?.totalUsers || 0;
       
       setAnalytics({
-        totalRevenue: data.totalRevenue || 0,
-        totalOrders: data.totalOrders || 0,
-        totalUsers: data.totalUsers || 0,
-        totalProducts: data.totalProducts || 0,
-        monthlyRevenue: data.monthlyRevenue || [],
-        topProducts: data.topProducts || [],
-        recentOrders: data.recentOrders || [],
+        totalRevenue,
+        totalOrders,
+        totalUsers,
+        totalProducts: (data.topProducts || []).length,
+        monthlyRevenue: (data.monthlySales || []).map((item: any) => ({
+          month: item._id || "",
+          revenue: item.totalSales || 0,
+        })),
+        topProducts: (data.topProducts || []).map((item: any) => ({
+          name: item._id || "Unknown",
+          sales: item.totalQuantity || 0,
+          revenue: item.totalRevenue || 0,
+        })),
+        recentOrders: (data.recentOrders || []).map((order: any) => ({
+          id: order._id || "",
+          customer: order.userId?.name || order.userId?.phone || "Unknown",
+          amount: order.totalAmount || 0,
+          status: order.orderStatus || "Unknown",
+        })),
       });
     } catch (err) {
       console.error("Error fetching analytics:", err);
+      setError("Failed to load analytics data. Please try again.");
       toast.error("Failed to load analytics data");
     } finally {
       setIsLoading(false);
@@ -85,6 +118,31 @@ const AdminAnalyticsPage: React.FC = () => {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading analytics...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">{error}</p>
+          <button
+            onClick={() => {
+              setError(null);
+              fetchAnalytics();
+            }}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+          >
+            Retry
+          </button>
+          <button
+            onClick={() => navigate("/admin")}
+            className="ml-2 bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700"
+          >
+            Back to Dashboard
+          </button>
         </div>
       </div>
     );

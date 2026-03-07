@@ -39,6 +39,7 @@ import {
 } from "../payments/paymentSession";
 import { CheckoutPageSkeleton } from "../components/PageSkeletons";
 import { useCartPersistence } from "../hooks/useCartPersistence";
+import { reportError } from "../utils/sentry";
 
 const PaymentOption = (props: {
   value: string;
@@ -92,7 +93,7 @@ const CheckoutPage = () => {
   });
   const [setDefaultAddressMutation] = useSetDefaultAddressMutation();
 
-  const LAST_METHOD_KEY = "cs_store_last_payment_method_v1";
+  const LAST_METHOD_KEY = "vyapara_setu_last_payment_method_v1";
   const loadLastMethod = (): "cod" | "upi" | "card" | "netbanking" => {
     try {
       const v = String(localStorage.getItem(LAST_METHOD_KEY) || "").trim();
@@ -515,6 +516,7 @@ const CheckoutPage = () => {
       });
     } catch (error: any) {
       const msg = String(error?.message || "");
+      reportError(error, { route: "checkout", method: "razorpay_card", step: "payment_init" });
       if (msg.includes("Invalid order amount") || msg.includes("Order not found")) {
         sessionStorage.removeItem("cs_order_create_idem_razorpay_v1");
       }
@@ -672,6 +674,7 @@ const CheckoutPage = () => {
       await openRazorpayCheckout(checkoutArgs);
     } catch (error: any) {
       const msg = String(error?.message || "");
+      reportError(error, { route: "checkout", method: "razorpay_upi", step: "payment_init" });
       if (msg.includes("(HTTP 410)")) {
         resetCheckoutPaymentFlow({ message: "Payment expired. Please try again." });
       } else {
@@ -929,6 +932,7 @@ const CheckoutPage = () => {
       navigate(`/order-success/${orderId}`);
     } catch (error: any) {
       console.error("COD order error:", error);
+      reportError(error, { route: "checkout", method: "cod", step: "place_order" });
       toast.error(error.message || "Failed to place order", { duration: 5000 });
     } finally {
       setIsPlacingOrder(false);
@@ -1211,7 +1215,7 @@ const CheckoutPage = () => {
               </p>
               <div className="mt-4 space-x-4">
                 <span className="text-orange-500 cursor-pointer text-sm">
-                  See CS Store's Return Policy.
+                  See Vyapara Setu's Return Policy.
                 </span>
                 <span className="text-orange-500 cursor-pointer text-sm">
                   Back to cart
@@ -1248,17 +1252,25 @@ const CheckoutPage = () => {
                 {/* Order Summary */}
                 <div className="mt-6 space-y-3">
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-900">Items ({priceBreakdown.itemCount}):</span>
+                    <span className="text-gray-900">Subtotal ({priceBreakdown.itemCount} items):</span>
                     <span className="font-medium">
-                      {formatPrice(priceBreakdown.subtotal)}
+                      {formatPrice(priceBreakdown.subtotalBeforeTax)}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-900">Discount:</span>
-                    <span className="font-medium text-green-600">
-                      - {formatPrice(priceBreakdown.discount)}
+                    <span className="text-gray-900">GST ({priceBreakdown.gstRate}%):</span>
+                    <span className="font-medium text-gray-700">
+                      {formatPrice(priceBreakdown.gstAmount)}
                     </span>
                   </div>
+                  {priceBreakdown.discount > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-900">Discount:</span>
+                      <span className="font-medium text-green-600">
+                        - {formatPrice(priceBreakdown.discount)}
+                      </span>
+                    </div>
+                  )}
                   {!requiresAddress ? (
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-900">Delivery:</span>

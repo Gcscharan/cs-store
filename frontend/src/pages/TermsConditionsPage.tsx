@@ -45,7 +45,7 @@ const TermsConditionsPage: React.FC = () => {
             <section>
               <h2 className="text-xl font-semibold text-gray-900 mb-2">Overview</h2>
               <p className="text-sm leading-6">
-                By using CS Store, you agree to these terms. If you do not agree, please do not use the service.
+                By using Vyapara Setu, you agree to these terms. If you do not agree, please do not use the service.
               </p>
             </section>
 

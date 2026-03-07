@@ -214,7 +214,7 @@ const ProductDetailPage = () => {
     if (navigator.share) {
       navigator.share({
         title: product?.name,
-        text: `Check out this ${product?.name} from CS Store!`,
+        text: `Check out this ${product?.name} from Vyapara Setu!`,
         url: window.location.href,
       });
     } else {
@@ -287,7 +287,7 @@ const ProductDetailPage = () => {
   const handleSimilarProductClick = (similarProduct: any) => {
     const productId = similarProduct.id || similarProduct._id;
     if (productId) {
-      navigate(`/product/${productId}`);
+      window.location.assign(`/product/${productId}`);
     }
   };
 
@@ -549,7 +549,7 @@ const ProductDetailPage = () => {
               <div className="flex items-center space-x-3">
                 <Shield className="h-5 w-5 text-blue-500" />
                 <span className="text-gray-700 font-medium">
-                  CS Store Assured
+                  Vyapara Setu Assured
                 </span>
               </div>
             </div>

@@ -45,24 +45,10 @@ export const addToCart = async (req: Request, res: Response): Promise<Response |
     const userId = (req.user as IUser)._id.toString();
     const result = await cartService.addToCart(userId, req.body);
     res.json(result);
-  } catch (error) {
+  } catch (error: any) {
     const message = error instanceof Error ? error.message : "Failed to add item to cart";
-    
-    // Return specific status codes based on error type
-    if (message === "Product ID is required") {
-      return res.status(400).json({ message });
-    }
-    if (message === "Quantity must be greater than 0") {
-      return res.status(400).json({ message });
-    }
-    if (message === "Product not found") {
-      return res.status(404).json({ message });
-    }
-    if (message === "Insufficient stock") {
-      return res.status(400).json({ message });
-    }
-    
-    res.status(500).json({ message });
+    const statusCode = error?.statusCode || 500;
+    res.status(statusCode).json({ message });
   }
 };
 
@@ -75,30 +61,10 @@ export const updateCartItem = async (req: Request, res: Response): Promise<Respo
     const userId = (req.user as IUser)._id.toString();
     const result = await cartService.updateCartItem(userId, req.body);
     res.json(result);
-  } catch (error) {
+  } catch (error: any) {
     const message = error instanceof Error ? error.message : "Failed to update cart item";
-    
-    // Return specific status codes based on error type
-    if (message === "Product ID is required") {
-      return res.status(400).json({ message });
-    }
-    if (message === "Quantity is required") {
-      return res.status(400).json({ message });
-    }
-    if (message === "Product not found") {
-      return res.status(404).json({ message });
-    }
-    if (message === "Insufficient stock") {
-      return res.status(400).json({ message });
-    }
-    if (message === "Cart not found") {
-      return res.status(404).json({ message });
-    }
-    if (message === "Item not found in cart") {
-      return res.status(404).json({ message });
-    }
-    
-    res.status(500).json({ message });
+    const statusCode = error?.statusCode || 500;
+    res.status(statusCode).json({ message });
   }
 };
 
@@ -118,21 +84,10 @@ export const removeFromCart = async (req: Request, res: Response): Promise<Respo
     
     const result = await cartService.removeFromCart(userId, { productId });
     res.json(result);
-  } catch (error) {
+  } catch (error: any) {
     const message = error instanceof Error ? error.message : "Failed to remove item from cart";
-    
-    // Return specific status codes based on error type
-    if (message === "Product ID is required") {
-      return res.status(400).json({ message });
-    }
-    if (message === "Cart not found") {
-      return res.status(404).json({ message });
-    }
-    if (message === "Item not found in cart") {
-      return res.status(404).json({ message });
-    }
-    
-    res.status(500).json({ message });
+    const statusCode = error?.statusCode || 500;
+    res.status(statusCode).json({ message });
   }
 };
 
@@ -145,14 +100,9 @@ export const clearCart = async (req: Request, res: Response): Promise<Response |
     const userId = (req.user as IUser)._id.toString();
     const result = await cartService.clearCart(userId);
     res.json(result);
-  } catch (error) {
+  } catch (error: any) {
     const message = error instanceof Error ? error.message : "Failed to clear cart";
-    
-    // Return specific status codes based on error type
-    if (message === "Cart not found") {
-      return res.status(404).json({ message });
-    }
-    
-    res.status(500).json({ message });
+    const statusCode = error?.statusCode || 500;
+    res.status(statusCode).json({ message });
   }
 };

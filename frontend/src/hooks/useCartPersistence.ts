@@ -37,7 +37,8 @@ export const useCartPersistence = () => {
             name: item.name,
             price: item.price,
             quantity: item.quantity,
-            image: item.image,
+            // Backend sends image as string URL; normalize if needed
+            image: item.image || "/placeholder-product.svg",
           })),
           total: cartData.totalAmount || 0,
           itemCount: cartData.itemCount || 0,

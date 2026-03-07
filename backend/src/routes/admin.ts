@@ -12,6 +12,7 @@ import {
   deleteProduct,
   makeDeliveryBoy,
   approveDeliveryBoy,
+  suspendDeliveryBoy,
   computeRoutes,
   listRoutes,
   assignRoute,
@@ -20,6 +21,7 @@ import {
   listRecentAssignedRoutes,
   getRouteDetail,
   purgeOrders,
+  getGstReportHandler,
 } from "../controllers/adminController";
 import { assignDeliveryBoyToOrder } from "../controllers/orderAssignmentController";
 import { authenticateToken, requireRole } from "../middleware/auth";
@@ -131,6 +133,14 @@ router.get(
   requireRole(["admin"]),
   getAdminDeliveryBoys
 );
+
+// GST Report - aggregated CGST, SGST, IGST totals for a date range
+router.get(
+  "/gst-report",
+  authenticateToken,
+  requireRole(["admin"]),
+  getGstReportHandler
+);
 router.get(
   "/delivery-boys-list",
   authenticateToken,
@@ -143,7 +153,7 @@ router.put(
   requireRole(["admin"]),
   approveDeliveryBoy
 );
-// router.put("/delivery-boys/:id/suspend", authenticateToken, requireRole(["admin"]), suspendDeliveryBoy);
+router.put("/delivery-boys/:id/suspend", authenticateToken, requireRole(["admin"]), suspendDeliveryBoy);
 // router.post("/assign-deliveries", authenticateToken, requireRole(["admin"]), autoAssignDeliveries);
 router.post(
   "/orders/purge",

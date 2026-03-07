@@ -13,6 +13,9 @@ export function initializeInventoryReservationSweeper(params?: {
   if (started) return;
   started = true;
 
+  let consecutiveFailures = 0;
+  const FAILURE_THRESHOLD = 10;
+
   const pollIntervalMs = Number(params?.pollIntervalMs || 30_000);
   const batchSize = Number(params?.batchSize || 50);
   const workerId = `${os.hostname()}:${process.pid}:${randomUUID()}`;
@@ -73,9 +76,23 @@ export function initializeInventoryReservationSweeper(params?: {
     }
   };
 
+  const safeTick = async () => {
+    try {
+      await tick();
+      consecutiveFailures = 0;
+    } catch (err) {
+      consecutiveFailures += 1;
+      console.error("[INVENTORY_SWEEPER_ERROR]", err);
+      if (consecutiveFailures >= FAILURE_THRESHOLD) {
+        console.error("[INVENTORY_SWEEPER_FATAL] Too many consecutive failures. Crashing.");
+        process.exit(1);
+      }
+    }
+  };
+
   setInterval(() => {
-    void tick().catch(() => undefined);
+    void safeTick();
   }, pollIntervalMs);
 
-  void tick().catch(() => undefined);
+  void safeTick();
 }

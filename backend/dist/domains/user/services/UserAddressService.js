@@ -8,6 +8,7 @@ const UserRepository_1 = require("../repositories/UserRepository");
 const mongoose_1 = __importDefault(require("mongoose"));
 const geocoding_1 = require("../../../utils/geocoding");
 const pincodeResolver_1 = require("../../../utils/pincodeResolver");
+const safeDoc_1 = require("../../../utils/safeDoc");
 class UserAddressService {
     constructor() {
         this.userRepository = new UserRepository_1.UserRepository();
@@ -18,10 +19,11 @@ class UserAddressService {
             if (!user) {
                 return { success: false, addresses: [], defaultAddressId: null };
             }
-            const transformedAddresses = (user.addresses || []).map((addr) => ({
-                ...addr.toObject(),
-                id: addr._id.toString(),
-            }));
+            const transformedAddresses = (user.addresses || []).map((addr) => {
+                const clean = (0, safeDoc_1.safeDoc)(addr);
+                clean.id = addr._id.toString();
+                return clean;
+            });
             const defaultAddress = user.addresses.find((addr) => addr.isDefault);
             const defaultAddressId = defaultAddress ? defaultAddress._id.toString() : null;
             return {
@@ -88,10 +90,9 @@ class UserAddressService {
             user.addresses.push(newAddress);
             await this.userRepository.save(user);
             const savedAddress = user.addresses[user.addresses.length - 1];
-            return {
-                ...(savedAddress.toObject ? savedAddress.toObject() : savedAddress),
-                id: savedAddress._id.toString(),
-            };
+            const cleanAddress = (0, safeDoc_1.safeDoc)(savedAddress);
+            cleanAddress.id = savedAddress._id.toString();
+            return cleanAddress;
         }
         catch (error) {
             console.error("Error adding user address:", error);

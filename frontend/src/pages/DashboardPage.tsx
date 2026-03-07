@@ -253,10 +253,10 @@ const DashboardPage = () => {
     <div className="min-h-screen bg-neutral-50">
       {/* SEO Content - Hidden but accessible to search engines */}
       <div className="sr-only">
-        <h1>CS Store - Online Shopping for Electronics, Fashion & More</h1>
-        <h2>Welcome to CS Store</h2>
+        <h1>Vyapara Setu - Online Shopping for Electronics, Fashion & More</h1>
+        <h2>Welcome to Vyapara Setu</h2>
         <p>
-          CS Store is your one-stop destination for online shopping. Discover
+          Vyapara Setu is your one-stop destination for online shopping. Discover
           amazing deals on electronics, fashion, home & garden, and more. We
           offer fast delivery, secure payments, and excellent customer service.
         </p>
@@ -454,7 +454,7 @@ const DashboardPage = () => {
                     to="/cs-store-stories"
                     className="hover:text-orange-400 transition-colors"
                   >
-                    CS Store Stories
+                    Vyapara Setu Stories
                   </Link>
                 </li>
                 <li>
@@ -572,7 +572,7 @@ const DashboardPage = () => {
                 Mail Us:
               </h3>
               <p className="text-sm text-gray-400">
-                CS Store
+                Vyapara Setu
                 <br />
                 📍 Tiruvuru, Krishna District,
                 <br />
@@ -603,7 +603,7 @@ const DashboardPage = () => {
                 Help Center
               </Link>
             </div>
-            <div className="mb-4 md:mb-0">© 2024–2026 CS Store. All rights reserved.</div>
+            <div className="mb-4 md:mb-0">© 2024–2026 Vyapara Setu. All rights reserved.</div>
             <div>
               <div className="text-sm text-gray-400">
                 Secure Payments Available

@@ -7,7 +7,6 @@ export type EventHandler = (event: BaseEvent) => void | Promise<void>;
 type Unsubscribe = () => void;
 
 const subscribers = new Set<EventHandler>();
-const deliveredEventIds = new Set<string>();
 
 export function subscribe(handler: EventHandler): Unsubscribe {
   subscribers.add(handler);
@@ -57,11 +56,7 @@ export async function deliverToSubscribers(event: BaseEvent): Promise<void> {
   const eventId = String((event as any).eventId || "");
   if (!eventId) return;
 
-  if (deliveredEventIds.has(eventId)) return;
-
   for (const handler of subscribers) {
     await handler(event);
   }
-
-  deliveredEventIds.add(eventId);
 }

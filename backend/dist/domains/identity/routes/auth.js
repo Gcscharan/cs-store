@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const passport_1 = __importDefault(require("passport"));
 const auth_1 = require("../../../middleware/auth");
+const security_1 = require("../../../middleware/security");
 const authController_1 = require("../controllers/authController");
 const router = express_1.default.Router();
 function isGoogleStrategyRegistered() {
@@ -28,8 +29,8 @@ const handleOAuthError = (err, req, res, next) => {
     next(err);
 };
 // Auth routes
-router.post("/signup", authController_1.signup);
-router.post("/login", authController_1.login);
+router.post("/signup", security_1.signupRateLimit, authController_1.signup);
+router.post("/login", security_1.loginRateLimit, authController_1.login);
 router.post("/oauth", authController_1.oauth);
 router.post("/refresh", authController_1.refresh);
 router.post("/logout", auth_1.authenticateToken, authController_1.logout);

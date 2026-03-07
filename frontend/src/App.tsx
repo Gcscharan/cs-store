@@ -4,7 +4,6 @@ import {
   Routes,
   Route,
   Navigate,
-  useLocation,
 } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { RootState } from "./store";
@@ -14,20 +13,85 @@ import { LanguageProvider } from "./contexts/LanguageContext";
 import { OtpModalProvider } from "./contexts/OtpModalContext";
 import { CurrencyProvider } from "./contexts/CurrencyContext";
 import Layout from "./components/Layout";
-import ProtectedRoute from "./components/ProtectedRoute";
-import RoleProtectedRoute from "./components/RoleProtectedRoute";
+import AuthGate from "./components/AuthGate";
 import GlobalErrorBoundary from "./components/GlobalErrorBoundary";
-import AdminRoute from "./components/AdminRoute";
-import { ReactNode, lazy } from "react";
+import { lazy } from "react";
 import CartInitializer from "./components/CartInitializer";
 import AuthInitializer from "./components/AuthInitializer";
-import { authRedirect } from "./utils/authRedirect";
+import { registerTokenGetter, registerTokenSetter, registerLogoutAction } from "./config/api";
+import { registerAuthClientDispatch } from "./utils/authClient";
+import { registerAuthUtilsStoreAccess } from "./utils/authUtils";
+import { setTokens, logout } from "./store/slices/authSlice";
 
 const loadHomePage = () =>
   import(/* webpackChunkName: "page-home" */ "./pages/HomePage");
 const HomePage = lazy(loadHomePage);
 if (typeof window !== "undefined") {
   loadHomePage();
+}
+
+// Register token getter for axios interceptor
+try {
+  registerTokenGetter(() => {
+    try {
+      const state = store.getState() as RootState;
+      return {
+        accessToken: state.auth?.tokens?.accessToken || null,
+        refreshToken: state.auth?.tokens?.refreshToken || null,
+      };
+    } catch {
+      return { accessToken: null, refreshToken: null };
+    }
+  });
+} catch {}
+
+// Register token setter for axios interceptor (dispatches to Redux)
+try {
+  registerTokenSetter((tokens) => {
+    try {
+      store.dispatch(setTokens(tokens));
+    } catch {}
+  });
+} catch {}
+
+// Register logout action for axios interceptor
+try {
+  registerLogoutAction(() => {
+    try {
+      store.dispatch(logout());
+    } catch {}
+  });
+} catch {}
+
+// Legacy: Register auth client dispatch for authClient.ts utilities
+try {
+  registerAuthClientDispatch((action) => {
+    try {
+      store.dispatch(action as any);
+    } catch {
+    }
+  });
+} catch {
+}
+
+// Legacy: Register auth utils store access
+try {
+  registerAuthUtilsStoreAccess({
+    dispatch: (action) => {
+      try {
+        store.dispatch(action as any);
+      } catch {
+      }
+    },
+    getState: () => {
+      try {
+        return store.getState();
+      } catch {
+        return null;
+      }
+    },
+  });
+} catch {
 }
 
 const DashboardPage = lazy(() =>
@@ -120,6 +184,9 @@ const AdminDeliveryBoysPage = lazy(() =>
 );
 const AdminAnalyticsPage = lazy(() =>
   import(/* webpackChunkName: "page-admin" */ "./pages/AdminAnalyticsPage")
+);
+const AdminFinancePage = lazy(() =>
+  import(/* webpackChunkName: "page-admin" */ "./pages/AdminFinancePage")
 );
 const AdminProfilePage = lazy(() =>
   import(/* webpackChunkName: "page-admin" */ "./pages/AdminProfilePage")
@@ -274,21 +341,12 @@ const CancellationReturnsPage = lazy(() =>
   )
 );
 
-// Centralized auth guard using Redux auth state (authoritative)
-function AuthGuard({ children }: { children: ReactNode }) {
-  const { isAuthenticated, loading, user, authState } = useSelector((state: RootState) => state.auth);
-  const location = useLocation();
+// AuthRouter - Main routing component using centralized AuthGate
+function AuthRouter() {
+  const { status } = useSelector((state: RootState) => state.auth);
 
-  const role = user?.isAdmin || user?.role === "admin" ? "admin" : (user?.role || "customer");
-  const canonical = authRedirect({
-    authState: (authState ?? null) as any,
-    pathname: location.pathname,
-    role: role as any,
-    isProtected: true,
-  });
-
-  // 1) While loading, show spinner
-  if (loading) {
+  // Show loading while auth initializes
+  if (status === "LOADING") {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -299,62 +357,9 @@ function AuthGuard({ children }: { children: ReactNode }) {
     );
   }
 
-  if (canonical) {
-    return <Navigate to={canonical} state={{ from: location }} replace />;
-  }
-
-  // 2) If not authenticated, redirect to login (preserve intended destination)
-  if (!isAuthenticated) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
-  }
-
-  // 3) Admins bypass profile check
-  if (user?.isAdmin || user?.role === "admin") {
-    return <>{children}</>;
-  }
-
-  // All checks passed: render children
-  return <>{children}</>;
-}
-
-// Component to handle authentication-based routing with role and profile checks
-function AuthRouter() {
-  const { user, authState, loading } = useSelector((state: RootState) => state.auth);
-  const location = useLocation();
-
-  if (!loading) {
-    const role = user?.isAdmin || user?.role === "admin" ? "admin" : (user?.role || "customer");
-
-    const isPublicRoute =
-      location.pathname === "/" ||
-      location.pathname === "/signup" ||
-      location.pathname === "/login" ||
-      location.pathname === "/download-app" ||
-      location.pathname === "/contact-us" ||
-      location.pathname === "/privacy" ||
-      location.pathname === "/terms" ||
-      location.pathname === "/cancellation" ||
-      location.pathname === "/about-us" ||
-      location.pathname === "/careers" ||
-      location.pathname.startsWith("/cs-store-stories") ||
-      location.pathname === "/corporate-information" ||
-      location.pathname.startsWith("/auth/callback");
-
-    const redirect = authRedirect({
-      authState: (authState ?? null) as any,
-      pathname: location.pathname,
-      role: role as any,
-      isProtected: !isPublicRoute,
-    });
-
-    if (redirect && redirect !== location.pathname) {
-      return <Navigate to={redirect} replace />;
-    }
-  }
-
   return (
     <Routes>
-      {/* Root route - always show HomePage, regardless of auth status */}
+      {/* ========== PUBLIC ROUTES ========== */}
       <Route
         path="/"
         element={
@@ -363,8 +368,6 @@ function AuthRouter() {
           </Layout>
         }
       />
-
-      {/* Login route - always accessible */}
       <Route
         path="/login"
         element={
@@ -373,499 +376,460 @@ function AuthRouter() {
           </Layout>
         }
       />
+      <Route path="/signup" element={<Layout><SignupPage /></Layout>} />
+      <Route path="/privacy" element={<Layout><PrivacyPolicyPage /></Layout>} />
+      <Route path="/terms" element={<Layout><TermsConditionsPage /></Layout>} />
+      <Route path="/cancellation" element={<Layout><CancellationReturnsPage /></Layout>} />
+      <Route path="/products" element={<Layout><ProductsPage /></Layout>} />
+      <Route path="/search" element={<Layout><SearchResultsPage /></Layout>} />
+      <Route path="/product/:id" element={<Layout><ProductDetailPage /></Layout>} />
+      <Route path="/menu" element={<Layout><MenuPage /></Layout>} />
+      <Route path="/download-app" element={<Layout><DownloadAppPage /></Layout>} />
+      <Route path="/contact-us" element={<Layout><ContactUsPage /></Layout>} />
+      <Route path="/customer-care" element={<Layout><CustomerCarePage /></Layout>} />
+      <Route path="/about-us" element={<Layout><AboutUsPage /></Layout>} />
+      <Route path="/careers" element={<Layout><CareersPage /></Layout>} />
+      <Route path="/cs-store-stories" element={<Layout><CSStoreStoriesPage /></Layout>} />
+      <Route path="/corporate-information" element={<Layout><CorporateInformationPage /></Layout>} />
+      <Route path="/categories" element={<Layout><CategoriesPage /></Layout>} />
+      <Route path="/help-support" element={<Layout><HelpSupportPage /></Layout>} />
+      <Route path="/become-seller" element={<Layout><ComingSoonPage /></Layout>} />
 
+      {/* ========== OAUTH & ONBOARDING ========== */}
+      <Route path="/auth/callback" element={<OAuthCallbackPage />} />
       <Route
-        path="/privacy"
+        path="/onboarding/complete-profile"
         element={
-          <Layout>
-            <PrivacyPolicyPage />
-          </Layout>
+          <AuthGate requireAuth allowOnboarding>
+            <Layout><OnboardingPage /></Layout>
+          </AuthGate>
         }
       />
 
-      <Route
-        path="/terms"
-        element={
-          <Layout>
-            <TermsConditionsPage />
-          </Layout>
-        }
-      />
-
-      <Route
-        path="/cancellation"
-        element={
-          <Layout>
-            <CancellationReturnsPage />
-          </Layout>
-        }
-      />
-
-      {/* Dashboard route for logged-in users */}
+      {/* ========== CUSTOMER PROTECTED ROUTES ========== */}
       <Route
         path="/dashboard"
         element={
-          // AuthGuard is the single entry for auth redirect decisions.
-          <AuthGuard>
-            <Layout hideBottomNav={true}>
-              <DashboardPage />
-            </Layout>
-          </AuthGuard>
+          <AuthGate requireAuth requiredRole="customer">
+            <Layout hideBottomNav={true}><DashboardPage /></Layout>
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/cart"
+        element={
+          <AuthGate requireAuth requiredRole="customer">
+            <Layout><CartPage /></Layout>
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/checkout"
+        element={
+          <AuthGate requireAuth requiredRole="customer">
+            <Layout><CheckoutPage /></Layout>
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/order-success/:orderId"
+        element={
+          <AuthGate requireAuth requiredRole="customer">
+            <Layout><OrderSuccessPage /></Layout>
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/orders"
+        element={
+          <AuthGate requireAuth requiredRole="customer">
+            <Layout><OrdersPage /></Layout>
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/orders/:orderId"
+        element={
+          <AuthGate requireAuth requiredRole="customer">
+            <Layout><OrderDetailsPage /></Layout>
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/order/:id"
+        element={
+          <AuthGate requireAuth requiredRole="customer">
+            <Layout><OrderTrackingPage /></Layout>
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <AuthGate requireAuth requiredRole="customer">
+            <Layout><ProfilePage /></Layout>
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/addresses"
+        element={
+          <AuthGate requireAuth requiredRole="customer">
+            <Layout><AddressesPage /></Layout>
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/notification-preferences"
+        element={
+          <AuthGate requireAuth requiredRole="customer">
+            <Layout><NotificationPreferencesPage /></Layout>
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/settings"
+        element={
+          <AuthGate requireAuth requiredRole="customer">
+            <Layout><SettingsPage /></Layout>
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/account"
+        element={
+          <AuthGate requireAuth requiredRole="customer">
+            <Layout><AccountPage /></Layout>
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/account/profile"
+        element={
+          <AuthGate requireAuth requiredRole="customer">
+            <Layout><AccountPage /></Layout>
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/account/profile/edit"
+        element={
+          <AuthGate requireAuth requiredRole="customer">
+            <Layout><EditProfilePage /></Layout>
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/account/settings"
+        element={
+          <AuthGate requireAuth requiredRole="customer">
+            <Layout><SettingsPage /></Layout>
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/account/notifications"
+        element={
+          <AuthGate requireAuth requiredRole="customer">
+            <Layout><NotificationsPage /></Layout>
+          </AuthGate>
         }
       />
 
-      {/* All other routes - don't check profile completion here */}
-      <Route path="/*" element={<OtherRoutes />} />
+      {/* ========== ADMIN ROUTES ========== */}
+      <Route
+        path="/admin"
+        element={
+          <AuthGate requireAuth requiredRole="admin">
+            <AdminDashboard />
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/admin/products"
+        element={
+          <AuthGate requireAuth requiredRole="admin">
+            <AdminProductsPage />
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/admin/products/new"
+        element={
+          <AuthGate requireAuth requiredRole="admin">
+            <ProductCreatePage />
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/admin/users"
+        element={
+          <AuthGate requireAuth requiredRole="admin">
+            <AdminUsersPage />
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/admin/orders"
+        element={
+          <AuthGate requireAuth requiredRole="admin">
+            <AdminOrdersPage />
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/admin/orders/:orderId"
+        element={
+          <AuthGate requireAuth requiredRole="admin">
+            <AdminOrderDetailsPage />
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/admin/routes"
+        element={
+          <AuthGate requireAuth requiredRole="admin">
+            <AdminRoutesPage />
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/admin/routes/recent"
+        element={
+          <AuthGate requireAuth requiredRole="admin">
+            <AdminRecentRoutesPage />
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/admin/routes/preview"
+        element={
+          <AuthGate requireAuth requiredRole="admin">
+            <AdminRoutesPreviewPage />
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/admin/routes/:routeId"
+        element={
+          <AuthGate requireAuth requiredRole="admin">
+            <AdminRouteDetailPage />
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/admin/routes/:routeId/map"
+        element={
+          <AuthGate requireAuth requiredRole="admin">
+            <AdminRouteMapPage />
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/admin/delivery-boys"
+        element={
+          <AuthGate requireAuth requiredRole="admin">
+            <AdminDeliveryBoysPage />
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/admin/analytics"
+        element={
+          <AuthGate requireAuth requiredRole="admin">
+            <AdminAnalyticsPage />
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/admin/finance"
+        element={
+          <AuthGate requireAuth requiredRole="admin">
+            <AdminFinancePage />
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/admin/payments"
+        element={
+          <AuthGate requireAuth requiredRole="admin">
+            <PaymentLogs />
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/admin/ops/payments/recovery"
+        element={
+          <AuthGate requireAuth requiredRole="admin">
+            <PaymentsRecoveryPage />
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/admin/ops/finance"
+        element={
+          <AuthGate requireAuth requiredRole="admin">
+            <FinanceReportsPage />
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/admin-profile"
+        element={
+          <AuthGate requireAuth requiredRole="admin">
+            <AdminProfilePage />
+          </AuthGate>
+        }
+      />
+
+      {/* ========== DELIVERY PARTNER ROUTES ========== */}
+      <Route path="/delivery/signup" element={<DeliverySignup />} />
+      <Route path="/delivery/login" element={<DeliveryLogin />} />
+      <Route
+        path="/delivery"
+        element={
+          <AuthGate requireAuth requiredRole="delivery">
+            <DeliveryDashboard />
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/delivery/dashboard"
+        element={
+          <AuthGate requireAuth requiredRole="delivery">
+            <DeliveryDashboard />
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/delivery/profile"
+        element={
+          <AuthGate requireAuth requiredRole="delivery">
+            <DeliveryProfilePage />
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/delivery/earnings-info"
+        element={
+          <AuthGate requireAuth requiredRole="delivery">
+            <WaysToEarnPage />
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/delivery/refer"
+        element={
+          <AuthGate requireAuth requiredRole="delivery">
+            <ReferAndEarnPage />
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/delivery/support"
+        element={
+          <AuthGate requireAuth requiredRole="delivery">
+            <HelpSupportPage />
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/delivery/messages"
+        element={
+          <AuthGate requireAuth requiredRole="delivery">
+            <MessageCenterPage />
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/delivery/settings"
+        element={
+          <AuthGate requireAuth requiredRole="delivery">
+            <DeliverySettingsPage />
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/delivery-selfie"
+        element={
+          <AuthGate requireAuth requiredRole="delivery">
+            <DeliverySelfiePage />
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/delivery-profile"
+        element={
+          <AuthGate requireAuth requiredRole="delivery">
+            <DeliveryProfilePage />
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/delivery/emergency"
+        element={
+          <AuthGate requireAuth requiredRole="delivery">
+            <DeliveryEmergencyPage />
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/delivery/help-center"
+        element={
+          <AuthGate requireAuth requiredRole="delivery">
+            <DeliveryHelpCenterPage />
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/delivery-settings"
+        element={
+          <AuthGate requireAuth requiredRole="delivery">
+            <DeliverySettingsPage />
+          </AuthGate>
+        }
+      />
+
+      {/* ========== SHARED AUTH ROUTES ========== */}
+      <Route
+        path="/ways-to-earn"
+        element={
+          <AuthGate requireAuth>
+            <Layout><WaysToEarnPage /></Layout>
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/refer-and-earn"
+        element={
+          <AuthGate requireAuth>
+            <Layout><ReferAndEarnPage /></Layout>
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/message-center"
+        element={
+          <AuthGate requireAuth>
+            <Layout><MessageCenterPage /></Layout>
+          </AuthGate>
+        }
+      />
+
+      {/* ========== DEBUG ROUTES ========== */}
+      <Route path="/test-otp" element={<TestOtpPage />} />
+      <Route path="/debug" element={<DebugPage />} />
+
+      {/* ========== LEGACY REDIRECTS ========== */}
+      <Route path="/admin-login" element={<Navigate to="/login" replace />} />
+      <Route path="/admin/login" element={<Navigate to="/login" replace />} />
+
+      {/* ========== CATCH-ALL ========== */}
+      <Route
+        path="*"
+        element={<Navigate to={status !== "UNAUTHENTICATED" ? "/dashboard" : "/login"} replace />}
+      />
     </Routes>
-  );
-}
-
-// Component for all other routes
-function OtherRoutes() {
-  const { authState } = useSelector((state: RootState) => state.auth);
-
-  return (
-    <Layout>
-      <Routes>
-        <Route path="/products" element={<ProductsPage />} />
-        <Route path="/search" element={<SearchResultsPage />} />
-        <Route path="/product/:id" element={<ProductDetailPage />} />
-        <Route
-          path="/cart"
-          element={
-            <ProtectedRoute>
-              <CartPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/checkout"
-          element={
-            <ProtectedRoute>
-              <CheckoutPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/order-success/:orderId"
-          element={
-            <ProtectedRoute>
-              <OrderSuccessPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/orders"
-          element={
-            <ProtectedRoute>
-              <OrdersPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/orders/:orderId"
-          element={
-            <ProtectedRoute>
-              <OrderDetailsPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/order/:id"
-          element={
-            <ProtectedRoute>
-              <OrderTrackingPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/profile"
-          element={
-            <ProtectedRoute>
-              <ProfilePage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/onboarding/complete-profile"
-          element={
-            <ProtectedRoute>
-              <OnboardingPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route path="/signup" element={<SignupPage />} />
-        <Route path="/become-seller" element={<ComingSoonPage />} />
-        <Route path="/download-app" element={<DownloadAppPage />} />
-        <Route path="/contact-us" element={<ContactUsPage />} />
-        <Route path="/customer-care" element={<CustomerCarePage />} />
-        <Route
-          path="/notification-preferences"
-          element={
-            <ProtectedRoute redirectTo="/login">
-              <NotificationPreferencesPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/settings"
-          element={
-            <ProtectedRoute>
-              <SettingsPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route path="/about-us" element={<AboutUsPage />} />
-        <Route path="/careers" element={<CareersPage />} />
-        <Route path="/cs-store-stories" element={<CSStoreStoriesPage />} />
-        <Route
-          path="/corporate-information"
-          element={<CorporateInformationPage />}
-        />
-        <Route path="/menu" element={<MenuPage />} />
-        {/* Admin Routes */}
-        <Route
-          path="/admin"
-          element={
-            <AdminRoute>
-              <AdminDashboard />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="/admin/products"
-          element={
-            <AdminRoute>
-              <AdminProductsPage />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="/admin/products/new"
-          element={
-            <AdminRoute>
-              <ProductCreatePage />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="/admin/users"
-          element={
-            <AdminRoute>
-              <AdminUsersPage />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="/admin/orders"
-          element={
-            <AdminRoute>
-              <AdminOrdersPage />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="/admin/routes"
-          element={
-            <AdminRoute>
-              <AdminRoutesPage />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="/admin/routes/recent"
-          element={
-            <AdminRoute>
-              <AdminRecentRoutesPage />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="/admin/routes/preview"
-          element={
-            <AdminRoute>
-              <AdminRoutesPreviewPage />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="/admin/routes/:routeId"
-          element={
-            <AdminRoute>
-              <AdminRouteDetailPage />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="/admin/routes/:routeId/map"
-          element={
-            <AdminRoute>
-              <AdminRouteMapPage />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="/admin/orders/:orderId"
-          element={
-            <AdminRoute>
-              <AdminOrderDetailsPage />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="/admin/delivery-boys"
-          element={
-            <AdminRoute>
-              <AdminDeliveryBoysPage />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="/admin/analytics"
-          element={
-            <AdminRoute>
-              <AdminAnalyticsPage />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="/admin/payments"
-          element={
-            <AdminRoute>
-              <PaymentLogs />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="/admin/ops/payments/recovery"
-          element={
-            <AdminRoute>
-              <PaymentsRecoveryPage />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="/admin/ops/finance"
-          element={
-            <AdminRoute>
-              <FinanceReportsPage />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="/admin-profile"
-          element={
-            <AdminRoute>
-              <AdminProfilePage />
-            </AdminRoute>
-          }
-        />
-        {/* Delivery Partner Routes - Protected for delivery role only */}
-        <Route path="/delivery/signup" element={<DeliverySignup />} />
-        <Route path="/delivery/login" element={<DeliveryLogin />} />
-        <Route 
-          path="/delivery" 
-          element={
-            <RoleProtectedRoute allowedRoles={["delivery"]} unauthenticatedRedirectTo="/delivery/login">
-              <DeliveryDashboard />
-            </RoleProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/delivery/dashboard" 
-          element={
-            <RoleProtectedRoute allowedRoles={["delivery"]} unauthenticatedRedirectTo="/delivery/login">
-              <DeliveryDashboard />
-            </RoleProtectedRoute>
-          } 
-        />
-        <Route
-          path="/delivery/profile"
-          element={
-            <RoleProtectedRoute allowedRoles={["delivery"]} unauthenticatedRedirectTo="/delivery/login">
-              <DeliveryProfilePage />
-            </RoleProtectedRoute>
-          }
-        />
-        <Route
-          path="/delivery/earnings-info"
-          element={
-            <RoleProtectedRoute allowedRoles={["delivery"]} unauthenticatedRedirectTo="/delivery/login">
-              <WaysToEarnPage />
-            </RoleProtectedRoute>
-          }
-        />
-        <Route
-          path="/delivery/refer"
-          element={
-            <RoleProtectedRoute allowedRoles={["delivery"]} unauthenticatedRedirectTo="/delivery/login">
-              <ReferAndEarnPage />
-            </RoleProtectedRoute>
-          }
-        />
-        <Route
-          path="/delivery/support"
-          element={
-            <RoleProtectedRoute allowedRoles={["delivery"]} unauthenticatedRedirectTo="/delivery/login">
-              <HelpSupportPage />
-            </RoleProtectedRoute>
-          }
-        />
-        <Route
-          path="/delivery/messages"
-          element={
-            <RoleProtectedRoute allowedRoles={["delivery"]} unauthenticatedRedirectTo="/delivery/login">
-              <MessageCenterPage />
-            </RoleProtectedRoute>
-          }
-        />
-        <Route
-          path="/delivery/settings"
-          element={
-            <RoleProtectedRoute allowedRoles={["delivery"]} unauthenticatedRedirectTo="/delivery/login">
-              <DeliverySettingsPage />
-            </RoleProtectedRoute>
-          }
-        />
-        <Route 
-          path="/delivery-selfie" 
-          element={
-            <RoleProtectedRoute allowedRoles={["delivery"]} unauthenticatedRedirectTo="/delivery/login">
-              <DeliverySelfiePage />
-            </RoleProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/delivery-profile" 
-          element={
-            <RoleProtectedRoute allowedRoles={["delivery"]} unauthenticatedRedirectTo="/delivery/login">
-              <DeliveryProfilePage />
-            </RoleProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/delivery/emergency" 
-          element={
-            <RoleProtectedRoute allowedRoles={["delivery"]} unauthenticatedRedirectTo="/delivery/login">
-              <DeliveryEmergencyPage />
-            </RoleProtectedRoute>
-          } 
-        />
-        <Route
-          path="/delivery/help-center"
-          element={
-            <RoleProtectedRoute allowedRoles={["delivery"]} unauthenticatedRedirectTo="/delivery/login">
-              <DeliveryHelpCenterPage />
-            </RoleProtectedRoute>
-          }
-        />
-        <Route 
-          path="/delivery-settings" 
-          element={
-            <RoleProtectedRoute allowedRoles={["delivery"]} unauthenticatedRedirectTo="/delivery/login">
-              <DeliverySettingsPage />
-            </RoleProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/ways-to-earn" 
-          element={
-            <RoleProtectedRoute allowedRoles={["customer", "admin", "delivery"]} unauthenticatedRedirectTo="/login">
-              <WaysToEarnPage />
-            </RoleProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/refer-and-earn" 
-          element={
-            <RoleProtectedRoute allowedRoles={["customer", "admin", "delivery"]} unauthenticatedRedirectTo="/login">
-              <ReferAndEarnPage />
-            </RoleProtectedRoute>
-          } 
-        />
-        <Route path="/help-support" element={<HelpSupportPage />} />
-        <Route 
-          path="/message-center" 
-          element={
-            <RoleProtectedRoute allowedRoles={["customer", "admin", "delivery"]}>
-              <MessageCenterPage />
-            </RoleProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/delivery-settings" 
-          element={
-            <RoleProtectedRoute allowedRoles={["delivery"]}>
-              <DeliverySettingsPage />
-            </RoleProtectedRoute>
-          } 
-        />
-        {/* Redirect old admin-login route to main login */}
-        <Route path="/admin-login" element={<Navigate to="/login" replace />} />
-        {/* Admin login route */}
-        <Route path="/admin/login" element={<Navigate to="/login" replace />} />
-        <Route path="/categories" element={<CategoriesPage />} />
-        {/* Account Routes - Protected for customer role only (not delivery) */}
-        <Route
-          path="/account"
-          element={
-            <RoleProtectedRoute allowedRoles={["customer", "admin"]}>
-              <AccountPage />
-            </RoleProtectedRoute>
-          }
-        />
-        <Route
-          path="/account/profile"
-          element={
-            <RoleProtectedRoute allowedRoles={["customer", "admin"]}>
-              <AccountPage />
-            </RoleProtectedRoute>
-          }
-        />
-        <Route
-          path="/account/profile/edit"
-          element={
-            <RoleProtectedRoute allowedRoles={["customer", "admin"]}>
-              <EditProfilePage />
-            </RoleProtectedRoute>
-          }
-        />
-        <Route
-          path="/account/settings"
-          element={
-            <RoleProtectedRoute allowedRoles={["customer", "admin"]}>
-              <SettingsPage />
-            </RoleProtectedRoute>
-          }
-        />
-        <Route
-          path="/account/notifications"
-          element={
-            <RoleProtectedRoute allowedRoles={["customer", "admin"]}>
-              <NotificationsPage />
-            </RoleProtectedRoute>
-          }
-        />
-        <Route
-          path="/addresses"
-          element={
-            <ProtectedRoute>
-              <AddressesPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route path="/auth/callback" element={<OAuthCallbackPage />} />
-        <Route path="/test-otp" element={<TestOtpPage />} />
-        <Route path="/debug" element={<DebugPage />} />
-        {/* Catch-all route for unmatched paths - show 404 or redirect based on auth */}
-        <Route
-          path="*"
-          element={
-            <Navigate to={authState ? "/dashboard" : "/login"} replace />
-          }
-        />
-      </Routes>
-    </Layout>
   );
 }
 
@@ -895,16 +859,16 @@ function App() {
                   }}
                 />
 
-                {/* Hydrate cart from backend for authenticated users */}
-                <CartInitializer />
+                {/* AuthInitializer wraps entire app - stabilizes auth before any routes */}
+                <AuthInitializer>
+                  {/* Hydrate cart from backend for authenticated users */}
+                  <CartInitializer />
 
-                {/* Hydrate auth/profileCompleted from backend for authenticated users */}
-                <AuthInitializer />
-
-                <Routes>
-                  {/* Main app routes with authentication-based routing */}
-                  <Route path="/*" element={<AuthRouter />} />
-                </Routes>
+                  <Routes>
+                    {/* Main app routes with centralized AuthGate */}
+                    <Route path="/*" element={<AuthRouter />} />
+                  </Routes>
+                </AuthInitializer>
               </Router>
             </OtpModalProvider>
           </LanguageProvider>

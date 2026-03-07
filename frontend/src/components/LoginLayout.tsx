@@ -8,7 +8,7 @@ interface LoginLayoutProps {
 
 const LoginLayout: React.FC<LoginLayoutProps> = ({
   children,
-  title = "CS Store",
+  title = "Vyapara Setu",
 }) => {
   useEffect(() => {
     document.title = title;

@@ -10,6 +10,8 @@ import * as paymentIntentStateMachine from "./paymentIntentStateMachine";
 import { finalizeOrderOnCapturedPayment } from "./orderPaymentFinalizer";
 import { inventoryReservationService } from "../../orders/services/inventoryReservationService";
 import { incCounterWithLabels } from "../../../ops/opsMetrics";
+import { capturePaymentError } from "../../../utils/logger";
+import { generateInvoiceForOrder } from "../../invoice/services/invoiceService";
 
 export async function processRazorpayWebhook(args: {
   rawBody: Buffer;
@@ -343,8 +345,55 @@ export async function processRazorpayWebhook(args: {
     } catch {
     }
 
+    // ============================================================
+    // AUTOMATIC INVOICE GENERATION (POST-TRANSACTION)
+    // ============================================================
+    // Invoice is generated AFTER transaction commits to ensure:
+    // 1. Payment transaction integrity is preserved
+    // 2. Invoice generation does not block payment flow
+    // 3. Invoice remains idempotent (service checks existing invoice)
+    // ============================================================
+    if (event.type === "PAYMENT_CAPTURED" && orderId) {
+      try {
+        const invoiceResult = await generateInvoiceForOrder(orderId);
+        if (invoiceResult.success && invoiceResult.invoiceNumber) {
+          console.info("[INVOICE][AUTO_GENERATED]", {
+            orderId,
+            invoiceNumber: invoiceResult.invoiceNumber,
+            source: "WEBHOOK_PAYMENT_CAPTURED",
+          });
+        } else if (!invoiceResult.success) {
+          console.warn("[INVOICE][AUTO_GENERATION_SKIPPED]", {
+            orderId,
+            reason: invoiceResult.error || "Unknown reason",
+            source: "WEBHOOK_PAYMENT_CAPTURED",
+          });
+        }
+      } catch (invoiceError: any) {
+        // CRITICAL: Do NOT rollback payment transaction.
+        // Invoice failure is logged but does not affect payment status.
+        capturePaymentError("invoice_generation_failed", invoiceError, {
+          orderId,
+          gatewayEventId,
+          gatewayOrderId,
+          eventType: event.type,
+        });
+        console.error("[INVOICE][AUTO_GENERATION_FAILED]", {
+          orderId,
+          error: invoiceError?.message || "Unknown error",
+          source: "WEBHOOK_PAYMENT_CAPTURED",
+        });
+      }
+    }
+
     return { ok: true };
   } catch (e: any) {
+    capturePaymentError("Webhook processing failed", e, {
+      gatewayEventId,
+      gatewayOrderId,
+      eventType: event.type,
+    });
+
     try {
       await WebhookEventInbox.updateOne(
         { dedupeKey },

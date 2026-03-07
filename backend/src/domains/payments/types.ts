@@ -10,6 +10,7 @@ export const PAYMENT_INTENT_STATUSES = [
   "GATEWAY_ORDER_CREATED",
   "PAYMENT_PROCESSING",
   "PAYMENT_RECOVERABLE",
+  "PAYMENT_PENDING_EXTERNAL", // Provider unavailable - queued for retry
   "VERIFYING",
   "CAPTURED",
   "FAILED",
@@ -27,3 +28,27 @@ export type LedgerEventType = (typeof LEDGER_EVENT_TYPES)[number];
 
 export const WEBHOOK_INBOX_STATUSES = ["RECEIVED", "PROCESSED", "FAILED"] as const;
 export type WebhookInboxStatus = (typeof WEBHOOK_INBOX_STATUSES)[number];
+
+// Error types for provider unavailability
+export const PROVIDER_UNAVAILABLE_ERRORS = [
+  "ETIMEDOUT",
+  "ECONNREFUSED",
+  "ECONNRESET",
+  "ENOTFOUND",
+  "EAI_AGAIN",
+  "EHOSTUNREACH",
+  "ENETUNREACH",
+  "ESOCKETTIMEDOUT",
+  "network error",
+  "timeout",
+  "socket hang up",
+] as const;
+
+export function isProviderUnavailableError(error: any): boolean {
+  const code = String(error?.code || error?.errno || "").toUpperCase();
+  const message = String(error?.message || "").toLowerCase();
+  
+  return PROVIDER_UNAVAILABLE_ERRORS.some(
+    errType => code === errType.toUpperCase() || message.includes(errType.toLowerCase())
+  );
+}

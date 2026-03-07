@@ -35,7 +35,7 @@ const AboutUsPage: React.FC = () => {
           className="text-center mb-12"
         >
           <h2 className="text-4xl font-bold text-gray-900 mb-6">
-            About CS Store
+            About Vyapara Setu
           </h2>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
             We are India's leading e-commerce platform, dedicated to bringing
@@ -54,7 +54,7 @@ const AboutUsPage: React.FC = () => {
           <h3 className="text-3xl font-bold text-gray-900 mb-6">Our Story</h3>
           <div className="prose prose-lg max-w-none">
             <p className="text-gray-600 mb-4">
-              Founded in 2020, CS Store began as a small startup with a big
+              Founded in 2020, Vyapara Setu began as a small startup with a big
               dream: to make quality products accessible to everyone across
               India. What started as a simple online marketplace has grown into
               one of the country's most trusted e-commerce platforms.
@@ -173,7 +173,7 @@ const AboutUsPage: React.FC = () => {
           className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-lg shadow-lg p-8 text-white"
         >
           <h3 className="text-3xl font-bold mb-8 text-center">
-            CS Store by the Numbers
+            Vyapara Setu by the Numbers
           </h3>
           <div className="grid md:grid-cols-4 gap-8">
             <div className="text-center">

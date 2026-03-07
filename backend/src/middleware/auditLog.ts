@@ -50,6 +50,9 @@ function inferEntity(req: any): { entityType: string; entityId: string } {
   const p = (req as any)?.params || {};
   const b = (req as any)?.body || {};
 
+  const routeId = String(p.routeId || b.routeId || b.clusterRouteId || "").trim();
+  if (routeId) return { entityType: "Route", entityId: routeId };
+
   const paymentIntentId = String(p.paymentIntentId || b.paymentIntentId || "").trim();
   if (paymentIntentId) return { entityType: "PaymentIntent", entityId: paymentIntentId };
 
@@ -69,7 +72,11 @@ export const auditLog = async (req: any, _res: any, next: any) => {
     const actorRole = user?.role ? String(user.role) : "";
     const action = `${String(req.method || "").toUpperCase()} ${String(req.originalUrl || "")}`;
 
-    const { entityType, entityId } = inferEntity(req);
+    const inferred = inferEntity(req);
+    const entityType = inferred.entityId ? inferred.entityType : "Request";
+    const entityId = inferred.entityId
+      ? inferred.entityId
+      : `${String(req.method || "").toUpperCase()} ${String(req.baseUrl || "")}${String(req.route?.path || req.path || "")}`.trim();
 
     const metadata = sanitizeValue(
       {
@@ -90,8 +97,11 @@ export const auditLog = async (req: any, _res: any, next: any) => {
       entityId,
       metadata,
       createdAt: new Date(),
-    }).catch(() => undefined);
-  } catch {
+    }).catch((err) => {
+      console.error("[AUDIT_LOG_ERROR]", err?.message || err);
+    });
+  } catch (err) {
+    console.error("[AUDIT_LOG_ERROR]", (err as any)?.message || err);
   }
 
   next();

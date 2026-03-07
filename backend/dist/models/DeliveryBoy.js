@@ -127,4 +127,7 @@ const DeliveryBoySchema = new mongoose_1.Schema({
 // Indexes
 DeliveryBoySchema.index({ availability: 1, isActive: 1 });
 DeliveryBoySchema.index({ "currentLocation.lat": 1, "currentLocation.lng": 1 });
+DeliveryBoySchema.index({ userId: 1 });
+DeliveryBoySchema.index({ phone: 1 });
+DeliveryBoySchema.index({ createdAt: -1 });
 exports.DeliveryBoy = mongoose_1.default.model("DeliveryBoy", DeliveryBoySchema);

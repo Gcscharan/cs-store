@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { InventoryReservation } from "../../../models/InventoryReservation";
 import { Product } from "../../../models/Product";
 import { InventoryAdjustment, InventoryAdjustmentReason } from "../../../models/InventoryAdjustment";
+import { captureInventoryError } from "../../../utils/logger";
 
 export class InventoryReservationConflictError extends Error {
   readonly statusCode = 409;
@@ -135,7 +136,13 @@ export const inventoryReservationService = {
           { orderId, productId: it.productId, status: "ACTIVE" },
           { session }
         );
-        throw new InventoryReservationConflictError("Insufficient stock");
+        const err = new InventoryReservationConflictError("Insufficient stock");
+        captureInventoryError("Insufficient stock for reservation", err, {
+          orderId: String(orderId),
+          productId: String(it.productId),
+          qty,
+        });
+        throw err;
       }
     }
 

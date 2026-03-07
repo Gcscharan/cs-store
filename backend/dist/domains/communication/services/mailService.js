@@ -77,6 +77,11 @@ const sendEmail = async (options) => {
             to: options.to,
             subject: options.subject,
             html: options.html,
+            attachments: options.attachments?.map((att) => ({
+                filename: att.filename,
+                content: att.content,
+                contentType: att.contentType,
+            })),
         });
         console.log(`✅ [MailService] Email sent via SMTP to ${options.to} (MessageId: ${info.messageId || "unknown"})`);
     }

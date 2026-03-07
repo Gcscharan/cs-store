@@ -1,7 +1,7 @@
 import React, { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
-import { setAuthState, setUser, setTokens } from "../store/slices/authSlice";
+import { setStatus, setUser, setTokens } from "../store/slices/authSlice";
 import { toApiUrl } from "../config/runtime";
 import { useToast } from "../components/AccessibleToast";
 import { useCleanUserSwitch } from "../hooks/useLogout";
@@ -21,10 +21,34 @@ const OAuthCallbackPage: React.FC = () => {
     const userId = params.get("userId");
     const role = params.get("role");
     const isAdmin = params.get("isAdmin") === "true";
-    const authState = params.get("authState");
+    const authState = (params.get("authState") || "").trim();
     const email = params.get("email");
     const name = params.get("name");
     const error = params.get("error");
+
+    // GOOGLE_AUTH_ONLY: onboarding token only (no user record yet)
+    // Must run BEFORE any other branch to prevent accidental /login redirects.
+    if (token && authState === "GOOGLE_AUTH_ONLY") {
+      console.log('🔥 OAUTH CALLBACK: GOOGLE_AUTH_ONLY session detected');
+      cleanUserSwitch();
+
+      dispatch(setTokens({
+        accessToken: token,
+        refreshToken: null,
+      }));
+      dispatch(setStatus("GOOGLE_AUTH_ONLY"));
+      // Store minimal identity for prefill/display only (NOT a real user record)
+      dispatch(setUser({
+        authState: "GOOGLE_AUTH_ONLY",
+        email: email ? decodeURIComponent(email) : undefined,
+        name: name ? decodeURIComponent(name) : undefined,
+        provider: "google",
+      }));
+
+      // Use SPA navigation to avoid hard reload race conditions
+      navigate("/onboarding/complete-profile", { replace: true });
+      return;
+    }
 
     if (error) {
       showError("Authentication Failed", `Error: ${error}`);
@@ -32,83 +56,54 @@ const OAuthCallbackPage: React.FC = () => {
       return;
     }
 
-    // GOOGLE_AUTH_ONLY: onboarding token only (no user record yet)
-    if (token && authState === "GOOGLE_AUTH_ONLY") {
-      console.log('🔥 OAUTH CALLBACK: GOOGLE_AUTH_ONLY session detected');
-      cleanUserSwitch();
-
-      setTimeout(() => {
-        dispatch(setTokens({
-          accessToken: token,
-          refreshToken: null,
-        }));
-        dispatch(setAuthState("GOOGLE_AUTH_ONLY"));
-        // Store minimal identity for prefill/display only (NOT a real user record)
-        dispatch(setUser({
-          authState: "GOOGLE_AUTH_ONLY",
-          email: email ? decodeURIComponent(email) : undefined,
-          name: name ? decodeURIComponent(name) : undefined,
-          provider: "google",
-        }));
-
-        window.location.href = "/onboarding/complete-profile";
-      }, 50);
-      return;
-    }
-
     if (token && refreshToken && userId) {
       // CRITICAL: Clean ALL previous user state BEFORE setting new auth
       console.log('🔥 OAUTH CALLBACK: Aggressive cleanup BEFORE new login...');
       cleanUserSwitch();
-      
-      // Small delay to ensure cleanup is complete, then set auth and redirect
-      setTimeout(() => {
-        console.log('🔥 OAUTH CALLBACK: Setting new user auth after cleanup...');
-        dispatch(setTokens({
-          accessToken: token,
-          refreshToken: refreshToken,
-        }));
-        dispatch(setAuthState("ACTIVE"));
-        
-        success("Login Successful", "You have been logged in via Google.");
-        
-        // Use window.location for more reliable redirect after OAuth
-        // This ensures the redirect happens even if React Router is in a transition state
-        setTimeout(async () => {
-          try {
-            const meRes = await fetch(
-              toApiUrl("/auth/me"),
-              {
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                },
-              }
-            );
 
-            const meData = await meRes.json();
-            if (meRes.ok && meData?.user) {
-              dispatch(setUser(meData.user));
+      console.log('🔥 OAUTH CALLBACK: Setting new user auth after cleanup...');
+      dispatch(setTokens({
+        accessToken: token,
+        refreshToken: refreshToken,
+      }));
+      dispatch(setStatus("ACTIVE"));
+
+      success("Login Successful", "You have been logged in via Google.");
+
+      (async () => {
+        try {
+          const meRes = await fetch(
+            toApiUrl("/auth/me"),
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
             }
+          );
 
-            // PRIORITY 1: Admins
-            if (isAdmin || role === "admin") {
-              window.location.href = "/admin";
-              return;
-            }
-
-            const profileCompleted = !!meData?.user?.profileCompleted;
-            if (!profileCompleted) {
-              window.location.href = "/onboarding/complete-profile";
-              return;
-            }
-
-            window.location.href = "/dashboard";
-          } catch {
-            // fallback: if we can't resolve, go to dashboard and let guards decide
-            window.location.href = "/dashboard";
+          const meData = await meRes.json();
+          if (meRes.ok && meData?.user) {
+            dispatch(setUser(meData.user));
           }
-        }, 150); // Small delay to ensure auth state is saved
-      }, 100); // Increased delay slightly to ensure state is set
+
+          // PRIORITY 1: Admins
+          if (isAdmin || role === "admin") {
+            window.location.href = "/admin";
+            return;
+          }
+
+          const profileCompleted = !!meData?.user?.profileCompleted;
+          if (!profileCompleted) {
+            window.location.href = "/onboarding/complete-profile";
+            return;
+          }
+
+          window.location.href = "/dashboard";
+        } catch {
+          // fallback: if we can't resolve, go to dashboard and let guards decide
+          window.location.href = "/dashboard";
+        }
+      })();
     } else {
       showError(
         "Authentication Failed",

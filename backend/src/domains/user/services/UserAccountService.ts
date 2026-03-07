@@ -9,6 +9,10 @@ import mongoose from "mongoose";
 import { verifyOtp } from "../../security/controllers/otpController";
 import * as jwt from "jsonwebtoken";
 
+// Token expiry configuration
+const ACCESS_TOKEN_EXPIRY = process.env.ACCESS_TOKEN_EXPIRY || "24h";
+const REFRESH_TOKEN_EXPIRY = process.env.REFRESH_TOKEN_EXPIRY || "7d";
+
 export interface MobileVerificationData {
   otp: string;
   phone?: string;
@@ -108,9 +112,9 @@ export class UserAccountService {
         const accessToken = jwt.sign(
           { userId: user._id, email: user.email, role: user.role },
           JWT_SECRET,
-          { expiresIn: "24h" }
+          { expiresIn: ACCESS_TOKEN_EXPIRY } as jwt.SignOptions
         );
-        const refreshToken = jwt.sign({ userId: user._id }, JWT_REFRESH_SECRET, { expiresIn: "7d" });
+        const refreshToken = jwt.sign({ userId: user._id }, JWT_REFRESH_SECRET, { expiresIn: REFRESH_TOKEN_EXPIRY } as jwt.SignOptions);
 
         const isProfileComplete = !!(user.name && user.phone);
 
@@ -173,9 +177,9 @@ export class UserAccountService {
       const accessToken = jwt.sign(
         { userId: user._id, email: user.email, role: user.role },
         JWT_SECRET,
-        { expiresIn: "24h" }
+        { expiresIn: ACCESS_TOKEN_EXPIRY } as jwt.SignOptions
       );
-      const refreshToken = jwt.sign({ userId: user._id }, JWT_REFRESH_SECRET, { expiresIn: "7d" });
+      const refreshToken = jwt.sign({ userId: user._id }, JWT_REFRESH_SECRET, { expiresIn: REFRESH_TOKEN_EXPIRY } as jwt.SignOptions);
 
       const isProfileComplete = !!(user.name && user.phone);
 

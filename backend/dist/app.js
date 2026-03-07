@@ -24,11 +24,12 @@ const deliveryFee_1 = __importDefault(require("./routes/deliveryFee"));
 const enhancedDeliveryFeeRoutes_1 = __importDefault(require("./routes/enhancedDeliveryFeeRoutes"));
 const deliveryPersonnel_1 = __importDefault(require("./routes/deliveryPersonnel"));
 const deliveryAuth_1 = __importDefault(require("./routes/deliveryAuth"));
-const pincode_1 = __importDefault(require("./routes/pincode"));
+const pincodeRoutes_1 = __importDefault(require("./routes/pincodeRoutes"));
 const locationRoutes_1 = __importDefault(require("./routes/locationRoutes"));
 const admin_1 = __importDefault(require("./routes/admin"));
 const adminOps_1 = __importDefault(require("./routes/adminOps"));
 const adminTracking_1 = __importDefault(require("./routes/adminTracking"));
+const debugDbTest_1 = __importDefault(require("./routes/debugDbTest"));
 const internalTracking_1 = __importDefault(require("./routes/internalTracking"));
 const internalPaymentsReconciliation_1 = __importDefault(require("./routes/internalPaymentsReconciliation"));
 const internalPaymentsRecovery_1 = __importDefault(require("./routes/internalPaymentsRecovery"));
@@ -46,6 +47,8 @@ const paymentRoutes_1 = __importDefault(require("./domains/finance/routes/paymen
 // Payments (new architecture)
 const paymentIntents_routes_1 = __importDefault(require("./domains/payments/routes/paymentIntents.routes"));
 const webhooks_routes_1 = __importDefault(require("./domains/payments/routes/webhooks.routes"));
+// Invoice
+const invoice_routes_1 = __importDefault(require("./domains/invoice/routes/invoice.routes"));
 console.log("✅ App.ts loaded");
 (0, logger_1.initializeSentry)();
 const app = (0, express_1.default)();
@@ -110,11 +113,12 @@ app.use("/api/users", mobileVerifyRoutes_1.default);
 app.use("/api/products", products_1.default);
 app.use("/api/cart", cart_1.default);
 app.use("/api/orders", orders_1.default);
+app.use("/api/orders", invoice_routes_1.default); // Invoice routes mounted under /api/orders
 app.use("/api/delivery-fee", deliveryFee_1.default);
 app.use("/api/delivery-fee-v2", enhancedDeliveryFeeRoutes_1.default);
 app.use("/api/delivery-personnel", deliveryPersonnel_1.default);
 app.use("/api/delivery", deliveryAuth_1.default);
-app.use("/api/pincode", pincode_1.default);
+app.use("/api/pincode", pincodeRoutes_1.default);
 app.use("/api/location", locationRoutes_1.default);
 app.use("/api/admin", admin_1.default);
 app.use("/api/admin/ops", adminOps_1.default);
@@ -141,6 +145,7 @@ app.use("/internal/payments", internalPaymentRecoveryExecute_1.default);
 app.use("/internal", internalRefunds_1.default);
 // Internal Finance (read-only)
 app.use("/internal/finance", internalFinanceReports_1.default);
+app.use("/debug", debugDbTest_1.default);
 /* ======================================================
    404 HANDLER
 ====================================================== */

@@ -9,11 +9,14 @@ import { Route as PersistedRoute } from "../models/Route";
 import { liveLocationStore } from "../services/liveLocationStore";
 import { createObjectCsvWriter } from "csv-writer";
 import { invalidateCache } from "../middleware/cache";
+import { orderStateService } from "../domains/orders/services/orderStateService";
+import { OrderStatus } from "../domains/orders/enums/OrderStatus";
 import {
   cvrpRouteAssignmentService,
   OrderInput,
   VehicleInput,
 } from "../services/cvrpRouteAssignmentService";
+import { getGstReport } from "../domains/finance/services/gstReportService";
 
 export const getStats = async (req: Request, res: Response) => {
   try {
@@ -37,144 +40,141 @@ export const getStats = async (req: Request, res: Response) => {
       startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     }
 
-    // Sales analytics with more detailed breakdown
-    const salesData = await Order.aggregate([
-      {
-        $match: {
-          createdAt: { $gte: startDate, $lte: endDate },
-          paymentStatus: "PAID",
-        },
-      },
-      {
-        $group: {
-          _id: {
-            $dateToString: { format: "%Y-%m-%d", date: "$createdAt" },
+    const dateMatch = { createdAt: { $gte: startDate, $lte: endDate } };
+    const paidMatch = { ...dateMatch, paymentStatus: "PAID" };
+
+    // Run all aggregations in parallel for performance
+    const [
+      salesData,
+      monthlySales,
+      ordersByStatus,
+      paymentStatusBreakdown,
+      deliveryStats,
+      driverPerformance,
+      userStats,
+      topProducts,
+      recentOrders,
+    ] = await Promise.all([
+      // Sales analytics with more detailed breakdown
+      Order.aggregate([
+        { $match: paidMatch },
+        {
+          $group: {
+            _id: {
+              $dateToString: { format: "%Y-%m-%d", date: "$createdAt" },
+            },
+            totalSales: { $sum: "$totalAmount" },
+            orderCount: { $sum: 1 },
+            averageOrderValue: { $avg: "$totalAmount" },
           },
-          totalSales: { $sum: "$totalAmount" },
-          orderCount: { $sum: 1 },
-          averageOrderValue: { $avg: "$totalAmount" },
         },
-      },
-      { $sort: { _id: 1 } },
-    ]);
+        { $sort: { _id: 1 } },
+      ]),
 
-    // Monthly sales data
-    const monthlySales = await Order.aggregate([
-      {
-        $match: {
-          createdAt: { $gte: startDate, $lte: endDate },
-          paymentStatus: "PAID",
-        },
-      },
-      {
-        $group: {
-          _id: {
-            $dateToString: { format: "%Y-%m", date: "$createdAt" },
+      // Monthly sales data
+      Order.aggregate([
+        { $match: paidMatch },
+        {
+          $group: {
+            _id: {
+              $dateToString: { format: "%Y-%m", date: "$createdAt" },
+            },
+            totalSales: { $sum: "$totalAmount" },
+            orderCount: { $sum: 1 },
           },
-          totalSales: { $sum: "$totalAmount" },
-          orderCount: { $sum: 1 },
         },
-      },
-      { $sort: { _id: 1 } },
-    ]);
+        { $sort: { _id: 1 } },
+      ]),
 
-    // Orders by status with detailed breakdown
-    const ordersByStatus = await Order.aggregate([
-      {
-        $match: { createdAt: { $gte: startDate, $lte: endDate } },
-      },
-      {
-        $group: {
-          _id: "$orderStatus",
-          count: { $sum: 1 },
-          totalValue: { $sum: "$totalAmount" },
-        },
-      },
-    ]);
-
-    // Payment status breakdown
-    const paymentStatusBreakdown = await Order.aggregate([
-      {
-        $match: { createdAt: { $gte: startDate, $lte: endDate } },
-      },
-      {
-        $group: {
-          _id: "$paymentStatus",
-          count: { $sum: 1 },
-          totalValue: { $sum: "$totalAmount" },
-        },
-      },
-    ]);
-
-    // Delivery analytics with performance metrics
-    const deliveryStats = await DeliveryBoy.aggregate([
-      {
-        $group: {
-          _id: null,
-          totalDrivers: { $sum: 1 },
-          activeDrivers: {
-            $sum: { $cond: [{ $eq: ["$isActive", true] }, 1, 0] },
+      // Orders by status with detailed breakdown
+      Order.aggregate([
+        { $match: dateMatch },
+        {
+          $group: {
+            _id: "$orderStatus",
+            count: { $sum: 1 },
+            totalValue: { $sum: "$totalAmount" },
           },
-          availableDrivers: {
-            $sum: { $cond: [{ $eq: ["$availability", "available"] }, 1, 0] },
+        },
+      ]),
+
+      // Payment status breakdown
+      Order.aggregate([
+        { $match: dateMatch },
+        {
+          $group: {
+            _id: "$paymentStatus",
+            count: { $sum: 1 },
+            totalValue: { $sum: "$totalAmount" },
           },
-          busyDrivers: {
-            $sum: { $cond: [{ $eq: ["$availability", "busy"] }, 1, 0] },
+        },
+      ]),
+
+      // Delivery analytics with performance metrics
+      DeliveryBoy.aggregate([
+        {
+          $group: {
+            _id: null,
+            totalDrivers: { $sum: 1 },
+            activeDrivers: {
+              $sum: { $cond: [{ $eq: ["$isActive", true] }, 1, 0] },
+            },
+            availableDrivers: {
+              $sum: { $cond: [{ $eq: ["$availability", "available"] }, 1, 0] },
+            },
+            busyDrivers: {
+              $sum: { $cond: [{ $eq: ["$availability", "busy"] }, 1, 0] },
+            },
+            totalEarnings: { $sum: "$earnings" },
+            totalCompletedOrders: { $sum: "$completedOrdersCount" },
+            averageEarnings: { $avg: "$earnings" },
           },
-          totalEarnings: { $sum: "$earnings" },
-          totalCompletedOrders: { $sum: "$completedOrdersCount" },
-          averageEarnings: { $avg: "$earnings" },
         },
-      },
+      ]),
+
+      // Driver performance metrics
+      DeliveryBoy.find({ isActive: true })
+        .select(
+          "name phone vehicleType availability earnings completedOrdersCount"
+        )
+        .sort({ completedOrdersCount: -1 })
+        .limit(10)
+        .lean(),
+
+      // User stats with role breakdown
+      User.aggregate([
+        {
+          $group: {
+            _id: "$role",
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+
+      // Top products by sales
+      Order.aggregate([
+        { $match: paidMatch },
+        { $unwind: "$items" },
+        {
+          $group: {
+            _id: "$items.name",
+            totalQuantity: { $sum: "$items.qty" },
+            totalRevenue: { $sum: { $multiply: ["$items.price", "$items.qty"] } },
+          },
+        },
+        { $sort: { totalRevenue: -1 } },
+        { $limit: 10 },
+      ]),
+
+      // Recent orders for dashboard
+      Order.find(dateMatch)
+        .select("orderStatus paymentStatus totalAmount createdAt userId deliveryBoyId")
+        .populate("userId", "name phone")
+        .populate("deliveryBoyId", "name phone")
+        .sort({ createdAt: -1 })
+        .limit(10)
+        .lean(),
     ]);
-
-    // Driver performance metrics
-    const driverPerformance = await DeliveryBoy.find({ isActive: true })
-      .select(
-        "name phone vehicleType availability earnings completedOrdersCount assignedOrders"
-      )
-      .populate("assignedOrders", "orderStatus totalAmount")
-      .sort({ completedOrdersCount: -1 })
-      .limit(10);
-
-    // User stats with role breakdown
-    const userStats = await User.aggregate([
-      {
-        $group: {
-          _id: "$role",
-          count: { $sum: 1 },
-        },
-      },
-    ]);
-
-    // Top products by sales
-    const topProducts = await Order.aggregate([
-      {
-        $match: {
-          createdAt: { $gte: startDate, $lte: endDate },
-          paymentStatus: "PAID",
-        },
-      },
-      { $unwind: "$items" },
-      {
-        $group: {
-          _id: "$items.name",
-          totalQuantity: { $sum: "$items.qty" },
-          totalRevenue: { $sum: { $multiply: ["$items.price", "$items.qty"] } },
-        },
-      },
-      { $sort: { totalRevenue: -1 } },
-      { $limit: 10 },
-    ]);
-
-    // Recent orders for dashboard
-    const recentOrders = await Order.find({
-      createdAt: { $gte: startDate, $lte: endDate },
-    })
-      .populate("userId", "name phone")
-      .populate("deliveryBoyId", "name phone")
-      .sort({ createdAt: -1 })
-      .limit(10);
 
     res.json({
       salesData,
@@ -256,10 +256,12 @@ export const assignRoute = async (req: Request, res: Response) => {
     }
 
     const vt = String((deliveryBoy as any).vehicleType || "");
-    if (vt.toUpperCase() !== "AUTO") {
+    const vtUpper = vt.trim().toUpperCase();
+    const allowedVehicleTypes = new Set(["AUTO", "CAR"]);
+    if (!allowedVehicleTypes.has(vtUpper)) {
       return res.status(400).json({
-        error: "Delivery boy vehicleType must be AUTO",
-        message: `vehicleType must be AUTO, got ${vt}`,
+        error: "Delivery boy vehicleType not allowed",
+        message: `vehicleType must be one of ${Array.from(allowedVehicleTypes).join(", ")}, got ${vt}`,
       });
     }
 
@@ -288,18 +290,33 @@ export const assignRoute = async (req: Request, res: Response) => {
 
     const dpUserId = (deliveryBoy as any).userId ? new mongoose.Types.ObjectId(String((deliveryBoy as any).userId)) : null;
 
-    await Order.updateMany(
-      { _id: { $in: (route as any).orderIds } },
-      {
-        $set: {
-          deliveryBoyId: (deliveryBoy as any)._id,
-          deliveryPartnerId: dpUserId,
-          deliveryStatus: "in_transit",
-          orderStatus: "OUT_FOR_DELIVERY",
-          outForDeliveryAt: now,
+    // Transition each order status via orderStateService (required by Order model)
+    const orderIds = (route as any).orderIds || [];
+    const actorId = String((req as any).user?._id || "");
+    for (const orderId of orderIds) {
+      await orderStateService.transition({
+        orderId: String(orderId),
+        toStatus: OrderStatus.ASSIGNED,
+        actorRole: "ADMIN",
+        actorId,
+        meta: {
+          deliveryPartnerName: String((deliveryBoy as any).name || "") || undefined,
         },
-      }
-    );
+      });
+
+      // Update delivery fields separately (not orderStatus)
+      await Order.updateOne(
+        { _id: orderId },
+        {
+          $set: {
+            deliveryBoyId: (deliveryBoy as any)._id,
+            deliveryPartnerId: dpUserId,
+            deliveryStatus: "in_transit",
+            outForDeliveryAt: now,
+          },
+        }
+      );
+    }
 
     res.json({
       success: true,
@@ -510,7 +527,7 @@ export const getRouteDetail = async (req: Request, res: Response) => {
     const db = (route as any).deliveryBoyId && typeof (route as any).deliveryBoyId === "object" ? (route as any).deliveryBoyId : null;
 
     const driverIdStr = db?._id ? String((db as any)._id) : "";
-    const mem = driverIdStr ? liveLocationStore.get(driverIdStr) : null;
+    const mem = driverIdStr ? await liveLocationStore.getAsync(driverIdStr) : null;
 
     // liveLocation is STRICTLY sourced from memory store (single source of truth)
     // and only when it matches this route.
@@ -617,12 +634,35 @@ export const getUsers = async (req: Request, res: Response) => {
         .json({ error: "Access denied. Admin role required." });
     }
 
-    // Fetch all users with basic information only
-    const users = await User.find({})
-      .select("name email phone role createdAt isActive")
-      .sort({ createdAt: -1 });
+    // Pagination
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
+    const skip = (page - 1) * limit;
 
-    return res.json({ users });
+    // Role filter
+    const roleFilter = req.query.role;
+    const query: any = {};
+    if (roleFilter) query.role = roleFilter;
+
+    const [users, total] = await Promise.all([
+      User.find(query)
+        .select("name email phone role createdAt status")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      User.countDocuments(query),
+    ]);
+
+    return res.json({
+      users,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    });
   } catch (error) {
     console.error("Admin users error:", error);
     return res.status(500).json({ error: "Failed to fetch users" });
@@ -644,14 +684,37 @@ export const getAdminProducts = async (req: Request, res: Response) => {
         .json({ error: "Access denied. Admin role required." });
     }
 
-    // Fetch all products
-    const products = await Product.find({ deletedAt: null, isSellable: { $ne: false } })
-      .select(
-        "name price stock category weight images description createdAt updatedAt"
-      )
-      .sort({ createdAt: -1 });
+    // Pagination
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
+    const skip = (page - 1) * limit;
 
-    return res.json({ products });
+    // Category filter
+    const categoryFilter = req.query.category;
+    const query: any = { deletedAt: null, isSellable: { $ne: false } };
+    if (categoryFilter) query.category = categoryFilter;
+
+    const [products, total] = await Promise.all([
+      Product.find(query)
+        .select(
+          "name price stock category weight images description createdAt updatedAt"
+        )
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Product.countDocuments(query),
+    ]);
+
+    return res.json({
+      products,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    });
   } catch (error) {
     console.error("Admin products error:", error);
     return res.status(500).json({ error: "Failed to fetch products" });
@@ -673,13 +736,38 @@ export const getAdminOrders = async (req: Request, res: Response) => {
         .json({ error: "Access denied. Admin role required." });
     }
 
-    // Fetch all orders with populated user and delivery boy info
-    const orders = await Order.find({})
-      .populate("userId", "name email phone")
-      .populate("deliveryBoyId", "name phone")
-      .sort({ createdAt: -1 });
+    // Pagination
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
+    const skip = (page - 1) * limit;
 
-    return res.json({ orders });
+    // Status filter
+    const statusFilter = req.query.status;
+    const query: any = {};
+    if (statusFilter) query.orderStatus = statusFilter;
+
+    // Use .lean() and field projection for performance
+    const [orders, total] = await Promise.all([
+      Order.find(query)
+        .select("orderStatus paymentStatus totalAmount createdAt userId deliveryBoyId items payment")
+        .populate("userId", "name email phone")
+        .populate("deliveryBoyId", "name phone")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Order.countDocuments(query),
+    ]);
+
+    return res.json({
+      orders,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    });
   } catch (error) {
     console.error("Admin orders error:", error);
     return res.status(500).json({ error: "Failed to fetch orders" });
@@ -701,52 +789,80 @@ export const getAdminDeliveryBoys = async (req: Request, res: Response) => {
         .json({ error: "Access denied. Admin role required." });
     }
 
-    const deliveryBoys = await DeliveryBoy.find({})
-      .populate("assignedOrders", "orderStatus totalAmount createdAt")
-      .populate("userId", "name email phone status deliveryProfile createdAt")
-      .sort({ createdAt: -1 });
+    // Pagination
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
+    const skip = (page - 1) * limit;
 
-    const normalizedDeliveryBoys = await Promise.all(
-      deliveryBoys.map(async (deliveryBoy: any) => {
-        let userDoc: any =
-          deliveryBoy.userId && deliveryBoy.userId._id ? deliveryBoy.userId : null;
+    // Status filter
+    const statusFilter = req.query.status;
+    const query: any = {};
+    if (statusFilter === "active") query.isActive = true;
+    else if (statusFilter === "inactive") query.isActive = false;
 
-        if (!userDoc) {
-          userDoc = await User.findOne({
-            phone: deliveryBoy.phone,
-            role: "delivery",
-          }).select("name email phone status deliveryProfile createdAt");
-        }
+    // Use .lean() and limit fields for performance
+    const [deliveryBoys, total] = await Promise.all([
+      DeliveryBoy.find(query)
+        .select("name phone vehicleType availability isActive earnings completedOrdersCount currentLoad lastAssignedAt currentLocation userId")
+        .populate("userId", "name email phone status deliveryProfile createdAt")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      DeliveryBoy.countDocuments(query),
+    ]);
 
-        return {
-          user: userDoc
-            ? {
-                _id: userDoc._id,
-                name: userDoc.name,
-                email: userDoc.email,
-                phone: userDoc.phone,
-                status: userDoc.status,
-                deliveryProfile: userDoc.deliveryProfile,
-                createdAt: userDoc.createdAt,
-              }
-            : null,
-          deliveryBoy: {
-            _id: deliveryBoy._id,
-            availability: deliveryBoy.availability,
-            isActive: deliveryBoy.isActive,
-            vehicleType: deliveryBoy.vehicleType,
-            earnings: deliveryBoy.earnings,
-            completedOrdersCount: deliveryBoy.completedOrdersCount,
-            currentLoad: deliveryBoy.currentLoad,
-            lastAssignedAt: deliveryBoy.lastAssignedAt,
-            currentLocation: deliveryBoy.currentLocation,
-          },
-        };
-      })
-    );
+    // Batch fetch missing users by phone to avoid N+1
+    const phonesWithoutUser = deliveryBoys
+      .filter((db: any) => !db.userId)
+      .map((db: any) => db.phone)
+      .filter(Boolean);
+
+    const additionalUsers = phonesWithoutUser.length
+      ? await User.find({ phone: { $in: phonesWithoutUser }, role: "delivery" })
+          .select("name email phone status deliveryProfile createdAt")
+          .lean()
+      : [];
+
+    const userByPhone = new Map(additionalUsers.map((u: any) => [u.phone, u]));
+
+    const normalizedDeliveryBoys = deliveryBoys.map((deliveryBoy: any) => {
+      const userDoc = deliveryBoy.userId || userByPhone.get(deliveryBoy.phone);
+
+      return {
+        user: userDoc
+          ? {
+              _id: userDoc._id,
+              name: userDoc.name,
+              email: userDoc.email,
+              phone: userDoc.phone,
+              status: userDoc.status,
+              deliveryProfile: userDoc.deliveryProfile,
+              createdAt: userDoc.createdAt,
+            }
+          : null,
+        deliveryBoy: {
+          _id: deliveryBoy._id,
+          availability: deliveryBoy.availability,
+          isActive: deliveryBoy.isActive,
+          vehicleType: deliveryBoy.vehicleType,
+          earnings: deliveryBoy.earnings,
+          completedOrdersCount: deliveryBoy.completedOrdersCount,
+          currentLoad: deliveryBoy.currentLoad,
+          lastAssignedAt: deliveryBoy.lastAssignedAt,
+          currentLocation: deliveryBoy.currentLocation,
+        },
+      };
+    });
 
     return res.json({
       deliveryBoys: normalizedDeliveryBoys.filter((b: any) => b.user),
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
     });
   } catch (error) {
     console.error("Admin delivery boys error:", error);
@@ -794,7 +910,7 @@ export const approveDeliveryBoy = async (
     }
 
     deliveryBoy.isActive = true;
-    deliveryBoy.availability = "offline";
+    deliveryBoy.availability = "available";
     if (!deliveryBoy.userId) {
       deliveryBoy.userId = user._id;
     }
@@ -822,6 +938,76 @@ export const approveDeliveryBoy = async (
     return res
       .status(500)
       .json({ error: "Failed to approve delivery partner" });
+  }
+};
+
+export const suspendDeliveryBoy = async (
+  req: Request,
+  res: Response
+): Promise<Response | void> => {
+  try {
+    const adminUser = (req as any).user;
+
+    if (!adminUser) {
+      return res.status(401).json({ error: "User not authenticated" });
+    }
+
+    if (adminUser.role !== "admin") {
+      return res
+        .status(403)
+        .json({ error: "Access denied. Admin role required." });
+    }
+
+    const { id } = req.params;
+    const { reason } = req.body;
+
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    if (user.role !== "delivery") {
+      return res.status(400).json({ error: "User is not a delivery partner" });
+    }
+
+    user.status = "suspended";
+    await user.save();
+
+    const deliveryBoy =
+      (await DeliveryBoy.findOne({ userId: user._id })) ||
+      (user.phone ? await DeliveryBoy.findOne({ phone: user.phone }) : null);
+
+    if (deliveryBoy) {
+      deliveryBoy.isActive = false;
+      deliveryBoy.availability = "offline";
+      await deliveryBoy.save();
+    }
+
+    return res.json({
+      success: true,
+      message: "Delivery partner suspended successfully",
+      reason: reason || "Suspended by admin",
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        status: user.status,
+      },
+      deliveryBoy: deliveryBoy
+        ? {
+            _id: deliveryBoy._id,
+            isActive: deliveryBoy.isActive,
+            availability: deliveryBoy.availability,
+          }
+        : null,
+    });
+  } catch (error) {
+    console.error("Suspend delivery boy error:", error);
+    return res
+      .status(500)
+      .json({ error: "Failed to suspend delivery partner" });
   }
 };
 
@@ -1226,29 +1412,55 @@ export const computeRoutes = async (req: Request, res: Response) => {
       (vehicleInput as any).maxDistanceKm = 1000000;
     }
 
-    // Fetch orders
+    // Fetch orders - ALWAYS exclude already-assigned orders and orders in active routes
     let orders;
+    
+    // First, find all order IDs that are part of active routes (ASSIGNED, IN_PROGRESS only)
+    // Note: CREATED routes are not yet assigned to a delivery boy, so their orders should still be available
+    const activeRouteOrderIds = await PersistedRoute.find({
+      status: { $in: ["ASSIGNED", "IN_PROGRESS"] },
+    })
+      .select("orderIds")
+      .lean();
+    
+    const excludedOrderIds = new Set<string>();
+    for (const route of activeRouteOrderIds) {
+      for (const oid of route.orderIds || []) {
+        excludedOrderIds.add(String(oid));
+      }
+    }
+    console.log("[DEBUG] computeRoutes: Active routes found:", activeRouteOrderIds.length, "Excluded order IDs:", Array.from(excludedOrderIds));
+    
     if (orderIds && Array.isArray(orderIds) && orderIds.length > 0) {
-      // Fetch specific orders
+      // Fetch specific orders - exclude any that are in active routes
+      const validOrderIds = orderIds.filter((id: string) => !excludedOrderIds.has(String(id)));
+      
       orders = await Order.find({
-        _id: { $in: orderIds },
+        _id: { $in: validOrderIds },
         orderStatus: { $in: ["PACKED", "packed"] },
+        $or: [
+          { deliveryBoyId: { $exists: false } },
+          { deliveryBoyId: null },
+        ],
       }).lean();
     } else {
-      // Preview: no assignment checks. Commit-mode compute: only unassigned PACKED.
-      orders = await Order.find(
-        isPreview
-          ? {
-              orderStatus: { $in: ["PACKED", "packed"] },
-            }
-          : {
-              orderStatus: { $in: ["PACKED", "packed"] },
-              $or: [
-                { deliveryBoyId: { $exists: false } },
-                { deliveryBoyId: null },
-              ],
-            }
-      ).lean();
+      // Fetch all eligible orders - only exclude orders in active routes (ASSIGNED/IN_PROGRESS)
+      // Note: We don't filter by deliveryBoyId here because orders in CREATED routes should be reassignable
+      const baseQuery: any = {
+        orderStatus: { $in: ["PACKED", "packed"] },
+      };
+      
+      console.log("[DEBUG] computeRoutes: Fetching orders with query:", JSON.stringify(baseQuery));
+      orders = await Order.find(baseQuery).lean();
+      console.log("[DEBUG] computeRoutes: Found orders before route filter:", orders.length);
+      if (orders.length > 0) {
+        console.log("[DEBUG] computeRoutes: Order IDs found:", orders.map((o: any) => String(o._id)));
+        console.log("[DEBUG] computeRoutes: Order details:", orders.map((o: any) => ({ id: String(o._id), status: o.orderStatus, deliveryBoyId: o.deliveryBoyId || null })));
+      }
+      
+      // Filter out orders that are in active routes
+      orders = orders.filter((order: any) => !excludedOrderIds.has(String(order._id)));
+      console.log("[DEBUG] computeRoutes: Orders after excluding active routes:", orders.length, "Excluded IDs:", excludedOrderIds.size);
     }
 
     if (orders.length === 0) {
@@ -1471,10 +1683,12 @@ export const assignComputedCluster = async (req: Request, res: Response) => {
     }
 
     const vt = String((deliveryBoy as any).vehicleType || "");
-    if (vt.toUpperCase() !== "AUTO") {
+    const vtUpper = vt.trim().toUpperCase();
+    const allowedVehicleTypes = new Set(["AUTO", "CAR"]);
+    if (!allowedVehicleTypes.has(vtUpper)) {
       return res.status(400).json({
-        error: "Delivery boy vehicleType must be AUTO",
-        message: `vehicleType must be AUTO, got ${vt}`,
+        error: "Delivery boy vehicleType not allowed",
+        message: `vehicleType must be one of ${Array.from(allowedVehicleTypes).join(", ")}, got ${vt}`,
       });
     }
     if (!(deliveryBoy as any).isActive) {
@@ -1587,18 +1801,33 @@ export const assignComputedCluster = async (req: Request, res: Response) => {
       assignedAt: now,
     } as any);
 
-    await Order.updateMany(
-      { _id: { $in: (matching.orders || []).map((id) => new mongoose.Types.ObjectId(String(id))) } },
-      {
-        $set: {
-          deliveryBoyId: (deliveryBoy as any)._id,
-          deliveryPartnerId: dpUserId,
-          deliveryStatus: "in_transit",
-          orderStatus: "OUT_FOR_DELIVERY",
-          outForDeliveryAt: now,
+    // Transition each order status via orderStateService (required by Order model)
+    const assignedOrderIds = (matching.orders || []).map((id) => String(id));
+    const actorId = String((req as any).user?._id || "");
+    for (const orderId of assignedOrderIds) {
+      await orderStateService.transition({
+        orderId: String(orderId),
+        toStatus: OrderStatus.ASSIGNED,
+        actorRole: "ADMIN",
+        actorId,
+        meta: {
+          deliveryPartnerName: String((deliveryBoy as any).name || "") || undefined,
         },
-      }
-    );
+      });
+
+      // Update delivery fields separately (not orderStatus)
+      await Order.updateOne(
+        { _id: orderId },
+        {
+          $set: {
+            deliveryBoyId: (deliveryBoy as any)._id,
+            deliveryPartnerId: dpUserId,
+            deliveryStatus: "in_transit",
+            outForDeliveryAt: now,
+          },
+        }
+      );
+    }
 
     res.json({
       success: true,
@@ -1664,6 +1893,56 @@ export const purgeOrders = async (req: Request, res: Response) => {
     console.error("Purge orders error:", error);
     res.status(500).json({
       error: "Failed to purge orders",
+      message: error.message || "Unknown error occurred",
+    });
+  }
+};
+
+/**
+ * Get GST Report
+ * 
+ * Returns aggregated GST totals (CGST, SGST, IGST) for a date range.
+ * Only includes orders that are DELIVERED and PAID.
+ * 
+ * Query params:
+ * - from: ISO date string (required)
+ * - to: ISO date string (required)
+ */
+export const getGstReportHandler = async (req: Request, res: Response) => {
+  try {
+    const { from, to } = req.query;
+
+    if (!from || !to) {
+      return res.status(400).json({
+        error: "Missing required query parameters",
+        message: "Both 'from' and 'to' date parameters are required",
+      });
+    }
+
+    const fromDate = new Date(from as string);
+    const toDate = new Date(to as string);
+
+    if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+      return res.status(400).json({
+        error: "Invalid date format",
+        message: "from and to must be valid ISO date strings",
+      });
+    }
+
+    if (fromDate >= toDate) {
+      return res.status(400).json({
+        error: "Invalid date range",
+        message: "'from' date must be before 'to' date",
+      });
+    }
+
+    const report = await getGstReport({ from: fromDate, to: toDate });
+
+    res.json(report);
+  } catch (error: any) {
+    console.error("GST report error:", error);
+    res.status(500).json({
+      error: "Failed to generate GST report",
       message: error.message || "Unknown error occurred",
     });
   }

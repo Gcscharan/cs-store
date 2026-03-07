@@ -2,6 +2,8 @@ import { User } from "../../../models/User";
 import { Order } from "../../../models/Order";
 import { sendEmail } from "./mailService";
 import { sendSMS } from "../../../utils/sms";
+import { getInvoiceData } from "../../invoice/services/invoiceService";
+import { generateInvoicePdfBuffer } from "../../invoice/services/pdfGenerator";
 
 // Notification Event Types
 export type NotificationEvent = 
@@ -242,10 +244,53 @@ export class NotificationService {
 
       // Generate and send email
       const { subject, html } = this.generateEmailContent(event, data, user.name);
+      
+      // ============================================================
+      // INVOICE PDF ATTACHMENT FOR PAYMENT_SUCCESS
+      // ============================================================
+      // Attach invoice PDF to payment success email if orderId is provided.
+      // If PDF generation fails, send email WITHOUT attachment (never fail email).
+      // ============================================================
+      let attachments: { filename: string; content: Buffer; contentType: string }[] | undefined;
+      
+      if (event === "PAYMENT_SUCCESS" && data.orderId) {
+        try {
+          // Fetch invoice data (idempotent - does NOT regenerate if exists)
+          const invoiceData = await getInvoiceData(data.orderId);
+          
+          if (invoiceData && invoiceData.invoiceNumber) {
+            // Generate PDF buffer
+            const pdfBuffer = await generateInvoicePdfBuffer(invoiceData);
+            
+            attachments = [{
+              filename: `Invoice-${invoiceData.invoiceNumber}.pdf`,
+              content: pdfBuffer,
+              contentType: "application/pdf",
+            }];
+            
+            console.info("[EMAIL][INVOICE_ATTACHED]", {
+              orderId: data.orderId,
+              invoiceNumber: invoiceData.invoiceNumber,
+              to: user.email,
+            });
+          }
+        } catch (pdfError: any) {
+          // CRITICAL: Do NOT fail the email if PDF generation fails.
+          // Log error and send email WITHOUT attachment.
+          console.error("[EMAIL][INVOICE_PDF_FAILED]", {
+            orderId: data.orderId,
+            error: pdfError?.message || "Unknown error",
+            fallback: "Sending email without attachment",
+          });
+          attachments = undefined;
+        }
+      }
+      
       await sendEmail({
         to: user.email,
         subject,
-        html
+        html,
+        attachments,
       });
 
       if (event === "PAYMENT_SUCCESS" || event === "PAYMENT_FAILED") {

@@ -127,6 +127,18 @@ describe("Admin CVRP routes operationalization", () => {
       const oid = orderIds[idx];
 
       await request(app)
+        .post(`/api/delivery/orders/${encodeURIComponent(oid)}/pickup`)
+        .set(deliveryHeaders)
+        .send({})
+        .expect(200);
+
+      await request(app)
+        .post(`/api/delivery/orders/${encodeURIComponent(oid)}/start-delivery`)
+        .set(deliveryHeaders)
+        .send({})
+        .expect(200);
+
+      await request(app)
         .post(`/api/delivery/orders/${encodeURIComponent(oid)}/arrived`)
         .set(deliveryHeaders)
         .send({})

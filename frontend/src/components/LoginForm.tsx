@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useDispatch } from "react-redux";
 import { motion } from "framer-motion";
+import { Link } from "react-router-dom";
 import { setUser, setTokens } from "../store/slices/authSlice";
 import OAuthLogin from "./OAuthLogin";
 import { toApiUrl } from "../config/runtime";
@@ -225,6 +226,9 @@ const LoginForm: React.FC = () => {
             accessToken: data.accessToken,
             refreshToken: data.refreshToken,
           }));
+
+          // Stabilize auth state BEFORE redirect so AuthGate doesn't bounce.
+          dispatch(setStatus("ACTIVE"));
         } else {
           console.warn("⚠️ Login response missing access token");
           setErrors({ general: "Login failed: No access token received" });
@@ -404,7 +408,13 @@ const LoginForm: React.FC = () => {
 
       <div className="mt-6 text-center">
         <p className="text-sm text-gray-600">
-          Don't have an account? Please create an account.
+          Don't have an account?{" "}
+          <Link
+            to="/signup"
+            className="text-blue-600 font-medium hover:underline"
+          >
+            Create an account
+          </Link>
         </p>
       </div>
     </motion.div>

@@ -11,7 +11,7 @@ const DeliverySignup: React.FC = () => {
     phone: "",
     password: "",
     confirmPassword: "",
-    vehicleType: "bike",
+    vehicleType: "AUTO",
   });
   const [isLoading, setIsLoading] = useState(false);
 
@@ -171,10 +171,11 @@ const DeliverySignup: React.FC = () => {
               required
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
-              <option value="bike">Bike</option>
-              <option value="scooter">Scooter</option>
-              <option value="car">Car</option>
-              <option value="cycle">Bicycle</option>
+              <option value="AUTO">Auto</option>
+              <option value="CAR">Car</option>
+              <option value="BIKE">Bike</option>
+              <option value="SCOOTER">Scooter</option>
+              <option value="CYCLE">Bicycle</option>
             </select>
           </div>
 

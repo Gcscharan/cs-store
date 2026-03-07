@@ -81,6 +81,12 @@ const ProductSchema = new mongoose_1.Schema({
         type: Number,
         min: [0, "MRP cannot be negative"],
     },
+    gstRate: {
+        type: Number,
+        min: [0, "GST rate cannot be negative"],
+        max: [100, "GST rate cannot exceed 100"],
+        default: 18, // Default 18% GST
+    },
     stock: {
         type: Number,
         required: [true, "Stock quantity is required"],

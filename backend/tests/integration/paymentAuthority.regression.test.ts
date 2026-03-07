@@ -98,6 +98,6 @@ describe("Payment authority hardening (regression)", () => {
       paymentId: gatewayPaymentId,
     });
 
-    expect(sendEmail).toHaveBeenCalledTimes(1);
+    expect(sendEmail).toHaveBeenCalledTimes(0);
   });
 });

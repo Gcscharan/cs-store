@@ -47,6 +47,9 @@ const PendingUserRepository_1 = require("../repositories/PendingUserRepository")
 const mongoose_1 = __importDefault(require("mongoose"));
 const otpController_1 = require("../../security/controllers/otpController");
 const jwt = __importStar(require("jsonwebtoken"));
+// Token expiry configuration
+const ACCESS_TOKEN_EXPIRY = process.env.ACCESS_TOKEN_EXPIRY || "24h";
+const REFRESH_TOKEN_EXPIRY = process.env.REFRESH_TOKEN_EXPIRY || "7d";
 class UserAccountService {
     constructor() {
         this.userRepository = new UserRepository_1.UserRepository();
@@ -83,8 +86,8 @@ class UserAccountService {
                 if (!JWT_SECRET || !JWT_REFRESH_SECRET) {
                     throw new Error("Server misconfigured");
                 }
-                const accessToken = jwt.sign({ userId: user._id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: "24h" });
-                const refreshToken = jwt.sign({ userId: user._id }, JWT_REFRESH_SECRET, { expiresIn: "7d" });
+                const accessToken = jwt.sign({ userId: user._id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRY });
+                const refreshToken = jwt.sign({ userId: user._id }, JWT_REFRESH_SECRET, { expiresIn: REFRESH_TOKEN_EXPIRY });
                 const isProfileComplete = !!(user.name && user.phone);
                 return {
                     message: "Mobile number verified successfully",
@@ -136,8 +139,8 @@ class UserAccountService {
             if (!JWT_SECRET || !JWT_REFRESH_SECRET) {
                 throw new Error("Server misconfigured");
             }
-            const accessToken = jwt.sign({ userId: user._id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: "24h" });
-            const refreshToken = jwt.sign({ userId: user._id }, JWT_REFRESH_SECRET, { expiresIn: "7d" });
+            const accessToken = jwt.sign({ userId: user._id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRY });
+            const refreshToken = jwt.sign({ userId: user._id }, JWT_REFRESH_SECRET, { expiresIn: REFRESH_TOKEN_EXPIRY });
             const isProfileComplete = !!(user.name && user.phone);
             return {
                 message: "Account created and mobile verified successfully",

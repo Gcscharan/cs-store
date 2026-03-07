@@ -366,7 +366,7 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
                 )}
 
                 <div className="text-xs text-gray-500">
-                  By continuing, you agree to CS Store's{" "}
+                  By continuing, you agree to Vyapara Setu's{" "}
                   <a href="/terms" className="text-blue-600 hover:underline">
                     Terms of Use
                   </a>{" "}
@@ -477,7 +477,7 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
                 </button>
 
                 <div className="text-center text-sm text-gray-600 mt-4">
-                  New to CS Store?{" "}
+                  New to Vyapara Setu?{" "}
                   <button
                     onClick={() => window.location.href = "/signup"}
                     className="text-blue-600 font-medium hover:underline"

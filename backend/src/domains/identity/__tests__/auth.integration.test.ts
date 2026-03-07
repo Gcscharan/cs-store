@@ -71,4 +71,64 @@ describe('Identity Domain - Auth Integration', () => {
       expect(res.status).toBeLessThan(500);
     });
   });
+
+  describe('POST /api/auth/login', () => {
+    beforeEach(async () => {
+      await User.deleteMany({});
+      await request(app)
+        .post('/api/auth/signup')
+        .send({
+          name: 'Login User',
+          email: 'login@example.com',
+          phone: '9876543210',
+          password: '123456',
+          pincode: '500001',
+        });
+    });
+
+    it('logs in with email', async () => {
+      const res = await request(app)
+        .post('/api/auth/login')
+        .send({
+          email: 'login@example.com',
+          password: '123456',
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body?.message).toBe('Login successful');
+      expect(typeof res.body?.accessToken).toBe('string');
+      expect(typeof res.body?.refreshToken).toBe('string');
+      expect(res.body?.user).toBeTruthy();
+    });
+
+    it('logs in with phone', async () => {
+      const res = await request(app)
+        .post('/api/auth/login')
+        .send({
+          phone: '9876543210',
+          password: '123456',
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body?.message).toBe('Login successful');
+      expect(typeof res.body?.accessToken).toBe('string');
+      expect(typeof res.body?.refreshToken).toBe('string');
+      expect(res.body?.user).toBeTruthy();
+    });
+
+    it('logs in with identifier', async () => {
+      const res = await request(app)
+        .post('/api/auth/login')
+        .send({
+          identifier: 'login@example.com',
+          password: '123456',
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body?.message).toBe('Login successful');
+      expect(typeof res.body?.accessToken).toBe('string');
+      expect(typeof res.body?.refreshToken).toBe('string');
+      expect(res.body?.user).toBeTruthy();
+    });
+  });
 });

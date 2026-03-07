@@ -5,9 +5,22 @@
  * when users log out or when new users log in.
  */
 
-import { store } from '../store';
 import { resetAppState } from '../store/slices/authSlice';
 import { api } from '../store/api';
+
+type AppDispatch = (action: any) => void;
+type GetAppState = () => any;
+
+let appDispatch: AppDispatch | null = null;
+let getAppState: GetAppState | null = null;
+
+export const registerAuthUtilsStoreAccess = (opts: {
+  dispatch: AppDispatch | null;
+  getState: GetAppState | null;
+}) => {
+  appDispatch = opts.dispatch;
+  getAppState = opts.getState;
+};
 
 /**
  * Performs complete application state reset
@@ -24,10 +37,16 @@ export const resetApplicationState = () => {
   console.log('🧹 CLEANING APPLICATION STATE...');
   
   // Reset Redux state (preserves theme)
-  store.dispatch(resetAppState());
+  try {
+    appDispatch?.(resetAppState());
+  } catch {
+  }
   
   // Clear RTK Query cache to remove cached user data
-  store.dispatch(api.util.resetApiState());
+  try {
+    appDispatch?.(api.util.resetApiState());
+  } catch {
+  }
   
   console.log('✅ APPLICATION STATE CLEANED');
 };
@@ -51,7 +70,8 @@ export const prepareCleanLoginState = () => {
  * (This is a debugging utility - not for production use)
  */
 export const debugStateContamination = () => {
-  const state = store.getState();
+  const state = getAppState?.();
+  if (!state) return;
   
   console.log('🔍 STATE CONTAMINATION DEBUG:', {
     cartItems: state.cart.items.length,

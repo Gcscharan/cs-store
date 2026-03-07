@@ -14,7 +14,11 @@ const formatCartItem = (item) => {
             price: isOutOfStock ? 0 : populatedProduct.price,
             image: typeof populatedProduct.images?.[0] === 'string'
                 ? populatedProduct.images[0]
-                : populatedProduct.images?.[0]?.thumb || populatedProduct.images?.[0]?.full || "",
+                : populatedProduct.images?.[0]?.variants?.thumb
+                    || populatedProduct.images?.[0]?.variants?.small
+                    || populatedProduct.images?.[0]?.variants?.medium
+                    || populatedProduct.images?.[0]?.variants?.original
+                    || "",
             quantity: item.quantity,
         };
     }

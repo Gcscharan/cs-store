@@ -9,7 +9,7 @@ const CSStoreStoriesPage: React.FC = () => {
   const stories = [
     {
       id: 1,
-      title: "How CS Store Revolutionized E-commerce in Rural India",
+      title: "How Vyapara Setu Revolutionized E-commerce in Rural India",
       excerpt:
         "Discover how we brought online shopping to remote villages, empowering local businesses and connecting communities.",
       author: "Priya Sharma",
@@ -21,7 +21,7 @@ const CSStoreStoriesPage: React.FC = () => {
     },
     {
       id: 2,
-      title: "The Journey of a Small Business Owner on CS Store",
+      title: "The Journey of a Small Business Owner on Vyapara Setu",
       excerpt:
         "Meet Rajesh Kumar, who grew his handicraft business from 0 to 10,000 orders using our platform.",
       author: "Amit Patel",
@@ -45,7 +45,7 @@ const CSStoreStoriesPage: React.FC = () => {
     },
     {
       id: 4,
-      title: "Technology Behind CS Store: Innovation at Scale",
+      title: "Technology Behind Vyapara Setu: Innovation at Scale",
       excerpt:
         "An inside look at the cutting-edge technology that powers our platform and handles millions of transactions.",
       author: "Dr. Vikram Singh",
@@ -105,7 +105,7 @@ const CSStoreStoriesPage: React.FC = () => {
               <span>Back to Home</span>
             </button>
             <h1 className="text-2xl font-bold text-gray-900">
-              CS Store Stories
+              Vyapara Setu Stories
             </h1>
             <div></div>
           </div>
@@ -122,10 +122,10 @@ const CSStoreStoriesPage: React.FC = () => {
           className="text-center mb-12"
         >
           <h2 className="text-4xl font-bold text-gray-900 mb-6">
-            CS Store Stories
+            Vyapara Setu Stories
           </h2>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Discover the inspiring stories behind CS Store - from our journey to
+            Discover the inspiring stories behind Vyapara Setu - from our journey to
             the impact we're making in communities across India.
           </p>
         </motion.div>
@@ -260,7 +260,7 @@ const CSStoreStoriesPage: React.FC = () => {
             Stay Updated with Our Stories
           </h3>
           <p className="text-xl mb-6 text-orange-100">
-            Get the latest CS Store stories delivered to your inbox
+            Get the latest Vyapara Setu stories delivered to your inbox
           </p>
           <div className="max-w-md mx-auto flex gap-4">
             <input

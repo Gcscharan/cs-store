@@ -18,6 +18,12 @@ const authenticateGoogleAuthOnly = async (req, res, next) => {
             return res.status(401).json({ message: "Authentication required" });
         }
         const decoded = jsonwebtoken_1.default.verify(token, jwtSecret);
+        // GOOGLE_AUTH_ONLY onboarding sessions must NOT be treated as ACTIVE auth.
+        // They do not correspond to a persisted user yet.
+        if (decoded?.authState === "GOOGLE_AUTH_ONLY" && decoded?.email) {
+            req.googleAuthOnly = decoded;
+            return next();
+        }
         if (decoded?.authState !== "GOOGLE_AUTH_ONLY" || !decoded?.email) {
             return res.status(403).json({ message: "Invalid onboarding session" });
         }
@@ -127,7 +133,14 @@ const requireRole = (roles) => {
         if (!roles.includes(req.user.role)) {
             if (debug)
                 console.log('[Auth] requireRole - role not allowed, returning 403');
-            return res.status(403).json({ message: "Admin access required" });
+            const normalizedRoles = (roles || [])
+                .map((r) => String(r || "").trim())
+                .filter(Boolean);
+            const roleLabel = (r) => r.length > 0 ? r.charAt(0).toUpperCase() + r.slice(1) : r;
+            const message = normalizedRoles.length === 1
+                ? `${roleLabel(normalizedRoles[0])} role required`
+                : `One of the following roles required: ${normalizedRoles.join(", ")}`;
+            return res.status(403).json({ message });
         }
         if (debug)
             console.log('[Auth] requireRole - role check passed, calling next()');

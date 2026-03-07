@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CartService = void 0;
 const CartRepository_1 = require("../repositories/CartRepository");
@@ -70,26 +103,71 @@ class CartService {
         const { productId, quantity = 1 } = request;
         // Validate required fields
         if (!productId) {
-            throw new Error("Product ID is required");
+            const err = new Error("Product ID is required");
+            err.statusCode = 400;
+            throw err;
         }
         if (quantity <= 0) {
-            throw new Error("Quantity must be greater than 0");
+            const err = new Error("Quantity must be greater than 0");
+            err.statusCode = 400;
+            throw err;
         }
-        // Verify product exists and has stock
+        // Verify product exists and is available for purchase
         const product = await this.productRepository.findById(productId);
+        console.log("[CART VALIDATION]", {
+            productId,
+            productFound: !!product,
+            isSellable: product?.isSellable,
+            deletedAt: product?.deletedAt,
+            isActive: product?.isActive,
+        });
         if (!product) {
-            throw new Error("Product not found");
+            // Check if product exists but is unavailable
+            const { Product } = await Promise.resolve().then(() => __importStar(require("../../../models/Product")));
+            const rawProduct = await Product.findById(productId);
+            console.log("[CART VALIDATION] Raw product check:", {
+                found: !!rawProduct,
+                isSellable: rawProduct?.isSellable,
+                deletedAt: rawProduct?.deletedAt,
+                isActive: rawProduct?.isActive,
+            });
+            if (rawProduct) {
+                if (rawProduct.deletedAt) {
+                    const err = new Error("Product has been removed");
+                    err.statusCode = 400;
+                    throw err;
+                }
+                if (rawProduct.isSellable === false) {
+                    const err = new Error("Product is currently unavailable");
+                    err.statusCode = 400;
+                    throw err;
+                }
+                if (rawProduct.isActive === false) {
+                    const err = new Error("Product is currently inactive");
+                    err.statusCode = 400;
+                    throw err;
+                }
+            }
+            const err = new Error("Product not found");
+            err.statusCode = 400;
+            throw err;
         }
         const stock = Number(product.stock || 0);
         const reservedStock = Number(product.reservedStock || 0);
         const availableStock = stock - reservedStock;
         if (availableStock < quantity) {
-            throw new Error("Insufficient stock");
+            const err = new Error("Insufficient stock");
+            err.statusCode = 400;
+            throw err;
         }
         // Atomic add to cart
         const cart = await this.cartRepository.atomicAddToCart(userId, product._id.toString(), product.name, product.price, typeof product.images[0] === 'string'
             ? product.images[0]
-            : product.images[0]?.thumb || product.images[0]?.full || "/placeholder-product.svg", quantity);
+            : product.images[0]?.variants?.thumb
+                || product.images[0]?.variants?.small
+                || product.images[0]?.variants?.medium
+                || product.images[0]?.variants?.original
+                || "/placeholder-product.svg", quantity);
         // Get cart with populated product details for response
         const populatedCart = await this.cartRepository.findByUserIdWithPopulate(userId);
         return {
@@ -105,37 +183,51 @@ class CartService {
         const { productId, quantity } = request;
         // Validate required fields
         if (!productId) {
-            throw new Error("Product ID is required");
+            const err = new Error("Product ID is required");
+            err.statusCode = 400;
+            throw err;
         }
         if (quantity === undefined || quantity === null) {
-            throw new Error("Quantity is required");
+            const err = new Error("Quantity is required");
+            err.statusCode = 400;
+            throw err;
         }
         // Ensure cart exists and item is present before validating the product
         const existingCart = await this.cartRepository.findByUserId(userId);
         if (!existingCart) {
-            throw new Error("Cart not found");
+            const err = new Error("Cart not found");
+            err.statusCode = 404;
+            throw err;
         }
         const hasItem = (existingCart.items || []).some((it) => String(it.productId) === String(productId));
         if (!hasItem) {
-            throw new Error("Item not found in cart");
+            const err = new Error("Item not found in cart");
+            err.statusCode = 404;
+            throw err;
         }
         // Verify product exists and has stock (only if quantity > 0)
         if (quantity > 0) {
             const product = await this.productRepository.findById(productId);
             if (!product) {
-                throw new Error("Product not found");
+                const err = new Error("Product not found");
+                err.statusCode = 400;
+                throw err;
             }
             const stock = Number(product.stock || 0);
             const reservedStock = Number(product.reservedStock || 0);
             const availableStock = stock - reservedStock;
             if (availableStock < quantity) {
-                throw new Error("Insufficient stock");
+                const err = new Error("Insufficient stock");
+                err.statusCode = 400;
+                throw err;
             }
         }
         // Atomic update cart item
         const cart = await this.cartRepository.atomicUpdateCartItem(userId, productId, quantity);
         if (!cart) {
-            throw new Error("Cart not found");
+            const err = new Error("Cart not found");
+            err.statusCode = 404;
+            throw err;
         }
         // Get cart with populated product details for response
         const populatedCart = await this.cartRepository.findByUserIdWithPopulate(userId);
@@ -151,20 +243,28 @@ class CartService {
     async removeFromCart(userId, request) {
         const { productId } = request;
         if (!productId) {
-            throw new Error("Product ID is required");
+            const err = new Error("Product ID is required");
+            err.statusCode = 400;
+            throw err;
         }
         const existingCart = await this.cartRepository.findByUserId(userId);
         if (!existingCart) {
-            throw new Error("Cart not found");
+            const err = new Error("Cart not found");
+            err.statusCode = 404;
+            throw err;
         }
         const hasItem = (existingCart.items || []).some((it) => String(it.productId) === String(productId));
         if (!hasItem) {
-            throw new Error("Item not found in cart");
+            const err = new Error("Item not found in cart");
+            err.statusCode = 404;
+            throw err;
         }
         // Atomic remove from cart
         const cart = await this.cartRepository.atomicRemoveFromCart(userId, productId);
         if (!cart) {
-            throw new Error("Cart not found");
+            const err = new Error("Cart not found");
+            err.statusCode = 404;
+            throw err;
         }
         // Get cart with populated product details for response
         const populatedCart = await this.cartRepository.findByUserIdWithPopulate(userId);
@@ -180,12 +280,16 @@ class CartService {
     async clearCart(userId) {
         const existingCart = await this.cartRepository.findByUserId(userId);
         if (!existingCart) {
-            throw new Error("Cart not found");
+            const err = new Error("Cart not found");
+            err.statusCode = 404;
+            throw err;
         }
         // Atomic clear cart
         const cart = await this.cartRepository.atomicClearCart(userId);
         if (!cart) {
-            throw new Error("Cart not found");
+            const err = new Error("Cart not found");
+            err.statusCode = 404;
+            throw err;
         }
         // Get cart with populated product details for response (will be empty after clear)
         const populatedCart = await this.cartRepository.findByUserIdWithPopulate(userId);

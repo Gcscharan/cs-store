@@ -83,7 +83,7 @@ describe("OTP Endpoints", () => {
           },
         ],
         totalAmount: product.price,
-        orderStatus: "pending",
+        orderStatus: "CREATED",
         address: {
           name: "Test User",
           phone: "919876543210",

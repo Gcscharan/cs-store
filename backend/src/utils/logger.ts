@@ -97,9 +97,41 @@ class Logger {
     this.info(message, data);
   }
 
+  // Payment error logging with explicit Sentry capture
+  paymentError(message: string, error?: Error, data?: any) {
+    this.setContext({ component: "payment" });
+    this.error(message, error, data);
+
+    Sentry.captureException(error || new Error(message), {
+      level: "error",
+      tags: {
+        component: "payment",
+        type: "PAYMENT",
+        ...this.context,
+      },
+      extra: data,
+    });
+  }
+
   order(message: string, data?: any) {
     this.setContext({ component: "order" });
     this.info(message, data);
+  }
+
+  // Inventory error logging with explicit Sentry capture
+  inventoryError(message: string, error?: Error, data?: any) {
+    this.setContext({ component: "inventory" });
+    this.error(message, error, data);
+
+    Sentry.captureException(error || new Error(message), {
+      level: "error",
+      tags: {
+        component: "inventory",
+        type: "INVENTORY",
+        ...this.context,
+      },
+      extra: data,
+    });
   }
 
   delivery(message: string, data?: any) {
@@ -122,6 +154,7 @@ class Logger {
       level: "warning",
       tags: {
         component: "security",
+        type: "SECURITY",
         ...this.context,
       },
       extra: data,
@@ -279,6 +312,36 @@ export const logOrderEvent = (
 };
 
 export const logSecurityEvent = (
+  event: string,
+  severity: "low" | "medium" | "high",
+  data?: any
+) => {
+  logger.security(`Security event: ${event} (${severity})`, {
+    event,
+    severity,
+    timestamp: new Date().toISOString(),
+    ...data,
+  });
+};
+
+// Tagged error capture helpers
+export const capturePaymentError = (
+  message: string,
+  error?: Error,
+  data?: any
+) => {
+  logger.paymentError(message, error, data);
+};
+
+export const captureInventoryError = (
+  message: string,
+  error?: Error,
+  data?: any
+) => {
+  logger.inventoryError(message, error, data);
+};
+
+export const captureSecurityEvent = (
   event: string,
   severity: "low" | "medium" | "high",
   data?: any

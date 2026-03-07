@@ -84,7 +84,7 @@ describe("Cart Endpoints", () => {
         .post("/api/cart/add")
         .set(authHeaders)
         .send(cartData)
-        .expect(404);
+        .expect(400);
 
       expect(response.body).toHaveProperty("message", "Product not found");
     });

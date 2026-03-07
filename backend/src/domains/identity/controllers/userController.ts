@@ -15,6 +15,7 @@ import { resolvePincodeForAddressSave } from "../../../utils/pincodeResolver";
 import { publish } from "../../events/eventBus";
 import { stableEventId } from "../../events/eventId";
 import { createAccountProfileUpdatedEvent } from "../../events/account.events";
+import { safeDoc } from "../../../utils/safeDoc";
 
 // Get user profile
 export const getUserProfile = async (
@@ -376,13 +377,14 @@ export const addUserAddress = async (
     // Get the saved address from the user document
     const savedAddress: any = user.addresses[user.addresses.length - 1];
 
+    // Convert Mongoose subdocument to plain object to prevent leaking internal properties
+    const cleanAddress = safeDoc(savedAddress);
+    (cleanAddress as any).id = savedAddress._id.toString();
+
     res.status(201).json({
       success: true,
       message: "Address added successfully",
-      address: {
-        ...(savedAddress.toObject ? savedAddress.toObject() : savedAddress),
-        id: savedAddress._id.toString(),
-      },
+      address: cleanAddress,
     });
   } catch (error: any) {
     console.error("🔥 addUserAddress CRASH", error, error?.stack);
@@ -569,13 +571,14 @@ export const updateUserAddress = async (
 
     await user.save();
 
+    // Convert Mongoose subdocument to plain object to prevent leaking internal properties
+    const cleanAddress = safeDoc(address);
+    (cleanAddress as any).id = address._id.toString();
+
     res.status(200).json({
       success: true,
       message: "Address updated successfully",
-      address: {
-        ...address,
-        id: address._id.toString(),
-      },
+      address: cleanAddress,
     });
   } catch (error) {
     console.error("Error updating user address:", error);
@@ -695,13 +698,14 @@ export const setDefaultAddress = async (
 
     await user.save();
 
+    // Convert Mongoose subdocument to plain object to prevent leaking internal properties
+    const cleanAddress = safeDoc(address);
+    (cleanAddress as any).id = address._id.toString();
+
     res.status(200).json({
       success: true,
       message: "Default address updated successfully",
-      address: {
-        ...address,
-        id: address._id.toString(),
-      },
+      address: cleanAddress,
     });
   } catch (error) {
     console.error("Error setting default address:", error);

@@ -137,6 +137,9 @@ const DeliveryBoySchema = new Schema<IDeliveryBoy>(
 // Indexes
 DeliveryBoySchema.index({ availability: 1, isActive: 1 });
 DeliveryBoySchema.index({ "currentLocation.lat": 1, "currentLocation.lng": 1 });
+DeliveryBoySchema.index({ userId: 1 });
+DeliveryBoySchema.index({ phone: 1 });
+DeliveryBoySchema.index({ createdAt: -1 });
 
 export const DeliveryBoy = mongoose.model<IDeliveryBoy>(
   "DeliveryBoy",

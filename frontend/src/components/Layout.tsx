@@ -106,7 +106,7 @@ const CartMenuButton = React.memo(function CartMenuButton({
 
 const Layout: React.FC<LayoutProps> = ({
   children,
-  title = "CS Store",
+  title = "Vyapara Setu",
   description = "E-commerce platform",
   hideBottomNav = false,
 }) => {
@@ -139,8 +139,17 @@ const Layout: React.FC<LayoutProps> = ({
   const performLogout = useLogout();
   
   // Fetch addresses from MongoDB
-  const { data: addressesData, refetch: refetchAddresses } = useGetAddressesQuery(undefined, {
+  const { data: addressesData, refetch: refetchAddresses, isLoading: isLoadingAddresses, isError: isAddressesError, error: addressesError } = useGetAddressesQuery(undefined, {
     skip: !isAuthenticated,
+  });
+  
+  // DEBUG: Log addresses query state
+  console.log("[Layout] Addresses query state:", {
+    isAuthenticated,
+    isLoadingAddresses,
+    isAddressesError,
+    addressesError,
+    addressesData,
   });
   
   // Fetch user profile data for displaying name
@@ -713,9 +722,9 @@ const suggestions = suggestionList || [];
                   <button
                     onClick={handleLogoClick}
                     className="flex items-center space-x-2 text-2xl font-bold text-blue-600 hover:text-blue-700 transition-colors"
-                    aria-label="CS Store Home"
+                    aria-label="Vyapara Setu Home"
                   >
-                    <span>CS Store</span>
+                    <span>Vyapara Setu</span>
                   </button>
 
                   {/* Address Section - Hidden on checkout page and admin pages */}

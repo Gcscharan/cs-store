@@ -20,6 +20,9 @@ export function initializeOutboxDispatcher(params?: {
   if (started) return;
   started = true;
 
+  let consecutiveFailures = 0;
+  const FAILURE_THRESHOLD = 10;
+
   const pollIntervalMs = Number(params?.pollIntervalMs || 1000);
   const lockTtlMs = Number(params?.lockTtlMs || 30_000);
   const maxAttempts = Number(params?.maxAttempts || 25);
@@ -113,11 +116,26 @@ export function initializeOutboxDispatcher(params?: {
     }
   };
 
+  const safeTick = async () => {
+    try {
+      await tick();
+      consecutiveFailures = 0;
+    } catch (err) {
+      consecutiveFailures += 1;
+      console.error("[OUTBOX_DISPATCHER_ERROR]", err);
+
+      if (consecutiveFailures >= FAILURE_THRESHOLD) {
+        console.error("[OUTBOX_DISPATCHER_FATAL] Too many consecutive failures. Crashing.");
+        process.exit(1);
+      }
+    }
+  };
+
   setInterval(() => {
-    void tick().catch(() => undefined);
+    void safeTick();
   }, pollIntervalMs);
 
   for (let i = 0; i < 5; i++) {
-    void tick().catch(() => undefined);
+    void safeTick();
   }
 }

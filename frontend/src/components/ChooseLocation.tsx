@@ -1,7 +1,8 @@
 import React, { useState } from "react";
-import { MapPin, Check, X, Navigation, Loader2 } from "lucide-react";
+import { MapPin, Check, X, Navigation, Loader2, AlertCircle, MapPinOff } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { isPincodeDeliverable } from "../utils/pincodeValidation";
+import { useGeolocation } from "../hooks/useGeolocation";
 
 interface Address {
   id: string;
@@ -29,8 +30,21 @@ const ChooseLocation: React.FC<ChooseLocationProps> = ({
   defaultAddressId,
 }) => {
   const navigate = useNavigate();
-  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
-  const [locationError, setLocationError] = useState<string>("");
+  
+  // DEBUG: Log props received
+  console.log("[ChooseLocation] Props received:", {
+    isOpen,
+    addressesCount: addresses?.length,
+    addresses,
+    defaultAddressId,
+  });
+  const [isDeliverableError, setIsDeliverableError] = useState<string>("");
+  const {
+    loading: isDetectingLocation,
+    error: geoError,
+    permissionState,
+    requestPosition,
+  } = useGeolocation();
 
   const handleAddressClick = (addressId: string) => {
     onAddressSelect(addressId);
@@ -38,106 +52,50 @@ const ChooseLocation: React.FC<ChooseLocationProps> = ({
   };
 
   const handleUseCurrentLocation = async () => {
-    setIsDetectingLocation(true);
-    setLocationError("");
+    setIsDeliverableError("");
+
+    const position = await requestPosition();
+
+    if (!position) {
+      return;
+    }
+
+    const { latitude, longitude } = position.coords;
 
     try {
-      if (!navigator.geolocation) {
-        setLocationError("Geolocation is not supported by your browser");
-        setIsDetectingLocation(false);
-        return;
-      }
+      const response = await fetch(
+        `/api/location/reverse-geocode?lat=${latitude}&lng=${longitude}`
+      );
+      const data = await response.json();
 
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          const { latitude, longitude } = position.coords;
+      if (data.success && data.data && data.data.pincode) {
+        const detectedPincode = data.data.pincode;
+        const isDeliverable = isPincodeDeliverable(detectedPincode);
 
-          try {
-            // Use existing reverse geocoding API
-            const response = await fetch(
-              `/api/location/reverse-geocode?lat=${latitude}&lng=${longitude}`
-            );
-            const data = await response.json();
-
-            if (data.success && data.data && data.data.pincode) {
-              const detectedPincode = data.data.pincode;
-
-              // Validate if pincode is serviceable
-              const isDeliverable = isPincodeDeliverable(detectedPincode);
-
-              if (!isDeliverable) {
-                setLocationError(
-                  `Delivery not available for pincode ${detectedPincode}. Please enter a different address.`
-                );
-                setIsDetectingLocation(false);
-                return;
-              }
-
-              // Store location data for auto-fill
-              const locationData = {
-                addressLine: data.data.address || "",
-                city: data.data.city || "",
-                state: data.data.state || "",
-                pincode: detectedPincode,
-                lat: latitude,
-                lng: longitude,
-              };
-
-              localStorage.setItem(
-                "autofillAddress",
-                JSON.stringify(locationData)
-              );
-
-              // Close modal and navigate to addresses page
-              onClose();
-              navigate("/addresses");
-            } else {
-              setLocationError(
-                "Could not determine your location. Please try again or enter address manually."
-              );
-            }
-          } catch (error) {
-            console.error("Reverse geocoding failed:", error);
-            setLocationError(
-              "Failed to detect your location. Please try again or enter address manually."
-            );
-          }
-
-          setIsDetectingLocation(false);
-        },
-        (error) => {
-          let errorMessage = "Could not access your location. ";
-
-          switch (error.code) {
-            case error.PERMISSION_DENIED:
-              errorMessage += "Please allow location access and try again.";
-              break;
-            case error.POSITION_UNAVAILABLE:
-              errorMessage += "Location information is unavailable.";
-              break;
-            case error.TIMEOUT:
-              errorMessage += "Location request timed out.";
-              break;
-            default:
-              errorMessage += "Please enter address manually.";
-              break;
-          }
-
-          setLocationError(errorMessage);
-          setIsDetectingLocation(false);
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0,
+        if (!isDeliverable) {
+          setIsDeliverableError(
+            `Delivery not available for pincode ${detectedPincode}. We currently deliver only in Andhra Pradesh and Telangana.`
+          );
+          return;
         }
-      );
-    } catch (error) {
-      console.error("Location detection failed:", error);
-      setLocationError(
-        "Failed to detect your location. Please try again or enter address manually."
-      );
-      setIsDetectingLocation(false);
+
+        const locationData = {
+          addressLine: data.data.address || "",
+          city: data.data.city || "",
+          state: data.data.state || "",
+          pincode: detectedPincode,
+          lat: latitude,
+          lng: longitude,
+        };
+
+        localStorage.setItem("autofillAddress", JSON.stringify(locationData));
+        onClose();
+        navigate("/addresses");
+      } else {
+        console.warn("Location data incomplete from API");
+      }
+    } catch (err) {
+      console.error("Reverse geocoding failed:", err);
     }
   };
 
@@ -231,10 +189,40 @@ const ChooseLocation: React.FC<ChooseLocationProps> = ({
               )}
             </button>
 
-            {/* Location Error Message */}
-            {locationError && (
+            {/* Permission Denied - Special UI */}
+            {permissionState === "denied" && !isDetectingLocation && (
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <MapPinOff className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-amber-800">
+                      📍 Location Access Disabled
+                    </p>
+                    <p className="text-xs text-amber-700 mt-1">
+                      Please enable location access in your browser settings:
+                    </p>
+                    <p className="text-xs text-amber-600 mt-1">
+                      Chrome → Settings → Privacy → Location
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Geolocation Error - Soft Warning */}
+            {geoError && geoError.type !== "permission_denied" && !isDetectingLocation && (
+              <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-gray-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-gray-700">{geoError.message}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Deliverability Error */}
+            {isDeliverableError && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-sm text-red-800">{locationError}</p>
+                <p className="text-sm text-red-800">{isDeliverableError}</p>
               </div>
             )}
 

@@ -6,6 +6,8 @@ import mongoose from "mongoose";
 import crypto from "crypto";
 import { inventoryReservationService } from "../../orders/services/inventoryReservationService";
 import { incCounterWithLabels } from "../../../ops/opsMetrics";
+import { isProviderUnavailableError } from "../types";
+import { capturePaymentError, logger } from "../../../utils/logger";
 
 export function verifyRazorpaySignature(
   orderId: string,
@@ -374,7 +376,7 @@ export async function createRazorpayPaymentIntent(args: {
     key_secret: razorpayKeySecret,
   });
 
-  let intent: any = existingActiveByOrder || null;
+  let intent: any = null;
   if (!intent) {
     try {
       intent = await PaymentIntent.create({
@@ -448,6 +450,7 @@ export async function createRazorpayPaymentIntent(args: {
 
     const currency = "INR";
 
+    const effectiveAttemptNo = Number((intent as any)?.attemptNo || attemptNo);
     const gatewayCreatePayload: any = {
       amount: amountInPaise,
       currency,
@@ -455,7 +458,7 @@ export async function createRazorpayPaymentIntent(args: {
       notes: {
         orderId: String(args.orderId),
         paymentIntentId: String(intent._id),
-        attemptNo: String(attemptNo),
+        attemptNo: String(effectiveAttemptNo),
       },
       payment_capture: true,
     };
@@ -467,16 +470,63 @@ export async function createRazorpayPaymentIntent(args: {
     });
 
     console.log("[CHECK-6] Razorpay order creation about to happen");
-    const created: any =
-      process.env.NODE_ENV === "test"
-        ? {
-            id: `order_test_${String(receipt || args.orderId || "").replace(/[^a-zA-Z0-9_\-]/g, "").slice(-24)}`,
-            status: "created",
-            amount: amountInPaise,
-            currency,
-          }
-        : await razorpay.orders.create(gatewayCreatePayload);
-    console.log("[CHECK-7] Razorpay order created:", String(created?.id || ""));
+    
+    let created: any;
+    try {
+      created =
+        process.env.NODE_ENV === "test"
+          ? {
+              id: `order_test_${String(receipt || args.orderId || "").replace(/[^a-zA-Z0-9_\-]/g, "").slice(-24)}`,
+              status: "created",
+              amount: amountInPaise,
+              currency,
+            }
+          : await razorpay.orders.create(gatewayCreatePayload);
+      console.log("[CHECK-7] Razorpay order created:", String(created?.id || ""));
+    } catch (razorpayError: any) {
+      // Check if this is a provider unavailability error
+      if (isProviderUnavailableError(razorpayError)) {
+        logger.payment("provider_unavailable: Razorpay API unreachable", {
+          orderId: String(args.orderId),
+          paymentIntentId: String(intent._id),
+          error: razorpayError.message,
+          code: razorpayError.code,
+        });
+
+        capturePaymentError("Payment provider unavailable", razorpayError, {
+          orderId: String(args.orderId),
+          paymentIntentId: String(intent._id),
+          provider: "RAZORPAY",
+        });
+
+        // Mark intent as pending external - will be retried by reconciliation
+        try {
+          paymentIntentStateMachine.assertAllowedTransition(
+            String(intent.status) as any,
+            "PAYMENT_PENDING_EXTERNAL"
+          );
+          intent.status = "PAYMENT_PENDING_EXTERNAL" as any;
+          intent.paymentState = "CREATED" as any;
+          await intent.save();
+        } catch {
+          // State transition not allowed, continue with normal error handling
+        }
+
+        incCounterWithLabels(
+          "payment_events_total",
+          { gateway: "RAZORPAY", type: "intent", event: "CREATE", result: "provider_unavailable" },
+          1
+        );
+
+        const err: any = new Error("Payment service temporarily unavailable. Your order has been saved and will be processed shortly.");
+        err.statusCode = 503;
+        err.isProviderUnavailable = true;
+        throw err;
+      }
+
+      // Re-throw non-provider errors
+      throw razorpayError;
+    }
 
     const gatewayOrderId = String(created?.id || "");
     if (!gatewayOrderId) {

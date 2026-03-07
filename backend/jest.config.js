@@ -6,6 +6,11 @@ module.exports = {
     "**/__tests__/**/*.ts",
     "**/?(*.)+(spec|test).ts"
   ],
+  testPathIgnorePatterns: [
+    "<rootDir>/dist/",
+    "<rootDir>/coverage/",
+    "<rootDir>/tests/stress/",
+  ],
   transform: {
     "^.+\\.ts$": ["ts-jest", {
       tsconfig: {
@@ -34,7 +39,7 @@ module.exports = {
   moduleFileExtensions: ["ts", "js", "json"],
   verbose: true,
   clearMocks: true,
-  resetMocks: true,
+  resetMocks: false,
   restoreMocks: true,
   testEnvironmentOptions: {
     NODE_ENV: "test",

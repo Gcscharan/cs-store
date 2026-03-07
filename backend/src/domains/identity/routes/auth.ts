@@ -1,6 +1,7 @@
 import express from "express";
 import passport from "passport";
 import { authenticateGoogleAuthOnly, authenticateToken } from "../../../middleware/auth";
+import { loginRateLimit, signupRateLimit } from "../../../middleware/security";
 import {
   signup,
   login,
@@ -48,8 +49,8 @@ const handleOAuthError = (
 };
 
 // Auth routes
-router.post("/signup", signup);
-router.post("/login", login);
+router.post("/signup", signupRateLimit, signup);
+router.post("/login", loginRateLimit, login);
 router.post("/oauth", oauth);
 router.post("/refresh", refresh);
 router.post("/logout", authenticateToken, logout);

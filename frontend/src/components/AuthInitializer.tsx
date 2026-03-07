@@ -1,34 +1,34 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, ReactNode } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState } from "../store";
-import { logout, setUser, setLoading, setAuthState } from "../store/slices/authSlice";
+import { logout, setUser, setStatus } from "../store/slices/authSlice";
 import { useGetProfileQuery } from "../store/api";
+
+interface AuthInitializerProps {
+  children: ReactNode;
+}
 
 /**
  * AuthInitializer - Validates stored authentication tokens on app startup
  * 
- * Problem: The app was auto-logging in users from localStorage without verifying
- * that their tokens were still valid on the backend.
+ * ARCHITECTURE: This is the boot-time guard that stabilizes auth state.
  * 
- * Solution: On initial mount, if a token exists in Redux state, immediately
- * call /api/user/profile to validate it. Only logout on specific auth errors.
+ * Flow:
+ * 1. On app start, status is either LOADING, UNAUTHENTICATED, or GOOGLE_AUTH_ONLY
+ * 2. If LOADING (has token), verify with backend via /api/user/profile
+ * 3. On success: status -> ACTIVE, store user
+ * 4. On auth error: status -> UNAUTHENTICATED (logout)
+ * 5. On GOOGLE_AUTH_ONLY: skip verification (no user record yet)
  * 
- * This ensures users are never "logged in" with invalid/expired tokens.
+ * Guards (AuthGate) will NOT run until status is stable (not LOADING).
  */
-export default function AuthInitializer() {
+export default function AuthInitializer({ children }: AuthInitializerProps) {
   const dispatch = useDispatch();
-  const { isAuthenticated, tokens, authState } = useSelector((state: RootState) => state.auth);
+  const { status, tokens } = useSelector((state: RootState) => state.auth);
   const hasValidated = useRef(false);
 
-  useEffect(() => {
-    if (!isAuthenticated || !tokens.accessToken) {
-      dispatch(setLoading(false));
-      hasValidated.current = true;
-    }
-  }, [isAuthenticated, tokens.accessToken, dispatch]);
-
-  // Only attempt profile fetch if authenticated and token exists
-  const shouldFetch = isAuthenticated && tokens.accessToken && !hasValidated.current;
+  // Only attempt profile fetch if status is LOADING (have token, need to verify)
+  const shouldFetch = status === "LOADING" && tokens.accessToken && !hasValidated.current;
 
   const {
     error,
@@ -40,63 +40,62 @@ export default function AuthInitializer() {
   });
 
   useEffect(() => {
-    // Only logout on specific authentication errors, not all errors
+    // Handle GOOGLE_AUTH_ONLY - no user record exists yet
+    if (status === "GOOGLE_AUTH_ONLY" && !hasValidated.current) {
+      console.log('🔐 AUTH INITIALIZER: GOOGLE_AUTH_ONLY session - skipping profile fetch');
+      hasValidated.current = true;
+      return;
+    }
+
+    // Handle UNAUTHENTICATED - nothing to validate
+    if (status === "UNAUTHENTICATED" && !hasValidated.current) {
+      hasValidated.current = true;
+      return;
+    }
+
+    // Handle profile fetch results
     if (shouldFetch && isError && !isFetching) {
-      const status = (error as any)?.status;
+      const httpStatus = (error as any)?.status;
       const originalStatus = (error as any)?.originalStatus;
 
-      // GOOGLE_AUTH_ONLY sessions do not have a user record yet and use an onboarding-only token.
-      // /api/auth/me may return 401/403/404; do NOT force logout. Route guards will redirect to onboarding.
-      if (authState === "GOOGLE_AUTH_ONLY") {
-        hasValidated.current = true;
-        dispatch(setLoading(false));
-        return;
-      }
-      
       // Only logout on actual authentication failures
-      const isAuthError = status === 401 || status === 403 || status === 404 ||
+      const isAuthError = httpStatus === 401 || httpStatus === 403 || httpStatus === 404 ||
                          originalStatus === 401 || originalStatus === 403 || originalStatus === 404;
       
       if (isAuthError) {
-        console.warn('🔐 AUTH INITIALIZER: Authentication error detected, logging out', {
-          error,
-          status,
+        console.warn('🔐 AUTH INITIALIZER: Token invalid, logging out', {
+          httpStatus,
           originalStatus,
         });
-
-        // Mark as validated to prevent infinite loops
         hasValidated.current = true;
-
-        // Token is invalid - logout and clear everything
-        dispatch(logout());
-
-        // Force reload to ensure clean state
-        setTimeout(() => {
-          window.location.href = '/';
-        }, 100);
+        setTimeout(() => dispatch(logout()), 0);
       } else {
-        // For other errors (network, server errors), don't logout
-        console.warn('🔐 AUTH INITIALIZER: Non-auth error, not logging out', {
-          error,
-          status,
+        // Network/server error - keep status as LOADING for retry, but mark validated to prevent loop
+        console.warn('🔐 AUTH INITIALIZER: Non-auth error, keeping state', {
+          httpStatus,
           originalStatus,
         });
-        hasValidated.current = true; // Still mark as validated to prevent retries
-        dispatch(setLoading(false));
+        hasValidated.current = true;
+        // Set to UNAUTHENTICATED to unblock the app
+        setTimeout(() => dispatch(setStatus("UNAUTHENTICATED")), 0);
       }
     }
 
-    // If fetch succeeded, store authoritative user data and mark as validated
+    // On success: store user and set ACTIVE
     if (shouldFetch && !isError && !isFetching && data) {
       console.log('✅ AUTH INITIALIZER: Token validated successfully');
       hasValidated.current = true;
-      // Store authoritative user object including profileCompleted
-      dispatch(setUser(data));
-      dispatch(setAuthState("ACTIVE"));
-      dispatch(setLoading(false));
+      setTimeout(() => {
+        dispatch(setUser(data));
+        dispatch(setStatus("ACTIVE"));
+      }, 0);
     }
-  }, [shouldFetch, isError, isFetching, error, data, dispatch, authState]);
+  }, [status, shouldFetch, isError, isFetching, error, data, dispatch]);
 
-  // This component doesn't render anything - it's just for side effects
-  return null;
+  // Wait until auth state is stable before rendering children
+  if (status === "LOADING") {
+    return null; // Or a loading spinner
+  }
+
+  return <>{children}</>;
 }

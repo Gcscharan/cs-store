@@ -75,6 +75,76 @@ function validateEnvironmentVariables() {
     if (!process.env.GOOGLE_CLIENT_SECRET) {
         errors.push("⚠️  GOOGLE_CLIENT_SECRET is recommended for OAuth login");
     }
+    // ============================================================
+    // SELLER GST CONFIGURATION (Required for Invoice Generation)
+    // ============================================================
+    // In production, these are MANDATORY for GST-compliant invoices.
+    // Missing values will cause invoice generation to fail silently
+    // or produce invalid invoices.
+    // ============================================================
+    if (NODE_ENV === "production") {
+        const sellerGstErrors = [];
+        // Required seller details
+        const requiredSellerFields = [
+            { key: "SELLER_LEGAL_NAME", name: "Seller Legal Name" },
+            { key: "SELLER_GSTIN", name: "Seller GSTIN" },
+            { key: "SELLER_ADDRESS_LINE1", name: "Seller Address Line 1" },
+            { key: "SELLER_CITY", name: "Seller City" },
+            { key: "SELLER_STATE", name: "Seller State" },
+            { key: "SELLER_STATE_CODE", name: "Seller State Code" },
+            { key: "SELLER_PINCODE", name: "Seller Pincode" },
+        ];
+        for (const field of requiredSellerFields) {
+            if (!process.env[field.key] || process.env[field.key].trim() === "") {
+                sellerGstErrors.push(`❌ ${field.name} (${field.key}) is required for GST invoices`);
+            }
+        }
+        // GSTIN format validation (Indian GSTIN pattern)
+        // Format: 2-digit state code + PAN + entity + checksum
+        // Example: 29AABCU9603R1ZM
+        const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+        const sellerGstin = process.env.SELLER_GSTIN;
+        if (sellerGstin && !GSTIN_REGEX.test(sellerGstin)) {
+            sellerGstErrors.push(`❌ SELLER_GSTIN format is invalid. Expected format: 29AABCU9603R1ZM (2-digit state code + PAN + entity + checksum)`);
+        }
+        // State code validation (2-digit)
+        const STATE_CODE_REGEX = /^[0-9]{2}$/;
+        const sellerStateCode = process.env.SELLER_STATE_CODE;
+        if (sellerStateCode && !STATE_CODE_REGEX.test(sellerStateCode)) {
+            sellerGstErrors.push(`❌ SELLER_STATE_CODE must be a 2-digit number (e.g., 29 for Karnataka)`);
+        }
+        // Pincode validation (6-digit)
+        const PINCODE_REGEX = /^[1-9][0-9]{5}$/;
+        const sellerPincode = process.env.SELLER_PINCODE;
+        if (sellerPincode && !PINCODE_REGEX.test(sellerPincode)) {
+            sellerGstErrors.push(`❌ SELLER_PINCODE must be a valid 6-digit Indian pincode`);
+        }
+        // Add seller GST errors to main errors array
+        if (sellerGstErrors.length > 0) {
+            console.error("\n🚨 SELLER GST CONFIGURATION ERRORS:");
+            sellerGstErrors.forEach(err => console.error(err));
+            console.error("\n❌ Invoice generation will fail without valid seller GST details.");
+            console.error("❌ Please add these variables to your .env file:\n");
+            console.error("   SELLER_LEGAL_NAME=\"Your Company Pvt Ltd\"");
+            console.error("   SELLER_GSTIN=\"29AABCU9603R1ZM\"");
+            console.error("   SELLER_ADDRESS_LINE1=\"123, Business Park\"");
+            console.error("   SELLER_CITY=\"Bengaluru\"");
+            console.error("   SELLER_STATE=\"Karnataka\"");
+            console.error("   SELLER_STATE_CODE=\"29\"");
+            console.error("   SELLER_PINCODE=\"560001\"\n");
+            errors.push(...sellerGstErrors);
+        }
+        else if (sellerGstin) {
+            // All seller fields present and valid
+            console.log("✅ Seller GST configuration validated");
+        }
+    }
+    else {
+        // Development mode: warn if seller details missing
+        if (!process.env.SELLER_GSTIN) {
+            errors.push("⚠️  SELLER_GSTIN is not set. Invoices will use placeholder GST details.");
+        }
+    }
     // Critical errors that prevent startup
     const criticalErrors = errors.filter(err => err.startsWith("❌"));
     const warnings = errors.filter(err => err.startsWith("⚠️"));
@@ -127,11 +197,13 @@ if (process.env.FAST2SMS_API_KEY && process.env.FAST2SMS_API_KEY.length < 20) {
 if (verboseLoggingEnabled) {
     console.log("========================================\n");
 }
+const mongoose_1 = __importDefault(require("mongoose"));
 const http_1 = require("http");
 const socket_io_1 = require("socket.io");
 const app_1 = __importDefault(require("./app"));
 const database_1 = require("./utils/database");
 const bootstrapDevAdmin_1 = require("./scripts/bootstrapDevAdmin");
+const redis_1 = require("./config/redis");
 // import SocketService from "./services/socketService";
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const liveLocationStore_1 = require("./services/liveLocationStore");
@@ -142,6 +214,7 @@ const notificationWriter_1 = require("./domains/communication/services/notificat
 const outboxDispatcher_1 = require("./domains/events/outboxDispatcher");
 const inventoryReservationSweeper_1 = require("./domains/orders/services/inventoryReservationSweeper");
 const stuckPaymentScanner_1 = require("./domains/payments/services/stuckPaymentScanner");
+const paymentReconciliationService_1 = require("./domains/payments/services/paymentReconciliationService");
 // Create HTTP server
 const server = (0, http_1.createServer)(app_1.default);
 // Initialize Socket.io
@@ -325,13 +398,49 @@ const closeExistingServer = async (port) => {
 };
 const startServer = async () => {
     try {
+        // Redis is MANDATORY in production - fail fast if unavailable
+        console.log("\n========================================");
+        console.log("🔌 Checking Redis connection...");
+        console.log("========================================");
+        const redisCheck = await (0, redis_1.ensureRedisConnection)();
+        if (!redisCheck.connected) {
+            console.error("❌ Redis connection failed - exiting");
+            process.exit(1);
+        }
         await (0, database_1.connectDB)();
+        // CRITICAL: MongoDB must run as replica set for transactions
+        // Fail fast if transactions are not enabled
+        async function assertTransactionsEnabled() {
+            try {
+                if (!mongoose_1.default.connection.db) {
+                    throw new Error("MongoDB connection not established");
+                }
+                const admin = mongoose_1.default.connection.db.admin();
+                await admin.command({ replSetGetStatus: 1 });
+                console.log("✅ MongoDB replica set detected - transactions enabled");
+            }
+            catch (err) {
+                console.error("\n❌ ═════════════════════════════════════════════════════════");
+                console.error("❌ FATAL: MongoDB must run as replica set for transactions.");
+                console.error("❌ Order creation, inventory reservation, and payment finalization");
+                console.error("❌ require atomic transactions to prevent data corruption.");
+                console.error("❌");
+                console.error("❌ To fix:");
+                console.error("❌   - Local: Start MongoDB with --replSet flag");
+                console.error("❌   - Atlas: Replica set is enabled by default");
+                console.error("❌ ═════════════════════════════════════════════════════════\n");
+                process.exit(1);
+            }
+        }
+        await assertTransactionsEnabled();
         // Start in-memory live location store timers (flush + TTL cleanup)
         liveLocationStore_1.liveLocationStore.start();
         (0, notificationWriter_1.initializeNotificationWriter)();
         (0, outboxDispatcher_1.initializeOutboxDispatcher)();
         (0, inventoryReservationSweeper_1.initializeInventoryReservationSweeper)();
         (0, stuckPaymentScanner_1.startStuckPaymentScanner)();
+        // Initialize payment reconciliation service (reconciles captured payments missed by webhook)
+        (0, paymentReconciliationService_1.initializePaymentReconciliation)();
         // Bootstrap dev admin user in development
         await (0, bootstrapDevAdmin_1.bootstrapDevAdmin)();
         // Initialize Redis ZSET for delivery partner load tracking
@@ -419,15 +528,12 @@ process.on("SIGINT", () => {
         process.exit(0);
     });
 });
-// Prevent multiple servers
-if (process.env.NODE_ENV !== "production") {
-    process.on("uncaughtException", (error) => {
-        console.error("Uncaught Exception:", error);
-        process.exit(1);
-    });
-    process.on("unhandledRejection", (reason, promise) => {
-        console.error("Unhandled Rejection at:", promise, "reason:", reason);
-        process.exit(1);
-    });
-}
+process.on("unhandledRejection", (err) => {
+    console.error("[UNHANDLED_REJECTION]", err);
+    process.exit(1);
+});
+process.on("uncaughtException", (err) => {
+    console.error("[UNCAUGHT_EXCEPTION]", err);
+    process.exit(1);
+});
 startServer();

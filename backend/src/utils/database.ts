@@ -6,6 +6,16 @@ const maskMongoURI = (uri: string): string => {
   return uri.replace(/\/\/([^:]+):([^@]+)@/, "//$1:***@");
 };
 
+ const getDriverUrlSafe = (): string => {
+   try {
+     const anyConn = mongoose.connection as any;
+     const url = anyConn?.client?.s?.url;
+     return typeof url === "string" && url.trim() ? url : "unavailable";
+   } catch {
+     return "unavailable";
+   }
+ };
+
 export const connectDB = async (): Promise<void> => {
   try {
     // CRITICAL: Only use MONGODB_URI from environment - no fallbacks
@@ -38,6 +48,11 @@ export const connectDB = async (): Promise<void> => {
     console.log("✅ MongoDB Atlas connected successfully");
     console.log(`🗄️  Database: ${mongoose.connection.name}`);
     console.log(`🏠 Host: ${mongoose.connection.host}`);
+    console.log("[DB][Runtime] Host:", mongoose.connection.host);
+    console.log("[DB][Runtime] Database Name:", mongoose.connection.name);
+    console.log("[DB][Runtime] Driver URL:", getDriverUrlSafe());
+    console.log("[DB][Runtime] process.env.MONGODB_URI:", process.env.MONGODB_URI ? "<set>" : "<unset>");
+    console.log("[DB][Runtime] Connection String (masked):", maskMongoURI(String(process.env.MONGODB_URI || "")));
     console.log("");
   } catch (error) {
     console.error("\n❌ MongoDB Atlas connection error:");

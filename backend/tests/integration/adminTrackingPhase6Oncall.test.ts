@@ -41,7 +41,7 @@ describe("Phase 6 on-call & escalation admin APIs", () => {
     const nowMs = Date.now();
     const order = await (global as any).createTestOrder(user, {
       deliveryStatus: "in_transit",
-      orderStatus: "pending",
+      orderStatus: "CREATED",
       estimatedDeliveryWindow: { start: new Date(nowMs), end: new Date(nowMs + 60_000), confidence: "high" },
     });
 

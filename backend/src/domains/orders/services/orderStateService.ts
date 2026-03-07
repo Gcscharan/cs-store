@@ -17,6 +17,10 @@ import {
   createOrderPickedUpEvent,
 } from "../../events/order.events";
 
+// Symbol to mark authorized orderStatus transitions
+// Only orderStateService.transition() sets this on the document
+export const AUTHORIZED_TRANSITION_SYMBOL = Symbol.for("orderStateService.authorizedTransition");
+
 export type OrderActorRole = "CUSTOMER" | "DELIVERY_PARTNER" | "ADMIN";
 
 export class InvalidStateTransitionError extends Error {
@@ -349,6 +353,10 @@ export const orderStateService = {
                 };
               }
             }
+
+            // Mark this transition as authorized by orderStateService
+            // This allows the Order model pre-save hook to validate authority
+            (order as any)[AUTHORIZED_TRANSITION_SYMBOL] = true;
 
             (order as any).orderStatus = to as any;
 

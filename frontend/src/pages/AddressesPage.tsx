@@ -197,10 +197,95 @@ const AddressesPage: React.FC = () => {
     setShowAddForm(true);
   };
 
+  const handleUseCurrentLocation = async () => {
+    // Inline the Use Current Location logic
+    try {
+      if (!navigator.geolocation) {
+        showError("Geolocation is not supported by your browser");
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude } = position.coords;
+          try {
+            const response = await fetch(
+              `/api/location/reverse-geocode?lat=${latitude}&lng=${longitude}`
+            );
+            const data = await response.json();
+
+            if (data.success && data.data) {
+              const detectedState = data.data.state || "";
+              const detectedPincode = data.data.pincode || "";
+
+              console.log("Detected State:", detectedState);
+              console.log("Detected Pincode:", detectedPincode);
+
+              // Validate if state is Andhra Pradesh or Telangana
+              const validStates = ["andhra pradesh", "telangana"];
+              const isValidState = validStates.some((state) =>
+                detectedState.toLowerCase().includes(state)
+              );
+
+              // Also validate pincode if available
+              const isValidPincode = detectedPincode
+                ? isPincodeDeliverable(detectedPincode)
+                : false;
+
+              console.log("Is Valid State:", isValidState);
+              console.log("Is Valid Pincode:", isValidPincode);
+
+              if (!isValidState && !isValidPincode) {
+                const errorMsg = `Delivery not available for ${
+                  detectedState || "your location"
+                }. We only deliver to Andhra Pradesh and Telangana.`;
+                console.log("Showing error:", errorMsg);
+                showError(errorMsg);
+                alert(errorMsg); // Fallback alert
+                return;
+              }
+
+              handleLocationDetected({
+                name: "",
+                address: data.data.address || "",
+                city: data.data.city || "",
+                state: detectedState,
+                pincode: detectedPincode,
+                phone: "",
+                label: "Home",
+              });
+              showSuccess("Location detected successfully!");
+            } else {
+              showError("Could not determine your location");
+            }
+          } catch (error) {
+            console.error("Reverse geocoding failed:", error);
+            showError("Could not determine your location");
+          }
+        },
+        (error) => {
+          let errorMessage = "Could not access your location";
+          if (error.code === error.PERMISSION_DENIED) {
+            errorMessage = "Please allow location access and try again";
+          }
+          showError(errorMessage);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0,
+        }
+      );
+    } catch (error) {
+      showError("Could not access your location");
+    }
+  };
+
   // Improved filtering logic as per requirements
   const allAddresses = addresses || [];
   const defaultAddress = allAddresses.find(addr => addr.isDefault) || null;
   const otherAddresses = allAddresses.filter(addr => !addr.isDefault);
+  const hasNoAddresses = allAddresses.length === 0;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -228,10 +313,10 @@ const AddressesPage: React.FC = () => {
                   Coupons
                 </div>
                 <div className="text-sm text-gray-700 hover:text-blue-600 cursor-pointer py-1">
-                  CS Store Credit
+                  Vyapara Setu Credit
                 </div>
                 <div className="text-sm text-gray-700 hover:text-blue-600 cursor-pointer py-1">
-                  CS Store Cash
+                  Vyapara Setu Cash
                 </div>
               </div>
 
@@ -253,7 +338,7 @@ const AddressesPage: React.FC = () => {
                   Addresses
                 </div>
                 <div className="text-sm text-gray-700 hover:text-blue-600 cursor-pointer py-1">
-                  CS Store Insider
+                  Vyapara Setu Insider
                 </div>
                 <div className="text-sm text-gray-700 hover:text-blue-600 cursor-pointer py-1">
                   Delete Account
@@ -282,81 +367,7 @@ const AddressesPage: React.FC = () => {
                 </h1>
                 <div className="flex items-center gap-3">
                   <button
-                    onClick={async () => {
-                      // Inline the Use Current Location logic
-                      try {
-                        if (!navigator.geolocation) {
-                          showError("Geolocation is not supported by your browser");
-                          return;
-                        }
-
-                        navigator.geolocation.getCurrentPosition(
-                          async (position) => {
-                            const { latitude, longitude } = position.coords;
-                            try {
-                              const response = await fetch(
-                                `/api/location/reverse-geocode?lat=${latitude}&lng=${longitude}`
-                              );
-                              const data = await response.json();
-                              
-                              if (data.success && data.data) {
-                                const detectedState = data.data.state || "";
-                                const detectedPincode = data.data.pincode || "";
-                                
-                                console.log("Detected State:", detectedState);
-                                console.log("Detected Pincode:", detectedPincode);
-                                
-                                // Validate if state is Andhra Pradesh or Telangana
-                                const validStates = ["andhra pradesh", "telangana"];
-                                const isValidState = validStates.some(state => 
-                                  detectedState.toLowerCase().includes(state)
-                                );
-                                
-                                // Also validate pincode if available
-                                const isValidPincode = detectedPincode ? 
-                                  isPincodeDeliverable(detectedPincode) : false;
-                                
-                                console.log("Is Valid State:", isValidState);
-                                console.log("Is Valid Pincode:", isValidPincode);
-                                
-                                if (!isValidState && !isValidPincode) {
-                                  const errorMsg = `Delivery not available for ${detectedState || "your location"}. We only deliver to Andhra Pradesh and Telangana.`;
-                                  console.log("Showing error:", errorMsg);
-                                  showError(errorMsg);
-                                  alert(errorMsg); // Fallback alert
-                                  return;
-                                }
-                                
-                                handleLocationDetected({
-                                  name: "",
-                                  address: data.data.address || "",
-                                  city: data.data.city || "",
-                                  state: detectedState,
-                                  pincode: detectedPincode,
-                                  phone: "",
-                                  label: "Home",
-                                });
-                                showSuccess("Location detected successfully!");
-                              } else {
-                                showError("Could not determine your location");
-                              }
-                            } catch (error) {
-                              console.error("Reverse geocoding failed:", error);
-                              showError("Could not determine your location");
-                            }
-                          },
-                          (error) => {
-                            let errorMessage = "Could not access your location";
-                            if (error.code === error.PERMISSION_DENIED) {
-                              errorMessage = "Please allow location access and try again";
-                            }
-                            showError(errorMessage);
-                          }
-                        );
-                      } catch (error) {
-                        showError("Could not access your location");
-                      }
-                    }}
+                    onClick={handleUseCurrentLocation}
                     className="flex items-center gap-2 bg-white text-gray-700 px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
                   >
                     <MapPin className="w-4 h-4" />
@@ -371,6 +382,35 @@ const AddressesPage: React.FC = () => {
                   </button>
                 </div>
               </div>
+
+              {hasNoAddresses && !isLoadingAddresses && !addressesError && !showAddForm && (
+                <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-5">
+                  <div className="text-lg font-semibold text-gray-900">
+                    Add Your Delivery Address
+                  </div>
+                  <div className="mt-2 text-[15px] text-gray-800">
+                    For accurate delivery, we recommend using your current location.
+                  </div>
+                  <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                    <button
+                      type="button"
+                      onClick={handleUseCurrentLocation}
+                      className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-3 text-white text-[15px] font-semibold hover:bg-blue-700 transition-colors"
+                    >
+                      <MapPin className="w-5 h-5" />
+                      Use My Current Location
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAddAddress}
+                      className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-5 py-3 text-gray-900 text-[15px] font-semibold hover:bg-gray-50 transition-colors"
+                    >
+                      <Plus className="w-5 h-5" />
+                      Enter Address Manually
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Loading State */}
               {isLoadingAddresses && (

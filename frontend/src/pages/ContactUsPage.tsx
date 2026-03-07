@@ -35,7 +35,7 @@ const ContactUsPage: React.FC = () => {
         >
           <div className="text-center mb-8">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              Get in Touch with CS Store
+              Get in Touch with Vyapara Setu
             </h2>
             <p className="text-lg text-gray-600">
               We'd love to hear from you. Send us a message and we'll respond as
@@ -72,7 +72,7 @@ const ContactUsPage: React.FC = () => {
                   <div>
                     <p className="font-medium text-gray-900">Address</p>
                     <p className="text-gray-600">
-                      CS Store
+                      Vyapara Setu
                       <br />
                       Tiruvuru, Krishna District,
                       <br />

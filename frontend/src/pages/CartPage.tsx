@@ -17,7 +17,7 @@ import {
   calculateDeliveryFee,
 } from "../utils/deliveryFeeCalculator";
 import { calculatePriceBreakdown, formatPrice } from "../utils/priceCalculator";
-import { getProductImage, handleImageError } from "../utils/image";
+import { getImageUrl, handleImageError } from "../utils/image";
 import ConfirmationDialog from "../components/ConfirmationDialog";
 import { CartPageSkeleton } from "../components/PageSkeletons";
 import { useCartPersistence } from "../hooks/useCartPersistence";
@@ -276,10 +276,20 @@ const CartPage = () => {
                       {/* Product Image */}
                       <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 border border-gray-200">
                         <img
-                          src={getProductImage(item)}
+                          src={getImageUrl(item.image)}
                           alt={item.name}
                           className="w-full h-full object-cover"
-                          onError={(e) => handleImageError(e)}
+                          onError={(e) => {
+                            if (import.meta.env.DEV) {
+                              // eslint-disable-next-line no-console
+                              console.log("[CartPage] image failed", {
+                                itemId: item.id,
+                                rawImage: item.image,
+                                resolvedSrc: getImageUrl(item.image),
+                              });
+                            }
+                            handleImageError(e);
+                          }}
                         />
                       </div>
 
@@ -298,7 +308,7 @@ const CartPage = () => {
                         <div className="flex items-center space-x-2 mt-2">
                           <span className="text-xs text-gray-500">Seller:</span>
                           <span className="text-xs font-medium text-blue-600">
-                            CS Store
+                            Vyapara Setu
                           </span>
                           <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
                             Assured

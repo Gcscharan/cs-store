@@ -332,7 +332,7 @@ const OnboardingForm: React.FC = () => {
         dispatch(setAuthState("ACTIVE"));
       }
 
-      success("Profile Completed", "Welcome to CS Store! Your account is ready.");
+      success("Profile Completed", "Welcome to Vyapara Setu! Your account is ready.");
       navigate("/dashboard", { replace: true });
     } catch (error) {
       console.error("Profile completion error:", error);

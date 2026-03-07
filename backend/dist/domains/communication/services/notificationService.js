@@ -38,6 +38,8 @@ const User_1 = require("../../../models/User");
 const Order_1 = require("../../../models/Order");
 const mailService_1 = require("./mailService");
 const sms_1 = require("../../../utils/sms");
+const invoiceService_1 = require("../../invoice/services/invoiceService");
+const pdfGenerator_1 = require("../../invoice/services/pdfGenerator");
 // Event to Category Mapping
 const eventCategoryMapping = {
     'ORDER_CONFIRMED': { category: 'myOrders' },
@@ -205,10 +207,48 @@ class NotificationService {
             }
             // Generate and send email
             const { subject, html } = this.generateEmailContent(event, data, user.name);
+            // ============================================================
+            // INVOICE PDF ATTACHMENT FOR PAYMENT_SUCCESS
+            // ============================================================
+            // Attach invoice PDF to payment success email if orderId is provided.
+            // If PDF generation fails, send email WITHOUT attachment (never fail email).
+            // ============================================================
+            let attachments;
+            if (event === "PAYMENT_SUCCESS" && data.orderId) {
+                try {
+                    // Fetch invoice data (idempotent - does NOT regenerate if exists)
+                    const invoiceData = await (0, invoiceService_1.getInvoiceData)(data.orderId);
+                    if (invoiceData && invoiceData.invoiceNumber) {
+                        // Generate PDF buffer
+                        const pdfBuffer = await (0, pdfGenerator_1.generateInvoicePdfBuffer)(invoiceData);
+                        attachments = [{
+                                filename: `Invoice-${invoiceData.invoiceNumber}.pdf`,
+                                content: pdfBuffer,
+                                contentType: "application/pdf",
+                            }];
+                        console.info("[EMAIL][INVOICE_ATTACHED]", {
+                            orderId: data.orderId,
+                            invoiceNumber: invoiceData.invoiceNumber,
+                            to: user.email,
+                        });
+                    }
+                }
+                catch (pdfError) {
+                    // CRITICAL: Do NOT fail the email if PDF generation fails.
+                    // Log error and send email WITHOUT attachment.
+                    console.error("[EMAIL][INVOICE_PDF_FAILED]", {
+                        orderId: data.orderId,
+                        error: pdfError?.message || "Unknown error",
+                        fallback: "Sending email without attachment",
+                    });
+                    attachments = undefined;
+                }
+            }
             await (0, mailService_1.sendEmail)({
                 to: user.email,
                 subject,
-                html
+                html,
+                attachments,
             });
             if (event === "PAYMENT_SUCCESS" || event === "PAYMENT_FAILED") {
                 console.info("[BACKEND][NOTIFICATION_SENT]", {

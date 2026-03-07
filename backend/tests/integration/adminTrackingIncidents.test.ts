@@ -15,7 +15,7 @@ describe("Phase 5 admin incident APIs", () => {
     const now = Date.now();
     const order = await (global as any).createTestOrder(user, {
       deliveryStatus: "in_transit",
-      orderStatus: "pending",
+      orderStatus: "CREATED",
       estimatedDeliveryWindow: {
         start: new Date(now),
         end: new Date(now + 60_000),

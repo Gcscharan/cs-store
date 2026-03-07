@@ -2,6 +2,10 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./index.css";
 import { getApiOrigin } from "./config/runtime";
+import { initializeSentry } from "./utils/sentry";
+
+// Initialize Sentry error tracking
+initializeSentry();
 
 // Disable service worker during dev to avoid cached 404s
 if ('serviceWorker' in navigator) {

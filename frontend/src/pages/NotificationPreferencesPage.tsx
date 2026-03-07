@@ -262,14 +262,14 @@ const NotificationPreferencesPage: React.FC = () => {
     },
     {
       id: "recommendations",
-      title: "Recommendations from CS Store",
+      title: "Recommendations from Vyapara Setu",
       description: "Product suggestions based on viewing and purchase history",
       icon: Star,
     },
     {
       id: "newProductAlerts",
       title: "New Product Alerts",
-      description: "Be the first to know when new products are added to CS Store",
+      description: "Be the first to know when new products are added to Vyapara Setu",
       icon: Plus,
     },
     {
@@ -280,7 +280,7 @@ const NotificationPreferencesPage: React.FC = () => {
     },
     {
       id: "community",
-      title: "CS Store Community",
+      title: "Vyapara Setu Community",
       description: "Reviews, Q&A, and community interaction updates",
       icon: Star,
     },
@@ -529,7 +529,7 @@ const NotificationPreferencesPage: React.FC = () => {
                           </h2>
                           <p className="text-gray-600">
                             {selectedChannel === 'whatsapp' 
-                              ? 'Get instant messages on your CS Store registered WhatsApp number'
+                              ? 'Get instant messages on your Vyapara Setu registered WhatsApp number'
                               : `Receive notifications via ${selectedChannelData.name.toLowerCase()}`
                             }
                           </p>

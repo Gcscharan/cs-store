@@ -94,23 +94,53 @@ const AdminRoutesPage: React.FC = () => {
   const fetchDeliveryBoys = async () => {
     try {
       setLoadingDeliveryBoys(true);
-      const response = await fetch("/api/admin/delivery-boys-list", {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${tokens?.accessToken}`,
-        },
-      });
 
-      if (!response.ok) {
-        throw new Error("Failed to fetch delivery boys");
+      const pageSize = 100;
+      const maxPages = 10;
+      let page = 1;
+      let all: any[] = [];
+
+      while (page <= maxPages) {
+        const response = await fetch(
+          `/api/admin/delivery-boys-list?page=${page}&limit=${pageSize}`,
+          {
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${tokens?.accessToken}`,
+            },
+          }
+        );
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(
+            (data as any).message || (data as any).error || "Failed to fetch delivery boys"
+          );
+        }
+
+        const list = Array.isArray((data as any).deliveryBoys)
+          ? (data as any).deliveryBoys
+          : [];
+        all = all.concat(list);
+
+        const total = Number((data as any)?.pagination?.total);
+        const pages = Number((data as any)?.pagination?.pages);
+
+        if (Number.isFinite(pages) && pages > 0) {
+          if (page >= pages) break;
+        } else if (Number.isFinite(total) && total >= 0) {
+          if (all.length >= total) break;
+        } else {
+          if (list.length < pageSize) break;
+        }
+
+        page += 1;
       }
 
-      const data = await response.json().catch(() => ({}));
-      const list = Array.isArray((data as any).deliveryBoys) ? (data as any).deliveryBoys : [];
-      setDeliveryBoys(list);
+      setDeliveryBoys(all);
     } catch (e: any) {
       console.error("Fetch delivery boys error:", e);
-      toast.error(e?.message || "Failed to load delivery boys");
+      toast.error(e?.message || "Failed to fetch delivery boys");
       setDeliveryBoys([]);
     } finally {
       setLoadingDeliveryBoys(false);
@@ -143,7 +173,9 @@ const AdminRoutesPage: React.FC = () => {
       if (!boy.isActive) return false;
       if (String(u.status || "") !== "active") return false;
       if (boy.availability !== "available") return false;
-      if (canonicalVehicleType(boy.vehicleType) !== "AUTO") return false;
+      const vt = canonicalVehicleType(boy.vehicleType);
+      const allowedVehicleTypes = new Set(["AUTO", "CAR"]);
+      if (!allowedVehicleTypes.has(vt)) return false;
       if (activeDeliveryBoyIds.has(String(boy._id))) return false;
 
       return true;

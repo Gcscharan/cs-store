@@ -53,7 +53,9 @@ function createInMemoryTrackingEventStream(): TrackingEventStream {
 
     async subscribeLocationSampleV1(handler) {
       const fn = (msg: TrackingStreamMessage<LocationSampleV1>) => {
-        void handler(msg).catch(() => undefined);
+        handler(msg).catch((err) => {
+          console.error("[TRACKING_HANDLER_ERROR]", err);
+        });
       };
       bus.on("tracking.location_sample.v1", fn);
       return {

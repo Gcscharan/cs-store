@@ -82,7 +82,7 @@ const UserSchema = new mongoose_1.Schema({
     name: {
         type: String,
         required: false, // Make name optional for OAuth users
-        default: "",
+        default: undefined, // Use undefined instead of "" to prevent empty string issues
         trim: true,
         maxlength: [100, "Name cannot exceed 100 characters"],
     },
@@ -92,20 +92,24 @@ const UserSchema = new mongoose_1.Schema({
         unique: true,
         lowercase: true,
         trim: true,
-        // Updated regex to support:
-        // - Plus signs in local part (user+tag@domain.com)
-        // - Multiple dots in domain (sub.domain.co.in)
-        // - TLDs of any length (.museum, .technology, etc.)
-        // - Special characters in local part (user.name@domain.com)
+        // Email validation - supports plus signs, multiple dots, long TLDs
         match: [
             /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i,
             "Please enter a valid email",
         ],
+        // Additional validation to prevent empty strings
+        validate: {
+            validator: function (v) {
+                return Boolean(v && v.trim().length > 0);
+            },
+            message: "Email cannot be empty",
+        },
     },
     phone: {
         type: String,
         required: false, // Make phone optional by default
-        default: "",
+        default: undefined, // Use undefined instead of "" to prevent empty string issues
+        trim: true,
         match: [
             /^[6-9]\d{9}$/,
             "Please enter a valid Indian phone number (10 digits starting with 6-9)",
@@ -124,6 +128,7 @@ const UserSchema = new mongoose_1.Schema({
     passwordHash: {
         type: String,
         minlength: [6, "Password must be at least 6 characters"],
+        select: false, // Never include in queries by default - must be explicitly selected
     },
     oauthProviders: [OAuthProviderSchema],
     role: {

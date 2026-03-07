@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { RootState } from "../store";
 import { toast } from "react-hot-toast";
@@ -15,6 +16,7 @@ import {
   AlertTriangle,
   Filter,
   Search,
+  ArrowLeft,
 } from "lucide-react";
 
 interface DeliveryBoy {
@@ -48,6 +50,7 @@ interface DeliveryBoy {
 
 const AdminDeliveryBoysPage: React.FC = () => {
   const { tokens } = useSelector((state: RootState) => state.auth);
+  const navigate = useNavigate();
   const [deliveryBoys, setDeliveryBoys] = useState<DeliveryBoy[]>([]);
   const [filteredBoys, setFilteredBoys] = useState<DeliveryBoy[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -210,9 +213,20 @@ const AdminDeliveryBoysPage: React.FC = () => {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Delivery Partners Management
-          </h1>
+          <div className="flex items-center gap-3 mb-2">
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              className="p-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+              aria-label="Go back"
+              title="Go back"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            <h1 className="text-3xl font-bold text-gray-900">
+              Delivery Partners Management
+            </h1>
+          </div>
           <p className="text-gray-600">
             Manage and monitor all delivery partners
           </p>

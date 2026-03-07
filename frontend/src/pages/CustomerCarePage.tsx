@@ -480,7 +480,7 @@ const CustomerCarePage: React.FC = () => {
                   Customer Service Center
                 </h4>
                 <p className="text-gray-600">
-                  CS Store Customer Care
+                  Vyapara Setu Customer Care
                   <br />
                   Ground Floor, Tech Park
                   <br />

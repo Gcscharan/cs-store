@@ -46,23 +46,16 @@ function validateAddressCoordinates(address) {
     if (!address) {
         return { isValid: false, error: 'Address is required' };
     }
-    // Convert to numbers, handling various input types
-    let lat;
-    let lng;
-    try {
-        lat = typeof address.lat === 'number' ? address.lat : parseFloat(String(address.lat || ''));
-        lng = typeof address.lng === 'number' ? address.lng : parseFloat(String(address.lng || ''));
+    const lat = address.lat;
+    const lng = address.lng;
+    // STRICT validation: must be finite numbers
+    // null, undefined, NaN, Infinity are all rejected
+    // Note: 0 is valid (equator/prime meridian)
+    if (typeof lat !== 'number' || typeof lng !== 'number') {
+        return { isValid: false, error: 'Address coordinates are missing' };
     }
-    catch (e) {
-        return { isValid: false, error: 'Address coordinates are invalid (parsing error)' };
-    }
-    // Check if coordinates exist and are valid numbers
-    if (isNaN(lat) || isNaN(lng)) {
-        return { isValid: false, error: 'Address coordinates are invalid (NaN)' };
-    }
-    // Check if coordinates are zero (invalid)
-    if (lat === 0 || lng === 0) {
-        return { isValid: false, error: 'Address coordinates are invalid (zero values)' };
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        return { isValid: false, error: 'Address coordinates are invalid' };
     }
     // Validate coordinates are within India bounds
     const isInIndia = lat >= 6 && lat <= 37 && lng >= 68 && lng <= 98;

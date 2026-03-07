@@ -234,18 +234,35 @@ exports.getDeliveryFeeConfig = getDeliveryFeeConfig;
 const estimateDeliveryFee = async (req, res) => {
     try {
         const { pincode, orderAmount = 0, orderWeight = 0 } = req.body;
-        if (!pincode) {
+        const pincodeStr = String(pincode || "").trim();
+        if (!pincodeStr) {
             res.status(400).json({
                 success: false,
                 message: "Pincode is required",
             });
             return;
         }
+        if (!/^\d{6}$/.test(pincodeStr)) {
+            res.status(400).json({
+                success: false,
+                message: "Invalid pincode format",
+            });
+            return;
+        }
         // Import Pincode model
         const { Pincode } = await Promise.resolve().then(() => __importStar(require("../models/Pincode")));
-        // Look up pincode in database
-        const pincodeData = await Pincode.findOne({ pincode });
-        if (!pincodeData) {
+        // Look up pincode in database (single source of truth)
+        // NOTE: Some environments may have pincodes stored as numbers (legacy) while schema expects string.
+        // Query both forms to avoid false 404s.
+        const pincodeRecord = await Pincode.findOne({
+            $or: [{ pincode: pincodeStr }, { pincode: Number(pincodeStr) }],
+        }).lean();
+        console.log("[DELIVERY ESTIMATE DEBUG]", {
+            requestPincode: pincode,
+            normalized: pincodeStr,
+            found: !!pincodeRecord,
+        });
+        if (!pincodeRecord) {
             res.status(404).json({
                 success: false,
                 message: "Pincode not found. Delivery may not be available in your area.",
@@ -258,24 +275,48 @@ const estimateDeliveryFee = async (req, res) => {
             _id: "temp",
             name: "Estimated Location",
             label: "Temp",
-            pincode: pincode,
-            city: pincodeData.district || "Unknown",
-            state: pincodeData.state || "Unknown",
-            postal_district: pincodeData.district || "Unknown",
-            admin_district: pincodeData.district || "Unknown",
-            addressLine: `${pincodeData.taluka || ""}, ${pincodeData.district || ""}`,
+            pincode: pincodeStr,
+            city: pincodeRecord.district || "Unknown",
+            state: pincodeRecord.state || "Unknown",
+            postal_district: pincodeRecord.district || "Unknown",
+            admin_district: pincodeRecord.district || "Unknown",
+            addressLine: `${pincodeRecord.taluka || ""}, ${pincodeRecord.district || ""}`,
             phone: "0000000000",
             lat: 17.385, // Default to approximate location - in production, geocode this
             lng: 78.4867,
             isDefault: false,
         };
+        const { WAREHOUSES } = await Promise.resolve().then(() => __importStar(require("../config/deliveryFeeConfig")));
+        const activeWarehouses = (WAREHOUSES || []).filter((w) => w?.isActive);
+        const warehouse = activeWarehouses[0];
+        const distanceKm = warehouse
+            ? Math.round((Math.sqrt(Math.pow(Number(tempAddress.lat) - Number(warehouse.lat), 2) +
+                Math.pow(Number(tempAddress.lng) - Number(warehouse.lng), 2)) *
+                111.32) *
+                10) / 10
+            : NaN;
+        console.log("[DELIVERY DISTANCE]", {
+            warehouse,
+            destination: { lat: tempAddress.lat, lng: tempAddress.lng, pincode: tempAddress.pincode },
+            distanceKm,
+        });
+        if (!Number.isFinite(distanceKm) || distanceKm < 0) {
+            console.error("[DELIVERY DISTANCE ERROR]", { distanceKm });
+            res.status(500).json({ message: "Invalid distance calculation" });
+            return;
+        }
         const result = await (0, deliveryFeeService_1.calculateDeliveryFeeForAddress)(tempAddress, orderAmount, orderWeight, false);
-        res.json({
-            success: true,
-            data: {
-                ...result,
-                note: "This is an estimated delivery fee. Actual fee may vary based on exact location.",
-            },
+        if (!result?.delivery?.isDeliverable) {
+            res.status(400).json({
+                success: false,
+                message: "Delivery not available to this pincode",
+            });
+            return;
+        }
+        res.status(200).json({
+            deliveryFee: Number(result?.fees?.total || 0),
+            distanceKm: Number(result?.distance?.value || 0),
+            totalAmount: Number(orderAmount || 0),
         });
     }
     catch (error) {

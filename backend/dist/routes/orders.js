@@ -7,6 +7,7 @@ const express_1 = __importDefault(require("express"));
 const orderController_1 = require("../domains/operations/controllers/orderController");
 const orderAssignmentController_1 = require("../controllers/orderAssignmentController");
 const auth_1 = require("../middleware/auth");
+const security_1 = require("../middleware/security");
 const Order_1 = require("../models/Order");
 const trackingKillSwitch_1 = require("../domains/tracking/services/trackingKillSwitch");
 const trackingProjectionStore_1 = require("../domains/tracking/services/trackingProjectionStore");
@@ -14,9 +15,9 @@ const router = express_1.default.Router();
 // Order routes
 router.get("/", auth_1.authenticateToken, orderController_1.getOrders);
 router.get("/:id", auth_1.authenticateToken, orderController_1.getOrderById);
-router.post("/", auth_1.authenticateToken, orderController_1.createOrder);
-router.post("/create", auth_1.authenticateToken, orderController_1.placeOrderCOD); // Add missing create route
-router.post("/cod", auth_1.authenticateToken, orderController_1.placeOrderCOD);
+router.post("/", auth_1.authenticateToken, security_1.checkoutRateLimit, orderController_1.createOrder);
+router.post("/create", auth_1.authenticateToken, security_1.checkoutRateLimit, orderController_1.placeOrderCOD); // Add missing create route
+router.post("/cod", auth_1.authenticateToken, security_1.checkoutRateLimit, orderController_1.placeOrderCOD);
 router.put("/:id/cancel", auth_1.authenticateToken, orderController_1.cancelOrder); // Changed from POST to PUT
 router.get("/:id/tracking", auth_1.authenticateToken, async (req, res) => {
     try {

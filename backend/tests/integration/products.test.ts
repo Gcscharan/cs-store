@@ -230,7 +230,7 @@ describe("Products Endpoints", () => {
         .send(productData)
         .expect(403);
 
-      expect(response.body).toHaveProperty("message", "Admin access required");
+      expect(response.body).toHaveProperty("message", "Admin role required");
     });
 
     it("should not create product without authentication", async () => {

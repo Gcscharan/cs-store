@@ -103,7 +103,7 @@ const TopNav = () => {
             aria-label="Go to Home page"
           >
             <div className="text-2xl">🏪</div>
-            <span className="text-xl font-bold text-gray-900">CS Store</span>
+            <span className="text-xl font-bold text-gray-900">Vyapara Setu</span>
             {isAdmin && (
               <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full ml-2">
                 Admin
