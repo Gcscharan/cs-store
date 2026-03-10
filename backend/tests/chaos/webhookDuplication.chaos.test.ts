@@ -13,14 +13,15 @@ describe("Chaos: Webhook duplication", () => {
     process.env.RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || "rzp_test_secret";
     process.env.RAZORPAY_WEBHOOK_SECRET = process.env.RAZORPAY_WEBHOOK_SECRET || "test-webhook-secret";
 
+    const suffix = crypto.randomBytes(6).toString("hex");
     const payload = {
-      id: "evt_test_1",
+      id: `evt_test_${suffix}`,
       event: "payment.captured",
       payload: {
         payment: {
           entity: {
-            id: "pay_test_1",
-            order_id: "order_test_1",
+            id: `pay_test_${suffix}`,
+            order_id: `order_test_${suffix}`,
             amount: 1000,
             currency: "INR",
             created_at: Math.floor(Date.now() / 1000),
