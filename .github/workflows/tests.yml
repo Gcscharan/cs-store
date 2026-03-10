@@ -6,6 +6,18 @@ on:
   pull_request:
   workflow_dispatch:  # manual trigger button
 
+# Global env vars for all jobs
+env:
+  NODE_ENV: test
+  SKIP_RATE_LIMIT: true
+  JWT_SECRET: ci-test-jwt-secret-12345
+  JWT_REFRESH_SECRET: ci-test-refresh-secret-12345
+  RAZORPAY_KEY_ID: rzp_test_fake
+  RAZORPAY_KEY_SECRET: fake_secret_123
+  RAZORPAY_WEBHOOK_SECRET: fake_webhook_secret_123
+  MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test
+  REDIS_URL: redis://localhost:6379
+
 jobs:
 
   jest-unit:
@@ -36,16 +48,9 @@ jobs:
         with: { node-version: '20' }
       - run: cd backend && npm ci
       - run: cd backend && npm run test:integration
-        env:
-          NODE_ENV: test
-          MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test
-          REDIS_URL: redis://localhost:6379
       - run: cd backend && npm run test:integration:reliability
         env:
-          NODE_ENV: test
           OUTBOX_DISPATCHER_ENABLED_IN_TEST: true
-          MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test
-          REDIS_URL: redis://localhost:6379
 
   jest-advanced:
     name: Jest Property + Chaos
@@ -64,15 +69,7 @@ jobs:
         with: { node-version: '20' }
       - run: cd backend && npm ci
       - run: cd backend && npm run test:property
-        env:
-          NODE_ENV: test
-          MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test
-          REDIS_URL: redis://localhost:6379
       - run: cd backend && npm run test:chaos
-        env:
-          NODE_ENV: test
-          MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test
-          REDIS_URL: redis://localhost:6379
 
   newman-api:
     name: Newman API (276 requests)
@@ -93,18 +90,12 @@ jobs:
       - run: cd backend && npm ci
       - name: Start backend
         run: |
-          cd backend && SKIP_RATE_LIMIT=true NODE_ENV=test \
-          MONGODB_URI=mongodb://localhost:27017/vyaparsetu_test \
-          REDIS_URL=redis://localhost:6379 \
-          npm run dev &
-          sleep 15
-          curl -f http://localhost:5001/api/health
-        env:
-          JWT_SECRET: test-secret-for-ci
-          RAZORPAY_KEY_ID: test
-          RAZORPAY_KEY_SECRET: test
+          cd backend && npm run dev &
+          sleep 20
+          curl -f http://localhost:5001/api/health || curl -f http://localhost:5001/health
       - name: Run Newman
         run: |
+          mkdir -p test-results
           newman run backend/tests/api/postman/VyaparSetu.postman_collection.json \
             --delay-request 200 \
             --timeout-request 5000 \
@@ -136,15 +127,8 @@ jobs:
       - run: cd frontend && npx playwright install chromium
       - name: Start backend
         run: |
-          cd backend && SKIP_RATE_LIMIT=true NODE_ENV=test \
-          MONGODB_URI=mongodb://localhost:27017/vyaparsetu_test \
-          REDIS_URL=redis://localhost:6379 \
-          npm run dev &
-          sleep 15
-        env:
-          JWT_SECRET: test-secret-for-ci
-          RAZORPAY_KEY_ID: test
-          RAZORPAY_KEY_SECRET: test
+          cd backend && npm run dev &
+          sleep 20
       - name: Start frontend
         run: cd frontend && npm run dev &
       - run: sleep 10
@@ -177,19 +161,12 @@ jobs:
       - run: cd backend && npm ci
       - name: Start backend
         run: |
-          cd backend && SKIP_RATE_LIMIT=true NODE_ENV=test \
-          MONGODB_URI=mongodb://localhost:27017/vyaparsetu_test \
-          REDIS_URL=redis://localhost:6379 \
-          npm run dev &
-          sleep 15
-          curl -f http://localhost:5001/api/health
-        env:
-          JWT_SECRET: test-secret-for-ci
-          RAZORPAY_KEY_ID: test
-          RAZORPAY_KEY_SECRET: test
+          cd backend && npm run dev &
+          sleep 20
+          curl -f http://localhost:5001/api/health || curl -f http://localhost:5001/health
       - name: Run Schemathesis
         run: |
-          SKIP_RATE_LIMIT=true schemathesis run \
+          schemathesis run \
             http://localhost:5001/openapi.json \
             --max-examples 3 \
             --workers 4 \
@@ -220,15 +197,8 @@ jobs:
       - run: cd backend && npm ci
       - name: Start backend
         run: |
-          cd backend && SKIP_RATE_LIMIT=true NODE_ENV=test \
-          MONGODB_URI=mongodb://localhost:27017/vyaparsetu_test \
-          REDIS_URL=redis://localhost:6379 \
-          npm run dev &
-          sleep 15
-        env:
-          JWT_SECRET: test-secret-for-ci
-          RAZORPAY_KEY_ID: test
-          RAZORPAY_KEY_SECRET: test
+          cd backend && npm run dev &
+          sleep 20
       - name: Run k6 light load
         run: |
           cd backend && k6 run \
