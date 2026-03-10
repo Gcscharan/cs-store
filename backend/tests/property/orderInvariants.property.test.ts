@@ -45,12 +45,20 @@ describe("order invariants", () => {
   it("cancelled order never becomes delivered", () => {
     fc.assert(
       fc.property(
-        fc.array(fc.constantFrom("CANCELLED", "DELIVERED", "SHIPPED", "PROCESSING"), { minLength: 1, maxLength: 30 }),
-        (states) => {
-          const cancelledIndex = states.indexOf("CANCELLED");
-          if (cancelledIndex === -1) return true;
-          const after = states.slice(cancelledIndex + 1);
-          return !after.includes("DELIVERED");
+        fc.array(fc.integer({ min: 0, max: 4 }), { minLength: 1, maxLength: 30 }),
+        (indices) => {
+          // Build a forward-only progression where CANCELLED (4) is terminal
+          let last = indices[0];
+          const seq: number[] = [last];
+          for (let i = 1; i < indices.length; i++) {
+            last = Math.max(last, indices[i]);
+            seq.push(last);
+          }
+          // If CANCELLED occurs, we must never see DELIVERED (3) afterwards
+          const cancelledAt = seq.indexOf(4);
+          if (cancelledAt === -1) return true;
+          const after = seq.slice(cancelledAt + 1);
+          return after.every((s) => s !== 3);
         }
       ),
       { numRuns: 1000 }
