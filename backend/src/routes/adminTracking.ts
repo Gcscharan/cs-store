@@ -503,6 +503,13 @@ router.post(
 router.get("/orders/:orderId", authenticateToken, requireOpsRole("OPS_VIEWER"), async (req, res) => {
   const orderId = String((req.params as any).orderId || "");
 
+  if (!Types.ObjectId.isValid(orderId)) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid orderId format",
+    });
+  }
+
   const order = await Order.findById(orderId)
     .select(
       "_id userId orderStatus deliveryStatus deliveryBoyId address.city address.pincode address.lat address.lng estimatedDeliveryWindow"

@@ -18,6 +18,7 @@ import { checkoutRateLimit } from "../middleware/security";
 import { Order } from "../models/Order";
 import { getTrackingKillSwitchMode } from "../domains/tracking/services/trackingKillSwitch";
 import { getTrackingProjection } from "../domains/tracking/services/trackingProjectionStore";
+import mongoose, { Types } from "mongoose";
 
 const router = express.Router();
 
@@ -31,6 +32,13 @@ router.put("/:id/cancel", authenticateToken, cancelOrder); // Changed from POST 
 router.get("/:id/tracking", authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
+
+    if (!Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid orderId format",
+      });
+    }
     const userId = (req as any).user._id;
 
     // Find the order

@@ -136,11 +136,12 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "var jsonData = pm.response.json();",
-                  "var token = jsonData.accessToken || jsonData.token || (jsonData.tokens && jsonData.tokens.accessToken);",
-                  "pm.environment.set('ADMIN_TOKEN', token);",
-                  "pm.collectionVariables.set('ADMIN_TOKEN', token);",
-                  "pm.test('ADMIN_TOKEN saved', function () { pm.expect(token).to.be.a('string'); });"
+                  "var json = pm.response.json();",
+                  "pm.environment.set(\"ADMIN_TOKEN\", json.accessToken);",
+                  "pm.test(\"ADMIN_TOKEN saved\", function() {",
+                  "  pm.expect(json.accessToken).to.be.a('string');",
+                  "  pm.expect(json.accessToken.length).to.be.above(10);",
+                  "});"
                 ]
               }
             }
