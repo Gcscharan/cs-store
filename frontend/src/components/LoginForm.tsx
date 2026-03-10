@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useDispatch } from "react-redux";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
-import { setUser, setTokens } from "../store/slices/authSlice";
+import { setUser, setTokens, setStatus } from "../store/slices/authSlice";
 import OAuthLogin from "./OAuthLogin";
 import { toApiUrl } from "../config/runtime";
 
