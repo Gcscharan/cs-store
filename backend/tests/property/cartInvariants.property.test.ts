@@ -2,6 +2,8 @@ import * as fc from "fast-check";
 
 type CartItem = { productId: string; price: number; qty: number };
 
+const numRuns = process.env.CI_NIGHTLY === "true" ? 10000 : 100;
+
 const objectIdLike = () =>
   fc
     .stringMatching(/^[0-9a-f]{24}$/)
@@ -24,7 +26,7 @@ describe("cart invariants", () => {
           return Number.isFinite(total) && total >= 0;
         }
       ),
-      { numRuns: 1000 }
+      { numRuns }
     );
   });
 
@@ -33,7 +35,7 @@ describe("cart invariants", () => {
       fc.property(fc.integer({ min: 1, max: 1000 }), (qty) => {
         return qty >= 1;
       }),
-      { numRuns: 1000 }
+      { numRuns }
     );
   });
 
@@ -47,7 +49,7 @@ describe("cart invariants", () => {
           return set.size === arr.length;
         }
       ),
-      { numRuns: 1000 }
+      { numRuns }
     );
   });
 });

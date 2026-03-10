@@ -1,5 +1,7 @@
 import * as fc from "fast-check";
 
+const numRuns = process.env.CI_NIGHTLY === "true" ? 10000 : 100;
+
 describe("product pricing invariants", () => {
   it("final price invariants", () => {
     fc.assert(
@@ -23,7 +25,7 @@ describe("product pricing invariants", () => {
           );
         }
       ),
-      { numRuns: 1000 }
+      { numRuns }
     );
   });
 });

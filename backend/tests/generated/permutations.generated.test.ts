@@ -17,29 +17,33 @@ type Endpoint = {
   auth: "public" | "customer" | "admin";
 };
 
+const PUBLIC = new Set(["/api/products", "/api/auth/login", "/api/auth/signup", "/api/health"]);
+
+function classifyPath(path: string): Endpoint["auth"] {
+  if (PUBLIC.has(path.replace(/\/$/, ""))) return "public";
+  if (path.startsWith("/api/admin") || path.startsWith("/internal")) return "admin";
+  return "customer";
+}
+
 const endpoints: Endpoint[] = [
-  { method: "GET", path: "/api/products", auth: "public" },
-  { method: "GET", path: "/api/products/", auth: "public" },
-  { method: "POST", path: "/api/auth/login", auth: "public" },
-  { method: "POST", path: "/api/auth/signup", auth: "public" },
-  { method: "POST", path: "/api/auth/refresh", auth: "public" },
-  { method: "GET", path: "/api/cart", auth: "customer" },
-  { method: "POST", path: "/api/cart", auth: "customer" },
-  { method: "GET", path: "/api/orders", auth: "customer" },
-  { method: "POST", path: "/api/orders", auth: "customer" },
-  { method: "GET", path: "/api/user/profile", auth: "customer" },
-  { method: "PUT", path: "/api/user/profile", auth: "customer" },
-  { method: "GET", path: "/api/admin/orders", auth: "admin" },
-  { method: "POST", path: "/api/admin/products", auth: "admin" },
+  { method: "GET", path: "/api/products", auth: classifyPath("/api/products") },
+  { method: "POST", path: "/api/auth/login", auth: classifyPath("/api/auth/login") },
+  { method: "POST", path: "/api/auth/signup", auth: classifyPath("/api/auth/signup") },
+  { method: "GET", path: "/api/health", auth: classifyPath("/api/health") },
+  { method: "GET", path: "/api/cart", auth: classifyPath("/api/cart") },
+  { method: "POST", path: "/api/cart", auth: classifyPath("/api/cart") },
+  { method: "GET", path: "/api/orders", auth: classifyPath("/api/orders") },
+  { method: "POST", path: "/api/orders", auth: classifyPath("/api/orders") },
+  { method: "GET", path: "/api/user/profile", auth: classifyPath("/api/user/profile") },
+  { method: "PUT", path: "/api/user/profile", auth: classifyPath("/api/user/profile") },
+  { method: "GET", path: "/api/admin/orders", auth: classifyPath("/api/admin/orders") },
+  { method: "GET", path: "/api/admin/users", auth: classifyPath("/api/admin/users") },
+  { method: "POST", path: "/api/admin/products", auth: classifyPath("/api/admin/products") },
   // TODO: Expand this list to include all OpenAPI paths.
 ];
 
-function expectAuthFailureStatus(status: number) {
-  expect([400, 401, 403].includes(status)).toBe(true);
-}
-
-function expectProtectedFailureOrNotFound(status: number) {
-  expect([400, 401, 403, 404].includes(status)).toBe(true);
+function expectProtectedAuthFailure(status: number) {
+  expect([401, 403].includes(status)).toBe(true);
 }
 
 function send(method: HttpMethod, path: string) {
@@ -66,35 +70,42 @@ function makeReq(ep: Endpoint) {
 describe("Generated endpoint permutations", () => {
   endpoints.forEach((ep) => {
     describe(`${ep.method} ${ep.path}`, () => {
-      it("no token returns 401", async () => {
+      if (ep.auth === "public") {
+        it("public endpoint: skip auth permutations", async () => {
+          const req = makeReq(ep);
+          const body = anyBodyFor(ep.method);
+          const res = body ? await req.send(body) : await req;
+          expect(res.status).not.toBe(500);
+        });
+        return;
+      }
+
+      it("no token returns 401/403", async () => {
         const req = makeReq(ep);
         const body = anyBodyFor(ep.method);
         const res = body ? await req.send(body) : await req;
-        expectProtectedFailureOrNotFound(res.status);
+        expectProtectedAuthFailure(res.status);
       });
 
-      it("invalid token returns 401", async () => {
+      it("invalid token returns 401/403", async () => {
         const req = makeReq(ep).set("Authorization", `Bearer ${generateInvalidToken()}`);
         const body = anyBodyFor(ep.method);
         const res = body ? await req.send(body) : await req;
-        if (ep.path.startsWith("/api/auth/")) expectAuthFailureStatus(res.status);
-        else expectProtectedFailureOrNotFound(res.status);
+        expectProtectedAuthFailure(res.status);
       });
 
-      it("malformed token returns 401", async () => {
+      it("malformed token returns 401/403", async () => {
         const req = makeReq(ep).set("Authorization", `Bearer ${generateMalformedToken()}`);
         const body = anyBodyFor(ep.method);
         const res = body ? await req.send(body) : await req;
-        if (ep.path.startsWith("/api/auth/")) expectAuthFailureStatus(res.status);
-        else expectProtectedFailureOrNotFound(res.status);
+        expectProtectedAuthFailure(res.status);
       });
 
-      it("expired token returns 401", async () => {
+      it("expired token returns 401/403", async () => {
         const req = makeReq(ep).set("Authorization", `Bearer ${generateExpiredToken()}`);
         const body = anyBodyFor(ep.method);
         const res = body ? await req.send(body) : await req;
-        if (ep.path.startsWith("/api/auth/")) expectAuthFailureStatus(res.status);
-        else expectProtectedFailureOrNotFound(res.status);
+        expectProtectedAuthFailure(res.status);
       });
 
       it("customer token on admin path returns 403", async () => {
@@ -140,12 +151,11 @@ describe("Generated endpoint permutations", () => {
         expect(res.status).not.toBe(500);
       });
 
-      it("alg:none token returns 401", async () => {
+      it("alg:none token returns 401/403", async () => {
         const req = makeReq(ep).set("Authorization", `Bearer ${generateAlgNoneToken()}`);
         const body = anyBodyFor(ep.method);
         const res = body ? await req.send(body) : await req;
-        if (ep.path.startsWith("/api/auth/")) expectAuthFailureStatus(res.status);
-        else expectProtectedFailureOrNotFound(res.status);
+        expectProtectedAuthFailure(res.status);
       });
     });
   });

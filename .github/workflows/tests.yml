@@ -184,8 +184,8 @@ jobs:
           SKIP_RATE_LIMIT: true
           MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test
           REDIS_URL: redis://localhost:6379
-          JWT_SECRET: ci-test-secret-12345
-          JWT_REFRESH_SECRET: ci-refresh-secret-12345
+          JWT_SECRET: ci-test-secret-minimum-32-characters-long
+          JWT_REFRESH_SECRET: ci-refresh-secret-minimum-32-characters-long
 
   nightly-security:
     name: Security Tests 1000 attack vectors
@@ -211,8 +211,8 @@ jobs:
           SKIP_RATE_LIMIT: true
           MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test
           REDIS_URL: redis://localhost:6379
-          JWT_SECRET: ci-test-secret-12345
-          JWT_REFRESH_SECRET: ci-refresh-secret-12345
+          JWT_SECRET: ci-test-secret-minimum-32-characters-long
+          JWT_REFRESH_SECRET: ci-refresh-secret-minimum-32-characters-long
 
   nightly-property-heavy:
     name: Property Tests Heavy 50k cases
@@ -227,6 +227,7 @@ jobs:
       - run: cd backend && npm ci
       - run: cd backend && npm run test:property
         env:
+          CI_NIGHTLY: 'true'
           NODE_ENV: test
 
   nightly-schemathesis-heavy:
@@ -261,8 +262,8 @@ jobs:
           SKIP_RATE_LIMIT: true
           MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test
           REDIS_URL: redis://localhost:6379
-          JWT_SECRET: ci-test-secret-12345
-          JWT_REFRESH_SECRET: ci-refresh-secret-12345
+          JWT_SECRET: ci-test-secret-minimum-32-characters-long
+          JWT_REFRESH_SECRET: ci-refresh-secret-minimum-32-characters-long
       - run: |
           SKIP_RATE_LIMIT=true schemathesis run \
             http://localhost:5001/openapi.json \

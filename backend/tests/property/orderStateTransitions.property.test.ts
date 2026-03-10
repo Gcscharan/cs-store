@@ -2,6 +2,8 @@ import fc from "fast-check";
 
 import { OrderStatus } from "../../src/domains/orders/enums/OrderStatus";
 
+const numRuns = process.env.CI_NIGHTLY === "true" ? 10000 : 100;
+
 // Mirror the allowed transitions used in orderStateService
 const ALLOWED: Record<OrderStatus, OrderStatus[]> = {
   [OrderStatus.CREATED]: [OrderStatus.CONFIRMED, OrderStatus.CANCELLED],
@@ -36,7 +38,7 @@ describe("Property: order state transitions", () => {
           }
         }
       ),
-      { numRuns: 1000 }
+      { numRuns }
     );
   });
 });

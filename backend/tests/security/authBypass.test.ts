@@ -26,9 +26,11 @@ describe("security: auth bypass attempts", () => {
     attempts.push({ name: `repeat-${attempts.length}`, header: attempts[attempts.length % 7].header });
   }
 
-  it("protected endpoint blocks bypass attempts with 401", async () => {
+  const protectedPaths = ["/api/cart", "/api/orders"];
+
+  it.each(protectedPaths)("%s blocks bypass attempts with 401", async (path) => {
     for (const a of attempts) {
-      const req = request(app).get("/api/cart");
+      const req = request(app).get(path);
       const res = a.header !== undefined ? await req.set("Authorization", a.header) : await req;
       expect(res.status).toBe(401);
     }

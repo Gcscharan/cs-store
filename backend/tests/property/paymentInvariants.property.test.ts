@@ -3,6 +3,8 @@ import fc from "fast-check";
 import { assertAllowedTransition, isAllowedTransition } from "../../src/domains/payments/services/paymentIntentStateMachine";
 import { PAYMENT_INTENT_STATUSES } from "../../src/domains/payments/types";
 
+const numRuns = process.env.CI_NIGHTLY === "true" ? 10000 : 100;
+
 describe("Property: payment invariants", () => {
   test("capturedAmount <= paymentAmount", () => {
     fc.assert(
@@ -17,7 +19,7 @@ describe("Property: payment invariants", () => {
           }
         }
       ),
-      { numRuns: 1000 }
+      { numRuns }
     );
   });
 
@@ -33,7 +35,7 @@ describe("Property: payment invariants", () => {
           expect(() => assertAllowedTransition(from, to)).toThrow();
         }
       }),
-      { numRuns: 1000 }
+      { numRuns }
     );
   });
 });

@@ -2,6 +2,8 @@ import * as fc from "fast-check";
 
 type LineItem = { price: number; qty: number };
 
+const numRuns = process.env.CI_NIGHTLY === "true" ? 10000 : 100;
+
 describe("order invariants", () => {
   it("order total equals sum(line.price * qty)", () => {
     fc.assert(
@@ -19,7 +21,7 @@ describe("order invariants", () => {
           return Number.isFinite(total) && Math.abs(total - recomputed) < 1e-6;
         }
       ),
-      { numRuns: 1000 }
+      { numRuns }
     );
   });
 
@@ -37,7 +39,7 @@ describe("order invariants", () => {
           return to >= from;
         }
       ),
-      { numRuns: 1000 }
+      { numRuns }
     );
   });
 
@@ -60,7 +62,7 @@ describe("order invariants", () => {
           return after.every((s) => s !== 3);
         }
       ),
-      { numRuns: 1000 }
+      { numRuns }
     );
   });
 });

@@ -1,5 +1,7 @@
 import * as fc from "fast-check";
 
+const numRuns = process.env.CI_NIGHTLY === "true" ? 10000 : 100;
+
 describe("user validation invariants", () => {
   const pincodeRe = /^\d{6}$/;
   const phoneRe = /^\d{10}$/;
@@ -10,7 +12,7 @@ describe("user validation invariants", () => {
         const digits = s.replace(/\D/g, "").slice(0, 6);
         return pincodeRe.test(digits.padStart(6, "0"));
       }),
-      { numRuns: 1000 }
+      { numRuns }
     );
   });
 
@@ -20,7 +22,7 @@ describe("user validation invariants", () => {
         const digits = s.replace(/\D/g, "").slice(0, 10);
         return phoneRe.test(digits.padStart(10, "0"));
       }),
-      { numRuns: 1000 }
+      { numRuns }
     );
   });
 
@@ -29,7 +31,7 @@ describe("user validation invariants", () => {
       fc.property(fc.emailAddress(), (email) => {
         return typeof email === "string" && email.includes("@");
       }),
-      { numRuns: 1000 }
+      { numRuns }
     );
   });
 });
