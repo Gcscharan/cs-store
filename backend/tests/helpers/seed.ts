@@ -17,12 +17,12 @@ async function seedDatabase() {
     await Otp.deleteMany({});
     await Pincode.deleteMany({});
 
-    // Seed users
-    const hashedPassword = await bcrypt.hash("password123", 10);
+    // Seed users - credentials match Postman collection (TEST_EMAIL/TEST_PASSWORD)
+    const hashedPassword = await bcrypt.hash("Test@1234", 10);
     
     const regularUser = await User.create({
       name: "Test User",
-      email: "user@example.com",
+      email: "test.user@example.com",
       phone: "919876543210",
       password: hashedPassword,
       role: "user",

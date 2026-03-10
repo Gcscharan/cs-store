@@ -97,6 +97,8 @@ jobs:
           node-version: '20'
       - run: npm install -g newman
       - run: cd backend && npm ci
+      - name: Seed test database
+        run: cd backend && npm run test:seed
       - name: Start backend
         run: |
           cd backend && npm run dev &
