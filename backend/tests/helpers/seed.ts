@@ -170,27 +170,18 @@ async function seedDatabase() {
     await Pincode.create([
       {
         pincode: "500001",
-        city: "Test City",
-        state: "TS",
-        deliveryAvailable: true,
-        deliveryCharge: 40,
-        estimatedDays: 2,
+        state: "Telangana",
+        district: "Hyderabad",
       },
       {
         pincode: "500002",
-        city: "Another City",
-        state: "TS",
-        deliveryAvailable: true,
-        deliveryCharge: 30,
-        estimatedDays: 1,
+        state: "Telangana",
+        district: "Hyderabad",
       },
       {
         pincode: "500003",
-        city: "No Delivery City",
-        state: "TS",
-        deliveryAvailable: false,
-        deliveryCharge: 0,
-        estimatedDays: 0,
+        state: "Telangana",
+        district: "Hyderabad",
       },
     ]);
 
