@@ -40,16 +40,23 @@ jobs:
       mongo:
         image: mongo:6
         ports: ['27017:27017']
+        options: --replSet rs0
       redis:
         image: redis:7
         ports: ['6379:6379']
     env:
-      MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test
+      MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test?directConnection=true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '20' }
+        with:
+          node-version: '20'
       - run: cd backend && npm ci
+      - name: Init MongoDB replica set
+        run: |
+          sleep 5
+          mongosh --eval "rs.initiate({_id:'rs0',members:[{_id:0,host:'localhost:27017'}]})"
+          sleep 3
       - run: cd backend && npm run test:integration
       - run: cd backend && npm run test:integration:reliability
 
@@ -61,16 +68,23 @@ jobs:
       mongo:
         image: mongo:6
         ports: ['27017:27017']
+        options: --replSet rs0
       redis:
         image: redis:7
         ports: ['6379:6379']
     env:
-      MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test
+      MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test?directConnection=true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '20' }
+        with:
+          node-version: '20'
       - run: cd backend && npm ci
+      - name: Init MongoDB replica set
+        run: |
+          sleep 5
+          mongosh --eval "rs.initiate({_id:'rs0',members:[{_id:0,host:'localhost:27017'}]})"
+          sleep 3
       - run: cd backend && npm run test:property
       - run: cd backend && npm run test:chaos
 
@@ -82,21 +96,28 @@ jobs:
       mongo:
         image: mongo:6
         ports: ['27017:27017']
+        options: --replSet rs0
       redis:
         image: redis:7
         ports: ['6379:6379']
     env:
-      MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test
+      MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test?directConnection=true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '20' }
+        with:
+          node-version: '20'
       - run: npm install -g newman
       - run: cd backend && npm ci
+      - name: Init MongoDB replica set
+        run: |
+          sleep 5
+          mongosh --eval "rs.initiate({_id:'rs0',members:[{_id:0,host:'localhost:27017'}]})"
+          sleep 3
       - name: Start backend
         run: |
           cd backend && npm run dev &
-          sleep 25
+          sleep 20
           curl -f http://localhost:5001/api/health || curl -f http://localhost:5001/health
       - name: Run Newman
         run: |
@@ -120,22 +141,29 @@ jobs:
       mongo:
         image: mongo:6
         ports: ['27017:27017']
+        options: --replSet rs0
       redis:
         image: redis:7
         ports: ['6379:6379']
     env:
-      MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test
+      MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test?directConnection=true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '20' }
+        with:
+          node-version: '20'
       - run: cd backend && npm ci
       - run: cd frontend && npm ci
       - run: cd frontend && npx playwright install chromium
+      - name: Init MongoDB replica set
+        run: |
+          sleep 5
+          mongosh --eval "rs.initiate({_id:'rs0',members:[{_id:0,host:'localhost:27017'}]})"
+          sleep 3
       - name: Start backend
         run: |
           cd backend && npm run dev &
-          sleep 25
+          sleep 20
       - name: Start frontend
         run: cd frontend && npm run dev &
       - run: sleep 10
@@ -155,23 +183,31 @@ jobs:
       mongo:
         image: mongo:6
         ports: ['27017:27017']
+        options: --replSet rs0
       redis:
         image: redis:7
         ports: ['6379:6379']
     env:
-      MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test
+      MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test?directConnection=true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '20' }
+        with:
+          node-version: '20'
       - uses: actions/setup-python@v5
-        with: { python-version: '3.11' }
+        with:
+          python-version: '3.11'
       - run: pip install schemathesis
       - run: cd backend && npm ci
+      - name: Init MongoDB replica set
+        run: |
+          sleep 5
+          mongosh --eval "rs.initiate({_id:'rs0',members:[{_id:0,host:'localhost:27017'}]})"
+          sleep 3
       - name: Start backend
         run: |
           cd backend && npm run dev &
-          sleep 25
+          sleep 20
           curl -f http://localhost:5001/api/health || curl -f http://localhost:5001/health
       - name: Run Schemathesis
         run: |
@@ -192,24 +228,31 @@ jobs:
       mongo:
         image: mongo:6
         ports: ['27017:27017']
+        options: --replSet rs0
       redis:
         image: redis:7
         ports: ['6379:6379']
     env:
-      MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test
+      MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test?directConnection=true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '20' }
+        with:
+          node-version: '20'
       - name: Install k6
         run: |
           curl https://github.com/grafana/k6/releases/download/v0.49.0/k6-v0.49.0-linux-amd64.tar.gz -L | tar xvz
           sudo mv k6-v0.49.0-linux-amd64/k6 /usr/local/bin
       - run: cd backend && npm ci
+      - name: Init MongoDB replica set
+        run: |
+          sleep 5
+          mongosh --eval "rs.initiate({_id:'rs0',members:[{_id:0,host:'localhost:27017'}]})"
+          sleep 3
       - name: Start backend
         run: |
           cd backend && npm run dev &
-          sleep 25
+          sleep 20
       - name: Run k6 light load
         run: |
           cd backend && k6 run \
