@@ -108,6 +108,7 @@ jobs:
         run: |
           mkdir -p test-results
           newman run backend/tests/api/postman/VyaparSetu.postman_collection.json \
+            --environment backend/tests/api/postman/local.postman_environment.json \
             --delay-request 200 \
             --timeout-request 5000 \
             --reporters cli,json \
