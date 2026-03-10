@@ -1,4 +1,5 @@
 import express from "express";
+import mongoose, { Types } from "mongoose";
 import crypto from "crypto";
 import redisClient from "../config/redis";
 import { authenticateToken } from "../middleware/auth";
