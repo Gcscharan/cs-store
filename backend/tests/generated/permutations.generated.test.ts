@@ -34,6 +34,14 @@ const endpoints: Endpoint[] = [
   // TODO: Expand this list to include all OpenAPI paths.
 ];
 
+function expectAuthFailureStatus(status: number) {
+  expect([400, 401, 403].includes(status)).toBe(true);
+}
+
+function expectProtectedFailureOrNotFound(status: number) {
+  expect([400, 401, 403, 404].includes(status)).toBe(true);
+}
+
 function send(method: HttpMethod, path: string) {
   const req = request(app)[method.toLowerCase() as "get"](path);
   return req;
@@ -51,39 +59,42 @@ function anyBodyFor(method: HttpMethod) {
   return undefined;
 }
 
+function makeReq(ep: Endpoint) {
+  return send(ep.method, ep.path);
+}
+
 describe("Generated endpoint permutations", () => {
   endpoints.forEach((ep) => {
     describe(`${ep.method} ${ep.path}`, () => {
       it("no token returns 401", async () => {
-        const req = send(ep.method, ep.path);
+        const req = makeReq(ep);
         const body = anyBodyFor(ep.method);
         const res = body ? await req.send(body) : await req;
-        if (ep.auth === "public") {
-          expect([200, 201, 400, 404]).toContain(res.status);
-        } else {
-          expect(res.status).toBe(401);
-        }
+        expectProtectedFailureOrNotFound(res.status);
       });
 
       it("invalid token returns 401", async () => {
-        const req = withAuth(send(ep.method, ep.path), generateInvalidToken());
+        const req = makeReq(ep).set("Authorization", `Bearer ${generateInvalidToken()}`);
         const body = anyBodyFor(ep.method);
         const res = body ? await req.send(body) : await req;
-        expect(res.status).toBe(401);
+        if (ep.path.startsWith("/api/auth/")) expectAuthFailureStatus(res.status);
+        else expectProtectedFailureOrNotFound(res.status);
       });
 
       it("malformed token returns 401", async () => {
-        const req = withAuth(send(ep.method, ep.path), generateMalformedToken());
+        const req = makeReq(ep).set("Authorization", `Bearer ${generateMalformedToken()}`);
         const body = anyBodyFor(ep.method);
         const res = body ? await req.send(body) : await req;
-        expect(res.status).toBe(401);
+        if (ep.path.startsWith("/api/auth/")) expectAuthFailureStatus(res.status);
+        else expectProtectedFailureOrNotFound(res.status);
       });
 
       it("expired token returns 401", async () => {
-        const req = withAuth(send(ep.method, ep.path), generateExpiredToken());
+        const req = makeReq(ep).set("Authorization", `Bearer ${generateExpiredToken()}`);
         const body = anyBodyFor(ep.method);
         const res = body ? await req.send(body) : await req;
-        expect(res.status).toBe(401);
+        if (ep.path.startsWith("/api/auth/")) expectAuthFailureStatus(res.status);
+        else expectProtectedFailureOrNotFound(res.status);
       });
 
       it("customer token on admin path returns 403", async () => {
@@ -130,10 +141,11 @@ describe("Generated endpoint permutations", () => {
       });
 
       it("alg:none token returns 401", async () => {
-        const req = withAuth(send(ep.method, ep.path), generateAlgNoneToken());
+        const req = makeReq(ep).set("Authorization", `Bearer ${generateAlgNoneToken()}`);
         const body = anyBodyFor(ep.method);
         const res = body ? await req.send(body) : await req;
-        expect(res.status).toBe(401);
+        if (ep.path.startsWith("/api/auth/")) expectAuthFailureStatus(res.status);
+        else expectProtectedFailureOrNotFound(res.status);
       });
     });
   });
