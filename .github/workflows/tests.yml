@@ -75,7 +75,6 @@ jobs:
       - run: cd backend && npm ci
       - run: cd backend && npm run test:property
       - run: cd backend && npm run test:chaos
-        continue-on-error: true
 
   newman-api:
     name: Newman API (276 requests)
