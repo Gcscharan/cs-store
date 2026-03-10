@@ -8,7 +8,7 @@ describe("order invariants", () => {
       fc.property(
         fc.array(
           fc.record({
-            price: fc.float({ min: 0.01, max: 1_000_000, noNaN: true }),
+            price: fc.double({ min: 0.01, max: 1_000_000, noNaN: true }),
             qty: fc.integer({ min: 1, max: 1000 }),
           }),
           { minLength: 0, maxLength: 50 }

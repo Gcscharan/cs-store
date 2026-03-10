@@ -10,9 +10,9 @@ describe("delivery fee invariants", () => {
   it("fee always >= 0 and finite", () => {
     fc.assert(
       fc.property(
-        fc.float({ min: 0, max: 1000, noNaN: true }),
-        fc.float({ min: 0, max: 10_000, noNaN: true }),
-        fc.float({ min: 0, max: 100, noNaN: true }),
+        fc.double({ min: 0, max: 1000, noNaN: true }),
+        fc.double({ min: 0, max: 10_000, noNaN: true }),
+        fc.double({ min: 0, max: 100, noNaN: true }),
         (distanceKm, freeThreshold, baseRate) => {
           const fee = calcFee(distanceKm, freeThreshold, baseRate);
           return Number.isFinite(fee) && fee >= 0;
@@ -25,9 +25,9 @@ describe("delivery fee invariants", () => {
   it("fee never NaN or Infinity", () => {
     fc.assert(
       fc.property(
-        fc.float({ min: 0, max: 1000, noNaN: true }),
-        fc.float({ min: 0, max: 10_000, noNaN: true }),
-        fc.float({ min: 0, max: 100, noNaN: true }),
+        fc.double({ min: 0, max: 1000, noNaN: true }),
+        fc.double({ min: 0, max: 10_000, noNaN: true }),
+        fc.double({ min: 0, max: 100, noNaN: true }),
         (distanceKm, freeThreshold, baseRate) => {
           const fee = calcFee(distanceKm, freeThreshold, baseRate);
           return !Number.isNaN(fee) && fee !== Infinity && fee !== -Infinity;
@@ -40,9 +40,9 @@ describe("delivery fee invariants", () => {
   it("free delivery triggers above threshold", () => {
     fc.assert(
       fc.property(
-        fc.float({ min: 0, max: 1000, noNaN: true }),
-        fc.float({ min: 0, max: 10_000, noNaN: true }),
-        fc.float({ min: 0.01, max: 100, noNaN: true }),
+        fc.double({ min: 0, max: 1000, noNaN: true }),
+        fc.double({ min: 0, max: 10_000, noNaN: true }),
+        fc.double({ min: 0.01, max: 100, noNaN: true }),
         (distanceKm, freeThreshold, baseRate) => {
           const raw = distanceKm * baseRate;
           const fee = calcFee(distanceKm, freeThreshold, baseRate);
