@@ -10,6 +10,7 @@ on:
 env:
   NODE_ENV: test
   SKIP_RATE_LIMIT: true
+  SKIP_CI_CHECKS: true
   JWT_SECRET: ${{ secrets.JWT_SECRET }}
   JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
   RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
