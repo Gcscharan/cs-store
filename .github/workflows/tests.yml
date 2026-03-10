@@ -40,23 +40,17 @@ jobs:
       mongo:
         image: mongo:6
         ports: ['27017:27017']
-        options: --replSet rs0
       redis:
         image: redis:7
         ports: ['6379:6379']
     env:
-      MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test?directConnection=true
+      MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
       - run: cd backend && npm ci
-      - name: Init MongoDB replica set
-        run: |
-          sleep 5
-          mongosh --eval "rs.initiate({_id:'rs0',members:[{_id:0,host:'localhost:27017'}]})"
-          sleep 3
       - run: cd backend && npm run test:integration
       - run: cd backend && npm run test:integration:reliability
 
@@ -68,23 +62,17 @@ jobs:
       mongo:
         image: mongo:6
         ports: ['27017:27017']
-        options: --replSet rs0
       redis:
         image: redis:7
         ports: ['6379:6379']
     env:
-      MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test?directConnection=true
+      MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
       - run: cd backend && npm ci
-      - name: Init MongoDB replica set
-        run: |
-          sleep 5
-          mongosh --eval "rs.initiate({_id:'rs0',members:[{_id:0,host:'localhost:27017'}]})"
-          sleep 3
       - run: cd backend && npm run test:property
       - run: cd backend && npm run test:chaos
 
@@ -96,12 +84,11 @@ jobs:
       mongo:
         image: mongo:6
         ports: ['27017:27017']
-        options: --replSet rs0
       redis:
         image: redis:7
         ports: ['6379:6379']
     env:
-      MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test?directConnection=true
+      MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -109,11 +96,6 @@ jobs:
           node-version: '20'
       - run: npm install -g newman
       - run: cd backend && npm ci
-      - name: Init MongoDB replica set
-        run: |
-          sleep 5
-          mongosh --eval "rs.initiate({_id:'rs0',members:[{_id:0,host:'localhost:27017'}]})"
-          sleep 3
       - name: Start backend
         run: |
           cd backend && npm run dev &
@@ -141,12 +123,11 @@ jobs:
       mongo:
         image: mongo:6
         ports: ['27017:27017']
-        options: --replSet rs0
       redis:
         image: redis:7
         ports: ['6379:6379']
     env:
-      MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test?directConnection=true
+      MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -155,11 +136,6 @@ jobs:
       - run: cd backend && npm ci
       - run: cd frontend && npm ci
       - run: cd frontend && npx playwright install chromium
-      - name: Init MongoDB replica set
-        run: |
-          sleep 5
-          mongosh --eval "rs.initiate({_id:'rs0',members:[{_id:0,host:'localhost:27017'}]})"
-          sleep 3
       - name: Start backend
         run: |
           cd backend && npm run dev &
@@ -183,12 +159,11 @@ jobs:
       mongo:
         image: mongo:6
         ports: ['27017:27017']
-        options: --replSet rs0
       redis:
         image: redis:7
         ports: ['6379:6379']
     env:
-      MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test?directConnection=true
+      MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -199,11 +174,6 @@ jobs:
           python-version: '3.11'
       - run: pip install schemathesis
       - run: cd backend && npm ci
-      - name: Init MongoDB replica set
-        run: |
-          sleep 5
-          mongosh --eval "rs.initiate({_id:'rs0',members:[{_id:0,host:'localhost:27017'}]})"
-          sleep 3
       - name: Start backend
         run: |
           cd backend && npm run dev &
@@ -228,12 +198,11 @@ jobs:
       mongo:
         image: mongo:6
         ports: ['27017:27017']
-        options: --replSet rs0
       redis:
         image: redis:7
         ports: ['6379:6379']
     env:
-      MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test?directConnection=true
+      MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -244,11 +213,6 @@ jobs:
           curl https://github.com/grafana/k6/releases/download/v0.49.0/k6-v0.49.0-linux-amd64.tar.gz -L | tar xvz
           sudo mv k6-v0.49.0-linux-amd64/k6 /usr/local/bin
       - run: cd backend && npm ci
-      - name: Init MongoDB replica set
-        run: |
-          sleep 5
-          mongosh --eval "rs.initiate({_id:'rs0',members:[{_id:0,host:'localhost:27017'}]})"
-          sleep 3
       - name: Start backend
         run: |
           cd backend && npm run dev &
