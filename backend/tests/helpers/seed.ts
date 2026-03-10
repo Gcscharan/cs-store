@@ -94,7 +94,7 @@ async function seedDatabase() {
         name: "Headphones",
         description: "Wireless headphones",
         price: 2000,
-        category: "accessories",
+        category: "electronics",
         stock: 50,
         images: [
           {
