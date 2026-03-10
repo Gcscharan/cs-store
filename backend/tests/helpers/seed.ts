@@ -53,7 +53,14 @@ async function seedDatabase() {
         price: 50000,
         category: "electronics",
         stock: 10,
-        images: ["https://example.com/laptop.jpg"],
+        images: [
+          {
+            publicId: "test/laptop",
+            variants: {
+              original: "https://example.com/laptop.jpg"
+            }
+          }
+        ],
         specifications: {
           brand: "TestBrand",
           model: "TestModel",
@@ -67,7 +74,14 @@ async function seedDatabase() {
         price: 25000,
         category: "electronics",
         stock: 20,
-        images: ["https://example.com/phone.jpg"],
+        images: [
+          {
+            publicId: "test/phone",
+            variants: {
+              original: "https://example.com/phone.jpg"
+            }
+          }
+        ],
         specifications: {
           brand: "TestPhone",
           model: "TestPhoneX",
@@ -82,7 +96,14 @@ async function seedDatabase() {
         price: 2000,
         category: "accessories",
         stock: 50,
-        images: ["https://example.com/headphones.jpg"],
+        images: [
+          {
+            publicId: "test/headphones",
+            variants: {
+              original: "https://example.com/headphones.jpg"
+            }
+          }
+        ],
         specifications: {
           brand: "TestAudio",
           type: "Over-ear",
