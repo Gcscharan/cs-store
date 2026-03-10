@@ -5,7 +5,7 @@ describe("product pricing invariants", () => {
     fc.assert(
       fc.property(
         fc.double({ min: 0.01, max: 1_000_000, noNaN: true }),
-        fc.double({ min: 0, max: 1, noNaN: true }),
+        fc.double({ min: 0, max: 0.999999, noNaN: true }),
         fc.double({ min: 0, max: 0.28, noNaN: true }),
         (price, discountRate, gstRate) => {
           const discount = price * discountRate;

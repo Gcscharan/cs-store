@@ -42,8 +42,9 @@ describe("cart invariants", () => {
       fc.property(
         fc.set(objectIdLike(), { minLength: 0, maxLength: 50 }),
         (ids) => {
-          const set = new Set(ids);
-          return set.size === ids.length;
+          const arr = Array.from(ids);
+          const set = new Set(arr);
+          return set.size === arr.length;
         }
       ),
       { numRuns: 1000 }
