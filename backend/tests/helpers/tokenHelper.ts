@@ -1,5 +1,8 @@
 import jwt from "jsonwebtoken";
 
+const validCustomerId = "60f7a6b3f1b2c60015e87c05";
+const validAdminId = "60f7a6b3f1b2c60015e87c06";
+
 function getJwtSecret(): string {
   return process.env.JWT_SECRET || "ci-test-secret-minimum-32-characters-long";
 }
@@ -17,11 +20,11 @@ function baseClaims(role: "customer" | "admin" | "delivery") {
 }
 
 export function generateValidCustomerToken(): string {
-  return jwt.sign({ userId: "customertest", role: "customer" }, getJwtSecret(), { expiresIn: "1h" });
+  return jwt.sign({ userId: validCustomerId, role: "customer" }, getJwtSecret(), { expiresIn: "1h" });
 }
 
 export function generateValidAdminToken(): string {
-  return jwt.sign({ userId: "admintest", role: "admin" }, getJwtSecret(), { expiresIn: "1h" });
+  return jwt.sign({ userId: validAdminId, role: "admin" }, getJwtSecret(), { expiresIn: "1h" });
 }
 
 export function generateValidDeliveryToken(): string {

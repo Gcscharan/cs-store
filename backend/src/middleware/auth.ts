@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { User } from "../models/User";
+import mongoose from "mongoose";
 
 interface AuthRequest extends Request {
   user?: any;
@@ -99,6 +100,10 @@ export const authenticateToken = async (
     const decoded = jwt.verify(token, jwtSecret) as any;
 
     if (debug) console.log('[Auth] authenticateToken - token decoded, userId:', decoded.userId);
+
+    if (!mongoose.Types.ObjectId.isValid(decoded.userId)) {
+      return res.status(401).json({ message: "Invalid userId in token", code: "INVALID_USERID" });
+    }
     
     const user = await User.findById(decoded.userId).select("-passwordHash");
     if (debug) console.log('[Auth] authenticateToken - user found:', !!user);
@@ -127,11 +132,14 @@ export const authenticateToken = async (
     if (process.env.NODE_ENV !== "production") {
       console.log('[Auth] authenticateToken - error:', error);
     }
+
     if (error instanceof jwt.JsonWebTokenError) {
-      if (error.name === 'TokenExpiredError') {
+      if (error.name === "TokenExpiredError") {
         return res.status(401).json({ message: "Token expired", code: "TOKEN_EXPIRED" });
-      } else if (error.name === 'JsonWebTokenError') {
-        return res.status(401).json({ message: "Invalid token format", code: "INVALID_TOKEN" });
+      }
+
+      if (error.name === "JsonWebTokenError") {
+        return res.status(401).json({ message: error.message, code: "INVALID_TOKEN" });
       }
     }
     
