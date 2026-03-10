@@ -15,7 +15,6 @@ env:
   RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
   RAZORPAY_KEY_SECRET: ${{ secrets.RAZORPAY_KEY_SECRET }}
   RAZORPAY_WEBHOOK_SECRET: ${{ secrets.RAZORPAY_WEBHOOK_SECRET }}
-  MONGODB_URI: ${{ secrets.MONGODB_URI }}
   REDIS_URL: redis://localhost:6379
 
 jobs:
@@ -42,6 +41,8 @@ jobs:
       redis:
         image: redis:7
         ports: ['6379:6379']
+    env:
+      MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -61,6 +62,8 @@ jobs:
       redis:
         image: redis:7
         ports: ['6379:6379']
+    env:
+      MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -80,6 +83,8 @@ jobs:
       redis:
         image: redis:7
         ports: ['6379:6379']
+    env:
+      MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -89,7 +94,7 @@ jobs:
       - name: Start backend
         run: |
           cd backend && npm run dev &
-          sleep 20
+          sleep 25
           curl -f http://localhost:5001/api/health || curl -f http://localhost:5001/health
       - name: Run Newman
         run: |
@@ -116,6 +121,8 @@ jobs:
       redis:
         image: redis:7
         ports: ['6379:6379']
+    env:
+      MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -126,7 +133,7 @@ jobs:
       - name: Start backend
         run: |
           cd backend && npm run dev &
-          sleep 20
+          sleep 25
       - name: Start frontend
         run: cd frontend && npm run dev &
       - run: sleep 10
@@ -149,6 +156,8 @@ jobs:
       redis:
         image: redis:7
         ports: ['6379:6379']
+    env:
+      MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -160,7 +169,7 @@ jobs:
       - name: Start backend
         run: |
           cd backend && npm run dev &
-          sleep 20
+          sleep 25
           curl -f http://localhost:5001/api/health || curl -f http://localhost:5001/health
       - name: Run Schemathesis
         run: |
@@ -184,6 +193,8 @@ jobs:
       redis:
         image: redis:7
         ports: ['6379:6379']
+    env:
+      MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -196,7 +207,7 @@ jobs:
       - name: Start backend
         run: |
           cd backend && npm run dev &
-          sleep 20
+          sleep 25
       - name: Run k6 light load
         run: |
           cd backend && k6 run \
