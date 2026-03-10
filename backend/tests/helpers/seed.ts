@@ -24,7 +24,7 @@ async function seedDatabase() {
       name: "Test User",
       email: "test.user@example.com",
       phone: "9876543210",
-      password: hashedPassword,
+      passwordHash: hashedPassword,
       role: "customer",
     });
 
@@ -32,7 +32,7 @@ async function seedDatabase() {
       name: "Admin User",
       email: "admin@example.com",
       phone: "9999999999",
-      password: hashedPassword,
+      passwordHash: hashedPassword,
       role: "admin",
       isAdmin: true,
     });
@@ -41,7 +41,7 @@ async function seedDatabase() {
       name: "Delivery Partner",
       email: "delivery@example.com",
       phone: "8888888888",
-      password: hashedPassword,
+      passwordHash: hashedPassword,
       role: "delivery",
     });
 
