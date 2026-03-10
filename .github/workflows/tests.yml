@@ -139,6 +139,7 @@ jobs:
       - run: cd frontend && npx playwright install chromium
       - name: Start backend
         run: |
+          npm ci
           cd backend && npm run dev &
           sleep 25
           curl -f http://localhost:5001/api/health || curl -f http://localhost:5001/health
