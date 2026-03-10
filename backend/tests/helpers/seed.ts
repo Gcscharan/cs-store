@@ -23,15 +23,15 @@ async function seedDatabase() {
     const regularUser = await User.create({
       name: "Test User",
       email: "test.user@example.com",
-      phone: "919876543210",
+      phone: "9876543210",
       password: hashedPassword,
-      role: "user",
+      role: "customer",
     });
 
     const adminUser = await User.create({
       name: "Admin User",
       email: "admin@example.com",
-      phone: "919999999999",
+      phone: "9999999999",
       password: hashedPassword,
       role: "admin",
       isAdmin: true,
@@ -40,7 +40,7 @@ async function seedDatabase() {
     const deliveryUser = await User.create({
       name: "Delivery Partner",
       email: "delivery@example.com",
-      phone: "918888888888",
+      phone: "8888888888",
       password: hashedPassword,
       role: "delivery",
     });
@@ -111,7 +111,7 @@ async function seedDatabase() {
           city: "Test City",
           state: "TS",
           pincode: "500001",
-          phone: "919876543210",
+          phone: "9876543210",
         },
         paymentMethod: "cod",
         paymentStatus: "PENDING",
@@ -133,7 +133,7 @@ async function seedDatabase() {
           city: "Another City",
           state: "TS",
           pincode: "500002",
-          phone: "919876543210",
+          phone: "9876543210",
         },
         paymentMethod: "online",
         paymentStatus: "PENDING",
@@ -172,13 +172,13 @@ async function seedDatabase() {
     // Seed OTPs
     await Otp.create([
       {
-        phone: "919876543210",
+        phone: "9876543210",
         otp: "123456",
         type: "verification",
         expiresAt: new Date(Date.now() + 10 * 60 * 1000),
       },
       {
-        phone: "919876543210",
+        phone: "9876543210",
         otp: "654321",
         type: "payment",
         orderId: new mongoose.Types.ObjectId(),
