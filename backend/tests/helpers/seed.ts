@@ -160,7 +160,7 @@ async function seedDatabase() {
           lat: 17.4399,
           lng: 78.4983,
         },
-        paymentMethod: "online",
+        paymentMethod: "upi",
         paymentStatus: "PENDING",
         paymentId: "pay_test123",
       },
