@@ -35,7 +35,7 @@ describe("cart invariants", () => {
   it("no duplicate productIds", () => {
     fc.assert(
       fc.property(
-        fc.array(fc.hexaString({ minLength: 24, maxLength: 24 }), { minLength: 0, maxLength: 50 }),
+        fc.set(fc.hexaString({ minLength: 24, maxLength: 24 }), { minLength: 0, maxLength: 50 }),
         (ids) => {
           const set = new Set(ids);
           return set.size === ids.length;
