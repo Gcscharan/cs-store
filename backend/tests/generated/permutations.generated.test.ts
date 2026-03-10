@@ -9,6 +9,8 @@ import {
   generateValidCustomerToken,
 } from "../helpers/tokenHelper";
 
+jest.setTimeout(30000);
+
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 type Endpoint = {

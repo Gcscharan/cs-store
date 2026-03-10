@@ -304,8 +304,8 @@ jobs:
           SKIP_RATE_LIMIT: true
           MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test
           REDIS_URL: redis://localhost:6379
-          JWT_SECRET: ci-test-secret-12345
-          JWT_REFRESH_SECRET: ci-refresh-secret-12345
+          JWT_SECRET: ci-test-secret-minimum-32-characters-long-abc
+          JWT_REFRESH_SECRET: ci-refresh-secret-minimum-32-chars-xyz
       - run: |
           cd backend && k6 run \
             --env VUS=50 --env NODE_ENV=test \

@@ -1,11 +1,11 @@
 import jwt from "jsonwebtoken";
 
 function getJwtSecret(): string {
-  return process.env.JWT_SECRET || "test-secret";
+  return process.env.JWT_SECRET || "ci-test-secret-minimum-32-characters-long";
 }
 
 function getJwtRefreshSecret(): string {
-  return process.env.JWT_REFRESH_SECRET || "test-refresh-secret";
+  return process.env.JWT_REFRESH_SECRET || "ci-test-secret-minimum-32-characters-long";
 }
 
 function baseClaims(role: "customer" | "admin" | "delivery") {
@@ -17,11 +17,11 @@ function baseClaims(role: "customer" | "admin" | "delivery") {
 }
 
 export function generateValidCustomerToken(): string {
-  return jwt.sign(baseClaims("customer"), getJwtSecret(), { expiresIn: "15m" });
+  return jwt.sign({ userId: "customertest", role: "customer" }, getJwtSecret(), { expiresIn: "1h" });
 }
 
 export function generateValidAdminToken(): string {
-  return jwt.sign(baseClaims("admin"), getJwtSecret(), { expiresIn: "15m" });
+  return jwt.sign({ userId: "admintest", role: "admin" }, getJwtSecret(), { expiresIn: "1h" });
 }
 
 export function generateValidDeliveryToken(): string {
@@ -29,26 +29,24 @@ export function generateValidDeliveryToken(): string {
 }
 
 export function generateExpiredToken(): string {
-  // already expired
-  return jwt.sign(baseClaims("customer"), getJwtSecret(), { expiresIn: -10 });
+  return jwt.sign(
+    { userId: "test", role: "customer" },
+    process.env.JWT_SECRET || "ci-test-secret-minimum-32-characters-long",
+    { expiresIn: "-1s" }
+  );
 }
 
 export function generateMalformedToken(): string {
-  // Not a JWT format
-  return "not-a-jwt";
+  return "not.a.valid.jwt.token.at.all";
 }
 
 export function generateInvalidToken(): string {
-  // Signed with wrong secret
-  return jwt.sign(baseClaims("customer"), "wrong-secret", { expiresIn: "15m" });
+  return jwt.sign({ userId: "test", role: "customer" }, "wrong-secret-xyz", { expiresIn: "1h" });
 }
 
 export function generateAlgNoneToken(): string {
-  // JWT with alg none (not actually signed)
   const header = Buffer.from(JSON.stringify({ alg: "none", typ: "JWT" })).toString("base64url");
-  const payload = Buffer.from(JSON.stringify({ ...baseClaims("customer"), exp: Math.floor(Date.now() / 1000) + 60 })).toString(
-    "base64url"
-  );
+  const payload = Buffer.from(JSON.stringify({ userId: "test", role: "admin" })).toString("base64url");
   return `${header}.${payload}.`;
 }
 

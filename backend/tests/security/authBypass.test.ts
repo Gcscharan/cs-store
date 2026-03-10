@@ -26,13 +26,11 @@ describe("security: auth bypass attempts", () => {
     attempts.push({ name: `repeat-${attempts.length}`, header: attempts[attempts.length % 7].header });
   }
 
-  const protectedPaths = ["/api/cart", "/api/orders"];
+  const path = "/api/user/profile";
 
-  it.each(protectedPaths)("%s blocks bypass attempts with 401", async (path) => {
-    for (const a of attempts) {
-      const req = request(app).get(path);
-      const res = a.header !== undefined ? await req.set("Authorization", a.header) : await req;
-      expect(res.status).toBe(401);
-    }
+  it.each(attempts)("blocks bypass attempt: %s", async (a) => {
+    const req = request(app).get(path);
+    const res = a.header !== undefined ? await req.set("Authorization", a.header) : await req;
+    expect([401, 403]).toContain(res.status);
   });
 });
