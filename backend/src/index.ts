@@ -470,8 +470,13 @@ const startServer = async () => {
     await connectDB();
 
     // CRITICAL: MongoDB must run as replica set for transactions
-    // Fail fast if transactions are not enabled
+    // Fail fast if transactions are not enabled (skip in test env for CI)
     async function assertTransactionsEnabled(): Promise<void> {
+      // Skip replica set check in test environment (CI uses standalone MongoDB)
+      if (process.env.NODE_ENV === "test") {
+        console.log("⚠️  Skipping replica set check in test environment");
+        return;
+      }
       try {
         if (!mongoose.connection.db) {
           throw new Error("MongoDB connection not established");
@@ -495,28 +500,31 @@ const startServer = async () => {
 
     await assertTransactionsEnabled();
 
-    // Start in-memory live location store timers (flush + TTL cleanup)
-    liveLocationStore.start();
+    // Skip background pollers in test environment to prevent open handles
+    if (NODE_ENV !== "test") {
+      // Start in-memory live location store timers (flush + TTL cleanup)
+      liveLocationStore.start();
 
-    initializeNotificationWriter();
-    initializeOutboxDispatcher();
-    initializeInventoryReservationSweeper();
+      initializeNotificationWriter();
+      initializeOutboxDispatcher();
+      initializeInventoryReservationSweeper();
 
-    startStuckPaymentScanner();
+      startStuckPaymentScanner();
 
-    // Initialize payment reconciliation service (reconciles captured payments missed by webhook)
-    initializePaymentReconciliation();
+      // Initialize payment reconciliation service (reconciles captured payments missed by webhook)
+      initializePaymentReconciliation();
 
-    // Bootstrap dev admin user in development
-    await bootstrapDevAdmin();
+      // Bootstrap dev admin user in development
+      await bootstrapDevAdmin();
 
-    // Initialize Redis ZSET for delivery partner load tracking
-    console.log("🚚 Initializing delivery partner load tracking...");
-    await deliveryPartnerLoadService.initializeLoads();
+      // Initialize Redis ZSET for delivery partner load tracking
+      console.log("🚚 Initializing delivery partner load tracking...");
+      await deliveryPartnerLoadService.initializeLoads();
 
-    // Start OrderEventBroadcaster polling for real-time sync
-    console.log("📡 Starting OrderEventBroadcaster polling...");
-    orderEventBroadcaster.startPolling(5000); // Poll every 5 seconds
+      // Start OrderEventBroadcaster polling for real-time sync
+      console.log("📡 Starting OrderEventBroadcaster polling...");
+      orderEventBroadcaster.startPolling(5000); // Poll every 5 seconds
+    }
 
     // Function to try starting server on a specific port
     const tryStartServer = (port: number): Promise<void> => {
