@@ -9,6 +9,7 @@ on:
 # Global env vars for all jobs (secrets from GitHub Settings > Secrets)
 env:
   NODE_ENV: test
+  PORT: 5001
   SKIP_RATE_LIMIT: true
   SKIP_CI_CHECKS: true
   JWT_SECRET: ${{ secrets.JWT_SECRET }}
