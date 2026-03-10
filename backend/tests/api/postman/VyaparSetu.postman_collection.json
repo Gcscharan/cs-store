@@ -122,7 +122,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\"email\": \"gcs.charan@gmail.com\", \"password\": \"Gcs@2004\"}",
+              "raw": "{\"email\": \"{{ADMIN_EMAIL}}\", \"password\": \"{{ADMIN_PASSWORD}}\"}",
               "options": {
                 "raw": {
                   "language": "json"
