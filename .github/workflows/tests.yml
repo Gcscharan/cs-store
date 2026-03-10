@@ -6,6 +6,18 @@ on:
   pull_request:
   workflow_dispatch:  # manual trigger button
 
+# Global env vars for all jobs (secrets from GitHub Settings > Secrets)
+env:
+  NODE_ENV: test
+  SKIP_RATE_LIMIT: true
+  JWT_SECRET: ${{ secrets.JWT_SECRET }}
+  JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
+  RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
+  RAZORPAY_KEY_SECRET: ${{ secrets.RAZORPAY_KEY_SECRET }}
+  RAZORPAY_WEBHOOK_SECRET: ${{ secrets.RAZORPAY_WEBHOOK_SECRET }}
+  MONGODB_URI: ${{ secrets.MONGODB_URI }}
+  REDIS_URL: redis://localhost:6379
+
 jobs:
 
   jest-unit:
@@ -55,15 +67,7 @@ jobs:
         with: { node-version: '20' }
       - run: cd backend && npm ci
       - run: cd backend && npm run test:property
-        env:
-          NODE_ENV: test
-          MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test
-          REDIS_URL: redis://localhost:6379
       - run: cd backend && npm run test:chaos
-        env:
-          NODE_ENV: test
-          MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test
-          REDIS_URL: redis://localhost:6379
 
   newman-api:
     name: Newman API (276 requests)
@@ -84,18 +88,12 @@ jobs:
       - run: cd backend && npm ci
       - name: Start backend
         run: |
-          cd backend && SKIP_RATE_LIMIT=true NODE_ENV=test \
-          MONGODB_URI=mongodb://localhost:27017/vyaparsetu_test \
-          REDIS_URL=redis://localhost:6379 \
-          npm run dev &
-          sleep 15
-          curl -f http://localhost:5001/api/health
-        env:
-          JWT_SECRET: test-secret-for-ci
-          RAZORPAY_KEY_ID: test
-          RAZORPAY_KEY_SECRET: test
+          cd backend && npm run dev &
+          sleep 20
+          curl -f http://localhost:5001/api/health || curl -f http://localhost:5001/health
       - name: Run Newman
         run: |
+          mkdir -p test-results
           newman run backend/tests/api/postman/VyaparSetu.postman_collection.json \
             --delay-request 200 \
             --timeout-request 5000 \
@@ -127,15 +125,8 @@ jobs:
       - run: cd frontend && npx playwright install chromium
       - name: Start backend
         run: |
-          cd backend && SKIP_RATE_LIMIT=true NODE_ENV=test \
-          MONGODB_URI=mongodb://localhost:27017/vyaparsetu_test \
-          REDIS_URL=redis://localhost:6379 \
-          npm run dev &
-          sleep 15
-        env:
-          JWT_SECRET: test-secret-for-ci
-          RAZORPAY_KEY_ID: test
-          RAZORPAY_KEY_SECRET: test
+          cd backend && npm run dev &
+          sleep 20
       - name: Start frontend
         run: cd frontend && npm run dev &
       - run: sleep 10
@@ -168,19 +159,12 @@ jobs:
       - run: cd backend && npm ci
       - name: Start backend
         run: |
-          cd backend && SKIP_RATE_LIMIT=true NODE_ENV=test \
-          MONGODB_URI=mongodb://localhost:27017/vyaparsetu_test \
-          REDIS_URL=redis://localhost:6379 \
-          npm run dev &
-          sleep 15
-          curl -f http://localhost:5001/api/health
-        env:
-          JWT_SECRET: test-secret-for-ci
-          RAZORPAY_KEY_ID: test
-          RAZORPAY_KEY_SECRET: test
+          cd backend && npm run dev &
+          sleep 20
+          curl -f http://localhost:5001/api/health || curl -f http://localhost:5001/health
       - name: Run Schemathesis
         run: |
-          SKIP_RATE_LIMIT=true schemathesis run \
+          schemathesis run \
             http://localhost:5001/openapi.json \
             --max-examples 3 \
             --workers 4 \
@@ -211,15 +195,8 @@ jobs:
       - run: cd backend && npm ci
       - name: Start backend
         run: |
-          cd backend && SKIP_RATE_LIMIT=true NODE_ENV=test \
-          MONGODB_URI=mongodb://localhost:27017/vyaparsetu_test \
-          REDIS_URL=redis://localhost:6379 \
-          npm run dev &
-          sleep 15
-        env:
-          JWT_SECRET: test-secret-for-ci
-          RAZORPAY_KEY_ID: test
-          RAZORPAY_KEY_SECRET: test
+          cd backend && npm run dev &
+          sleep 20
       - name: Run k6 light load
         run: |
           cd backend && k6 run \
