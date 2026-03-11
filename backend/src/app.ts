@@ -2,6 +2,7 @@ import express, { Application } from "express";
 import cors from "cors";
 import passport from "passport";
 import compression from "compression";
+import { generateOpenApiSpec } from "./config/autoOpenApi";
 
 import { apiLimiter } from "./middleware/security";
 import { sanitizeInput, securityHeaders } from "./middleware/security";
@@ -128,6 +129,11 @@ app.get("/health", (_req, res) => {
 
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
+app.get("/openapi.json", (_req, res) => {
+  const spec = generateOpenApiSpec(app);
+  res.json(spec);
 });
 
 /* ======================================================
