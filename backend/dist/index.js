@@ -208,6 +208,7 @@ const redis_1 = require("./config/redis");
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const liveLocationStore_1 = require("./services/liveLocationStore");
 const User_1 = require("./models/User");
+const Order_1 = require("./models/Order");
 const deliveryPartnerLoadService_1 = require("./domains/operations/services/deliveryPartnerLoadService");
 const orderEventBroadcaster_1 = require("./domains/orders/services/orderEventBroadcaster");
 const notificationWriter_1 = require("./domains/communication/services/notificationWriter");
@@ -215,6 +216,7 @@ const outboxDispatcher_1 = require("./domains/events/outboxDispatcher");
 const inventoryReservationSweeper_1 = require("./domains/orders/services/inventoryReservationSweeper");
 const stuckPaymentScanner_1 = require("./domains/payments/services/stuckPaymentScanner");
 const paymentReconciliationService_1 = require("./domains/payments/services/paymentReconciliationService");
+const etaCalculator_1 = require("./domains/tracking/services/etaCalculator");
 // Create HTTP server
 const server = (0, http_1.createServer)(app_1.default);
 // Initialize Socket.io
@@ -273,7 +275,8 @@ app_1.default.set("io", io);
 app_1.default.set("orderEventBroadcaster", orderEventBroadcaster);
 // app.set("socketService", socketService);
 // Fan-out for accepted HTTP location updates (Phase 1B)
-liveLocationStore_1.liveLocationEvents.on("location", (loc) => {
+// Also emits to customer order rooms for live tracking
+liveLocationStore_1.liveLocationEvents.on("location", async (loc) => {
     try {
         const driverId = String(loc?.driverId || "");
         if (!driverId)
@@ -285,7 +288,57 @@ liveLocationStore_1.liveLocationEvents.on("location", (loc) => {
             lng: Number(loc?.lng),
             lastUpdatedAt: new Date(Number(loc?.receivedAt || Date.now())).toISOString(),
         };
+        // Emit to admin room (exact coordinates)
         io.to("admin_room").emit("driver:location:update", payload);
+        // Emit to customer order rooms (privacy-safe rounded coordinates)
+        const orderId = String(loc?.orderId || "");
+        if (orderId) {
+            try {
+                // Check if order is still in a trackable state
+                const order = await Order_1.Order.findById(orderId).select("status user deliveryPartnerId").lean();
+                if (order && !["DELIVERED", "CANCELLED", "REFUNDED"].includes(String(order.status || "").toUpperCase())) {
+                    // Round coordinates to 3 decimal places (~111m accuracy) for privacy
+                    const roundedLat = Math.round(Number(loc?.lat) * 1000) / 1000;
+                    const roundedLng = Math.round(Number(loc?.lng) * 1000) / 1000;
+                    // Calculate ETA if we have destination
+                    let etaMinutes = 0;
+                    let distanceRemainingM = 0;
+                    if (order.deliveryPartnerId && loc?.lat && loc?.lng) {
+                        // Get order address for ETA calculation
+                        const fullOrder = await Order_1.Order.findById(orderId).select("address").lean();
+                        if (fullOrder?.address?.lat && fullOrder?.address?.lng) {
+                            try {
+                                const etaResult = await (0, etaCalculator_1.calculateETA)({
+                                    riderLat: Number(loc?.lat),
+                                    riderLng: Number(loc?.lng),
+                                    destLat: fullOrder.address.lat,
+                                    destLng: fullOrder.address.lng,
+                                    orderId,
+                                    accuracyM: loc?.accuracy,
+                                });
+                                etaMinutes = etaResult.etaMinutes;
+                                distanceRemainingM = etaResult.distanceRemainingM;
+                            }
+                            catch (e) {
+                                console.warn("[LiveLocation][ETA] calculation failed:", e);
+                            }
+                        }
+                    }
+                    const customerPayload = {
+                        riderLat: roundedLat,
+                        riderLng: roundedLng,
+                        etaMinutes,
+                        distanceRemainingM,
+                        lastUpdated: payload.lastUpdatedAt,
+                    };
+                    // Emit to order-specific room
+                    io.to(`order:${orderId}`).emit("order:location:update", customerPayload);
+                }
+            }
+            catch (e) {
+                console.warn("[LiveLocation][customer] fan-out error:", e);
+            }
+        }
     }
     catch (e) {
         console.error("[LiveLocation][socket] fan-out error:", e);
@@ -353,7 +406,7 @@ io.on("connection", (socket) => {
             }
             return;
         }
-        // Security hard rule: only admin_room is joinable.
+        // Security hard rule: only admin_room is joinable via join_room.
         console.warn("[Socket] join_room denied: only admin_room is allowed", {
             socketId: socket.id,
             room: roomStr,
@@ -361,6 +414,55 @@ io.on("connection", (socket) => {
             userRole,
         });
         return;
+    });
+    // Customer: join order-specific room for live tracking
+    socket.on("join_order_room", async (data) => {
+        const { orderId, token } = data || {};
+        const orderIdStr = String(orderId || "").trim();
+        if (!orderIdStr) {
+            console.warn("[Socket] Customer join denied: missing orderId", { socketId: socket.id });
+            return;
+        }
+        try {
+            const provided = (typeof token === "string" && token.trim()) ||
+                (typeof socket.handshake?.auth?.token === "string" && String(socket.handshake.auth.token).trim()) ||
+                (typeof socket.handshake.headers?.authorization === "string" && String(socket.handshake.headers.authorization).replace(/^Bearer\s+/i, "").trim()) ||
+                "";
+            if (!provided) {
+                console.warn("[Socket] Customer join denied: missing token", { socketId: socket.id, orderId: orderIdStr });
+                return;
+            }
+            const jwtSecret = process.env.JWT_SECRET;
+            if (!jwtSecret) {
+                console.warn("[Socket] Customer join denied: server misconfigured", { socketId: socket.id });
+                return;
+            }
+            const decoded = jsonwebtoken_1.default.verify(provided, jwtSecret);
+            const userId = String(decoded?.userId || "");
+            if (!userId) {
+                console.warn("[Socket] Customer join denied: invalid token payload", { socketId: socket.id, orderId: orderIdStr });
+                return;
+            }
+            // Verify user owns this order
+            const order = await Order_1.Order.findById(orderIdStr).select("user status").lean();
+            if (!order) {
+                console.warn("[Socket] Customer join denied: order not found", { socketId: socket.id, orderId: orderIdStr });
+                return;
+            }
+            if (String(order.user) !== userId) {
+                console.warn("[Socket] Customer join denied: not order owner", { socketId: socket.id, orderId: orderIdStr, userId });
+                return;
+            }
+            // Join the order-specific room
+            const roomName = `order:${orderIdStr}`;
+            socket.join(roomName);
+            if (verboseLoggingEnabled) {
+                console.log(`✅ Customer ${userId} joined ${roomName}`);
+            }
+        }
+        catch (e) {
+            console.warn("[Socket] Customer join denied: error", e);
+        }
     });
     // Handle order status updates
     socket.on("order_status_update", (data) => {
@@ -409,8 +511,13 @@ const startServer = async () => {
         }
         await (0, database_1.connectDB)();
         // CRITICAL: MongoDB must run as replica set for transactions
-        // Fail fast if transactions are not enabled
+        // Fail fast if transactions are not enabled (skip in test env for CI)
         async function assertTransactionsEnabled() {
+            // Skip replica set check in test environment (CI uses standalone MongoDB)
+            if (process.env.NODE_ENV === "test") {
+                console.log("⚠️  Skipping replica set check in test environment");
+                return;
+            }
             try {
                 if (!mongoose_1.default.connection.db) {
                     throw new Error("MongoDB connection not established");
@@ -433,22 +540,25 @@ const startServer = async () => {
             }
         }
         await assertTransactionsEnabled();
-        // Start in-memory live location store timers (flush + TTL cleanup)
-        liveLocationStore_1.liveLocationStore.start();
-        (0, notificationWriter_1.initializeNotificationWriter)();
-        (0, outboxDispatcher_1.initializeOutboxDispatcher)();
-        (0, inventoryReservationSweeper_1.initializeInventoryReservationSweeper)();
-        (0, stuckPaymentScanner_1.startStuckPaymentScanner)();
-        // Initialize payment reconciliation service (reconciles captured payments missed by webhook)
-        (0, paymentReconciliationService_1.initializePaymentReconciliation)();
-        // Bootstrap dev admin user in development
-        await (0, bootstrapDevAdmin_1.bootstrapDevAdmin)();
-        // Initialize Redis ZSET for delivery partner load tracking
-        console.log("🚚 Initializing delivery partner load tracking...");
-        await deliveryPartnerLoadService_1.deliveryPartnerLoadService.initializeLoads();
-        // Start OrderEventBroadcaster polling for real-time sync
-        console.log("📡 Starting OrderEventBroadcaster polling...");
-        orderEventBroadcaster.startPolling(5000); // Poll every 5 seconds
+        // Skip background pollers in test environment to prevent open handles
+        if (NODE_ENV !== "test") {
+            // Start in-memory live location store timers (flush + TTL cleanup)
+            liveLocationStore_1.liveLocationStore.start();
+            (0, notificationWriter_1.initializeNotificationWriter)();
+            (0, outboxDispatcher_1.initializeOutboxDispatcher)();
+            (0, inventoryReservationSweeper_1.initializeInventoryReservationSweeper)();
+            (0, stuckPaymentScanner_1.startStuckPaymentScanner)();
+            // Initialize payment reconciliation service (reconciles captured payments missed by webhook)
+            (0, paymentReconciliationService_1.initializePaymentReconciliation)();
+            // Bootstrap dev admin user in development
+            await (0, bootstrapDevAdmin_1.bootstrapDevAdmin)();
+            // Initialize Redis ZSET for delivery partner load tracking
+            console.log("🚚 Initializing delivery partner load tracking...");
+            await deliveryPartnerLoadService_1.deliveryPartnerLoadService.initializeLoads();
+            // Start OrderEventBroadcaster polling for real-time sync
+            console.log("📡 Starting OrderEventBroadcaster polling...");
+            orderEventBroadcaster.startPolling(5000); // Poll every 5 seconds
+        }
         // Function to try starting server on a specific port
         const tryStartServer = (port) => {
             return new Promise((resolve, reject) => {

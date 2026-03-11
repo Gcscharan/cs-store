@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.requireDeliveryRole = exports.requireRole = exports.authenticateToken = exports.authenticateGoogleAuthOnly = void 0;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const User_1 = require("../models/User");
+const mongoose_1 = __importDefault(require("mongoose"));
 const authenticateGoogleAuthOnly = async (req, res, next) => {
     try {
         const jwtSecret = process.env.JWT_SECRET;
@@ -74,6 +75,9 @@ const authenticateToken = async (req, res, next) => {
         const decoded = jsonwebtoken_1.default.verify(token, jwtSecret);
         if (debug)
             console.log('[Auth] authenticateToken - token decoded, userId:', decoded.userId);
+        if (!mongoose_1.default.Types.ObjectId.isValid(decoded.userId)) {
+            return res.status(401).json({ message: "Invalid userId in token", code: "INVALID_USERID" });
+        }
         const user = await User_1.User.findById(decoded.userId).select("-passwordHash");
         if (debug)
             console.log('[Auth] authenticateToken - user found:', !!user);
@@ -103,11 +107,11 @@ const authenticateToken = async (req, res, next) => {
             console.log('[Auth] authenticateToken - error:', error);
         }
         if (error instanceof jsonwebtoken_1.default.JsonWebTokenError) {
-            if (error.name === 'TokenExpiredError') {
+            if (error.name === "TokenExpiredError") {
                 return res.status(401).json({ message: "Token expired", code: "TOKEN_EXPIRED" });
             }
-            else if (error.name === 'JsonWebTokenError') {
-                return res.status(401).json({ message: "Invalid token format", code: "INVALID_TOKEN" });
+            if (error.name === "JsonWebTokenError") {
+                return res.status(401).json({ message: error.message, code: "INVALID_TOKEN" });
             }
         }
         return res.status(401).json({ message: "Invalid or expired token" });

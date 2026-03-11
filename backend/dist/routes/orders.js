@@ -11,6 +11,7 @@ const security_1 = require("../middleware/security");
 const Order_1 = require("../models/Order");
 const trackingKillSwitch_1 = require("../domains/tracking/services/trackingKillSwitch");
 const trackingProjectionStore_1 = require("../domains/tracking/services/trackingProjectionStore");
+const mongoose_1 = require("mongoose");
 const router = express_1.default.Router();
 // Order routes
 router.get("/", auth_1.authenticateToken, orderController_1.getOrders);
@@ -22,6 +23,12 @@ router.put("/:id/cancel", auth_1.authenticateToken, orderController_1.cancelOrde
 router.get("/:id/tracking", auth_1.authenticateToken, async (req, res) => {
     try {
         const { id } = req.params;
+        if (!mongoose_1.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid orderId format",
+            });
+        }
         const userId = req.user._id;
         // Find the order
         const order = await Order_1.Order.findOne({ _id: id, userId })

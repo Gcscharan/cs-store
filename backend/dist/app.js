@@ -7,6 +7,7 @@ const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const passport_1 = __importDefault(require("passport"));
 const compression_1 = __importDefault(require("compression"));
+const autoOpenApi_1 = require("./config/autoOpenApi");
 const security_1 = require("./middleware/security");
 const security_2 = require("./middleware/security");
 const errorHandler_1 = require("./middleware/errorHandler");
@@ -49,6 +50,7 @@ const paymentIntents_routes_1 = __importDefault(require("./domains/payments/rout
 const webhooks_routes_1 = __importDefault(require("./domains/payments/routes/webhooks.routes"));
 // Invoice
 const invoice_routes_1 = __importDefault(require("./domains/invoice/routes/invoice.routes"));
+const orderTracking_1 = __importDefault(require("./routes/orderTracking"));
 console.log("✅ App.ts loaded");
 (0, logger_1.initializeSentry)();
 const app = (0, express_1.default)();
@@ -104,6 +106,13 @@ app.get("/health", (_req, res) => {
         timestamp: new Date().toISOString(),
     });
 });
+app.get("/api/health", (_req, res) => {
+    res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+app.get("/openapi.json", (_req, res) => {
+    const spec = (0, autoOpenApi_1.generateOpenApiSpec)(app);
+    res.json(spec);
+});
 /* ======================================================
    API ROUTES
 ====================================================== */
@@ -113,6 +122,7 @@ app.use("/api/users", mobileVerifyRoutes_1.default);
 app.use("/api/products", products_1.default);
 app.use("/api/cart", cart_1.default);
 app.use("/api/orders", orders_1.default);
+app.use("/api/orders", orderTracking_1.default); // Customer tracking endpoint
 app.use("/api/orders", invoice_routes_1.default); // Invoice routes mounted under /api/orders
 app.use("/api/delivery-fee", deliveryFee_1.default);
 app.use("/api/delivery-fee-v2", enhancedDeliveryFeeRoutes_1.default);

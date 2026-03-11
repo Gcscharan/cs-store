@@ -7,6 +7,7 @@ exports.getAdminAddress = getAdminAddress;
 exports.isDeliveryAvailable = isDeliveryAvailable;
 exports.getDeliveryFeeBreakdown = getDeliveryFeeBreakdown;
 const google_maps_services_js_1 = require("@googlemaps/google-maps-services-js");
+const distanceCalculator_1 = require("./distanceCalculator");
 // Admin's warehouse address (Boya Bazar, Tiruvuru, Krishna District)
 // Pincode: 521235
 // Accurate GPS coordinates for Boya Bazar, Tiruvuru
@@ -86,8 +87,9 @@ function calculateHaversineDistance(lat1, lng1, lat2, lng2) {
     return Math.round(distance * 100) / 100; // Round to 2 decimal places
 }
 /**
- * Calculate delivery fee based on distance and order amount
- * IMPORTANT: This function trusts saved coordinates and does NOT re-geocode
+ * Calculate delivery fee based on road distance and order amount
+ * Uses Google Directions API for accurate road distance
+ * Falls back to Haversine × 1.3 if API unavailable
  * @param userAddress User's delivery address (must have valid saved coordinates)
  * @param orderAmount Total order amount
  * @returns Delivery fee details
@@ -101,14 +103,18 @@ async function calculateDeliveryFee(userAddress, orderAmount) {
         err.statusCode = 400;
         throw err;
     }
-    // STEP 2: Calculate distance using saved coordinates (Haversine formula)
-    const distance = calculateHaversineDistance(ADMIN_ADDRESS.lat, ADMIN_ADDRESS.lng, userAddress.lat, userAddress.lng);
+    // STEP 2: Calculate road distance using Google Directions API
+    const routeResult = await (0, distanceCalculator_1.getRouteDistance)(ADMIN_ADDRESS.lat, ADMIN_ADDRESS.lng, userAddress.lat, userAddress.lng);
+    // Road distance in kilometers
+    const distance = routeResult.distanceKm;
     // Debug logs for verification
-    console.log('🚚 [Backend] Delivery Fee Calculation (Using Saved Coordinates):', {
+    console.log('🚚 [Backend] Delivery Fee Calculation (Road Distance):', {
         warehouseCoords: { lat: ADMIN_ADDRESS.lat, lng: ADMIN_ADDRESS.lng, location: ADMIN_ADDRESS.addressLine },
         userCoords: { lat: userAddress.lat, lng: userAddress.lng, location: `${userAddress.city}, ${userAddress.state}` },
         coordsSource: 'saved',
-        calculatedDistance: `${distance.toFixed(2)} km`,
+        distanceSource: routeResult.source,
+        roadDistance: `${distance.toFixed(2)} km`,
+        duration: `${routeResult.durationMinutes} min`,
         orderAmount: `₹${orderAmount}`,
     });
     // STEP 3: Validate distance
@@ -128,11 +134,12 @@ async function calculateDeliveryFee(userAddress, orderAmount) {
             totalFee: 0,
             isFreeDelivery: true,
             finalFee: 0,
-            distanceFrom: `${distance.toFixed(2)} km from Tiruvuru`,
+            distanceFrom: `${distance.toFixed(2)} km from Tiruvuru (road distance)`,
             coordsSource: 'saved',
+            distanceSource: routeResult.source,
         };
     }
-    // Calculate delivery fee based on distance - Swiggy/Zomato style
+    // Calculate delivery fee based on road distance - Swiggy/Zomato style
     let deliveryFee;
     if (distance <= 2) {
         // Up to 2 km: ₹25
@@ -155,7 +162,7 @@ async function calculateDeliveryFee(userAddress, orderAmount) {
         deliveryFee = Math.round(deliveryFee); // Round to nearest rupee
         console.log(`📍 [Backend] Distance: ${distance.toFixed(2)} km (>6 km) → ₹60 + (${extraDistance.toFixed(2)} km × ₹8) = ₹${deliveryFee}`);
     }
-    console.log(`💰 [Backend] Final Delivery Fee: ₹${deliveryFee}`);
+    console.log(`💰 [Backend] Final Delivery Fee: ₹${deliveryFee} (road distance)`);
     return {
         distance: distance,
         baseFee: deliveryFee,
@@ -163,8 +170,9 @@ async function calculateDeliveryFee(userAddress, orderAmount) {
         totalFee: deliveryFee,
         isFreeDelivery: false,
         finalFee: deliveryFee,
-        distanceFrom: `${distance.toFixed(2)} km from Tiruvuru`,
+        distanceFrom: `${distance.toFixed(2)} km from Tiruvuru (road distance)`,
         coordsSource: 'saved',
+        distanceSource: routeResult.source,
     };
 }
 /**

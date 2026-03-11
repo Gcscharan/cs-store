@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { io, Socket } from "socket.io-client";
 import { getApiOrigin } from "../config/runtime";
 
@@ -43,7 +43,7 @@ export const useCustomerLiveTracking = (params: Params) => {
   const socketRef = useRef<Socket | null>(null);
   const lastReceiveAtRef = useRef<number | null>(null);
   const locationRef = useRef<CustomerLiveLocation | null>(null);
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pollIntervalRef = useRef<{ abort: () => void } | null>(null);
 
   const [isConnected, setIsConnected] = useState(false);
   const [location, setLocation] = useState<CustomerLiveLocation | null>(null);
@@ -176,18 +176,31 @@ export const useCustomerLiveTracking = (params: Params) => {
     return () => clearInterval(id);
   }, [enabled, staleAfterMs]);
 
-  // Polling fallback when socket disconnects
-  const startPollingFallback = () => {
+  // Polling fallback when socket disconnects - using abortable setTimeout loop
+  const startPollingFallback = useCallback(() => {
     if (pollIntervalRef.current) return;
     if (!orderId) return;
 
-    pollIntervalRef.current = setInterval(async () => {
+    let aborted = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    const abortController = new AbortController();
+
+    const poll = async () => {
+      if (aborted) return;
+      
+      // Stop polling if page is hidden
+      if (document.visibilityState === 'hidden') {
+        timeoutId = setTimeout(poll, 5000); // Check again in 5s when hidden
+        return;
+      }
+
       try {
         const token = localStorage.getItem("accessToken");
         const response = await fetch(`/api/orders/${orderId}/tracking`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
+          signal: abortController.signal,
         });
 
         if (response.ok) {
@@ -209,18 +222,50 @@ export const useCustomerLiveTracking = (params: Params) => {
             setLocation(next);
           }
         }
-      } catch (error) {
+      } catch (error: any) {
+        if (error.name === 'AbortError') {
+          return; // Expected on cleanup
+        }
         console.error("[CustomerTracking] Polling error:", error);
       }
-    }, 15000); // Poll every 15 seconds
-  };
 
-  const stopPollingFallback = () => {
+      // Schedule next poll only after current one completes
+      if (!aborted) {
+        timeoutId = setTimeout(poll, 15000);
+      }
+    };
+
+    // Start the polling loop
+    poll();
+
+    // Handle visibility changes
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && !aborted) {
+        // Resume polling immediately when page becomes visible
+        poll();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    // Store cleanup function
+    pollIntervalRef.current = {
+      abort: () => {
+        aborted = true;
+        abortController.abort();
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+        document.removeEventListener('visibilitychange', onVisibilityChange);
+      },
+    };
+  }, [orderId]);
+
+  const stopPollingFallback = useCallback(() => {
     if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current.abort();
       pollIntervalRef.current = null;
     }
-  };
+  }, []);
 
   // Load from sessionStorage on mount
   useEffect(() => {

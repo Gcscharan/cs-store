@@ -17,6 +17,7 @@ const Notification_1 = __importDefault(require("../../../models/Notification"));
 const geocoding_1 = require("../../../utils/geocoding");
 const authoritativePincodeResolver_1 = require("../../../utils/authoritativePincodeResolver");
 const pincodeResolver_1 = require("../../../utils/pincodeResolver");
+const pincodeValidator_1 = require("../../../services/pincodeValidator");
 const eventBus_1 = require("../../events/eventBus");
 const eventId_1 = require("../../events/eventId");
 const account_events_1 = require("../../events/account.events");
@@ -190,6 +191,33 @@ const addUserAddress = async (req, res) => {
             });
             return;
         }
+        // Validate pincode with India Post API
+        const pincodeResult = await (0, pincodeValidator_1.validatePincode)(pincode);
+        if (!pincodeResult.valid) {
+            console.warn(`[addUserAddress] Invalid pincode: ${pincode}`);
+            res.status(400).json({
+                success: false,
+                message: "Invalid pincode",
+                details: {
+                    reason: "This pincode does not exist in India Post database",
+                    pincode,
+                },
+            });
+            return;
+        }
+        // Check for city/state mismatch and attach hints
+        let cityHint;
+        let stateHint;
+        if (pincodeResult.suggestedCity) {
+            const userCityLower = city.trim().toLowerCase();
+            const suggestedCityLower = pincodeResult.suggestedCity.toLowerCase();
+            if (userCityLower !== suggestedCityLower) {
+                // Warn but don't block — user might use local name
+                console.warn(`[addUserAddress] City mismatch for pincode ${pincode}: user entered "${city}", India Post says "${pincodeResult.suggestedCity}"`);
+                cityHint = pincodeResult.suggestedCity;
+                stateHint = pincodeResult.suggestedState;
+            }
+        }
         const user = await User_1.User.findById(userId);
         if (!user) {
             res.status(404).json({
@@ -322,6 +350,14 @@ const addUserAddress = async (req, res) => {
             success: true,
             message: "Address added successfully",
             address: cleanAddress,
+            // Include city/state hints if there was a mismatch
+            ...(cityHint && {
+                suggestions: {
+                    city: cityHint,
+                    state: stateHint,
+                    message: `Did you mean: ${cityHint}, ${stateHint}?`,
+                },
+            }),
         });
     }
     catch (error) {
