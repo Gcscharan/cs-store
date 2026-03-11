@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { setUser, setTokens, setStatus } from "../store/slices/authSlice";
 import OAuthLogin from "./OAuthLogin";
 import { toApiUrl } from "../config/runtime";
+import { useLanguage } from "../contexts/LanguageContext";
 
 interface LoginFormData {
   emailOrPhone: string;
@@ -13,6 +14,7 @@ interface LoginFormData {
 
 const LoginForm: React.FC = () => {
   const dispatch = useDispatch();
+  const { t } = useLanguage();
   const [formData, setFormData] = useState<LoginFormData>({
     emailOrPhone: "",
     otp: "",
@@ -302,7 +304,7 @@ const LoginForm: React.FC = () => {
       animate={{ opacity: 1, y: 0 }}
       className="max-w-md mx-auto bg-white p-6 rounded-lg shadow-md"
     >
-      <h2 className="text-2xl font-bold text-center mb-6">Sign In</h2>
+      <h2 className="text-2xl font-bold text-center mb-6">{t("auth.login")}</h2>
 
       {/* OAuth Login */}
       <div className="mb-6">
@@ -315,7 +317,7 @@ const LoginForm: React.FC = () => {
         </div>
         <div className="relative flex justify-center text-sm">
           <span className="px-2 bg-white text-gray-500">
-            Or continue with OTP
+            {t("auth.orContinueWithOTP")}
           </span>
         </div>
       </div>
@@ -327,7 +329,7 @@ const LoginForm: React.FC = () => {
         {/* Email/Phone Input */}
         <div>
           <label className="block text-sm font-medium text-gray-700">
-            Email or Phone Number
+            {t("auth.emailOrPhone")}
           </label>
           <input
             type="text"
@@ -335,7 +337,7 @@ const LoginForm: React.FC = () => {
             value={formData.emailOrPhone}
             onChange={handleInputChange}
             className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Enter your email or phone number"
+            placeholder={t("auth.emailOrPhonePlaceholder")}
             disabled={otpSent || isLoading}
           />
           {errors.emailOrPhone && (
@@ -347,7 +349,7 @@ const LoginForm: React.FC = () => {
         {otpSent && (
           <div>
             <label className="block text-sm font-medium text-gray-700">
-              OTP
+              {t("auth.otp")}
             </label>
             <input
               type="text"
@@ -355,7 +357,7 @@ const LoginForm: React.FC = () => {
               value={formData.otp}
               onChange={handleInputChange}
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Enter the 6-digit OTP"
+              placeholder={t("auth.otpPlaceholder")}
               maxLength={6}
               disabled={isLoading}
             />
@@ -383,11 +385,11 @@ const LoginForm: React.FC = () => {
         >
           {isLoading
             ? otpSent
-              ? "Verifying OTP..."
-              : "Sending OTP..."
+              ? t("auth.verifyingOTP")
+              : t("auth.sendingOTP")
             : otpSent
-            ? "Verify OTP"
-            : "Send OTP"}
+            ? t("auth.verifyOTP")
+            : t("auth.sendOTP")}
         </button>
 
         {/* Resend OTP Button */}
@@ -401,19 +403,19 @@ const LoginForm: React.FC = () => {
             }}
             className="w-full text-blue-600 text-sm py-2 hover:text-blue-700"
           >
-            Use different email or phone number
+            {t("auth.useDifferentContact")}
           </button>
         )}
       </form>
 
       <div className="mt-6 text-center">
         <p className="text-sm text-gray-600">
-          Don't have an account?{" "}
+          {t("auth.noAccount")}{" "}
           <Link
             to="/signup"
             className="text-blue-600 font-medium hover:underline"
           >
-            Create an account
+            {t("auth.createAccount")}
           </Link>
         </p>
       </div>

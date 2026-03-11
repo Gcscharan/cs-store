@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { setUser, setTokens } from "../store/slices/authSlice";
 import { toApiUrl } from "../config/runtime";
+import { useLanguage } from "../contexts/LanguageContext";
 
 interface SignupFormData {
   name: string;
@@ -25,6 +26,7 @@ interface SignupFormProps {
 const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const [formData, setFormData] = useState<SignupFormData>({
     name: "",
     email: "",
@@ -335,7 +337,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
       animate={{ opacity: 1, y: 0 }}
       className="max-w-md mx-auto bg-white p-6 rounded-lg shadow-md"
     >
-      <h2 className="text-2xl font-bold text-center mb-6">Create Account</h2>
+      <h2 className="text-2xl font-bold text-center mb-6">{t("auth.createAccount")}</h2>
 
       {loginInfo && (
         <p className="text-blue-600 text-sm mb-3">{loginInfo}</p>
@@ -345,7 +347,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
         {/* Name */}
         <div>
           <label className="block text-sm font-medium text-gray-700">
-            Name
+            {t("auth.name")}
           </label>
           <input
             type="text"
@@ -353,7 +355,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
             value={formData.name}
             onChange={handleInputChange}
             className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Enter your name"
+            placeholder={t("auth.namePlaceholder")}
             disabled={isLoading || isOtpLoading}
           />
           {errors.name && (
@@ -364,7 +366,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
         {/* Email */}
         <div>
           <label className="block text-sm font-medium text-gray-700">
-            Email
+            {t("auth.email")}
           </label>
           <input
             type="email"
@@ -372,7 +374,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
             value={formData.email}
             onChange={handleInputChange}
             className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Enter your email"
+            placeholder={t("auth.emailPlaceholder")}
             disabled={isLoading || isOtpLoading}
           />
           {errors.email && (
@@ -383,7 +385,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
         {/* Phone + Verify button (inline) */}
         <div>
           <label className="block text-sm font-medium text-gray-700">
-            Mobile Number
+            {t("auth.mobileNumber")}
           </label>
 
           <div className="flex gap-2 mt-1 items-center">
@@ -397,7 +399,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
                   ? "border-red-500 focus:ring-red-500"
                   : "border-gray-300 focus:ring-blue-500"
               }`}
-              placeholder="Enter your 10-digit mobile number"
+              placeholder={t("auth.mobilePlaceholder")}
               maxLength={10}
               disabled={isLoading || isOtpLoading}
             />
@@ -408,7 +410,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
                 aria-live="polite"
                 className="inline-flex items-center px-3 py-2 bg-green-50 border border-green-200 text-green-700 rounded-md text-sm"
               >
-                ✓ Verified
+                ✓ {t("auth.verified")}
               </div>
             ) : (
               <button
@@ -417,7 +419,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
                 disabled={!formData.phone || formData.phone.length !== 10 || isOtpLoading}
                 className="inline-flex items-center px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium rounded-md text-sm transition-colors"
               >
-                {isOtpLoading && !phoneOtpSent ? "Sending..." : "Verify"}
+                {isOtpLoading && !phoneOtpSent ? t("auth.sending") : t("auth.verify")}
               </button>
             )}
           </div>
@@ -437,7 +439,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
                   setPhoneOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
                 }
                 className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter 6-digit OTP"
+                placeholder={t("auth.otpPlaceholder")}
                 maxLength={6}
                 disabled={isOtpLoading || isLoading}
               />
@@ -448,7 +450,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
                 disabled={phoneOtp.length !== 6 || isOtpLoading}
                 className="px-3 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-medium rounded-md transition-colors"
               >
-                {isOtpLoading ? "Submitting..." : "Submit"}
+                {isOtpLoading ? t("auth.submitting") : t("auth.submit")}
               </button>
             </div>
           )}
@@ -467,10 +469,10 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
                 }`}
                 style={{ background: 'none', border: 'none', padding: 0 }}
               >
-                Resend OTP
+                {t("auth.resendOTP")}
               </button>
               <span className="text-sm text-gray-500">
-                {canResendOtp ? "" : `Resend in ${otpTimer}s`}
+                {canResendOtp ? "" : `${t("auth.resendIn")} ${otpTimer}s`}
               </span>
             </div>
           )}
@@ -479,7 +481,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
           {phoneOtpVerified && (
             <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-md">
               <p className="text-green-700 text-sm font-medium">
-                ✓ Mobile number verified successfully
+                ✓ {t("auth.mobileVerified")}
               </p>
             </div>
           )}
@@ -492,7 +494,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
         {/* Password */}
         <div>
           <label className="block text-sm font-medium text-gray-700">
-            Password
+            {t("auth.password")}
           </label>
           <input
             type="password"
@@ -500,7 +502,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
             value={formData.password}
             onChange={handleInputChange}
             className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Enter your password"
+            placeholder={t("auth.passwordPlaceholder")}
             disabled={isLoading || isOtpLoading}
           />
           {errors.password && (
@@ -511,7 +513,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
         {/* Confirm Password */}
         <div>
           <label className="block text-sm font-medium text-gray-700">
-            Confirm Password
+            {t("auth.confirmPassword")}
           </label>
           <input
             type="password"
@@ -519,7 +521,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
             value={formData.confirmPassword}
             onChange={handleInputChange}
             className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Confirm your password"
+            placeholder={t("auth.confirmPasswordPlaceholder")}
             disabled={isLoading || isOtpLoading}
           />
           {errors.confirmPassword && (
@@ -537,7 +539,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
           disabled={isLoading}
           className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
         >
-          {isLoading ? "Creating account..." : "Create Account"}
+          {isLoading ? t("auth.creatingAccount") : t("auth.createAccount")}
         </button>
       </form>
     </motion.div>

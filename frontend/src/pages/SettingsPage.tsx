@@ -69,7 +69,7 @@ const SettingsPage: React.FC = () => {
   const [deleteAccount, { isLoading: isDeleting }] = useDeleteAccountMutation();
   
   const { currency, setCurrency } = useCurrency();
-  const { language, setLanguage } = useLanguage();
+  const { language, setLanguage, t } = useLanguage();
 
   const [notifications, setNotifications] = useState({
     orderUpdates: true,
@@ -185,7 +185,7 @@ const SettingsPage: React.FC = () => {
     return (
       <div className="min-h-screen bg-gray-50 py-8 px-4">
         <div className="max-w-4xl mx-auto">
-          <h1 className="text-3xl font-bold text-gray-900 mb-8">Settings</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-8">{t("settings.title")}</h1>
           <div className="space-y-6">
             <div className="bg-white rounded-xl shadow-sm border p-6">
               <SkeletonLoader variant="text" width="40%" />
@@ -213,15 +213,15 @@ const SettingsPage: React.FC = () => {
     return (
       <div className="min-h-screen flex items-center justify-center text-center p-6">
         <div>
-          <h2 className="text-xl font-bold mb-2">Login Required</h2>
+          <h2 className="text-xl font-bold mb-2">{t("auth.login")} {t("common.required")}</h2>
           <p className="mb-4 text-gray-600">
-            Please log in to access your settings.
+            {t("settings.loginToAccess")}
           </p>
           <button
             className="bg-blue-600 text-white px-6 py-3 rounded-lg"
             onClick={() => navigate("/login")}
           >
-            Go to Login
+            {t("settings.goToLogin")}
           </button>
         </div>
       </div>
@@ -245,10 +245,10 @@ const SettingsPage: React.FC = () => {
           </button>
           <div>
             <h1 className="text-xl font-bold text-gray-900">
-              Settings
+              {t("settings.title")}
             </h1>
             <p className="text-sm text-gray-600">
-              Manage your account preferences
+              {t("settings.managePreferences")}
             </p>
           </div>
         </div>
@@ -260,33 +260,33 @@ const SettingsPage: React.FC = () => {
         <div className="bg-white rounded-xl shadow-sm border p-6">
           <div className="flex items-center space-x-3 mb-4">
             <Bell className="h-5 w-5 text-blue-600" />
-            <h2 className="text-lg font-semibold">Notification Preferences</h2>
+            <h2 className="text-lg font-semibold">{t("settings.notifications")}</h2>
           </div>
 
           {loadingPrefs ? (
-            <p className="text-sm text-gray-500">Loading preferences…</p>
+            <p className="text-sm text-gray-500">{t("settings.loadingPrefs")}</p>
           ) : (
             <div className="space-y-4">
               {[
                 {
                   key: "orderUpdates",
-                  label: "Order Updates",
-                  desc: "Order status changes",
+                  label: t("settings.orderUpdates"),
+                  desc: t("settings.orderUpdatesDesc"),
                 },
                 {
                   key: "promotions",
-                  label: "Promotions",
-                  desc: "Special offers & deals",
+                  label: t("settings.promotions"),
+                  desc: t("settings.promotionsDesc"),
                 },
                 {
                   key: "newsletter",
-                  label: "Newsletter",
-                  desc: "Weekly updates",
+                  label: t("settings.newsletter"),
+                  desc: t("settings.newsletterDesc"),
                 },
                 {
                   key: "sms",
-                  label: "SMS Notifications",
-                  desc: "Delivery updates via SMS",
+                  label: t("settings.sms"),
+                  desc: t("settings.smsDesc"),
                 },
               ].map((item) => (
                 <div
@@ -320,14 +320,14 @@ const SettingsPage: React.FC = () => {
         <div className="bg-white rounded-xl shadow-sm border p-6">
           <div className="flex items-center space-x-3 mb-4">
             <Eye className="h-5 w-5 text-blue-600" />
-            <h2 className="text-lg font-semibold">Appearance</h2>
+            <h2 className="text-lg font-semibold">{t("settings.appearance")}</h2>
           </div>
 
           <div className="space-y-4">
             <div className="flex items-center justify-between py-3 border-b">
               <div>
-                <h4 className="font-medium">Language</h4>
-                <p className="text-sm text-gray-500">Select your preferred language</p>
+                <h4 className="font-medium">{t("settings.language")}</h4>
+                <p className="text-sm text-gray-500">{t("settings.languageDesc")}</p>
               </div>
               <select
                 value={language}
@@ -343,8 +343,8 @@ const SettingsPage: React.FC = () => {
 
             <div className="flex items-center justify-between py-3">
               <div>
-                <h4 className="font-medium">Currency</h4>
-                <p className="text-sm text-gray-500">Display prices in your currency</p>
+                <h4 className="font-medium">{t("settings.currency")}</h4>
+                <p className="text-sm text-gray-500">{t("settings.currencyDesc")}</p>
               </div>
               <select
                 value={currency}
@@ -365,7 +365,7 @@ const SettingsPage: React.FC = () => {
         <div className="bg-white rounded-xl shadow-sm border p-6">
           <div className="flex items-center space-x-3 mb-4">
             <Shield className="h-5 w-5 text-blue-600" />
-            <h2 className="text-lg font-semibold">Privacy & Security</h2>
+            <h2 className="text-lg font-semibold">{t("settings.privacySecurity")}</h2>
           </div>
 
           <div className="space-y-6">
@@ -375,7 +375,7 @@ const SettingsPage: React.FC = () => {
             >
               <div className="flex items-center space-x-3">
                 <Lock className="h-5 w-5 text-gray-600" />
-                <span>Change Password</span>
+                <span>{t("settings.changePassword")}</span>
               </div>
               <span className="text-gray-400">›</span>
             </button>
@@ -383,7 +383,7 @@ const SettingsPage: React.FC = () => {
             <button className="w-full flex items-center justify-between px-4 py-3 border rounded-lg hover:bg-gray-50">
               <div className="flex items-center space-x-3">
                 <Download className="h-5 w-5 text-gray-600" />
-                <span>Download My Data</span>
+                <span>{t("settings.downloadData")}</span>
               </div>
               <span className="text-gray-400">›</span>
             </button>
@@ -394,7 +394,7 @@ const SettingsPage: React.FC = () => {
             >
               <div className="flex items-center space-x-3">
                 <ArrowLeft className="h-5 w-5 text-gray-600" />
-                <span>Logout</span>
+                <span>{t("auth.logout")}</span>
               </div>
               <span className="text-gray-400">›</span>
             </button>
@@ -406,11 +406,11 @@ const SettingsPage: React.FC = () => {
           <div className="flex items-center space-x-3 mb-4">
             <Trash2 className="h-5 w-5 text-red-600" />
             <h2 className="text-lg font-semibold text-red-800">
-              Danger Zone
+              {t("settings.dangerZone")}
             </h2>
           </div>
           <p className="text-gray-600 text-sm mb-4">
-            Permanently delete your account and all associated data.
+            {t("settings.dangerZoneDesc")}
           </p>
           <button
             onClick={handleAccountDeletion}
@@ -419,7 +419,7 @@ const SettingsPage: React.FC = () => {
             data-testid="delete-account-button"
           >
             {isDeleting && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-            <span>{isDeleting ? "Deleting..." : "Delete Account"}</span>
+            <span>{isDeleting ? t("settings.deleting") : t("settings.deleteAccount")}</span>
           </button>
         </div>
 
@@ -428,12 +428,12 @@ const SettingsPage: React.FC = () => {
           <div className="inline-flex items-center text-gray-600 space-x-2">
             <HelpCircle className="h-4 w-4" />
             <span>
-              Need help? Visit our{" "}
+              {t("settings.needHelp")}{" "}
               <a
                 href="/help-support"
                 className="text-blue-600 font-medium"
               >
-                Help Center
+                {t("settings.helpCenter")}
               </a>
             </span>
           </div>
@@ -453,7 +453,7 @@ const SettingsPage: React.FC = () => {
             className="bg-white p-6 rounded-xl w-full max-w-md shadow-xl"
           >
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold">Change Password</h3>
+              <h3 className="text-lg font-semibold">{t("settings.changePassword")}</h3>
               <button
                 className="p-2 hover:bg-gray-100 rounded-lg"
                 onClick={() => setShowPasswordModal(false)}
@@ -467,7 +467,7 @@ const SettingsPage: React.FC = () => {
               {/* OLD PASSWORD */}
               <div>
                 <label className="text-sm font-medium text-gray-700">
-                  Current Password
+                  {t("settings.currentPassword")}
                 </label>
                 <div className="relative mt-1">
                   <input
@@ -498,7 +498,7 @@ const SettingsPage: React.FC = () => {
               {/* NEW PASSWORD */}
               <div>
                 <label className="text-sm font-medium text-gray-700">
-                  New Password
+                  {t("auth.password")}
                 </label>
                 <div className="relative mt-1">
                   <input
@@ -529,7 +529,7 @@ const SettingsPage: React.FC = () => {
               {/* CONFIRM NEW PASSWORD */}
               <div>
                 <label className="text-sm font-medium text-gray-700">
-                  Confirm New Password
+                  {t("auth.confirmPassword")}
                 </label>
                 <div className="relative mt-1">
                   <input
@@ -567,13 +567,13 @@ const SettingsPage: React.FC = () => {
                 data-testid="change-password-submit"
               >
                 {isChangingPassword && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-                <span>{isChangingPassword ? "Changing..." : "Change Password"}</span>
+                <span>{isChangingPassword ? t("settings.changing") : t("settings.changePassword")}</span>
               </button>
               <button
                 onClick={() => setShowPasswordModal(false)}
                 className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300"
               >
-                Cancel
+                {t("common.cancel")}
               </button>
             </div>
           </motion.div>
