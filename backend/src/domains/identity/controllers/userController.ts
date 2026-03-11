@@ -12,6 +12,7 @@ import Notification from "../../../models/Notification";
 import { geocodeByPincode, smartGeocode } from "../../../utils/geocoding";
 import { resolvePincodeAuthoritatively } from "../../../utils/authoritativePincodeResolver";
 import { resolvePincodeForAddressSave } from "../../../utils/pincodeResolver";
+import { validatePincode } from "../../../services/pincodeValidator";
 import { publish } from "../../events/eventBus";
 import { stableEventId } from "../../events/eventId";
 import { createAccountProfileUpdatedEvent } from "../../events/account.events";
@@ -239,6 +240,36 @@ export const addUserAddress = async (
       return;
     }
 
+    // Validate pincode with India Post API
+    const pincodeResult = await validatePincode(pincode);
+    if (!pincodeResult.valid) {
+      console.warn(`[addUserAddress] Invalid pincode: ${pincode}`);
+      res.status(400).json({
+        success: false,
+        message: "Invalid pincode",
+        details: {
+          reason: "This pincode does not exist in India Post database",
+          pincode,
+        },
+      });
+      return;
+    }
+
+    // Check for city/state mismatch and attach hints
+    let cityHint: string | undefined;
+    let stateHint: string | undefined;
+    if (pincodeResult.suggestedCity) {
+      const userCityLower = city.trim().toLowerCase();
+      const suggestedCityLower = pincodeResult.suggestedCity.toLowerCase();
+      
+      if (userCityLower !== suggestedCityLower) {
+        // Warn but don't block — user might use local name
+        console.warn(`[addUserAddress] City mismatch for pincode ${pincode}: user entered "${city}", India Post says "${pincodeResult.suggestedCity}"`);
+        cityHint = pincodeResult.suggestedCity;
+        stateHint = pincodeResult.suggestedState;
+      }
+    }
+
     const user = await User.findById(userId);
 
     if (!user) {
@@ -385,6 +416,14 @@ export const addUserAddress = async (
       success: true,
       message: "Address added successfully",
       address: cleanAddress,
+      // Include city/state hints if there was a mismatch
+      ...(cityHint && {
+        suggestions: {
+          city: cityHint,
+          state: stateHint,
+          message: `Did you mean: ${cityHint}, ${stateHint}?`,
+        },
+      }),
     });
   } catch (error: any) {
     console.error("🔥 addUserAddress CRASH", error, error?.stack);
