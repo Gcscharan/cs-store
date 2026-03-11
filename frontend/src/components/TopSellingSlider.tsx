@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import OptimizedImage from "./OptimizedImage";
+import { useLanguage } from "../contexts/LanguageContext";
 
 interface TopSellingProduct {
   id: string | number;
@@ -23,6 +24,7 @@ const TopSellingSlider: React.FC<TopSellingSliderProps> = ({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isAutoPlaying, setIsAutoPlaying] = useState(true);
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   // Calculate maximum index based on products length and visible items
   const getMaxIndex = () => {
@@ -131,10 +133,10 @@ const TopSellingSlider: React.FC<TopSellingSliderProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 space-y-3 sm:space-y-0">
         <div>
           <h2 className="text-2xl sm:text-3xl font-bold text-neutral-900 mb-2">
-            🔥 Top Selling
+            {t("home.topSelling")}
           </h2>
           <p className="text-sm sm:text-base text-neutral-600">
-            Most popular products this week
+            {t("home.topSellingSubtitle")}
           </p>
         </div>
 

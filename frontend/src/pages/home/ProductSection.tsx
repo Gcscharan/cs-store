@@ -11,6 +11,7 @@ import { motion } from "framer-motion";
 import { useOtpModal } from "../../contexts/OtpModalContext";
 import { useTokenRefresh } from "../../hooks/useTokenRefresh";
 import { getGradientPlaceholder } from "../../utils/mockImages";
+import { useLanguage } from "../../contexts/LanguageContext";
 
 // Lazy load TopSellingSlider for better code splitting
 const TopSellingSlider = lazy(() => import("../../components/TopSellingSlider"));
@@ -229,6 +230,7 @@ const HomeHeader = memo(function HomeHeader() {
 
 const HomeFooter = memo(function HomeFooter() {
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   return (
     <>
@@ -236,23 +238,23 @@ const HomeFooter = memo(function HomeFooter() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
             <h2 className="text-3xl font-bold text-white mb-4">
-              For better experience, download the Vyapara Setu now
+              {t("home.downloadApp")}
             </h2>
             <p className="text-xl text-blue-100 mb-8">
-              Get the best shopping experience with our mobile app
+              {t("home.downloadAppSub")}
             </p>
             <div className="flex flex-col sm:flex-row justify-center space-y-4 sm:space-y-0 sm:space-x-6">
               <button
                 onClick={() => navigate("/download-app")}
                 className="bg-white text-blue-600 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-gray-100 transition-colors shadow-lg hover:shadow-xl transform hover:scale-105"
               >
-                Download App
+                {t("home.downloadBtn")}
               </button>
               <button
                 onClick={() => navigate("/download-app")}
                 className="bg-transparent border-2 border-white text-white px-8 py-4 rounded-lg font-semibold text-lg hover:bg-white hover:text-blue-600 transition-colors"
               >
-                Learn More
+                {t("home.learnMore")}
               </button>
             </div>
             <div className="mt-8 flex justify-center space-x-8 text-blue-100">

@@ -4,6 +4,17 @@ export interface IProduct extends Document {
   _id: mongoose.Types.ObjectId;
   name: string;
   description: string;
+  // Multilingual support for product name and description
+  nameTranslations?: {
+    en?: string;
+    te?: string;
+    hi?: string;
+  };
+  descriptionTranslations?: {
+    en?: string;
+    te?: string;
+    hi?: string;
+  };
   category: string;
   price: number;
   mrp?: number;
@@ -54,6 +65,18 @@ const ProductSchema = new Schema<IProduct>(
       required: [true, "Product description is required"],
       trim: true,
       maxlength: [1000, "Description cannot exceed 1000 characters"],
+    },
+    // Multilingual translations for product name
+    nameTranslations: {
+      en: { type: String, trim: true },
+      te: { type: String, trim: true },
+      hi: { type: String, trim: true },
+    },
+    // Multilingual translations for product description
+    descriptionTranslations: {
+      en: { type: String, trim: true },
+      te: { type: String, trim: true },
+      hi: { type: String, trim: true },
     },
     category: {
       type: String,

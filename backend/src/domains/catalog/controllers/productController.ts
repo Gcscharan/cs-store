@@ -14,6 +14,7 @@ import {
   cacheGetJson,
   cacheSetJson,
 } from "../../../utils/productReadCache";
+import { translateProduct } from "../../../services/autoTranslateService";
 
 const mediaService = new MediaImageService();
 
@@ -386,6 +387,18 @@ export const createProduct = async (
 
     const saved = await product.save();
 
+    // Auto-translate product name and description to all languages
+    try {
+      const { nameTranslations, descriptionTranslations } = await translateProduct(name, description);
+      saved.nameTranslations = nameTranslations;
+      saved.descriptionTranslations = descriptionTranslations;
+      await saved.save();
+      logger.info('✅ Product translations saved:', { productId: saved._id });
+    } catch (translateError) {
+      // Log but don't fail - translations can be added later
+      logger.warn('⚠️ Product translation failed (non-blocking):', translateError);
+    }
+
     await invalidateCache.products();
 
     // Normalize before sending to frontend
@@ -425,7 +438,7 @@ export const updateProduct = async (
 ): Promise<Response | void> => {
   try {
     const { id } = req.params;
-    const { images, ...updateData } = req.body;
+    const { images, name, description, ...updateData } = req.body;
 
     logger.info('🔍 [UpdateProduct] Request received:', {
       productId: id,
@@ -441,6 +454,8 @@ export const updateProduct = async (
 
     // Prepare update data
     const updateFields: any = { ...updateData };
+    if (name !== undefined) updateFields.name = name;
+    if (description !== undefined) updateFields.description = description;
     if (images !== undefined) {
       updateFields.images = images;
     }
@@ -463,6 +478,22 @@ export const updateProduct = async (
     if (!product) {
       logger.info('❌ [UpdateProduct] Product not found:', id);
       return res.status(404).json({ message: "Product not found" });
+    }
+
+    // Re-translate if name or description changed
+    if (name !== undefined || description !== undefined) {
+      try {
+        const { nameTranslations, descriptionTranslations } = await translateProduct(
+          product.name,
+          product.description
+        );
+        product.nameTranslations = nameTranslations;
+        product.descriptionTranslations = descriptionTranslations;
+        await product.save();
+        logger.info('✅ [UpdateProduct] Product translations updated:', { productId: id });
+      } catch (translateError) {
+        logger.warn('⚠️ [UpdateProduct] Translation failed (non-blocking):', translateError);
+      }
     }
 
     logger.info('✅ [UpdateProduct] Product updated successfully:', {

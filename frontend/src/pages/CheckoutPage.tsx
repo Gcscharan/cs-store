@@ -40,6 +40,7 @@ import {
 import { CheckoutPageSkeleton } from "../components/PageSkeletons";
 import { useCartPersistence } from "../hooks/useCartPersistence";
 import { reportError } from "../utils/sentry";
+import { useLanguage } from "../contexts/LanguageContext";
 
 const PaymentOption = (props: {
   value: string;
@@ -83,6 +84,7 @@ const CheckoutPage = () => {
   const { isLoadingCart } = useCartPersistence();
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const [clearCartMutation] = useClearCartMutation();
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [isPincodeServiceable, setIsPincodeServiceable] = useState<boolean | null>(null);
@@ -944,18 +946,18 @@ const CheckoutPage = () => {
     return (
       <div className="min-h-screen bg-gray-50 py-8 px-4">
         <div className="max-w-7xl mx-auto">
-          <h1 className="text-3xl font-bold text-gray-900 mb-8">Checkout</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-8">{t("checkout.title")}</h1>
           <div className="text-center py-12">
             <div className="text-6xl mb-4">🛒</div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">
-              Your cart is empty
+              {t("cart.empty")}
             </h3>
-            <p className="text-gray-600 mb-6">Add some products to checkout</p>
+            <p className="text-gray-600 mb-6">{t("cart.emptySubtitle")}</p>
             <Link
               to="/products"
               className="inline-block bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
             >
-              Continue Shopping
+              {t("cart.continueShopping")}
             </Link>
           </div>
         </div>
@@ -973,10 +975,10 @@ const CheckoutPage = () => {
     (selectedPaymentMethod === "upi" && !isUpiValid);
   const primaryActionLabel =
     isPlacingOrder || isRazorpayPolling
-      ? "Processing…"
+      ? t("checkout.processing")
       : selectedPaymentMethod === "cod"
-        ? "Place Order"
-        : `Pay ₹${priceBreakdown.total}`;
+        ? t("checkout.placeOrder")
+        : `${t("checkout.pay")} ₹${priceBreakdown.total}`;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -984,7 +986,7 @@ const CheckoutPage = () => {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Secure checkout
+            {t("checkout.secureCheckout")}
           </h1>
         </div>
 
@@ -996,7 +998,7 @@ const CheckoutPage = () => {
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-semibold text-gray-900 flex items-center">
                   <MapPin className="h-5 w-5 mr-2 text-orange-500" />
-                  Delivery Address
+                  {t("checkout.deliveryAddress")}
                 </h2>
               </div>
 
@@ -1047,7 +1049,7 @@ const CheckoutPage = () => {
                     onClick={() => setShowLocationModal(true)}
                     className="text-[15px] font-semibold text-blue-700 hover:text-blue-800 underline"
                   >
-                    Change Address
+                    {t("checkout.changeAddress")}
                   </button>
                 </div>
               </div>
@@ -1093,7 +1095,7 @@ const CheckoutPage = () => {
             {/* Payment Method Section */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div className="flex items-center justify-between gap-4 mb-4">
-                <h2 className="text-xl font-semibold text-gray-900">Payment Method</h2>
+                <h2 className="text-xl font-semibold text-gray-900">{t("checkout.paymentMethod")}</h2>
                 <button
                   type="button"
                   onClick={() => {
@@ -1104,7 +1106,7 @@ const CheckoutPage = () => {
                   }}
                   className="text-[15px] font-semibold text-blue-700 hover:text-blue-800 underline"
                 >
-                  Edit Payment Method
+                  {t("checkout.editPayment")}
                 </button>
               </div>
 
@@ -1124,14 +1126,14 @@ const CheckoutPage = () => {
                     saveLastMethod("upi");
                   }}
                   icon={<Wallet className="h-5 w-5" />}
-                  title="UPI (Recommended)"
-                  description="Pay using Google Pay, PhonePe, Paytm"
+                  title={t("checkout.upi")}
+                  description={t("checkout.upiDesc")}
                 />
 
                 {selectedPaymentMethod === "upi" ? (
                   <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
                     <label className="block text-[16px] font-semibold text-gray-900 mb-2">
-                      UPI ID
+                      {t("checkout.upiId")}
                     </label>
                     <input
                       type="text"
@@ -1146,8 +1148,8 @@ const CheckoutPage = () => {
                         (upiVpa.length === 0 || isUpiValid ? "border-gray-300" : "border-red-400")
                       }
                     />
-                    <div className="mt-2 text-[14px] text-gray-800">
-                      Enter your UPI ID. A payment request will be sent to your phone.
+                    <div className="mt-2 text-sm text-gray-600">
+                      {t("checkout.upiHint")}
                     </div>
                   </div>
                 ) : null}
@@ -1160,8 +1162,8 @@ const CheckoutPage = () => {
                     saveLastMethod("card");
                   }}
                   icon={<CreditCard className="h-5 w-5" />}
-                  title="Credit / Debit Card"
-                  description="Visa, Mastercard, RuPay"
+                  title={t("checkout.card")}
+                  description={t("checkout.cardDesc")}
                 />
 
                 <PaymentOption
@@ -1172,8 +1174,8 @@ const CheckoutPage = () => {
                     saveLastMethod("netbanking");
                   }}
                   icon={<Landmark className="h-5 w-5" />}
-                  title="Net Banking"
-                  description="Pay directly from your bank"
+                  title={t("checkout.netbanking")}
+                  description={t("checkout.netbankingDesc")}
                 />
 
                 <PaymentOption
@@ -1185,8 +1187,8 @@ const CheckoutPage = () => {
                     saveLastMethod("cod");
                   }}
                   icon={<span className="text-[18px] font-bold">₹</span>}
-                  title="Cash on Delivery"
-                  description="Pay when the order arrives"
+                  title={t("checkout.cod")}
+                  description={t("checkout.codDesc")}
                 />
               </div>
 
@@ -1195,7 +1197,7 @@ const CheckoutPage = () => {
             {/* Review Items Section */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                Review items and shipping
+                {t("checkout.reviewItems")}
               </h2>
               <p className="text-sm text-gray-600 mb-4">
                 Need help? Check our{" "}
@@ -1252,7 +1254,7 @@ const CheckoutPage = () => {
                 {/* Order Summary */}
                 <div className="mt-6 space-y-3">
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-900">Subtotal ({priceBreakdown.itemCount} items):</span>
+                    <span className="text-gray-900">{t("cart.subtotal")} ({priceBreakdown.itemCount} {t("cart.items")}):</span>
                     <span className="font-medium">
                       {formatPrice(priceBreakdown.subtotalBeforeTax)}
                     </span>
@@ -1265,7 +1267,7 @@ const CheckoutPage = () => {
                   </div>
                   {priceBreakdown.discount > 0 && (
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-900">Discount:</span>
+                      <span className="text-gray-900">{t("product.off")}:</span>
                       <span className="font-medium text-green-600">
                         - {formatPrice(priceBreakdown.discount)}
                       </span>
@@ -1273,19 +1275,19 @@ const CheckoutPage = () => {
                   )}
                   {!requiresAddress ? (
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-900">Delivery:</span>
+                      <span className="text-gray-900">{t("checkout.delivery")}:</span>
                       <span className="font-medium">
                         {formatDeliveryFee(calculatedDeliveryFeeDetails)}
                       </span>
                     </div>
                   ) : (
                     <div className="text-sm text-amber-800">
-                      Add delivery address to calculate delivery fee
+                      {t("checkout.addAddressForDelivery")}
                     </div>
                   )}
                   <div className="border-t pt-4">
                     <div className="flex justify-between text-[20px] font-bold text-gray-900">
-                      <span>Order Total</span>
+                      <span>{t("checkout.orderTotal")}</span>
                       <span>{formatPrice(priceBreakdown.total)}</span>
                     </div>
                   </div>
@@ -1294,7 +1296,7 @@ const CheckoutPage = () => {
                 {/* Security Badge */}
                 <div className="mt-6 flex items-center justify-center space-x-2 text-xs text-gray-700">
                   <Shield className="h-4 w-4 text-green-700" />
-                  <span>Secure payment by Razorpay</span>
+                  <span>{t("checkout.securePayment")}</span>
                 </div>
               </div>
             </div>

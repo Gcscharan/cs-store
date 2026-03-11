@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run ci:check-polling-discipline && tsc && vite build",
+    "build": "npm run ci:check-polling-discipline && npm run check:translations && tsc && vite build",
+    "check:translations": "npx ts-node --esm scripts/check-translations.ts",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "ci:check-polling-discipline": "node scripts/ci/check-frontend-polling-discipline.mjs",

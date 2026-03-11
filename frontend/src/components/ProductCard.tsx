@@ -8,11 +8,23 @@ import { useToast } from "./AccessibleToast";
 import { useNavigate } from "react-router-dom";
 import { useCartFeedback } from "../contexts/CartFeedbackContext";
 import OptimizedImage from "./OptimizedImage";
+import { useLanguage } from "../contexts/LanguageContext";
 
 interface Product {
   _id: string;
   name: string;
   description: string;
+  // Multilingual translation fields
+  nameTranslations?: {
+    en?: string;
+    te?: string;
+    hi?: string;
+  };
+  descriptionTranslations?: {
+    en?: string;
+    te?: string;
+    hi?: string;
+  };
   category: string;
   price: number;
   mrp?: number;
@@ -37,10 +49,32 @@ const ProductCard = memo(({ product, onQuickView, disableInitialAnimation = fals
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const auth = useSelector((state: RootState) => state.auth);
+  const { t, language } = useLanguage();
   const [addToCartMutation, { isLoading: isAddingToCart }] =
     useAddToCartMutation();
   const { success, error: showError } = useToast();
   const [showLoginPopup, setShowLoginPopup] = useState(false);
+  
+  // Helper to get translated product name with fallback
+  const getTranslatedName = (): string => {
+    if (product.nameTranslations && product.nameTranslations[language]) {
+      return product.nameTranslations[language]!;
+    }
+    // Fallback to English then original name
+    return product.nameTranslations?.en || product.name;
+  };
+  
+  // Helper to get translated product description with fallback
+  const getTranslatedDescription = (): string => {
+    if (product.descriptionTranslations && product.descriptionTranslations[language]) {
+      return product.descriptionTranslations[language]!;
+    }
+    // Fallback to English then original description
+    return product.descriptionTranslations?.en || product.description;
+  };
+  
+  const translatedName = getTranslatedName();
+  const translatedDescription = getTranslatedDescription();
   
   // Cart feedback
   const { triggerGlobalConfirmation } = useCartFeedback();
@@ -87,10 +121,10 @@ const ProductCard = memo(({ product, onQuickView, disableInitialAnimation = fals
       const productImage = product.images?.[0]?.variants?.small || product.images?.[0]?.variants?.thumb || '/placeholder-product.svg';
       const updatedCartCount = result.cart?.items?.length || 1; // Default to 1 if no cart data
       const updatedCartTotal = result.cart?.total || product.price; // Use product price as fallback
-      triggerGlobalConfirmation(product.name, productImage, updatedCartCount, updatedCartTotal);
+      triggerGlobalConfirmation(translatedName, productImage, updatedCartCount, updatedCartTotal);
       
       // Show success toast
-      success(`✅ Successfully added ${product.name} to cart`);
+      success(`✅ Successfully added ${translatedName} to cart`);
     } catch (error: any) {
       console.error("Failed to add to cart:", error);
 
@@ -161,7 +195,7 @@ const ProductCard = memo(({ product, onQuickView, disableInitialAnimation = fals
         <div className="absolute inset-0 bg-black bg-opacity-10 group-hover:bg-opacity-0 transition-opacity duration-300"></div>
         {product.stock === 0 && (
           <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-            <span className="text-white font-semibold">Out of Stock</span>
+            <span className="text-white font-semibold">{t("product.outOfStock")}</span>
           </div>
         )}
       </div>
@@ -169,11 +203,11 @@ const ProductCard = memo(({ product, onQuickView, disableInitialAnimation = fals
       {/* Product Info */}
       <div className="p-4">
         <h3 className="font-semibold text-gray-900 text-lg mb-2 line-clamp-2">
-          {product.name}
+          {translatedName}
         </h3>
 
         <p className="text-gray-600 text-sm mb-3 line-clamp-2">
-          {product.description}
+          {translatedDescription}
         </p>
 
         {/* Price */}
@@ -191,16 +225,16 @@ const ProductCard = memo(({ product, onQuickView, disableInitialAnimation = fals
         {/* Weight */}
         {product.weight > 0 && (
           <div className="text-sm text-gray-600 mb-3">
-            <span className="font-medium">Weight:</span> {product.weight}g
+            <span className="font-medium">{t("product.weight")}:</span> {product.weight}g
           </div>
         )}
 
         {/* Stock Status */}
         <div className="text-sm text-gray-600 mb-3">
           {product.stock > 0 ? (
-            <span className="text-green-600">{product.stock} in stock</span>
+            <span className="text-green-600">{product.stock} {t("product.inStock")}</span>
           ) : (
-            <span className="text-red-600">Out of stock</span>
+            <span className="text-red-600">{t("product.outOfStock")}</span>
           )}
         </div>
 
@@ -211,7 +245,7 @@ const ProductCard = memo(({ product, onQuickView, disableInitialAnimation = fals
             disabled={product.stock === 0 || isAddingToCart}
             className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
           >
-            {isAddingToCart ? "Adding..." : "Add to Cart"}
+            {isAddingToCart ? `${t("common.loading")}` : t("product.addToCart")}
           </button>
 
           {onQuickView && (
@@ -237,17 +271,17 @@ const ProductCard = memo(({ product, onQuickView, disableInitialAnimation = fals
             <div className="text-center">
               <div className="text-6xl mb-4">🔒</div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                Login Required
+                {t("auth.login")} {t("common.confirm")}
               </h3>
               <p className="text-gray-600 mb-6">
-                Please log in to add items to your cart.
+                {t("auth.login")} {t("product.addToCart").toLowerCase()}.
               </p>
               <div className="flex space-x-3">
                 <button
                   onClick={() => setShowLoginPopup(false)}
                   className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                 >
-                  Cancel
+                  {t("common.cancel")}
                 </button>
                 <button
                   onClick={() => {
@@ -256,7 +290,7 @@ const ProductCard = memo(({ product, onQuickView, disableInitialAnimation = fals
                   }}
                   className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 >
-                  Login
+                  {t("auth.login")}
                 </button>
               </div>
             </div>

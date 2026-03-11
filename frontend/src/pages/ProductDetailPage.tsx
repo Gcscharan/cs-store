@@ -24,6 +24,7 @@ import { useToast } from "../components/AccessibleToast";
 import { useCartFeedback } from "../contexts/CartFeedbackContext";
 import OptimizedImage from "../components/OptimizedImage";
 import SkeletonProductDetail from "../components/SkeletonProductDetail";
+import { useLanguage } from "../contexts/LanguageContext";
 
 const ProductDetailPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -31,11 +32,28 @@ const ProductDetailPage = () => {
   const dispatch = useDispatch();
   const cart = useSelector((state: RootState) => state.cart);
   const auth = useSelector((state: RootState) => state.auth);
+  const { t, language } = useLanguage();
   const [addToCartMutation, { isLoading: isAddingToCart }] =
     useAddToCartMutation();
   const { success, error: showError } = useToast();
   const [quantity, setQuantity] = useState(1);
   const [showLoginPopup, setShowLoginPopup] = useState(false);
+  
+  // Helper to get translated product name with fallback
+  const getTranslatedName = (product: any): string => {
+    if (product?.nameTranslations && product.nameTranslations[language]) {
+      return product.nameTranslations[language];
+    }
+    return product?.nameTranslations?.en || product?.name || "Product";
+  };
+  
+  // Helper to get translated product description with fallback
+  const getTranslatedDescription = (product: any): string => {
+    if (product?.descriptionTranslations && product.descriptionTranslations[language]) {
+      return product.descriptionTranslations[language];
+    }
+    return product?.descriptionTranslations?.en || product?.description || "";
+  };
   
   // Cart feedback
   const { triggerGlobalConfirmation } = useCartFeedback();
@@ -137,10 +155,11 @@ const ProductDetailPage = () => {
 
     try {
       // Add to Redux store immediately for UI feedback
+      const translatedName = getTranslatedName(product);
       dispatch(
         addToCart({
           id: product?._id || product?.id || "",
-          name: product?.name || "Unknown Product",
+          name: translatedName,
           price: product?.price || 0,
           quantity: quantity,
           image: product?.images?.[0]?.thumb || "/placeholder-product.svg",
@@ -168,11 +187,11 @@ const ProductDetailPage = () => {
       const productImage = product?.images?.[0]?.thumb || "/placeholder-product.svg";
       const updatedCartCount = result.cart?.items?.length || cart.items.length;
       const updatedCartTotal = result.cart?.total || (cart.total + ((product?.price || 0) * quantity));
-      triggerGlobalConfirmation(product?.name || "Product", productImage, updatedCartCount, updatedCartTotal);
+      triggerGlobalConfirmation(translatedName, productImage, updatedCartCount, updatedCartTotal);
       
       // Show success toast
-      success(`✅ Successfully added ${product?.name || "item"} to cart`);
-      console.log(`Successfully added ${quantity} ${product?.name || "item"} to cart`);
+      success(`✅ Successfully added ${translatedName} to cart`);
+      console.log(`Successfully added ${quantity} ${translatedName} to cart`);
     } catch (error: any) {
       console.error("Failed to add to cart:", error);
 
@@ -204,17 +223,19 @@ const ProductDetailPage = () => {
   };
 
   const handleFavorite = () => {
-    console.log(`Added ${product?.name} to favorites`);
+    const translatedName = getTranslatedName(product);
+    console.log(`Added ${translatedName} to favorites`);
     // Implement favorite functionality
   };
 
   const handleShare = () => {
-    console.log(`Sharing ${product?.name}!`);
+    const translatedName = getTranslatedName(product);
+    console.log(`Sharing ${translatedName}!`);
     // Implement share functionality here
     if (navigator.share) {
       navigator.share({
-        title: product?.name,
-        text: `Check out this ${product?.name} from Vyapara Setu!`,
+        title: translatedName,
+        text: `Check out this ${translatedName} from Vyapara Setu!`,
         url: window.location.href,
       });
     } else {
@@ -384,7 +405,7 @@ const ProductDetailPage = () => {
                   <OptimizedImage
                     image={firstImage}
                     size="large"
-                    alt={product?.name ?? product?._id ?? "Product image"}
+                    alt={getTranslatedName(product)}
                     className="w-full aspect-square rounded-xl"
                     priority={true}
                     productId={product?._id}
@@ -466,7 +487,7 @@ const ProductDetailPage = () => {
             {/* Product Name */}
             <div>
               <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                {product?.name || "Product"}
+                {getTranslatedName(product)}
               </h1>
 
               {/* Rating */}

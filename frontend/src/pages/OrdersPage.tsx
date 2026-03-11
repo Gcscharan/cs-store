@@ -12,6 +12,7 @@ import {
   Eye,
 } from "lucide-react";
 import { getProductImage } from "../utils/image";
+import { useLanguage } from "../contexts/LanguageContext";
 
 interface OrderItem {
   productId?: string | {
@@ -67,6 +68,7 @@ const OrdersPage: React.FC = () => {
   const { tokens, isAuthenticated } = useSelector(
     (state: RootState) => state.auth
   );
+  const { t } = useLanguage();
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -109,13 +111,13 @@ const OrdersPage: React.FC = () => {
   // Map database status to user-friendly display
   const mapDatabaseStatusToUserFriendly = (dbStatus: string): string => {
     const mapping: { [key: string]: string } = {
-      created: "Pending",
-      pending: "Pending",
-      assigned: "Processing",
-      picked_up: "Shipped",
-      in_transit: "Shipped",
-      delivered: "Delivered",
-      cancelled: "Cancelled",
+      created: t("orders.pending"),
+      pending: t("orders.pending"),
+      assigned: t("orders.processing"),
+      picked_up: t("orders.shipped"),
+      in_transit: t("orders.shipped"),
+      delivered: t("orders.delivered"),
+      cancelled: t("orders.cancelled"),
     };
     return mapping[dbStatus.toLowerCase()] || dbStatus;
   };
@@ -129,38 +131,46 @@ const OrdersPage: React.FC = () => {
 
   const getStatusIcon = (status: string) => {
     const friendlyStatus = mapDatabaseStatusToUserFriendly(status);
-    switch (friendlyStatus) {
-      case "Pending":
-        return <Clock className="h-5 w-5 text-yellow-600" />;
-      case "Processing":
-        return <Package className="h-5 w-5 text-blue-600" />;
-      case "Shipped":
-        return <Package className="h-5 w-5 text-purple-600" />;
-      case "Delivered":
-        return <CheckCircle className="h-5 w-5 text-green-600" />;
-      case "Cancelled":
-        return <XCircle className="h-5 w-5 text-red-600" />;
-      default:
-        return <Clock className="h-5 w-5 text-gray-600" />;
+    const pendingText = t("orders.pending");
+    const processingText = t("orders.processing");
+    const shippedText = t("orders.shipped");
+    const deliveredText = t("orders.delivered");
+    const cancelledText = t("orders.cancelled");
+    
+    if (friendlyStatus === pendingText) {
+      return <Clock className="h-5 w-5 text-yellow-600" />;
+    } else if (friendlyStatus === processingText) {
+      return <Package className="h-5 w-5 text-blue-600" />;
+    } else if (friendlyStatus === shippedText) {
+      return <Package className="h-5 w-5 text-purple-600" />;
+    } else if (friendlyStatus === deliveredText) {
+      return <CheckCircle className="h-5 w-5 text-green-600" />;
+    } else if (friendlyStatus === cancelledText) {
+      return <XCircle className="h-5 w-5 text-red-600" />;
     }
+    return <Clock className="h-5 w-5 text-gray-600" />;
   };
 
   const getStatusBadgeColor = (status: string) => {
     const friendlyStatus = mapDatabaseStatusToUserFriendly(status);
-    switch (friendlyStatus) {
-      case "Pending":
-        return "bg-yellow-100 text-yellow-800";
-      case "Processing":
-        return "bg-blue-100 text-blue-800";
-      case "Shipped":
-        return "bg-purple-100 text-purple-800";
-      case "Delivered":
-        return "bg-green-100 text-green-800";
-      case "Cancelled":
-        return "bg-red-100 text-red-800";
-      default:
-        return "bg-gray-100 text-gray-800";
+    const pendingText = t("orders.pending");
+    const processingText = t("orders.processing");
+    const shippedText = t("orders.shipped");
+    const deliveredText = t("orders.delivered");
+    const cancelledText = t("orders.cancelled");
+    
+    if (friendlyStatus === pendingText) {
+      return "bg-yellow-100 text-yellow-800";
+    } else if (friendlyStatus === processingText) {
+      return "bg-blue-100 text-blue-800";
+    } else if (friendlyStatus === shippedText) {
+      return "bg-purple-100 text-purple-800";
+    } else if (friendlyStatus === deliveredText) {
+      return "bg-green-100 text-green-800";
+    } else if (friendlyStatus === cancelledText) {
+      return "bg-red-100 text-red-800";
     }
+    return "bg-gray-100 text-gray-800";
   };
 
   const formatPaymentStatusLabel = (paymentStatus?: string): string => {
@@ -230,17 +240,17 @@ const OrdersPage: React.FC = () => {
           <div className="mb-4">
             <div className="text-6xl mb-4">🔒</div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              Login Required
+              {t("auth.login")} Required
             </h2>
             <p className="text-gray-600 mb-6">
-              Please log in to view your orders.
+              {t("auth.login")} {t("orders.viewDetails").toLowerCase()}.
             </p>
           </div>
           <a
             href="/login"
             className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors inline-block"
           >
-            Go to Login
+            {t("auth.login")}
           </a>
         </div>
       </div>
@@ -252,7 +262,7 @@ const OrdersPage: React.FC = () => {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading your orders...</p>
+          <p className="text-gray-600">{t("common.loading")}</p>
         </div>
       </div>
     );
@@ -263,8 +273,8 @@ const OrdersPage: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">My Orders</h1>
-          <p className="text-gray-600">Track and manage your order history</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">{t("orders.title")}</h1>
+          <p className="text-gray-600">{t("orders.viewDetails")}</p>
         </div>
 
         {/* Status Filter */}
@@ -274,12 +284,12 @@ const OrdersPage: React.FC = () => {
             onChange={(e) => setSelectedStatus(e.target.value)}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
-            <option value="">All Orders</option>
-            <option value="Pending">Pending</option>
-            <option value="Processing">Processing</option>
-            <option value="Shipped">Shipped</option>
-            <option value="Delivered">Delivered</option>
-            <option value="Cancelled">Cancelled</option>
+            <option value="">All {t("orders.title")}</option>
+            <option value="Pending">{t("orders.pending")}</option>
+            <option value="Processing">{t("orders.processing")}</option>
+            <option value="Shipped">{t("orders.shipped")}</option>
+            <option value="Delivered">{t("orders.delivered")}</option>
+            <option value="Cancelled">{t("orders.cancelled")}</option>
           </select>
         </div>
 
@@ -287,14 +297,14 @@ const OrdersPage: React.FC = () => {
         {error ? (
           <div className="text-center py-12">
             <div className="text-red-500 text-lg font-medium mb-2">
-              Error Loading Orders
+              {t("common.error")}
             </div>
             <p className="text-gray-600 mb-4">{error}</p>
             <button
               onClick={fetchOrders}
               className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
             >
-              Try Again
+              {t("common.retry")}
             </button>
           </div>
         ) : filteredOrders.length === 0 ? (
@@ -302,20 +312,20 @@ const OrdersPage: React.FC = () => {
             <ShoppingCart className="h-12 w-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">
               {selectedStatus
-                ? "No orders with this status"
-                : "No orders found"}
+                ? `No ${t("orders.title").toLowerCase()} with this status`
+                : t("orders.empty")}
             </h3>
             <p className="text-gray-600 mb-6">
               {selectedStatus
                 ? "Try selecting a different status or view all orders."
-                : "You haven't placed any orders yet. Start shopping to see your orders here."}
+                : t("orders.emptySubtitle")}
             </p>
             {selectedStatus && (
               <button
                 onClick={() => setSelectedStatus("")}
                 className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
               >
-                View All Orders
+                {t("common.seeAll")} {t("orders.title")}
               </button>
             )}
             {!selectedStatus && (
@@ -323,7 +333,7 @@ const OrdersPage: React.FC = () => {
                 href="/products"
                 className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors inline-block"
               >
-                Start Shopping
+                {t("common.seeAll")}
               </a>
             )}
           </div>
@@ -426,7 +436,7 @@ const OrdersPage: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                   <div>
                     <h4 className="text-sm font-medium text-gray-700 mb-1">
-                      Total Amount
+                      {t("orders.total")}
                     </h4>
                     <p className="text-lg font-semibold text-gray-900">
                       ₹{order.totalAmount.toLocaleString()}
@@ -434,7 +444,7 @@ const OrdersPage: React.FC = () => {
                   </div>
                   <div>
                     <h4 className="text-sm font-medium text-gray-700 mb-1">
-                      Payment Status
+                      {t("checkout.paymentMethod")}
                     </h4>
                     <p className="text-sm text-gray-900 mb-1">
                       {formatPaymentStatusLabel(order.paymentStatus)}
@@ -445,7 +455,7 @@ const OrdersPage: React.FC = () => {
                   </div>
                   <div>
                     <h4 className="text-sm font-medium text-gray-700 mb-1">
-                      Delivery Address
+                      {t("checkout.deliveryAddress")}
                     </h4>
                     <p className="text-sm text-gray-900">
                       {order.address?.addressLine || order.address?.label || order.shippingAddress?.street || "N/A"}, {" "}
@@ -463,7 +473,7 @@ const OrdersPage: React.FC = () => {
                     </span>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm text-gray-500">Total</p>
+                    <p className="text-sm text-gray-500">{t("orders.total")}</p>
                     <p className="text-lg font-bold text-gray-900">₹{order.totalAmount.toLocaleString()}</p>
                   </div>
                 </div>
@@ -471,25 +481,24 @@ const OrdersPage: React.FC = () => {
                 {/* Order Actions */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pt-4 border-t border-gray-200">
                   <div className="flex space-x-3">
-                    {mapDatabaseStatusToUserFriendly(order.orderStatus || order.status || "") !== "Cancelled" && (
+                    {mapDatabaseStatusToUserFriendly(order.orderStatus || order.status || "") !== t("orders.cancelled") && (
                       <button 
                         onClick={() => navigate(`/orders/${order._id}`)}
                         className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center"
                       >
                         <Eye className="h-4 w-4 mr-1" />
-                        View Details
+                        {t("orders.viewDetails")}
                       </button>
                     )}
-                    {mapDatabaseStatusToUserFriendly(order.orderStatus || order.status || "") === "Delivered" && (
+                    {mapDatabaseStatusToUserFriendly(order.orderStatus || order.status || "") === t("orders.delivered") && (
                       <button className="text-green-600 hover:text-green-800 text-sm font-medium">
-                        Reorder
+                        {t("orders.reorder")}
                       </button>
                     )}
                   </div>
                   <div className="mt-2 sm:mt-0">
                     <p className="text-xs text-gray-500">
-                      Last updated:{" "}
-                      {new Date(order.updatedAt).toLocaleDateString()}
+                      {t("orders.placedOn")}: {new Date(order.updatedAt).toLocaleDateString()}
                     </p>
                   </div>
                 </div>

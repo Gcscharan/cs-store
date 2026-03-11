@@ -21,12 +21,14 @@ import { getImageUrl, handleImageError } from "../utils/image";
 import ConfirmationDialog from "../components/ConfirmationDialog";
 import { CartPageSkeleton } from "../components/PageSkeletons";
 import { useCartPersistence } from "../hooks/useCartPersistence";
+import { useLanguage } from "../contexts/LanguageContext";
 
 const CartPage = () => {
   const cart = useSelector((state: RootState) => state.cart);
   const auth = useSelector((state: RootState) => state.auth);
   const { isLoadingCart } = useCartPersistence();
   const dispatch = useDispatch();
+  const { t } = useLanguage();
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
   const [addressUpdateTrigger, setAddressUpdateTrigger] = useState(0);
   const [deleteDialog, setDeleteDialog] = useState<{
@@ -192,7 +194,7 @@ const CartPage = () => {
       <div className="max-w-7xl mx-auto">
         {/* Shopping Cart Header and Enter Address Button - Same Line */}
         <div className="flex items-center mb-2">
-          <h1 className="text-3xl font-bold text-gray-900">Shopping Cart</h1>
+          <h1 className="text-3xl font-bold text-gray-900">{t("cart.title")}</h1>
           {cart.items.length > 0 && (
             <div className="flex-1 flex justify-center">
               <div className="ml-16">
@@ -201,7 +203,7 @@ const CartPage = () => {
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 flex items-center space-x-2 text-sm font-medium"
                 >
                   <span>📍</span>
-                  <span>Enter Address</span>
+                  <span>{t("checkout.selectAddress")}</span>
                 </Link>
               </div>
             </div>
@@ -212,7 +214,7 @@ const CartPage = () => {
           <div className="text-center py-12">
             <div className="text-6xl mb-4">🔒</div>
             <h2 className="text-2xl font-bold text-gray-900 mb-4">
-              Please Sign In
+              {t("auth.login")} Required
             </h2>
             <p className="text-gray-600 mb-6">
               You need to be signed in to view your cart and place orders.
@@ -222,13 +224,13 @@ const CartPage = () => {
                 to="/login"
                 className="inline-block bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
               >
-                Sign In
+                {t("auth.login")}
               </Link>
               <Link
                 to="/signup"
                 className="inline-block bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700 transition-colors"
               >
-                Sign Up
+                {t("auth.signup")}
               </Link>
             </div>
           </div>
@@ -236,16 +238,16 @@ const CartPage = () => {
           <div className="text-center py-12">
             <div className="text-6xl mb-4">🛒</div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">
-              Your cart is empty
+              {t("cart.empty")}
             </h3>
             <p className="text-gray-600 mb-6">
-              Add some products to get started
+              {t("cart.emptySubtitle")}
             </p>
             <button
               onClick={() => navigate("/")}
               className="inline-block bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
             >
-              Continue Shopping
+              {t("cart.continueShopping")}
             </button>
           </div>
         ) : (
@@ -256,7 +258,7 @@ const CartPage = () => {
                 {/* Cart Items Header */}
                 <div className="p-4 border-b border-gray-200">
                   <h2 className="text-lg font-semibold text-gray-900">
-                    Cart Items ({cart.items.length})
+                    {t("cart.title")} ({cart.items.length})
                   </h2>
                 </div>
 
@@ -299,7 +301,7 @@ const CartPage = () => {
                           {item.name}
                         </h3>
                         {isOutOfStock ? (
-                          <p className="text-xs mt-1 text-red-600">Out of stock</p>
+                          <p className="text-xs mt-1 text-red-600">{t("product.outOfStock")}</p>
                         ) : (
                           <p className="text-gray-600 text-xs mt-1">
                             ₹{item.price.toFixed(2)} each
@@ -355,7 +357,7 @@ const CartPage = () => {
                       <div className="text-right">
                         {isOutOfStock ? (
                           <div className="text-sm font-medium text-red-500">
-                            Out of stock
+                            {t("product.outOfStock")}
                           </div>
                         ) : (
                           <>
@@ -406,14 +408,14 @@ const CartPage = () => {
               <div className="sticky top-8">
                 <div className="bg-white border border-gray-200 rounded-lg p-4">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                    PRICE DETAILS
+                    {t("cart.subtotal").toUpperCase()}
                   </h3>
 
                   {/* Price Breakdown */}
                   <div className="space-y-3 mb-4">
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">
-                        Price ({priceBreakdown.itemCount} items)
+                        {t("cart.subtotal")} ({priceBreakdown.itemCount} {t("cart.items")})
                       </span>
                       <span className="font-medium">
                         {formatPrice(priceBreakdown.subtotal)}
@@ -421,7 +423,7 @@ const CartPage = () => {
                     </div>
 
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Discount</span>
+                      <span className="text-gray-600">{t("product.off")}</span>
                       <span className="font-medium text-green-600">
                         - {formatPrice(priceBreakdown.discount)}
                       </span>
@@ -430,7 +432,7 @@ const CartPage = () => {
 
                     <div className="border-t border-gray-200 pt-3">
                       <div className="flex justify-between text-lg font-semibold">
-                        <span>Total Amount</span>
+                        <span>{t("cart.total")}</span>
                         <span>{formatPrice(priceBreakdown.total)}</span>
                       </div>
                     </div>
@@ -497,7 +499,7 @@ const CartPage = () => {
                         to="/checkout"
                         className="w-full py-3 px-4 rounded-lg font-medium text-center transition-colors bg-orange-500 text-white hover:bg-orange-600 text-lg block"
                       >
-                        PLACE ORDER
+                        {t("checkout.placeOrder").toUpperCase()}
                       </Link>
                     )}
                   </div>
@@ -514,10 +516,10 @@ const CartPage = () => {
         isOpen={deleteDialog.isOpen}
         onClose={handleDeleteCancel}
         onConfirm={handleDeleteConfirm}
-        title="Remove Item"
+        title={t("cart.remove")}
         message={`Are you sure you want to remove "${deleteDialog.itemName}" from your cart?`}
-        confirmText="Remove"
-        cancelText="Cancel"
+        confirmText={t("cart.remove")}
+        cancelText={t("common.cancel")}
         confirmButtonColor="bg-red-600 hover:bg-red-700"
       />
     </motion.div>
