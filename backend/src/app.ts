@@ -65,11 +65,9 @@ const app: Application = express();
    CORS — SINGLE SOURCE OF TRUTH (REGISTER FIRST)
 ====================================================== */
 
-const allowedCorsOrigins = [
-  "http://localhost:3000",
-  "http://localhost:3001",
-  "https://cs-store-frontend.vercel.app",
-];
+const allowedCorsOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
+  : ['http://localhost:3000', 'http://localhost:3001'];
 
 app.use(
   cors({
@@ -78,7 +76,7 @@ app.use(
       if (allowedCorsOrigins.includes(origin)) {
         return callback(null, true);
       }
-      return callback(null, false);
+      return callback(new Error(`CORS: origin ${origin} not allowed`), false);
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
