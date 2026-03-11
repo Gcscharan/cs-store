@@ -2,93 +2,89 @@ import React from "react";
 import { motion } from "framer-motion";
 import { ArrowLeft, Calendar, User, Tag } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useLanguage } from "../contexts/LanguageContext";
 
 const CSStoreStoriesPage: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   const stories = [
     {
       id: 1,
-      title: "How Vyapara Setu Revolutionized E-commerce in Rural India",
-      excerpt:
-        "Discover how we brought online shopping to remote villages, empowering local businesses and connecting communities.",
-      author: "Priya Sharma",
+      title: t("stories.story1Title"),
+      excerpt: t("stories.story1Excerpt"),
+      author: t("stories.story1Author"),
       date: "2024-01-15",
-      category: "Impact",
+      category: t("stories.impact"),
       image:
         "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=800&h=400&fit=crop",
-      readTime: "5 min read",
+      readTime: t("stories.minRead", { min: "5" }),
     },
     {
       id: 2,
-      title: "The Journey of a Small Business Owner on Vyapara Setu",
-      excerpt:
-        "Meet Rajesh Kumar, who grew his handicraft business from 0 to 10,000 orders using our platform.",
-      author: "Amit Patel",
+      title: t("stories.story2Title"),
+      excerpt: t("stories.story2Excerpt"),
+      author: t("stories.story2Author"),
       date: "2024-01-10",
-      category: "Success Stories",
+      category: t("stories.successStories"),
       image:
         "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=800&h=400&fit=crop",
-      readTime: "7 min read",
+      readTime: t("stories.minRead", { min: "7" }),
     },
     {
       id: 3,
-      title: "Building Sustainable E-commerce: Our Green Initiative",
-      excerpt:
-        "Learn about our commitment to environmental responsibility and how we're making e-commerce more sustainable.",
-      author: "Sarah Johnson",
+      title: t("stories.story3Title"),
+      excerpt: t("stories.story3Excerpt"),
+      author: t("stories.story3Author"),
       date: "2024-01-05",
-      category: "Sustainability",
+      category: t("stories.sustainability"),
       image:
         "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=800&h=400&fit=crop",
-      readTime: "6 min read",
+      readTime: t("stories.minRead", { min: "6" }),
     },
     {
       id: 4,
-      title: "Technology Behind Vyapara Setu: Innovation at Scale",
-      excerpt:
-        "An inside look at the cutting-edge technology that powers our platform and handles millions of transactions.",
-      author: "Dr. Vikram Singh",
+      title: t("stories.story4Title"),
+      excerpt: t("stories.story4Excerpt"),
+      author: t("stories.story4Author"),
       date: "2023-12-28",
-      category: "Technology",
+      category: t("stories.technology"),
       image:
         "https://images.unsplash.com/photo-1518709268805-4e9042af2176?w=800&h=400&fit=crop",
-      readTime: "8 min read",
+      readTime: t("stories.minRead", { min: "8" }),
     },
     {
       id: 5,
-      title: "Customer First: Stories of Exceptional Service",
-      excerpt:
-        "Heartwarming stories of how our customer service team goes above and beyond to help our customers.",
-      author: "Meera Reddy",
+      title: t("stories.story5Title"),
+      excerpt: t("stories.story5Excerpt"),
+      author: t("stories.story5Author"),
       date: "2023-12-20",
-      category: "Customer Service",
+      category: t("stories.customerService"),
       image:
         "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=800&h=400&fit=crop",
-      readTime: "4 min read",
+      readTime: t("stories.minRead", { min: "4" }),
     },
     {
       id: 6,
-      title: "The Future of E-commerce: Our Vision for 2024",
-      excerpt:
-        "A look ahead at the exciting innovations and features we're planning to launch this year.",
-      author: "CEO Team",
+      title: t("stories.story6Title"),
+      excerpt: t("stories.story6Excerpt"),
+      author: t("stories.story6Author"),
       date: "2023-12-15",
-      category: "Company News",
+      category: t("stories.companyNews"),
       image:
         "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&h=400&fit=crop",
-      readTime: "9 min read",
+      readTime: t("stories.minRead", { min: "9" }),
     },
   ];
 
   const categories = [
-    "All",
-    "Impact",
-    "Success Stories",
-    "Sustainability",
-    "Technology",
-    "Customer Service",
-    "Company News",
+    t("stories.all"),
+    t("stories.impact"),
+    t("stories.successStories"),
+    t("stories.sustainability"),
+    t("stories.technology"),
+    t("stories.customerService"),
+    t("stories.companyNews"),
   ];
 
   return (
@@ -102,10 +98,10 @@ const CSStoreStoriesPage: React.FC = () => {
               className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
-              <span>Back to Home</span>
+              <span>{t("legal.backToHome")}</span>
             </button>
             <h1 className="text-2xl font-bold text-gray-900">
-              Vyapara Setu Stories
+              {t("stories.title")}
             </h1>
             <div></div>
           </div>
@@ -122,11 +118,10 @@ const CSStoreStoriesPage: React.FC = () => {
           className="text-center mb-12"
         >
           <h2 className="text-4xl font-bold text-gray-900 mb-6">
-            Vyapara Setu Stories
+            {t("stories.title")}
           </h2>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Discover the inspiring stories behind Vyapara Setu - from our journey to
-            the impact we're making in communities across India.
+            {t("stories.subtitle")}
           </p>
         </motion.div>
 
@@ -186,7 +181,7 @@ const CSStoreStoriesPage: React.FC = () => {
                   <span>{stories[0].readTime}</span>
                 </div>
                 <button className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-lg transition-colors">
-                  Read More
+                  {t("stories.readMore")}
                 </button>
               </div>
             </div>
@@ -242,7 +237,7 @@ const CSStoreStoriesPage: React.FC = () => {
                   </span>
                 </div>
                 <button className="w-full mt-4 bg-orange-500 hover:bg-orange-600 text-white py-2 rounded-lg transition-colors">
-                  Read Story
+                  {t("stories.readStory")}
                 </button>
               </div>
             </motion.div>
@@ -257,19 +252,19 @@ const CSStoreStoriesPage: React.FC = () => {
           className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-lg shadow-lg p-8 mt-12 text-white text-center"
         >
           <h3 className="text-3xl font-bold mb-4">
-            Stay Updated with Our Stories
+            {t("stories.stayUpdated")}
           </h3>
           <p className="text-xl mb-6 text-orange-100">
-            Get the latest Vyapara Setu stories delivered to your inbox
+            {t("stories.stayUpdatedDesc")}
           </p>
           <div className="max-w-md mx-auto flex gap-4">
             <input
               type="email"
-              placeholder="Enter your email"
+              placeholder={t("stories.enterEmail")}
               className="flex-1 px-4 py-3 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-white"
             />
             <button className="bg-white text-orange-500 px-6 py-3 rounded-lg font-medium hover:bg-gray-100 transition-colors">
-              Subscribe
+              {t("stories.subscribe")}
             </button>
           </div>
         </motion.div>

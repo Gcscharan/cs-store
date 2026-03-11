@@ -14,12 +14,14 @@ import { useLocation } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { RootState } from "../store";
 import DeliveryBottomNav from "../components/DeliveryBottomNav";
+import { useLanguage } from "../contexts/LanguageContext";
 
 const ReferAndEarnPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const isDeliveryRoute = location.pathname.startsWith("/delivery/");
   const { tokens } = useSelector((state: RootState) => state.auth);
+  const { t } = useLanguage();
 
   const [activeTab, setActiveTab] = useState("more");
   const [copied, setCopied] = useState(false);
@@ -38,7 +40,7 @@ const ReferAndEarnPage: React.FC = () => {
 
         if (!tokens?.accessToken) {
           setReferralCode("");
-          setError("Authentication required");
+          setError(t("referral.authRequired"));
           return;
         }
 
@@ -51,7 +53,7 @@ const ReferAndEarnPage: React.FC = () => {
 
         if (!response.ok) {
           const text = await response.text();
-          let message = `Failed to load referral code (${response.status})`;
+          let message = t("referral.loadFailed", { status: String(response.status) });
           try {
             const parsed = JSON.parse(text);
             message = parsed.error || parsed.message || message;
@@ -65,7 +67,7 @@ const ReferAndEarnPage: React.FC = () => {
         setReferralCode(String(data.referralCode || ""));
       } catch (e) {
         setReferralCode("");
-        setError(e instanceof Error ? e.message : "Failed to load referral code");
+        setError(e instanceof Error ? e.message : t("referral.loadFailedDefault"));
       } finally {
         setIsLoading(false);
       }
@@ -101,8 +103,8 @@ const ReferAndEarnPage: React.FC = () => {
     }
     if (navigator.share) {
       navigator.share({
-        title: "Join Vyapara Setu as a Delivery Partner",
-        text: `Earn money by delivering orders! Use my referral code: ${referralCode}`,
+        title: t("referral.shareTitle"),
+        text: t("referral.shareText", { code: referralCode }),
         url: referralLink,
       });
     } else {
@@ -113,27 +115,25 @@ const ReferAndEarnPage: React.FC = () => {
   const rewards = [
     {
       icon: Gift,
-      title: "Referral Bonus",
-      description:
-        "Get ₹200 when your referral completes their first 10 deliveries",
+      title: t("referral.referralBonus"),
+      description: t("referral.referralBonusDesc"),
       amount: "₹200",
       color: "text-green-600",
       bgColor: "bg-green-50",
     },
     {
       icon: Star,
-      title: "Performance Bonus",
-      description:
-        "Earn ₹50 for each active referral who maintains 90%+ rating",
-      amount: "₹50/month",
+      title: t("referral.performanceBonus"),
+      description: t("referral.performanceBonusDesc"),
+      amount: t("referral.perMonth", { amount: "₹50" }),
       color: "text-blue-600",
       bgColor: "bg-blue-50",
     },
     {
       icon: Users,
-      title: "Team Leader",
-      description: "Become a team leader with 5+ active referrals",
-      amount: "₹500/month",
+      title: t("referral.teamLeader"),
+      description: t("referral.teamLeaderDesc"),
+      amount: t("referral.perMonth", { amount: "₹500" }),
       color: "text-purple-600",
       bgColor: "bg-purple-50",
     },
@@ -151,9 +151,9 @@ const ReferAndEarnPage: React.FC = () => {
             <ArrowLeft className="h-5 w-5 text-gray-600" />
           </button>
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Refer and Earn</h1>
+            <h1 className="text-xl font-bold text-gray-900">{t("referral.title")}</h1>
             <p className="text-sm text-gray-600">
-              Invite friends and earn together
+              {t("referral.subtitle")}
             </p>
           </div>
         </div>
@@ -167,14 +167,14 @@ const ReferAndEarnPage: React.FC = () => {
           className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl shadow-lg p-6 mb-6 text-white"
         >
           <div className="text-center">
-            <h2 className="text-2xl font-bold mb-2">Your Referral Code</h2>
+            <h2 className="text-2xl font-bold mb-2">{t("referral.yourCode")}</h2>
             <p className="text-blue-100 mb-4">
-              Share this code with friends to earn rewards
+              {t("referral.yourCodeDesc")}
             </p>
             <div className="bg-white/20 rounded-xl p-4 mb-4">
               {isDeliveryRoute && isLoading ? (
                 <div className="text-lg font-semibold text-blue-100">
-                  Loading referral code...
+                  {t("referral.loading")}
                 </div>
               ) : referralCode ? (
                 <div className="text-3xl font-bold tracking-wider">
@@ -182,7 +182,7 @@ const ReferAndEarnPage: React.FC = () => {
                 </div>
               ) : (
                 <div className="text-sm text-blue-100">
-                  {error ? error : "No referral code available"}
+                  {error ? error : t("referral.noCode")}
                 </div>
               )}
             </div>
@@ -193,7 +193,7 @@ const ReferAndEarnPage: React.FC = () => {
                 className="flex-1 flex items-center justify-center space-x-2 bg-white/20 hover:bg-white/30 rounded-xl py-3 transition-colors"
               >
                 <Copy className="h-5 w-5" />
-                <span>{copied ? "Copied!" : "Copy Code"}</span>
+                <span>{copied ? t("referral.copied") : t("referral.copyCode")}</span>
               </button>
               <button
                 onClick={handleShare}
@@ -201,7 +201,7 @@ const ReferAndEarnPage: React.FC = () => {
                 className="flex-1 flex items-center justify-center space-x-2 bg-white/20 hover:bg-white/30 rounded-xl py-3 transition-colors"
               >
                 <Share2 className="h-5 w-5" />
-                <span>Share</span>
+                <span>{t("referral.share")}</span>
               </button>
             </div>
           </div>
@@ -216,7 +216,7 @@ const ReferAndEarnPage: React.FC = () => {
         >
           <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
             <Gift className="h-5 w-5 mr-2 text-green-600" />
-            How You Earn
+            {t("referral.howYouEarn")}
           </h3>
           <div className="space-y-4">
             {rewards.map((reward, index) => (
@@ -249,7 +249,7 @@ const ReferAndEarnPage: React.FC = () => {
         >
           <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
             <CheckCircle className="h-5 w-5 mr-2 text-blue-600" />
-            How It Works
+            {t("referral.howItWorks")}
           </h3>
           <div className="space-y-4">
             <div className="flex items-start space-x-4">
@@ -257,9 +257,9 @@ const ReferAndEarnPage: React.FC = () => {
                 <span className="text-sm font-bold text-blue-600">1</span>
               </div>
               <div>
-                <h4 className="font-semibold text-gray-900">Share Your Code</h4>
+                <h4 className="font-semibold text-gray-900">{t("referral.step1Title")}</h4>
                 <p className="text-sm text-gray-600">
-                  Share your referral code or link with friends
+                  {t("referral.step1Desc")}
                 </p>
               </div>
             </div>
@@ -268,9 +268,9 @@ const ReferAndEarnPage: React.FC = () => {
                 <span className="text-sm font-bold text-blue-600">2</span>
               </div>
               <div>
-                <h4 className="font-semibold text-gray-900">Friend Joins</h4>
+                <h4 className="font-semibold text-gray-900">{t("referral.step2Title")}</h4>
                 <p className="text-sm text-gray-600">
-                  Your friend signs up using your code
+                  {t("referral.step2Desc")}
                 </p>
               </div>
             </div>
@@ -279,9 +279,9 @@ const ReferAndEarnPage: React.FC = () => {
                 <span className="text-sm font-bold text-blue-600">3</span>
               </div>
               <div>
-                <h4 className="font-semibold text-gray-900">Earn Rewards</h4>
+                <h4 className="font-semibold text-gray-900">{t("referral.step3Title")}</h4>
                 <p className="text-sm text-gray-600">
-                  Get paid when they complete deliveries
+                  {t("referral.step3Desc")}
                 </p>
               </div>
             </div>
@@ -296,16 +296,16 @@ const ReferAndEarnPage: React.FC = () => {
           className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6"
         >
           <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            Your Referral Stats
+            {t("referral.yourStats")}
           </h3>
           <div className="grid grid-cols-2 gap-4">
             <div className="text-center">
               <div className="text-2xl font-bold text-blue-600">0</div>
-              <div className="text-sm text-gray-600">Total Referrals</div>
+              <div className="text-sm text-gray-600">{t("referral.totalReferrals")}</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-green-600">₹0</div>
-              <div className="text-sm text-gray-600">Earned</div>
+              <div className="text-sm text-gray-600">{t("referral.earned")}</div>
             </div>
           </div>
         </motion.div>

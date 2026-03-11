@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { PaymentsReconciliationItem, PaymentsRecoveryRowEnrichment } from "./types";
 import { formatIsoDate, maskId } from "./utils";
+import { useLanguage } from "../../../../contexts/LanguageContext";
 
 function Section(props: { title: string; children: ReactNode }): JSX.Element {
   return (
@@ -32,6 +33,7 @@ export default function RecoveryDrawer(props: {
   onExecuteSuggestedAction?: () => void;
   lastAuditId?: string;
 }): JSX.Element | null {
+  const { t } = useLanguage();
   if (!props.open) return null;
 
   const item = props.item;
@@ -42,7 +44,7 @@ export default function RecoveryDrawer(props: {
       <div className="absolute inset-y-0 right-0 w-full max-w-xl bg-gray-50 shadow-xl border-l border-gray-200">
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white">
           <div>
-            <div className="text-sm font-semibold text-gray-900">Payment Recovery Suggestion</div>
+            <div className="text-sm font-semibold text-gray-900">{t("admin.paymentRecoverySuggestion")}</div>
             <div className="mt-0.5 text-xs text-gray-600 font-mono">
               {item ? maskId(item.paymentIntentId) : ""}
             </div>
@@ -52,44 +54,44 @@ export default function RecoveryDrawer(props: {
             className="rounded-md px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100"
             onClick={props.onClose}
           >
-            Close
+            {t("ui.close")}
           </button>
         </div>
 
         <div className="p-4 space-y-4 overflow-auto h-full">
           {props.loading ? (
-            <div className="rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-700">Loading details…</div>
+            <div className="rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-700">{t("admin.loadingDetails")}</div>
           ) : null}
 
-          <Section title="Order Summary">
-            <Field label="Order ID" value={item ? <span className="font-mono">{maskId(item.orderId)}</span> : "—"} />
-            <Field label="Order Payment Status" value={item?.orderPaymentStatus ? String(item.orderPaymentStatus) : "—"} />
+          <Section title={t("admin.orderSummary")}>
+            <Field label={t("admin.orderId")} value={item ? <span className="font-mono">{maskId(item.orderId)}</span> : "—"} />
+            <Field label={t("admin.orderPaymentStatus")} value={item?.orderPaymentStatus ? String(item.orderPaymentStatus) : "—"} />
           </Section>
 
-          <Section title="Payment Intent Snapshot">
-            <Field label="Payment Intent ID" value={item ? <span className="font-mono">{maskId(item.paymentIntentId)}</span> : "—"} />
-            <Field label="Gateway" value={item?.gateway} />
-            <Field label="Intent Status" value={item?.status ? String(item.status) : "—"} />
-            <Field label="Locked" value={item ? (item.isLocked ? "Yes" : "No") : "—"} />
-            <Field label="Lock Reason" value={item?.lockReason} />
-            <Field label="Created At" value={item?.createdAt ? formatIsoDate(item.createdAt) : "—"} />
-            <Field label="Updated At" value={item?.updatedAt ? formatIsoDate(item.updatedAt) : "—"} />
-            <Field label="Last Scanned" value={item?.lastScannedAt ? formatIsoDate(item.lastScannedAt) : "—"} />
+          <Section title={t("admin.paymentIntentSnapshot")}>
+            <Field label={t("admin.paymentIntentId")} value={item ? <span className="font-mono">{maskId(item.paymentIntentId)}</span> : "—"} />
+            <Field label={t("admin.gateway")} value={item?.gateway} />
+            <Field label={t("admin.intentStatus")} value={item?.status ? String(item.status) : "—"} />
+            <Field label={t("admin.locked")} value={item ? (item.isLocked ? t("common.yes") : t("common.no")) : "—"} />
+            <Field label={t("admin.lockReason")} value={item?.lockReason} />
+            <Field label={t("admin.createdAt")} value={item?.createdAt ? formatIsoDate(item.createdAt) : "—"} />
+            <Field label={t("admin.updatedAt")} value={item?.updatedAt ? formatIsoDate(item.updatedAt) : "—"} />
+            <Field label={t("admin.lastScanned")} value={item?.lastScannedAt ? formatIsoDate(item.lastScannedAt) : "—"} />
           </Section>
 
-          <Section title="Gateway Verification">
-            <Field label="Verified At" value={props.enrichment?.verification?.verifiedAt ? formatIsoDate(props.enrichment.verification.verifiedAt) : "—"} />
-            <Field label="Discrepancy" value={props.enrichment?.verification?.assessment?.discrepancy} />
-            <Field label="Paid at Gateway" value={props.enrichment?.verification?.assessment?.isPaidAtGateway ? "Yes" : props.enrichment?.verification ? "No" : "—"} />
-            <Field label="Paid Internally" value={props.enrichment?.verification?.assessment?.isPaidInternally ? "Yes" : props.enrichment?.verification ? "No" : "—"} />
+          <Section title={t("admin.gatewayVerification")}>
+            <Field label={t("admin.verifiedAt")} value={props.enrichment?.verification?.verifiedAt ? formatIsoDate(props.enrichment.verification.verifiedAt) : "—"} />
+            <Field label={t("admin.discrepancy")} value={props.enrichment?.verification?.assessment?.discrepancy} />
+            <Field label={t("admin.paidAtGateway")} value={props.enrichment?.verification?.assessment?.isPaidAtGateway ? t("common.yes") : props.enrichment?.verification ? t("common.no") : "—"} />
+            <Field label={t("admin.paidInternally")} value={props.enrichment?.verification?.assessment?.isPaidInternally ? t("common.yes") : props.enrichment?.verification ? t("common.no") : "—"} />
             <div className="mt-3 border-t border-gray-100 pt-3" />
-            <Field label="Gateway Order" value={props.enrichment?.verification?.gateway?.order?.id ? <span className="font-mono">{maskId(props.enrichment.verification.gateway.order.id, { prefix: 8, suffix: 6 })}</span> : "—"} />
-            <Field label="Gateway Order Status" value={props.enrichment?.verification?.gateway?.order?.status} />
-            <Field label="Gateway Payment" value={props.enrichment?.verification?.gateway?.payment?.id ? <span className="font-mono">{maskId(props.enrichment.verification.gateway.payment.id, { prefix: 8, suffix: 6 })}</span> : "—"} />
-            <Field label="Gateway Payment Status" value={props.enrichment?.verification?.gateway?.payment?.status} />
-            <Field label="Payment Method" value={props.enrichment?.verification?.gateway?.payment?.method} />
+            <Field label={t("admin.gatewayOrder")} value={props.enrichment?.verification?.gateway?.order?.id ? <span className="font-mono">{maskId(props.enrichment.verification.gateway.order.id, { prefix: 8, suffix: 6 })}</span> : "—"} />
+            <Field label={t("admin.gatewayOrderStatus")} value={props.enrichment?.verification?.gateway?.order?.status} />
+            <Field label={t("admin.gatewayPayment")} value={props.enrichment?.verification?.gateway?.payment?.id ? <span className="font-mono">{maskId(props.enrichment.verification.gateway.payment.id, { prefix: 8, suffix: 6 })}</span> : "—"} />
+            <Field label={t("admin.gatewayPaymentStatus")} value={props.enrichment?.verification?.gateway?.payment?.status} />
+            <Field label={t("admin.paymentMethod")} value={props.enrichment?.verification?.gateway?.payment?.method} />
             <Field
-              label="Refunds"
+              label={t("admin.refunds")}
               value={
                 props.enrichment?.verification?.gateway?.refunds?.length ? (
                   <span className="font-mono">{props.enrichment.verification.gateway.refunds.length}</span>
@@ -102,18 +104,18 @@ export default function RecoveryDrawer(props: {
             />
           </Section>
 
-          <Section title="Recovery Suggestion">
-            <Field label="Discrepancy" value={props.enrichment?.suggestion?.discrepancy} />
-            <Field label="Recommended Action" value={props.enrichment?.suggestion?.suggestion?.recommendedAction} />
-            <Field label="Confidence" value={props.enrichment?.suggestion?.suggestion?.confidence} />
-            <Field label="Safe" value={props.enrichment?.suggestion?.suggestion?.safe ? "Yes" : props.enrichment?.suggestion ? "No" : "—"} />
-            <Field label="Can Auto Execute" value={props.enrichment?.suggestion?.suggestion?.canAutoExecute ? "Yes" : props.enrichment?.suggestion ? "No" : "—"} />
+          <Section title={t("admin.recoverySuggestion")}>
+            <Field label={t("admin.discrepancy")} value={props.enrichment?.suggestion?.discrepancy} />
+            <Field label={t("admin.recommendedAction")} value={props.enrichment?.suggestion?.suggestion?.recommendedAction} />
+            <Field label={t("admin.confidence")} value={props.enrichment?.suggestion?.suggestion?.confidence} />
+            <Field label={t("admin.safe")} value={props.enrichment?.suggestion?.suggestion?.safe ? t("common.yes") : props.enrichment?.suggestion ? t("common.no") : "—"} />
+            <Field label={t("admin.canAutoExecute")} value={props.enrichment?.suggestion?.suggestion?.canAutoExecute ? t("common.yes") : props.enrichment?.suggestion ? t("common.no") : "—"} />
             <div className="mt-3">
-              <div className="text-xs font-medium text-gray-600">Reason</div>
+              <div className="text-xs font-medium text-gray-600">{t("admin.reason")}</div>
               <div className="mt-1 text-sm text-gray-900">{props.enrichment?.suggestion?.suggestion?.reason || "—"}</div>
             </div>
             <div className="mt-3">
-              <div className="text-xs font-medium text-gray-600">Next Steps</div>
+              <div className="text-xs font-medium text-gray-600">{t("admin.nextSteps")}</div>
               <div className="mt-1">
                 {props.enrichment?.suggestion?.suggestion?.nextSteps?.length ? (
                   <ul className="list-disc ml-5 text-sm text-gray-900">
@@ -128,11 +130,11 @@ export default function RecoveryDrawer(props: {
             </div>
           </Section>
 
-          <Section title="Admin Controls">
-            <div className="text-sm text-gray-700">Admin-initiated execution (feature-flagged).</div>
+          <Section title={t("admin.adminControls")}>
+            <div className="text-sm text-gray-700">{t("admin.adminInitiatedExecution")}</div>
             {props.lastAuditId ? (
               <div className="mt-2 text-xs text-gray-700">
-                Last audit:
+                {t("admin.lastAudit")}:
                 <span className="ml-2 font-mono">{props.lastAuditId}</span>
               </div>
             ) : null}
@@ -151,14 +153,14 @@ export default function RecoveryDrawer(props: {
                     : "rounded-md bg-gray-200 px-3 py-2 text-sm font-medium text-gray-600 cursor-not-allowed"
                 }
               >
-                Apply Suggested Action
+                {t("admin.applySuggestedAction")}
               </button>
               <button
                 type="button"
                 disabled
                 className="rounded-md bg-gray-200 px-3 py-2 text-sm font-medium text-gray-600 cursor-not-allowed"
               >
-                Lock Permanently
+                {t("admin.lockPermanently")}
               </button>
             </div>
           </Section>

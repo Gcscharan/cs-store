@@ -18,6 +18,7 @@ import {
   Search,
   ArrowLeft,
 } from "lucide-react";
+import { useLanguage } from "../contexts/LanguageContext";
 
 interface DeliveryBoy {
   user: {
@@ -51,6 +52,7 @@ interface DeliveryBoy {
 const AdminDeliveryBoysPage: React.FC = () => {
   const { tokens } = useSelector((state: RootState) => state.auth);
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const [deliveryBoys, setDeliveryBoys] = useState<DeliveryBoy[]>([]);
   const [filteredBoys, setFilteredBoys] = useState<DeliveryBoy[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -138,18 +140,18 @@ const AdminDeliveryBoysPage: React.FC = () => {
         throw new Error(errorData.error || "Failed to approve delivery partner");
       }
 
-      toast.success("Delivery partner approved successfully!");
+      toast.success(t("admin.partnerApproved"));
       setShowApprovalModal(false);
       setSelectedBoy(null);
       fetchDeliveryBoys();
     } catch (error: any) {
       console.error("Error approving delivery boy:", error);
-      toast.error(error.message || "Failed to approve delivery partner");
+      toast.error(error.message || t("admin.failedApprovePartner"));
     }
   };
 
   const handleSuspend = async (userId: string) => {
-    if (!window.confirm("Are you sure you want to suspend this delivery partner?")) {
+    if (!window.confirm(t("admin.confirmSuspend"))) {
       return;
     }
 
@@ -174,11 +176,11 @@ const AdminDeliveryBoysPage: React.FC = () => {
         throw new Error(errorData.error || "Failed to suspend delivery partner");
       }
 
-      toast.success("Delivery partner suspended");
+      toast.success(t("admin.partnerSuspended"));
       fetchDeliveryBoys();
     } catch (error: any) {
       console.error("Error suspending delivery boy:", error);
-      toast.error(error.message || "Failed to suspend delivery partner");
+      toast.error(error.message || t("admin.failedSuspendPartner"));
     }
   };
 
@@ -218,17 +220,17 @@ const AdminDeliveryBoysPage: React.FC = () => {
               type="button"
               onClick={() => navigate(-1)}
               className="p-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-              aria-label="Go back"
-              title="Go back"
+              aria-label={t("ui.goBack")}
+              title={t("ui.goBack")}
             >
               <ArrowLeft className="h-5 w-5" />
             </button>
             <h1 className="text-3xl font-bold text-gray-900">
-              Delivery Partners Management
+              {t("admin.deliveryPartnersManagement")}
             </h1>
           </div>
           <p className="text-gray-600">
-            Manage and monitor all delivery partners
+            {t("admin.manageDeliveryPartners")}
           </p>
         </div>
 
@@ -237,7 +239,7 @@ const AdminDeliveryBoysPage: React.FC = () => {
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600 mb-1">Total Partners</p>
+                <p className="text-sm text-gray-600 mb-1">{t("admin.totalPartners")}</p>
                 <p className="text-2xl font-bold text-gray-900">
                   {deliveryBoys.length}
                 </p>
@@ -249,7 +251,7 @@ const AdminDeliveryBoysPage: React.FC = () => {
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600 mb-1">Pending Approval</p>
+                <p className="text-sm text-gray-600 mb-1">{t("admin.pendingApproval")}</p>
                 <p className="text-2xl font-bold text-yellow-600">
                   {
                     deliveryBoys.filter((b: any) => b?.user?.status === "pending")
@@ -264,7 +266,7 @@ const AdminDeliveryBoysPage: React.FC = () => {
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600 mb-1">Active Partners</p>
+                <p className="text-sm text-gray-600 mb-1">{t("admin.activePartners")}</p>
                 <p className="text-2xl font-bold text-green-600">
                   {deliveryBoys.filter((b: any) => b?.user?.status === "active").length}
                 </p>
@@ -280,30 +282,30 @@ const AdminDeliveryBoysPage: React.FC = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <Filter className="h-4 w-4 inline mr-1" />
-                Filter by Status
+                {t("admin.filterByStatus")}
               </label>
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
-                <option value="all">All Partners</option>
-                <option value="pending">Pending Approval</option>
-                <option value="active">Active</option>
-                <option value="suspended">Suspended</option>
+                <option value="all">{t("admin.allPartners")}</option>
+                <option value="pending">{t("admin.pendingApproval")}</option>
+                <option value="active">{t("admin.active")}</option>
+                <option value="suspended">{t("admin.suspended")}</option>
               </select>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <Search className="h-4 w-4 inline mr-1" />
-                Search
+                {t("ui.search")}
               </label>
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search by name, email, or phone"
+                placeholder={t("admin.searchByNameEmailPhone")}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
@@ -314,18 +316,18 @@ const AdminDeliveryBoysPage: React.FC = () => {
         {isLoading ? (
           <div className="text-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading delivery partners...</p>
+            <p className="text-gray-600">{t("admin.loadingPartners")}</p>
           </div>
         ) : filteredBoys.length === 0 ? (
           <div className="bg-white rounded-lg shadow p-12 text-center">
             <AlertTriangle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              No Delivery Partners Found
+              {t("admin.noPartnersFound")}
             </h3>
             <p className="text-gray-600">
               {searchTerm || statusFilter !== "all"
-                ? "Try adjusting your filters"
-                : "No delivery partners have signed up yet"}
+                ? t("admin.tryAdjustingFilters")
+                : t("admin.noPartnersSignedUp")}
             </p>
           </div>
         ) : (
@@ -373,7 +375,7 @@ const AdminDeliveryBoysPage: React.FC = () => {
                       </div>
                       <div className="flex items-center text-sm text-gray-600">
                         <Package className="h-4 w-4 mr-2 text-purple-600" />
-                        Vehicle: {boy.user.deliveryProfile?.vehicleType || "N/A"}
+                        Vehicle: {boy.user.deliveryProfile?.vehicleType || t("common.na")}
                       </div>
                       {boy.user.deliveryProfile?.assignedAreas && boy.user.deliveryProfile.assignedAreas.length > 0 && (
                         <div className="flex items-start text-sm text-gray-600">
@@ -388,13 +390,13 @@ const AdminDeliveryBoysPage: React.FC = () => {
                     {boy.deliveryBoy && (
                       <div className="flex gap-6 text-sm">
                         <div>
-                          <span className="text-gray-600">Completed:</span>
+                          <span className="text-gray-600">{t("admin.completed")}:</span>
                           <span className="font-semibold text-gray-900 ml-2">
                             {boy.deliveryBoy.completedOrdersCount}
                           </span>
                         </div>
                         <div>
-                          <span className="text-gray-600">Earnings:</span>
+                          <span className="text-gray-600">{t("admin.earnings")}:</span>
                           <span className="font-semibold text-gray-900 ml-2">
                             ₹{boy.deliveryBoy.earnings}
                           </span>
@@ -403,7 +405,7 @@ const AdminDeliveryBoysPage: React.FC = () => {
                     )}
 
                     <p className="text-xs text-gray-500 mt-2">
-                      Joined: {new Date(boy.user.createdAt).toLocaleDateString()}
+                      {t("admin.joined")}: {new Date(boy.user.createdAt).toLocaleDateString()}
                     </p>
                   </div>
 
@@ -417,7 +419,7 @@ const AdminDeliveryBoysPage: React.FC = () => {
                         className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
                       >
                         <CheckCircle className="h-4 w-4" />
-                        Approve
+                        {t("admin.approve")}
                       </button>
                     )}
 
@@ -427,7 +429,7 @@ const AdminDeliveryBoysPage: React.FC = () => {
                         className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
                       >
                         <XCircle className="h-4 w-4" />
-                        Suspend
+                        {t("admin.suspend")}
                       </button>
                     )}
 
@@ -436,7 +438,7 @@ const AdminDeliveryBoysPage: React.FC = () => {
                         onClick={() => handleApprove(boy.user._id)}
                         className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                       >
-                        Reactivate
+                        {t("admin.reactivate")}
                       </button>
                     )}
                   </div>
@@ -452,18 +454,18 @@ const AdminDeliveryBoysPage: React.FC = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
             <h3 className="text-xl font-bold text-gray-900 mb-4">
-              Approve Delivery Partner
+              {t("admin.approveDeliveryPartner")}
             </h3>
 
             <div className="mb-4">
               <p className="text-sm text-gray-600 mb-2">
-                <strong>Name:</strong> {selectedBoy.user.name}
+                <strong>{t("admin.name")}:</strong> {selectedBoy.user.name}
               </p>
               <p className="text-sm text-gray-600 mb-2">
-                <strong>Email:</strong> {selectedBoy.user.email}
+                <strong>{t("admin.email")}:</strong> {selectedBoy.user.email}
               </p>
               <p className="text-sm text-gray-600 mb-4">
-                <strong>Vehicle:</strong>{" "}
+                <strong>{t("admin.vehicle")}:</strong>{" "}
                 {selectedBoy.user.deliveryProfile?.vehicleType}
               </p>
             </div>
@@ -475,7 +477,7 @@ const AdminDeliveryBoysPage: React.FC = () => {
                 }}
                 className="flex-1 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors"
               >
-                Approve & Activate
+                {t("admin.approveAndActivate")}
               </button>
               <button
                 onClick={() => {
@@ -484,7 +486,7 @@ const AdminDeliveryBoysPage: React.FC = () => {
                 }}
                 className="flex-1 py-3 bg-gray-200 text-gray-800 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
               >
-                Cancel
+                {t("ui.cancel")}
               </button>
             </div>
           </div>

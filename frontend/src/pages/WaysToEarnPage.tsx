@@ -11,58 +11,60 @@ import {
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import DeliveryBottomNav from "../components/DeliveryBottomNav";
+import { useLanguage } from "../contexts/LanguageContext";
 
 const WaysToEarnPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const isDeliveryRoute = location.pathname.startsWith("/delivery/");
   const [activeTab, setActiveTab] = React.useState("more");
+  const { t } = useLanguage();
 
   const earningMethods = [
     {
       icon: DollarSign,
-      title: "Base Delivery Fee",
-      description: "Earn ₹25-50 per delivery based on distance",
+      title: t("earn.baseDeliveryFee"),
+      description: t("earn.baseDeliveryFeeDesc"),
       amount: "₹25-50",
       color: "text-green-600",
       bgColor: "bg-green-50",
     },
     {
       icon: Star,
-      title: "Peak Hours Bonus",
-      description: "Extra ₹15 during rush hours (6-9 PM)",
+      title: t("earn.peakHoursBonus"),
+      description: t("earn.peakHoursBonusDesc"),
       amount: "+₹15",
       color: "text-orange-600",
       bgColor: "bg-orange-50",
     },
     {
       icon: TrendingUp,
-      title: "Performance Bonus",
-      description: "₹100 bonus for 95%+ on-time delivery rate",
+      title: t("earn.performanceBonus"),
+      description: t("earn.performanceBonusDesc"),
       amount: "+₹100",
       color: "text-blue-600",
       bgColor: "bg-blue-50",
     },
     {
       icon: Gift,
-      title: "Customer Tips",
-      description: "Keep 100% of customer tips",
+      title: t("earn.customerTips"),
+      description: t("earn.customerTipsDesc"),
       amount: "100%",
       color: "text-purple-600",
       bgColor: "bg-purple-50",
     },
     {
       icon: Clock,
-      title: "Weekend Bonus",
-      description: "Extra ₹20 per delivery on weekends",
+      title: t("earn.weekendBonus"),
+      description: t("earn.weekendBonusDesc"),
       amount: "+₹20",
       color: "text-indigo-600",
       bgColor: "bg-indigo-50",
     },
     {
       icon: Target,
-      title: "Monthly Target",
-      description: "₹500 bonus for 100+ deliveries per month",
+      title: t("earn.monthlyTarget"),
+      description: t("earn.monthlyTargetDesc"),
       amount: "+₹500",
       color: "text-red-600",
       bgColor: "bg-red-50",
@@ -81,9 +83,9 @@ const WaysToEarnPage: React.FC = () => {
             <ArrowLeft className="h-5 w-5 text-gray-600" />
           </button>
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Ways to Earn</h1>
+            <h1 className="text-xl font-bold text-gray-900">{t("earn.title")}</h1>
             <p className="text-sm text-gray-600">
-              Maximize your delivery earnings
+              {t("earn.subtitle")}
             </p>
           </div>
         </div>
@@ -129,24 +131,24 @@ const WaysToEarnPage: React.FC = () => {
         >
           <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
             <Target className="h-5 w-5 mr-2 text-blue-600" />
-            Pro Tips to Maximize Earnings
+            {t("earn.proTips")}
           </h3>
           <div className="space-y-3 text-sm text-gray-600">
             <div className="flex items-start space-x-3">
               <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
-              <p>Stay online during peak hours (6-9 PM) for bonus pay</p>
+              <p>{t("earn.tip1")}</p>
             </div>
             <div className="flex items-start space-x-3">
               <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
-              <p>Maintain high customer ratings to get priority orders</p>
+              <p>{t("earn.tip2")}</p>
             </div>
             <div className="flex items-start space-x-3">
               <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
-              <p>Work weekends for additional bonus opportunities</p>
+              <p>{t("earn.tip3")}</p>
             </div>
             <div className="flex items-start space-x-3">
               <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
-              <p>Complete deliveries quickly to increase daily volume</p>
+              <p>{t("earn.tip4")}</p>
             </div>
           </div>
         </motion.div>

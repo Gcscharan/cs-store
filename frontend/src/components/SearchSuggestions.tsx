@@ -1,6 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import OptimizedImage from "./OptimizedImage";
+import { useLanguage } from "../contexts/LanguageContext";
 
 interface Product {
   _id: string;
@@ -29,6 +30,7 @@ const SearchSuggestions: React.FC<SearchSuggestionsProps> = ({
   isLoading = false,
 }) => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   const handleSuggestionClick = (productId: string) => {
     navigate(`/product/${productId}`);
@@ -45,7 +47,7 @@ const SearchSuggestions: React.FC<SearchSuggestionsProps> = ({
       {isLoading ? (
         <div className="px-4 py-8 text-center text-gray-500">
           <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-          <p className="mt-2 text-sm">Searching...</p>
+          <p className="mt-2 text-sm">{t("ui.searching")}</p>
         </div>
       ) : suggestions.length > 0 ? (
         <>
@@ -79,7 +81,7 @@ const SearchSuggestions: React.FC<SearchSuggestionsProps> = ({
                   {product.name}
                 </div>
                 <div className="text-xs text-blue-600 mt-0.5">
-                  in {product.category}
+                  {t("common.in")} {product.category}
                 </div>
               </div>
             </div>
@@ -100,8 +102,8 @@ const SearchSuggestions: React.FC<SearchSuggestionsProps> = ({
               d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
             />
           </svg>
-          <p className="mt-2 text-sm font-medium">No suggestions found</p>
-          <p className="mt-1 text-xs">Try searching with different keywords</p>
+          <p className="mt-2 text-sm font-medium">{t("ui.noResults")}</p>
+          <p className="mt-1 text-xs">{t("ui.tryDifferentKeywords")}</p>
         </div>
       )}
     </div>

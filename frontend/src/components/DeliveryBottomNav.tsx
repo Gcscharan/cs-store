@@ -1,6 +1,7 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { Home, DollarSign, Bell, MoreHorizontal } from "lucide-react";
+import { useLanguage } from "../contexts/LanguageContext";
 
 interface DeliveryBottomNavProps {
   activeTab: string;
@@ -11,31 +12,32 @@ const DeliveryBottomNav: React.FC<DeliveryBottomNavProps> = ({
   activeTab,
   setActiveTab,
 }) => {
+  const { t } = useLanguage();
 
   const navItems = [
     {
       id: "home",
-      label: "Home",
+      label: t("delivery.home"),
       icon: Home,
-      ariaLabel: "Delivery dashboard home",
+      ariaLabel: t("delivery.homeAria"),
     },
     {
       id: "earnings",
-      label: "Earnings",
+      label: t("delivery.earnings"),
       icon: DollarSign,
-      ariaLabel: "View earnings and payments",
+      ariaLabel: t("delivery.earningsAria"),
     },
     {
       id: "notifications",
-      label: "Notifications",
+      label: t("delivery.notifications"),
       icon: Bell,
-      ariaLabel: "View notifications",
+      ariaLabel: t("delivery.notificationsAria"),
     },
     {
       id: "more",
-      label: "More",
+      label: t("delivery.more"),
       icon: MoreHorizontal,
-      ariaLabel: "More options",
+      ariaLabel: t("delivery.moreAria"),
     },
   ];
 

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 
 import type { RecoveryExecuteAction } from "./types";
+import { useLanguage } from "../../../../contexts/LanguageContext";
 
 const CONFIRM_STRING = "YES_I_UNDERSTAND_THIS_CHANGES_STATE";
 
@@ -37,6 +38,7 @@ export default function RecoveryExecuteModal(props: {
   isSubmitting: boolean;
   error?: string | null;
 }): JSX.Element | null {
+  const { t } = useLanguage();
   const [reason, setReason] = useState<string>("");
   const [confirm, setConfirm] = useState<string>("");
 
@@ -47,30 +49,30 @@ export default function RecoveryExecuteModal(props: {
   if (!props.open) return null;
 
   return (
-    <ModalShell title="Confirm Recovery Execution" onClose={props.onClose}>
+    <ModalShell title={t("admin.confirmRecoveryExecution")} onClose={props.onClose}>
       <div className="space-y-4">
         <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-900">
-          This executes a single internal state transition (no money movement).
+          {t("admin.recoveryExecutionWarning")}
         </div>
 
         <div className="text-sm text-gray-700">
-          <div className="font-medium text-gray-900">Action</div>
+          <div className="font-medium text-gray-900">{t("admin.action")}</div>
           <div className="mt-1 font-mono text-xs">{props.action}</div>
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-gray-700">Reason (min 15 chars)</label>
+          <label className="block text-xs font-medium text-gray-700">{t("admin.reasonMin15")}</label>
           <textarea
             className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
             rows={3}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="Describe why you are executing this action..."
+            placeholder={t("admin.describeWhyExecuting")}
           />
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-gray-700">Type to confirm</label>
+          <label className="block text-xs font-medium text-gray-700">{t("admin.typeToConfirm")}</label>
           <div className="mt-1 text-xs text-gray-600 font-mono">{CONFIRM_STRING}</div>
           <input
             className="mt-2 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -93,7 +95,7 @@ export default function RecoveryExecuteModal(props: {
             onClick={props.onClose}
             disabled={props.isSubmitting}
           >
-            Cancel
+            {t("ui.cancel")}
           </button>
           <button
             type="button"
@@ -107,7 +109,7 @@ export default function RecoveryExecuteModal(props: {
               await props.onConfirm({ reason: reason.trim(), confirm });
             }}
           >
-            {props.isSubmitting ? "Executing…" : "Execute"}
+            {props.isSubmitting ? t("admin.executing") : t("admin.execute")}
           </button>
         </div>
       </div>

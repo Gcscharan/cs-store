@@ -2,11 +2,13 @@ import { Link, useLocation } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { RootState } from "../store";
 import { motion, AnimatePresence } from "framer-motion";
+import { useLanguage } from "../contexts/LanguageContext";
 
 const FloatingCartCTA = () => {
   const location = useLocation();
   const cart = useSelector((state: RootState) => state.cart);
   const { isAuthenticated } = useSelector((state: RootState) => state.auth);
+  const { t } = useLanguage();
 
   const cartUniqueCount = cart.items.length;
 
@@ -36,12 +38,12 @@ const FloatingCartCTA = () => {
           <div className="text-2xl">🛒</div>
           <div className="flex flex-col">
             <span className="text-sm font-semibold">
-              {cartUniqueCount} items
+              {cartUniqueCount} {t("cart.items")}
             </span>
             <span className="text-xs opacity-90">₹{cart.total.toFixed(2)}</span>
             {cart.total < 500 && (
               <span className="text-xs opacity-75">
-                +₹{(500 - cart.total).toFixed(0)} for free delivery
+                {t("cart.freeDeliveryRemaining", { amount: (500 - cart.total).toFixed(0) })}
               </span>
             )}
           </div>

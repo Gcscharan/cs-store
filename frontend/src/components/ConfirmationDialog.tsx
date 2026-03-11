@@ -1,5 +1,6 @@
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useLanguage } from "../contexts/LanguageContext";
 
 interface ConfirmationDialogProps {
   isOpen: boolean;
@@ -18,10 +19,13 @@ const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
   onConfirm,
   title,
   message,
-  confirmText = "Delete",
-  cancelText = "Cancel",
+  confirmText,
+  cancelText,
   confirmButtonColor = "bg-red-600 hover:bg-red-700",
 }) => {
+  const { t } = useLanguage();
+  const confirmLabel = confirmText || t("ui.delete");
+  const cancelLabel = cancelText || t("ui.cancel");
   const handleConfirm = () => {
     onConfirm();
     onClose();
@@ -89,13 +93,13 @@ const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
                 onClick={onClose}
                 className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
               >
-                {cancelText}
+                {cancelLabel}
               </button>
               <button
                 onClick={handleConfirm}
                 className={`flex-1 px-4 py-2 text-sm font-medium text-white ${confirmButtonColor} rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors`}
               >
-                {confirmText}
+                {confirmLabel}
               </button>
             </div>
           </motion.div>

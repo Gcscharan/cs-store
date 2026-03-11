@@ -2,9 +2,11 @@ import React from "react";
 import { motion } from "framer-motion";
 import { ArrowLeft, Users, Target, Award, Heart, Globe } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useLanguage } from "../contexts/LanguageContext";
 
 const AboutUsPage: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -17,9 +19,9 @@ const AboutUsPage: React.FC = () => {
               className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
-              <span>Back to Home</span>
+              <span>{t("legal.backToHome")}</span>
             </button>
-            <h1 className="text-2xl font-bold text-gray-900">About Us</h1>
+            <h1 className="text-2xl font-bold text-gray-900">{t("about.title")}</h1>
             <div></div>
           </div>
         </div>
@@ -35,12 +37,10 @@ const AboutUsPage: React.FC = () => {
           className="text-center mb-12"
         >
           <h2 className="text-4xl font-bold text-gray-900 mb-6">
-            About Vyapara Setu
+            {t("about.aboutVyaparaSetu")}
           </h2>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            We are India's leading e-commerce platform, dedicated to bringing
-            you the best products at unbeatable prices with exceptional customer
-            service.
+            {t("about.introText")}
           </p>
         </motion.div>
 
@@ -51,25 +51,16 @@ const AboutUsPage: React.FC = () => {
           transition={{ duration: 0.6, delay: 0.2 }}
           className="bg-white rounded-lg shadow-lg p-8 mb-8"
         >
-          <h3 className="text-3xl font-bold text-gray-900 mb-6">Our Story</h3>
+          <h3 className="text-3xl font-bold text-gray-900 mb-6">{t("about.ourStory")}</h3>
           <div className="prose prose-lg max-w-none">
             <p className="text-gray-600 mb-4">
-              Founded in 2020, Vyapara Setu began as a small startup with a big
-              dream: to make quality products accessible to everyone across
-              India. What started as a simple online marketplace has grown into
-              one of the country's most trusted e-commerce platforms.
+              {t("about.storyP1")}
             </p>
             <p className="text-gray-600 mb-4">
-              Our journey has been marked by innovation, customer-centricity,
-              and an unwavering commitment to excellence. We believe that
-              shopping should be simple, enjoyable, and accessible to everyone,
-              regardless of their location or budget.
+              {t("about.storyP2")}
             </p>
             <p className="text-gray-600">
-              Today, we serve millions of customers across India, offering
-              everything from electronics and fashion to home goods and
-              groceries, all delivered with the same care and attention that has
-              defined us from day one.
+              {t("about.storyP3")}
             </p>
           </div>
         </motion.div>
@@ -84,13 +75,10 @@ const AboutUsPage: React.FC = () => {
           >
             <div className="flex items-center mb-4">
               <Target className="w-8 h-8 text-orange-500 mr-3" />
-              <h3 className="text-2xl font-bold text-gray-900">Our Mission</h3>
+              <h3 className="text-2xl font-bold text-gray-900">{t("about.ourMission")}</h3>
             </div>
             <p className="text-gray-600">
-              To democratize commerce by making quality products accessible to
-              every Indian, while fostering a sustainable and inclusive
-              marketplace that benefits customers, sellers, and communities
-              alike.
+              {t("about.missionText")}
             </p>
           </motion.div>
 
@@ -102,12 +90,10 @@ const AboutUsPage: React.FC = () => {
           >
             <div className="flex items-center mb-4">
               <Award className="w-8 h-8 text-orange-500 mr-3" />
-              <h3 className="text-2xl font-bold text-gray-900">Our Vision</h3>
+              <h3 className="text-2xl font-bold text-gray-900">{t("about.ourVision")}</h3>
             </div>
             <p className="text-gray-600">
-              To become India's most trusted and innovative e-commerce platform,
-              setting new standards for customer experience, technological
-              advancement, and social impact in the digital commerce space.
+              {t("about.visionText")}
             </p>
           </motion.div>
         </div>
@@ -120,7 +106,7 @@ const AboutUsPage: React.FC = () => {
           className="bg-white rounded-lg shadow-lg p-8 mb-8"
         >
           <h3 className="text-3xl font-bold text-gray-900 mb-8 text-center">
-            Our Values
+            {t("corporate.ourValues")}
           </h3>
           <div className="grid md:grid-cols-3 gap-8">
             <div className="text-center">
@@ -128,11 +114,10 @@ const AboutUsPage: React.FC = () => {
                 <Heart className="w-10 h-10 text-orange-500" />
               </div>
               <h4 className="text-xl font-semibold text-gray-900 mb-3">
-                Customer First
+                {t("about.customerFirst")}
               </h4>
               <p className="text-gray-600">
-                Every decision we make is guided by what's best for our
-                customers. Their satisfaction is our greatest reward.
+                {t("about.customerFirstText")}
               </p>
             </div>
 
@@ -141,12 +126,10 @@ const AboutUsPage: React.FC = () => {
                 <Users className="w-10 h-10 text-orange-500" />
               </div>
               <h4 className="text-xl font-semibold text-gray-900 mb-3">
-                Inclusivity
+                {t("about.inclusivity")}
               </h4>
               <p className="text-gray-600">
-                We believe in creating an inclusive platform where everyone
-                feels welcome and valued, regardless of background or
-                circumstances.
+                {t("about.inclusivityText")}
               </p>
             </div>
 
@@ -155,11 +138,10 @@ const AboutUsPage: React.FC = () => {
                 <Globe className="w-10 h-10 text-orange-500" />
               </div>
               <h4 className="text-xl font-semibold text-gray-900 mb-3">
-                Innovation
+                {t("about.innovation")}
               </h4>
               <p className="text-gray-600">
-                We continuously innovate to improve our platform, making
-                shopping more convenient, efficient, and enjoyable for everyone.
+                {t("about.innovationText")}
               </p>
             </div>
           </div>
@@ -173,24 +155,24 @@ const AboutUsPage: React.FC = () => {
           className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-lg shadow-lg p-8 text-white"
         >
           <h3 className="text-3xl font-bold mb-8 text-center">
-            Vyapara Setu by the Numbers
+            {t("about.byTheNumbers")}
           </h3>
           <div className="grid md:grid-cols-4 gap-8">
             <div className="text-center">
               <div className="text-4xl font-bold mb-2">10M+</div>
-              <div className="text-orange-100">Happy Customers</div>
+              <div className="text-orange-100">{t("about.happyCustomers")}</div>
             </div>
             <div className="text-center">
               <div className="text-4xl font-bold mb-2">50K+</div>
-              <div className="text-orange-100">Products</div>
+              <div className="text-orange-100">{t("about.products")}</div>
             </div>
             <div className="text-center">
               <div className="text-4xl font-bold mb-2">500+</div>
-              <div className="text-orange-100">Cities Served</div>
+              <div className="text-orange-100">{t("about.citiesServed")}</div>
             </div>
             <div className="text-center">
               <div className="text-4xl font-bold mb-2">99.9%</div>
-              <div className="text-orange-100">Uptime</div>
+              <div className="text-orange-100">{t("about.uptime")}</div>
             </div>
           </div>
         </motion.div>

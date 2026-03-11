@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { setUser, setTokens } from "../store/slices/authSlice";
 import { RootState } from "../store";
 import { toApiUrl } from "../config/runtime";
+import { useLanguage } from "../contexts/LanguageContext";
 
 interface OtpLoginModalProps {
   isOpen: boolean;
@@ -20,6 +21,7 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
 }) => {
   const dispatch = useDispatch();
   const { isAuthenticated } = useSelector((state: RootState) => state.auth);
+  const { t } = useLanguage();
   const [authMethod, setAuthMethod] = useState<AuthMethod>("choose");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -75,7 +77,7 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
       if (phone) {
         // Validate phone number for Indian mobile numbers
         if (!isValidPhoneNumber(phone)) {
-          setPhoneError("Please enter a valid 10-digit mobile number.");
+          setPhoneError(t("otp.validMobile"));
           setIsLoading(false);
           inFlightRef.current = false;
           return;
@@ -111,7 +113,7 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
       if (!response.ok) {
         // Handle account not found case
         if (response.status === 404 && data.action === "signup_required") {
-          setError("Account does not exist. Redirecting to signup...");
+          setError(t("otp.accountNotFound"));
 
           const identifier = phone || email;
           const query = identifier
@@ -250,25 +252,25 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
                 <User className="w-10 h-10 text-white" />
               </div>
               <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent">
-                Welcome Back
+                {t("otp.welcomeBack")}
               </h1>
               <p className="text-lg text-blue-100 leading-relaxed">
-                Get access to your Orders and Recommendations
+                {t("otp.accessOrdersRecommendations")}
               </p>
             </div>
 
             <div className="mt-8 space-y-4">
               <div className="flex items-center justify-center space-x-2 text-blue-100">
                 <div className="w-2 h-2 bg-blue-200 rounded-full"></div>
-                <span className="text-sm">Secure Login</span>
+                <span className="text-sm">{t("otp.secureLogin")}</span>
               </div>
               <div className="flex items-center justify-center space-x-2 text-blue-100">
                 <div className="w-2 h-2 bg-blue-200 rounded-full"></div>
-                <span className="text-sm">Fast Checkout</span>
+                <span className="text-sm">{t("otp.fastCheckout")}</span>
               </div>
               <div className="flex items-center justify-center space-x-2 text-blue-100">
                 <div className="w-2 h-2 bg-blue-200 rounded-full"></div>
-                <span className="text-sm">Personalized Experience</span>
+                <span className="text-sm">{t("otp.personalizedExperience")}</span>
               </div>
             </div>
           </div>
@@ -291,8 +293,8 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
               <div className="space-y-6">
                 {/* Heading */}
                 <div className="text-center mb-6">
-                  <h2 className="text-2xl font-bold text-gray-800 mb-2">Sign In</h2>
-                  <p className="text-gray-600">Enter your email or mobile number</p>
+                  <h2 className="text-2xl font-bold text-gray-800 mb-2">{t("auth.signIn")}</h2>
+                  <p className="text-gray-600">{t("otp.enterEmailOrMobile")}</p>
                 </div>
 
                 {/* Email/Phone Input */}
@@ -337,7 +339,7 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
                         }
                       }
                     }}
-                    placeholder="Enter Email/Mobile number"
+                    placeholder={t("otp.enterEmailOrMobile")}
                     className={`w-full px-4 py-4 text-lg border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all ${
                       phoneError
                         ? "border-red-500 focus:border-red-500"
@@ -366,15 +368,7 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
                 )}
 
                 <div className="text-xs text-gray-500">
-                  By continuing, you agree to Vyapara Setu's{" "}
-                  <a href="/terms" className="text-blue-600 hover:underline">
-                    Terms of Use
-                  </a>{" "}
-                  and{" "}
-                  <a href="/privacy" className="text-blue-600 hover:underline">
-                    Privacy Policy
-                  </a>
-                  .
+                  {t("otp.byContinuing")} <a href="/terms" className="text-blue-600 hover:underline">{t("legal.termsOfUse")}</a> {t("common.and")} <a href="/privacy" className="text-blue-600 hover:underline">{t("legal.privacyPolicy")}</a>.
                 </div>
 
                 {/* Request OTP button */}
@@ -394,13 +388,13 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
                     isLoading ? "opacity-60 cursor-not-allowed" : ""
                   }`}
                 >
-                  {isLoading ? "Please wait..." : "Continue"}
+                  {isLoading ? t("ui.pleaseWait") : t("ui.continue")}
                 </button>
 
                 {/* OTP BLOCK – SHOW ONLY AFTER OTP IS SENT */}
                 {otpSent && (
                   <>
-                    <label className="text-gray-700 text-sm font-medium mt-4 block">Enter OTP</label>
+                    <label className="text-gray-700 text-sm font-medium mt-4 block">{t("otp.enterOtp")}</label>
                     <input
                       type="text"
                       value={otp}
@@ -408,7 +402,7 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
                       disabled={isLoading}
                       maxLength={6}
                       className="w-full px-4 py-3 border-2 rounded-lg border-gray-200 focus:outline-none focus:border-blue-500"
-                      placeholder="Enter 6-digit OTP"
+                      placeholder={t("otp.enterOtp")}
                     />
 
                     {/* RESEND TEXT BETWEEN OTP AND VERIFY */}
@@ -424,10 +418,10 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
                         }`}
                         style={{ background: 'none', border: 'none', padding: 0 }}
                       >
-                        Resend OTP
+                        {t("otp.resendOtp")}
                       </button>
                       <span className="text-sm text-gray-500">
-                        {canResendOtp ? "" : `Resend in ${otpTimer}s`}
+                        {canResendOtp ? "" : t("otp.resendIn", { seconds: String(otpTimer) })}
                       </span>
                     </div>
 
@@ -436,7 +430,7 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
                       disabled={otp.length !== 6 || isLoading}
                       className="w-full bg-blue-600 text-white py-3 rounded-lg disabled:opacity-50"
                     >
-                      {isLoading ? "Verifying..." : "Verify OTP"}
+                      {isLoading ? t("otp.verifying") : t("otp.verifyOtp")}
                     </button>
                   </>
                 )}
@@ -447,7 +441,7 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
                     <div className="w-full border-t border-gray-300"></div>
                   </div>
                   <div className="relative flex justify-center text-sm">
-                    <span className="px-4 bg-white text-gray-500">or</span>
+                    <span className="px-4 bg-white text-gray-500">{t("common.or")}</span>
                   </div>
                 </div>
 
@@ -473,16 +467,16 @@ const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
                       d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
                     />
                   </svg>
-                  <span>Continue with Google</span>
+                  <span>{t("auth.continueWithGoogle")}</span>
                 </button>
 
                 <div className="text-center text-sm text-gray-600 mt-4">
-                  New to Vyapara Setu?{" "}
+                  {t("otp.newToStore")}{" "}
                   <button
                     onClick={() => window.location.href = "/signup"}
                     className="text-blue-600 font-medium hover:underline"
                   >
-                    create an account.
+                    {t("otp.createAccount")}
                   </button>
                 </div>
               </div>

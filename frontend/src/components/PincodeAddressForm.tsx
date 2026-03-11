@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { X, Check } from "lucide-react";
 import { useToast } from "./AccessibleToast";
 import { addAddress, Address } from "../utils/addressManager";
+import { useLanguage } from "../contexts/LanguageContext";
 
 interface PincodeAddressFormProps {
   onAddressAdded: (address: Address) => void;
@@ -14,6 +15,7 @@ const PincodeAddressForm: React.FC<PincodeAddressFormProps> = ({
   onClose,
 }) => {
   const { success, error: showError } = useToast();
+  const { t } = useLanguage();
 
   // Pincode validation state
   const [pincode, setPincode] = useState("");
@@ -33,7 +35,7 @@ const PincodeAddressForm: React.FC<PincodeAddressFormProps> = ({
         setCity(locationData.city);
         setState(locationData.state);
         setPincodeValid(true);
-        setPincodeMessage("✅ Delivery is available to this location.");
+        setPincodeMessage(t("address.deliveryAvailable"));
         // Clear the autofill data
         localStorage.removeItem("autofillAddress");
       } catch (error) {
@@ -66,19 +68,19 @@ const PincodeAddressForm: React.FC<PincodeAddressFormProps> = ({
 
         if (res.ok && data.deliverable) {
           setPincodeValid(true);
-          setPincodeMessage("✅ Delivery is available to this location.");
+          setPincodeMessage(t("address.deliveryAvailable"));
           setCity(data.district || "Unknown City");
           setState(data.state || "Unknown State");
         } else {
           setPincodeValid(false);
-          setPincodeMessage("❌ Delivery is not available to this location.");
+          setPincodeMessage(t("address.deliveryNotAvailable"));
           setCity("");
           setState("");
         }
       } catch (err) {
         console.error("Pincode check failed:", err);
         setPincodeValid(false);
-        setPincodeMessage("❌ Unable to check delivery. Please try again.");
+        setPincodeMessage(t("address.unableToCheck"));
         setCity("");
         setState("");
       } finally {
@@ -86,7 +88,7 @@ const PincodeAddressForm: React.FC<PincodeAddressFormProps> = ({
       }
     } else if (numericValue.length > 0) {
       setPincodeValid(false);
-      setPincodeMessage("Please enter a complete 6-digit pincode.");
+      setPincodeMessage(t("address.enterCompletePincode"));
       setCity("");
       setState("");
     } else {
@@ -108,24 +110,24 @@ const PincodeAddressForm: React.FC<PincodeAddressFormProps> = ({
   // Handle save new address
   const handleSaveAddress = () => {
     if (!pincodeValid) {
-      showError("Invalid pincode", "Please enter a valid pincode first.");
+      showError(t("address.invalidPincode"), t("address.enterValidPincode"));
       return;
     }
 
     if (!city.trim()) {
-      showError("Missing information", "Please enter city name.");
+      showError(t("address.missingInfo"), t("address.enterCity"));
       return;
     }
 
     if (!state.trim()) {
-      showError("Missing information", "Please enter state name.");
+      showError(t("address.missingInfo"), t("address.enterState"));
       return;
     }
 
     if (!addressForm.houseNo.trim()) {
       showError(
-        "Missing information",
-        "Please enter house number/street address."
+        t("address.missingInfo"),
+        t("address.enterHouseNo")
       );
       return;
     }
@@ -155,7 +157,7 @@ const PincodeAddressForm: React.FC<PincodeAddressFormProps> = ({
     setState("");
     setAddressForm({ houseNo: "", landmark: "", label: "Home" });
 
-    success("Address saved", "Your new address has been saved successfully.");
+    success(t("address.saved"), t("address.savedSuccess"));
   };
 
   return (
@@ -175,7 +177,7 @@ const PincodeAddressForm: React.FC<PincodeAddressFormProps> = ({
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-bold text-gray-900">
-              Add New Address
+              {t("address.addNew")}
             </h2>
             <button
               onClick={onClose}
@@ -188,19 +190,19 @@ const PincodeAddressForm: React.FC<PincodeAddressFormProps> = ({
           {/* Pincode Validation Section */}
           <div className="bg-gray-50 rounded-lg p-4 mb-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Check Delivery Availability
+              {t("address.checkDelivery")}
             </h3>
 
             <div className="max-w-md">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Pincode *
+                {t("address.pincode")} *
               </label>
               <input
                 type="text"
                 value={pincode}
                 onChange={(e) => handlePincodeChange(e.target.value)}
                 onBlur={(e) => handlePincodeChange(e.target.value)}
-                placeholder="Enter 6-digit pincode"
+                placeholder={t("address.enterPincode")}
                 maxLength={6}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
@@ -233,14 +235,14 @@ const PincodeAddressForm: React.FC<PincodeAddressFormProps> = ({
               className="space-y-6"
             >
               <h3 className="text-lg font-semibold text-gray-900">
-                Address Details
+                {t("address.addressDetails")}
               </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Pincode (read-only) */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Pincode
+                    {t("address.pincode")}
                   </label>
                   <input
                     type="text"
@@ -253,13 +255,13 @@ const PincodeAddressForm: React.FC<PincodeAddressFormProps> = ({
                 {/* City (editable) */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    City *
+                    {t("address.city")} *
                   </label>
                   <input
                     type="text"
                     value={city}
                     onChange={(e) => setCity(e.target.value)}
-                    placeholder="Enter city name"
+                    placeholder={t("address.enterCityName")}
                     className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                       city.trim() ? "border-green-300" : "border-gray-300"
                     }`}
@@ -267,7 +269,7 @@ const PincodeAddressForm: React.FC<PincodeAddressFormProps> = ({
                   {city.trim() && (
                     <p className="mt-1 text-xs text-green-600 flex items-center">
                       <Check className="h-3 w-3 mr-1" />
-                      City entered
+                      {t("address.cityEntered")}
                     </p>
                   )}
                 </div>
@@ -275,13 +277,13 @@ const PincodeAddressForm: React.FC<PincodeAddressFormProps> = ({
                 {/* State (editable) */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    State *
+                    {t("address.state")} *
                   </label>
                   <input
                     type="text"
                     value={state}
                     onChange={(e) => setState(e.target.value)}
-                    placeholder="Enter state name"
+                    placeholder={t("address.enterStateName")}
                     className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                       state.trim() ? "border-green-300" : "border-gray-300"
                     }`}
@@ -289,7 +291,7 @@ const PincodeAddressForm: React.FC<PincodeAddressFormProps> = ({
                   {state.trim() && (
                     <p className="mt-1 text-xs text-green-600 flex items-center">
                       <Check className="h-3 w-3 mr-1" />
-                      State entered
+                      {t("address.stateEntered")}
                     </p>
                   )}
                 </div>
@@ -297,7 +299,7 @@ const PincodeAddressForm: React.FC<PincodeAddressFormProps> = ({
                 {/* Label */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Label
+                    {t("address.label")}
                   </label>
                   <select
                     value={addressForm.label}
@@ -306,16 +308,16 @@ const PincodeAddressForm: React.FC<PincodeAddressFormProps> = ({
                     }
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
-                    <option value="Home">Home</option>
-                    <option value="Office">Office</option>
-                    <option value="Other">Other</option>
+                    <option value="Home">{t("address.home")}</option>
+                    <option value="Office">{t("address.office")}</option>
+                    <option value="Other">{t("address.other")}</option>
                   </select>
                 </div>
 
                 {/* House No / Street */}
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    House No / Street Address *
+                    {t("address.houseNoStreet")} *
                   </label>
                   <input
                     type="text"
@@ -323,7 +325,7 @@ const PincodeAddressForm: React.FC<PincodeAddressFormProps> = ({
                     onChange={(e) =>
                       handleAddressFormChange("houseNo", e.target.value)
                     }
-                    placeholder="Enter house number and street address"
+                    placeholder={t("address.enterHouseNoStreet")}
                     className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                       addressForm.houseNo.trim()
                         ? "border-green-300"
@@ -333,7 +335,7 @@ const PincodeAddressForm: React.FC<PincodeAddressFormProps> = ({
                   {addressForm.houseNo.trim() && (
                     <p className="mt-1 text-xs text-green-600 flex items-center">
                       <Check className="h-3 w-3 mr-1" />
-                      Address entered
+                      {t("address.addressEntered")}
                     </p>
                   )}
                 </div>
@@ -341,7 +343,7 @@ const PincodeAddressForm: React.FC<PincodeAddressFormProps> = ({
                 {/* Landmark (optional) */}
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Landmark (Optional)
+                    {t("address.landmarkOptional")}
                   </label>
                   <input
                     type="text"
@@ -349,7 +351,7 @@ const PincodeAddressForm: React.FC<PincodeAddressFormProps> = ({
                     onChange={(e) =>
                       handleAddressFormChange("landmark", e.target.value)
                     }
-                    placeholder="Near landmark, building name, etc."
+                    placeholder={t("address.enterLandmark")}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
@@ -358,9 +360,7 @@ const PincodeAddressForm: React.FC<PincodeAddressFormProps> = ({
               {/* Help Text */}
               <div className="p-3 bg-blue-50 rounded-lg">
                 <p className="text-sm text-blue-700">
-                  💡 <strong>Tip:</strong> City and State are automatically
-                  filled when you enter a valid pincode, but you can edit them
-                  if needed. All fields marked with * are required.
+                  💡 <strong>{t("address.tip")}:</strong> {t("address.tipMessage")}
                 </p>
               </div>
 
@@ -370,7 +370,7 @@ const PincodeAddressForm: React.FC<PincodeAddressFormProps> = ({
                   onClick={onClose}
                   className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                 >
-                  Cancel
+                  {t("ui.cancel")}
                 </button>
                 <button
                   onClick={handleSaveAddress}
@@ -382,7 +382,7 @@ const PincodeAddressForm: React.FC<PincodeAddressFormProps> = ({
                   }
                   className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
                 >
-                  Save Address
+                  {t("address.saveAddress")}
                 </button>
               </div>
             </motion.div>

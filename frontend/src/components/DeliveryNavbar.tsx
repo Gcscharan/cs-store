@@ -10,12 +10,14 @@ import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { RootState } from "../store";
 import { useGetDeliveryProfileQuery } from "../store/api";
+import { useLanguage } from "../contexts/LanguageContext";
 
 interface DeliveryNavbarProps {}
 
 const DeliveryNavbar: React.FC<DeliveryNavbarProps> = () => {
   const navigate = useNavigate();
   const { isAuthenticated } = useSelector((state: RootState) => state.auth);
+  const { t } = useLanguage();
   
   // Fetch delivery profile from DeliveryBoy collection for correct name
   const { data: deliveryProfile } = useGetDeliveryProfileQuery(undefined, {
@@ -64,7 +66,7 @@ const DeliveryNavbar: React.FC<DeliveryNavbarProps> = () => {
           <button
             onClick={() => navigate("/delivery/help-center")}
             className="p-1 bg-white/10 hover:bg-white/20 rounded transition-colors"
-            aria-label="Help Center"
+            aria-label={t("delivery.helpCenter")}
           >
             <Headphones className="h-4 w-4" />
           </button>

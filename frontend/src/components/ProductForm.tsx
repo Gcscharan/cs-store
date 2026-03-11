@@ -1,5 +1,6 @@
 import { useState } from "react";
 import FileUpload from "./FileUpload";
+import { useLanguage } from "../contexts/LanguageContext";
 
 interface ProductFormProps {
   onImagesChange: (images: Array<{ full: string; thumb: string }>) => void;
@@ -12,6 +13,7 @@ const ProductForm = ({
   initialData,
   isLoading: _isLoading = false,
 }: ProductFormProps) => {
+  const { t } = useLanguage();
   const [images, setImages] = useState<Array<{ full: string; thumb: string }>>(
     initialData?.images || []
   );
@@ -28,7 +30,7 @@ const ProductForm = ({
         {/* Drag & Drop Upload */}
         <div>
           <label className="block text-sm font-semibold text-gray-900 mb-4">
-            Product Images
+            {t("admin.productImages")}
           </label>
           <FileUpload
             images={images}
@@ -40,14 +42,14 @@ const ProductForm = ({
         {images.length > 0 && (
           <div>
             <label className="block text-sm font-semibold text-gray-900 mb-3">
-              Uploaded Images ({images.length}/5)
+              {t("admin.uploadedImages", { count: String(images.length) })}
             </label>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
               {images.map((image, index) => (
                 <div key={index} className="relative group">
                   <img
                     src={image.thumb}
-                    alt={`Product Image ${index + 1}`}
+                    alt={t("admin.productImage", { index: String(index + 1) })}
                     className="w-full h-24 object-cover rounded-lg border border-gray-200"
                   />
                   <div className="absolute top-2 right-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded">

@@ -1,5 +1,6 @@
 import { Check, CircleDot, Hourglass, XCircle } from "lucide-react";
 import { formatEta } from "../utils/formatEta";
+import { useLanguage } from "../contexts/LanguageContext";
 
 export type OrderTimelineStep = {
   key: string;
@@ -30,6 +31,7 @@ function formatTimestamp(iso?: string): string {
 
 export default function OrderTimeline(props: { steps: OrderTimelineStep[] }) {
   const steps = Array.isArray(props.steps) ? props.steps : [];
+  const { t } = useLanguage();
 
   return (
     <div className="space-y-3">
@@ -101,7 +103,7 @@ export default function OrderTimeline(props: { steps: OrderTimelineStep[] }) {
               </div>
 
               {step.state === "current" && !step.description && (
-                <p className="text-xs text-blue-600 mt-0.5">Current status</p>
+                <p className="text-xs text-blue-600 mt-0.5">{t("status.currentStatus")}</p>
               )}
             </div>
           </div>

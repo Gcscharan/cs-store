@@ -3,6 +3,7 @@ import { X, ShieldCheck, Loader2, RefreshCcw } from "lucide-react";
 import { useDispatch } from "react-redux";
 import { setUser, setTokens } from "../store/slices/authSlice";
 import { toApiUrl } from "../config/runtime";
+import { useLanguage } from "../contexts/LanguageContext";
 
 interface OtpVerificationModalProps {
   isOpen: boolean;
@@ -22,6 +23,7 @@ const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
   pendingUserId 
 }) => {
   const dispatch = useDispatch();
+  const { t } = useLanguage();
   const [otp, setOtp] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +51,7 @@ const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
 
   const handleVerify = async () => {
     if (!otp || otp.length !== 6) {
-      setError("Please enter the 6-digit OTP");
+      setError(t("otp.enterSixDigit"));
       return;
     }
 
@@ -84,11 +86,11 @@ const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
         
         // Show specific error messages
         if (errorMessage.includes("not found") || errorMessage.includes("expired")) {
-          setError("OTP not found or expired. Please request a new OTP.");
+          setError(t("otp.notFoundOrExpired"));
         } else if (errorMessage.includes("Invalid OTP")) {
-          setError(`Invalid OTP. ${data.attemptsRemaining ? `${data.attemptsRemaining} attempts remaining.` : 'Please try again.'}`);
+          setError(t("otp.invalidOtp", { attempts: data.attemptsRemaining }));
         } else if (errorMessage.includes("Maximum OTP attempts exceeded")) {
-          setError("Maximum OTP attempts exceeded. Please request a new OTP.");
+          setError(t("otp.maxAttemptsExceeded"));
         } else {
           setError(errorMessage);
         }
@@ -148,7 +150,7 @@ const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
         return;
       }
 
-      setInfo("OTP resent successfully. Please check your messages.");
+      setInfo(t("otp.otpResentSuccess"));
       // Restart cooldown
       setCooldown(COOLDOWN_SECONDS);
       const timer = setInterval(() => {
@@ -173,7 +175,7 @@ const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
-          aria-label="Close"
+          aria-label={t("ui.close")}
         >
           <X className="w-5 h-5" />
         </button>
@@ -182,11 +184,11 @@ const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
           <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mr-3">
             <ShieldCheck className="w-6 h-6" />
           </div>
-          <h2 className="text-xl font-semibold">Verify your mobile</h2>
+          <h2 className="text-xl font-semibold">{t("otp.verifyMobile")}</h2>
         </div>
 
         <p className="text-sm text-gray-600 mb-4">
-          We sent a 6-digit OTP to your mobile number. Enter it below to verify your account.
+          {t("otp.otpSentMessage")}
         </p>
 
         <input
@@ -194,7 +196,7 @@ const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
           value={otp}
           onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
           className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 tracking-widest text-center text-lg"
-          placeholder="Enter OTP"
+          placeholder={t("otp.enterOtp")}
           maxLength={6}
         />
 
@@ -207,9 +209,9 @@ const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
           className="w-full mt-4 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
         >
           {isLoading ? (
-            <span className="flex items-center justify-center"><Loader2 className="animate-spin mr-2" /> Verifying...</span>
+            <span className="flex items-center justify-center"><Loader2 className="animate-spin mr-2" /> {t("otp.verifying")}</span>
           ) : (
-            "Verify"
+            t("ui.verify")
           )}
         </button>
 
@@ -220,14 +222,14 @@ const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
             className={`inline-flex items-center text-sm ${cooldown > 0 || isResending ? "text-gray-400 cursor-not-allowed" : "text-blue-600 hover:text-blue-700"}`}
           >
             <RefreshCcw className="w-4 h-4 mr-2" />
-            {isResending ? "Resending..." : "Resend OTP"}
+            {isResending ? t("otp.resending") : t("otp.resendOtp")}
           </button>
           <span className="text-xs text-gray-500">
-            {cooldown > 0 ? `You can resend in ${cooldown}s` : "You can resend now"}
+            {cooldown > 0 ? t("otp.canResendIn", { seconds: String(cooldown) }) : t("otp.canResendNow")}
           </span>
         </div>
 
-        <p className="text-xs text-gray-500 mt-3">Didn't receive the OTP? Please wait a minute and try again.</p>
+        <p className="text-xs text-gray-500 mt-3">{t("otp.didntReceiveOtp")}</p>
       </div>
     </div>
   );

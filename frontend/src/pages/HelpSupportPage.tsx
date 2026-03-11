@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import DeliveryBottomNav from "../components/DeliveryBottomNav";
+import { useLanguage } from "../contexts/LanguageContext";
 
 const HelpSupportPage: React.FC = () => {
   const navigate = useNavigate();
@@ -18,62 +19,57 @@ const HelpSupportPage: React.FC = () => {
   const isDeliveryRoute = location.pathname.startsWith("/delivery/");
   const [activeTab, setActiveTab] = useState("more");
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
+  const { t } = useLanguage();
 
   const faqs = [
     {
-      question: "How do I get started as a delivery partner?",
-      answer:
-        "Simply sign up with your details, complete the verification process, and start accepting delivery requests. Make sure to keep your profile updated and maintain a good rating.",
+      question: t("help.faq1Q"),
+      answer: t("help.faq1A"),
     },
     {
-      question: "What are the payment terms?",
-      answer:
-        "Payments are processed weekly every Monday. You can track your earnings in the Earnings tab and withdraw to your bank account.",
+      question: t("help.faq2Q"),
+      answer: t("help.faq2A"),
     },
     {
-      question: "How do I handle customer complaints?",
-      answer:
-        "Always be polite and professional. If you encounter any issues, contact our support team immediately. We're here to help resolve any problems.",
+      question: t("help.faq3Q"),
+      answer: t("help.faq3A"),
     },
     {
-      question: "What if I can't find the delivery address?",
-      answer:
-        "Use the in-app navigation or call the customer directly. If you're still unable to locate the address, contact our support team for assistance.",
+      question: t("help.faq4Q"),
+      answer: t("help.faq4A"),
     },
     {
-      question: "How do I update my availability?",
-      answer:
-        "Use the online/offline toggle in the app to update your availability status. You can also set your working hours in the Settings section.",
+      question: t("help.faq5Q"),
+      answer: t("help.faq5A"),
     },
     {
-      question: "What safety measures should I follow?",
-      answer:
-        "Always wear a helmet, follow traffic rules, keep your phone charged, and inform someone about your delivery routes. In case of emergency, use the emergency contacts in the app.",
+      question: t("help.faq6Q"),
+      answer: t("help.faq6A"),
     },
   ];
 
   const contactMethods = [
     {
       icon: Phone,
-      title: "Call Support",
-      description: "Speak directly with our support team",
-      action: "Call +91-800-123-4567",
+      title: t("help.callSupport"),
+      description: t("help.callSupportDesc"),
+      action: t("help.callNumber"),
       color: "text-green-600",
       bgColor: "bg-green-50",
     },
     {
       icon: Mail,
-      title: "Email Support",
-      description: "Send us an email and we'll respond within 24 hours",
+      title: t("help.emailSupport"),
+      description: t("help.emailSupportDesc"),
       action: "support@csstore.com",
       color: "text-blue-600",
       bgColor: "bg-blue-50",
     },
     {
       icon: MessageCircle,
-      title: "Live Chat",
-      description: "Chat with our support team in real-time",
-      action: "Start Chat",
+      title: t("help.liveChat"),
+      description: t("help.liveChatDesc"),
+      action: t("help.startChat"),
       color: "text-purple-600",
       bgColor: "bg-purple-50",
     },
@@ -85,7 +81,7 @@ const HelpSupportPage: React.FC = () => {
     } else if (action.startsWith("support@")) {
       window.location.href = "mailto:support@csstore.com";
     } else {
-      alert("Live chat feature coming soon!");
+      alert(t("help.chatComingSoon"));
     }
   };
 
@@ -101,9 +97,9 @@ const HelpSupportPage: React.FC = () => {
             <ArrowLeft className="h-5 w-5 text-gray-600" />
           </button>
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Help & Support</h1>
+            <h1 className="text-xl font-bold text-gray-900">{t("help.title")}</h1>
             <p className="text-sm text-gray-600">
-              Get help and contact our support team
+              {t("help.subtitle")}
             </p>
           </div>
         </div>
@@ -118,7 +114,7 @@ const HelpSupportPage: React.FC = () => {
         >
           <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
             <HelpCircle className="h-5 w-5 mr-2 text-blue-600" />
-            Contact Support
+            {t("help.contactSupport")}
           </h3>
           <div className="space-y-4">
             {contactMethods.map((method, index) => (
@@ -159,7 +155,7 @@ const HelpSupportPage: React.FC = () => {
           className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 mb-6"
         >
           <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            Frequently Asked Questions
+            {t("help.faqTitle")}
           </h3>
           <div className="space-y-4">
             {faqs.map((faq, index) => (
@@ -207,24 +203,24 @@ const HelpSupportPage: React.FC = () => {
           className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6"
         >
           <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            Quick Tips
+            {t("help.quickTips")}
           </h3>
           <div className="space-y-3 text-sm text-gray-600">
             <div className="flex items-start space-x-3">
               <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
-              <p>Keep your phone charged and have a power bank handy</p>
+              <p>{t("help.tip1")}</p>
             </div>
             <div className="flex items-start space-x-3">
               <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
-              <p>Always confirm the order details with the customer</p>
+              <p>{t("help.tip2")}</p>
             </div>
             <div className="flex items-start space-x-3">
               <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
-              <p>Take photos of delivered orders for your records</p>
+              <p>{t("help.tip3")}</p>
             </div>
             <div className="flex items-start space-x-3">
               <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
-              <p>Report any issues immediately to our support team</p>
+              <p>{t("help.tip4")}</p>
             </div>
           </div>
         </motion.div>

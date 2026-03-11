@@ -9,18 +9,20 @@ import {
   GraduationCap,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useLanguage } from "../contexts/LanguageContext";
 
 const CareersPage: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const [selectedDepartment, setSelectedDepartment] = useState("all");
 
   const departments = [
-    { id: "all", name: "All Departments" },
-    { id: "engineering", name: "Engineering" },
-    { id: "marketing", name: "Marketing" },
-    { id: "sales", name: "Sales" },
-    { id: "operations", name: "Operations" },
-    { id: "design", name: "Design" },
+    { id: "all", name: t("careers.allDepartments") },
+    { id: "engineering", name: t("careers.engineering") },
+    { id: "marketing", name: t("careers.marketing") },
+    { id: "sales", name: t("careers.sales") },
+    { id: "operations", name: t("careers.operations") },
+    { id: "design", name: t("careers.design") },
   ];
 
   const jobOpenings = [
@@ -138,9 +140,9 @@ const CareersPage: React.FC = () => {
               className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
-              <span>Back to Home</span>
+              <span>{t("legal.backToHome")}</span>
             </button>
-            <h1 className="text-2xl font-bold text-gray-900">Careers</h1>
+            <h1 className="text-2xl font-bold text-gray-900">{t("careers.title")}</h1>
             <div></div>
           </div>
         </div>
@@ -156,12 +158,10 @@ const CareersPage: React.FC = () => {
           className="text-center mb-12"
         >
           <h2 className="text-4xl font-bold text-gray-900 mb-6">
-            Join Our Team
+            {t("careers.joinOurTeam")}
           </h2>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Be part of India's fastest-growing e-commerce platform. We're
-            looking for talented, passionate individuals to help us build the
-            future of online shopping.
+            {t("careers.joinOurTeamText")}
           </p>
         </motion.div>
 
@@ -173,7 +173,7 @@ const CareersPage: React.FC = () => {
           className="bg-white rounded-lg shadow-lg p-8 mb-8"
         >
           <h3 className="text-3xl font-bold text-gray-900 mb-8 text-center">
-            Why Work With Us?
+            {t("careers.whyWorkWithUs")}
           </h3>
           <div className="grid md:grid-cols-3 gap-8">
             <div className="text-center">
@@ -181,11 +181,10 @@ const CareersPage: React.FC = () => {
                 <Users className="w-10 h-10 text-orange-500" />
               </div>
               <h4 className="text-xl font-semibold text-gray-900 mb-3">
-                Great Culture
+                {t("careers.greatCulture")}
               </h4>
               <p className="text-gray-600">
-                Work in a collaborative, inclusive environment where your ideas
-                matter and your voice is heard.
+                {t("careers.greatCultureText")}
               </p>
             </div>
 
@@ -194,11 +193,10 @@ const CareersPage: React.FC = () => {
                 <GraduationCap className="w-10 h-10 text-orange-500" />
               </div>
               <h4 className="text-xl font-semibold text-gray-900 mb-3">
-                Learning & Growth
+                {t("careers.learningGrowth")}
               </h4>
               <p className="text-gray-600">
-                Continuous learning opportunities, mentorship programs, and
-                career development support.
+                {t("careers.learningGrowthText")}
               </p>
             </div>
 
@@ -207,11 +205,10 @@ const CareersPage: React.FC = () => {
                 <Briefcase className="w-10 h-10 text-orange-500" />
               </div>
               <h4 className="text-xl font-semibold text-gray-900 mb-3">
-                Impact
+                {t("careers.impact")}
               </h4>
               <p className="text-gray-600">
-                Make a real difference in millions of lives by building products
-                that matter.
+                {t("careers.impactText")}
               </p>
             </div>
           </div>
@@ -225,50 +222,50 @@ const CareersPage: React.FC = () => {
           className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-lg shadow-lg p-8 mb-8 text-white"
         >
           <h3 className="text-3xl font-bold mb-8 text-center">
-            Benefits & Perks
+            {t("careers.benefitsPerks")}
           </h3>
           <div className="grid md:grid-cols-2 gap-8">
             <div>
               <h4 className="text-xl font-semibold mb-4">
-                Compensation & Benefits
+                {t("careers.compensationBenefits")}
               </h4>
               <ul className="space-y-2">
                 <li className="flex items-center">
                   <span className="w-2 h-2 bg-white rounded-full mr-3"></span>
-                  Competitive salary and equity
+                  {t("careers.competitiveSalary")}
                 </li>
                 <li className="flex items-center">
                   <span className="w-2 h-2 bg-white rounded-full mr-3"></span>
-                  Health insurance for you and your family
+                  {t("careers.healthInsurance")}
                 </li>
                 <li className="flex items-center">
                   <span className="w-2 h-2 bg-white rounded-full mr-3"></span>
-                  Flexible work arrangements
+                  {t("careers.flexibleWork")}
                 </li>
                 <li className="flex items-center">
                   <span className="w-2 h-2 bg-white rounded-full mr-3"></span>
-                  Generous paid time off
+                  {t("careers.generousPto")}
                 </li>
               </ul>
             </div>
             <div>
-              <h4 className="text-xl font-semibold mb-4">Work Environment</h4>
+              <h4 className="text-xl font-semibold mb-4">{t("careers.workEnvironment")}</h4>
               <ul className="space-y-2">
                 <li className="flex items-center">
                   <span className="w-2 h-2 bg-white rounded-full mr-3"></span>
-                  Modern office spaces
+                  {t("careers.modernOffices")}
                 </li>
                 <li className="flex items-center">
                   <span className="w-2 h-2 bg-white rounded-full mr-3"></span>
-                  Free meals and snacks
+                  {t("careers.freeMeals")}
                 </li>
                 <li className="flex items-center">
                   <span className="w-2 h-2 bg-white rounded-full mr-3"></span>
-                  Team building activities
+                  {t("careers.teamBuilding")}
                 </li>
                 <li className="flex items-center">
                   <span className="w-2 h-2 bg-white rounded-full mr-3"></span>
-                  Professional development budget
+                  {t("careers.profDevBudget")}
                 </li>
               </ul>
             </div>
@@ -284,7 +281,7 @@ const CareersPage: React.FC = () => {
         >
           <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
             <h3 className="text-3xl font-bold text-gray-900 mb-4 md:mb-0">
-              Open Positions
+              {t("careers.openPositions")}
             </h3>
             <div className="flex flex-wrap gap-2">
               {departments.map((dept) => (
@@ -330,13 +327,13 @@ const CareersPage: React.FC = () => {
                     </div>
                   </div>
                   <button className="mt-4 md:mt-0 bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-lg transition-colors">
-                    Apply Now
+                    {t("careers.applyNow")}
                   </button>
                 </div>
                 <p className="text-gray-600 mb-4">{job.description}</p>
                 <div>
                   <h5 className="font-medium text-gray-900 mb-2">
-                    Requirements:
+                    {t("careers.requirements")}:
                   </h5>
                   <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
                     {job.requirements.map((req, index) => (
@@ -351,7 +348,7 @@ const CareersPage: React.FC = () => {
           {filteredJobs.length === 0 && (
             <div className="text-center py-12">
               <p className="text-gray-500 text-lg">
-                No positions found in this department.
+                {t("careers.noPositions")}
               </p>
             </div>
           )}
