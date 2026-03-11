@@ -39,6 +39,7 @@ import GlobalCartConfirmationBar from "./GlobalCartConfirmationBar";
 import { CartFeedbackProvider } from "../contexts/CartFeedbackContext";
 import { getApiOrigin } from "../config/runtime";
 import { RouteShellSkeleton } from "./PageSkeletons";
+import { useLanguage } from "../contexts/LanguageContext";
 
 interface LayoutProps {
   children: ReactNode;
@@ -84,6 +85,7 @@ const CartMenuButton = React.memo(function CartMenuButton({
   cartPulse: boolean;
 }) {
   const cartItemsLength = useSelector((state: RootState) => state.cart.items.length);
+  const { t } = useLanguage();
 
   return (
     <button
@@ -94,7 +96,7 @@ const CartMenuButton = React.memo(function CartMenuButton({
       aria-label={`View cart with ${cartItemsLength ?? 0} items`}
     >
       <ShoppingCart className="h-6 w-6 cart-icon" />
-      <span className="text-xs font-medium">Cart</span>
+      <span className="text-xs font-medium">{t("nav.cart")}</span>
       {cartItemsLength > 0 && (
         <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center font-bold">
           {cartItemsLength > 99 ? "99+" : cartItemsLength}
@@ -111,6 +113,7 @@ const Layout: React.FC<LayoutProps> = ({
   hideBottomNav = false,
 }) => {
   const currentLocation = useLocation();
+  const { t } = useLanguage();
 
   // Hide bottom navigation on cart page
   const shouldHideBottomNav =
@@ -736,13 +739,13 @@ const suggestions = suggestionList || [];
                       >
                         <div className="flex items-center space-x-1">
                           <MapPin className="h-4 w-4 text-gray-600" />
-                          <span className="font-medium">Deliver to</span>
+                          <span className="font-medium">{t("nav.deliverTo")}</span>
                         </div>
                         <div className="flex items-center space-x-1 text-gray-800 font-medium">
                           <span>
                             {defaultAddress
                               ? `${defaultAddress.name || 'User'}, ${defaultAddress.city}`
-                              : "Add Address"}
+                              : t("nav.addAddress")}
                           </span>
                           <ChevronDown className="h-3 w-3" />
                         </div>
@@ -755,7 +758,7 @@ const suggestions = suggestionList || [];
                   // Admin pages - show Admin Dashboard title in center
                   <div className="flex-1 flex items-center justify-center">
                     <h1 className="text-xl font-bold text-gray-900">
-                      Admin Dashboard
+                      {t("admin.dashboard")}
                     </h1>
                   </div>
                 ) : location.pathname !== "/account" &&
@@ -766,7 +769,7 @@ const suggestions = suggestionList || [];
                     <div className="relative">
                       <input
                         type="text"
-                        placeholder="Search for Products, Brands and More"
+                        placeholder={t("nav.searchPlaceholder")}
                         value={searchQuery}
                         onChange={(e) => {
                           setSearchQuery(e.target.value);
@@ -855,7 +858,7 @@ const suggestions = suggestionList || [];
                       onClick={() => navigate("/admin-profile")}
                       className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                     >
-                      Profile
+                      {t("nav.profile")}
                     </button>
                     <button
                       onClick={async () => {
@@ -863,7 +866,7 @@ const suggestions = suggestionList || [];
                       }}
                       className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
                     >
-                      Logout
+                      {t("auth.logout")}
                     </button>
                   </div>
                 ) : isDelivery && isDeliveryPage ? (
@@ -915,7 +918,7 @@ const suggestions = suggestionList || [];
                                     }
                                     className="w-full text-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-200 rounded"
                                   >
-                                    My Profile
+                                    {t("nav.profile")}
                                   </button>
                                   <button
                                     onClick={() =>
@@ -925,7 +928,7 @@ const suggestions = suggestionList || [];
                                     }
                                     className="w-full text-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-200 rounded"
                                   >
-                                    My Orders
+                                    {t("orders.title")}
                                   </button>
                                   <button
                                     onClick={() =>
@@ -935,7 +938,7 @@ const suggestions = suggestionList || [];
                                     }
                                     className="w-full text-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-200 rounded"
                                   >
-                                    My Addresses
+                                    {t("address.savedAddresses")}
                                   </button>
                                   <div className="border-t border-gray-200 my-2"></div>
                                   <button
@@ -944,7 +947,7 @@ const suggestions = suggestionList || [];
                                     }
                                     className="w-full text-center px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors duration-200 rounded"
                                   >
-                                    Logout
+                                    {t("auth.logout")}
                                   </button>
                                 </div>
                               </div>
@@ -957,7 +960,7 @@ const suggestions = suggestionList || [];
                           aria-label="Notifications"
                         >
                           <Bell className="h-6 w-6" />
-                          <span className="text-xs font-medium">Alerts</span>
+                          <span className="text-xs font-medium">{t("nav.alerts")}</span>
                           {/* Bell badge driven purely by unreadCount API; hide if zero */}
                           {unreadCount > 0 && (
                             <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center font-bold">
@@ -974,7 +977,7 @@ const suggestions = suggestionList || [];
                             aria-label="More options"
                           >
                             <MoreVertical className="h-6 w-6" />
-                            <span className="text-xs font-medium">More</span>
+                            <span className="text-xs font-medium">{t("nav.more")}</span>
                           </button>
 
                           {/* More Options Dropdown Menu */}
@@ -989,7 +992,7 @@ const suggestions = suggestionList || [];
                                   }
                                   className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-200"
                                 >
-                                  Notification Preferences
+                                  {t("nav.notificationPreferences")}
                                 </button>
                                 <button
                                   onClick={() =>
@@ -999,7 +1002,7 @@ const suggestions = suggestionList || [];
                                   }
                                   className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-200"
                                 >
-                                  24x7 Customer Care
+                                  {t("nav.customerCare")}
                                 </button>
                                 <button
                                   onClick={() =>
@@ -1017,7 +1020,7 @@ const suggestions = suggestionList || [];
                                   >
                                     <path d="M3,20.5V3.5C3,2.91 3.34,2.39 3.84,2.15L13.69,12L3.84,21.85C3.34,21.6 3,21.09 3,20.5M16.81,15.12L6.05,21.34L14.54,12.85L16.81,15.12M20.16,10.81C20.5,11.08 20.75,11.5 20.75,12C20.75,12.5 20.53,12.9 20.18,13.18L17.89,14.5L15.39,12L17.89,9.5L20.16,10.81M6.05,2.66L16.81,8.88L14.54,11.15L6.05,2.66Z" />
                                   </svg>
-                                  <span>Download App</span>
+                                  <span>{t("nav.downloadApp")}</span>
                                 </button>
                                 <div className="border-t border-gray-200 my-1"></div>
                                 <button
@@ -1028,7 +1031,7 @@ const suggestions = suggestionList || [];
                                   }
                                   className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-200"
                                 >
-                                  About Us
+                                  {t("nav.aboutUs")}
                                 </button>
                                 <button
                                   onClick={() =>
@@ -1038,7 +1041,7 @@ const suggestions = suggestionList || [];
                                   }
                                   className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-200"
                                 >
-                                  Careers
+                                  {t("nav.careers")}
                                 </button>
                                 <button
                                   onClick={() =>
@@ -1048,7 +1051,7 @@ const suggestions = suggestionList || [];
                                   }
                                   className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-200"
                                 >
-                                  Contact Us
+                                  {t("nav.contactUs")}
                                 </button>
                                 <div className="border-t border-gray-200 my-1"></div>
                                 <button
@@ -1059,7 +1062,7 @@ const suggestions = suggestionList || [];
                                   }
                                   className="w-full text-left px-4 py-2 text-sm text-orange-600 hover:bg-orange-50 transition-colors duration-200 font-medium"
                                 >
-                                  Become a Seller
+                                  {t("nav.becomeSeller")}
                                 </button>
                               </div>
                             </div>
@@ -1078,7 +1081,7 @@ const suggestions = suggestionList || [];
                           >
                             <User className="h-6 w-6" />
                             <div className="flex items-center space-x-1">
-                              <span className="text-xs font-medium">Login</span>
+                              <span className="text-xs font-medium">{t("auth.login")}</span>
                               <ChevronDown className="h-3 w-3" />
                             </div>
                           </button>
@@ -1089,10 +1092,10 @@ const suggestions = suggestionList || [];
                               <div className="p-4">
                                 <div className="text-center mb-4">
                                   <h3 className="text-lg font-bold text-gray-900 mb-1">
-                                    Welcome
+                                    {t("nav.welcome")}
                                   </h3>
                                   <p className="text-sm text-gray-600">
-                                    To access account and manage orders
+                                    {t("nav.welcomeSubtitle")}
                                   </p>
                                 </div>
                                 <button
@@ -1102,7 +1105,7 @@ const suggestions = suggestionList || [];
                                   }}
                                   className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200 mb-2"
                                 >
-                                  LOGIN / SIGNUP
+                                  {t("auth.loginSignup")}
                                 </button>
                                 <div className="border-t border-gray-200 my-2"></div>
                                 <div className="space-y-1">
@@ -1113,7 +1116,7 @@ const suggestions = suggestionList || [];
                                     }}
                                     className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-200 rounded"
                                   >
-                                    Profile
+                                    {t("nav.profile")}
                                   </button>
                                   <button
                                     onClick={() => {
@@ -1122,7 +1125,7 @@ const suggestions = suggestionList || [];
                                     }}
                                     className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-200 rounded"
                                   >
-                                    Orders
+                                    {t("orders.title")}
                                   </button>
                                   <button
                                     onClick={() => {
@@ -1131,7 +1134,7 @@ const suggestions = suggestionList || [];
                                     }}
                                     className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-200 rounded"
                                   >
-                                    Gift Cards
+                                    {t("nav.giftCards")}
                                   </button>
                                   <button
                                     onClick={() => {
@@ -1140,7 +1143,7 @@ const suggestions = suggestionList || [];
                                     }}
                                     className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-200 rounded"
                                   >
-                                    Rewards
+                                    {t("nav.rewards")}
                                   </button>
                                   <button
                                     onClick={() =>
@@ -1150,7 +1153,7 @@ const suggestions = suggestionList || [];
                                     }
                                     className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-200 rounded"
                                   >
-                                    Help & Support
+                                    {t("help.title")}
                                   </button>
                                 </div>
                               </div>
@@ -1166,16 +1169,16 @@ const suggestions = suggestionList || [];
                           aria-label="View cart"
                         >
                           <ShoppingCart className="h-6 w-6 cart-icon" />
-                          <span className="text-xs font-medium">Cart</span>
+                          <span className="text-xs font-medium">{t("nav.cart")}</span>
                         </button>
                         <button
                           onClick={() => navigate("/become-seller")}
                           className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-600 transition-colors duration-200 px-2 py-1"
-                          aria-label="Become a Seller"
+                          aria-label={t("nav.becomeSeller")}
                         >
                           <Store className="h-6 w-6" />
                           <span className="text-xs font-medium whitespace-nowrap">
-                            Become a Seller
+                            {t("nav.becomeSeller")}
                           </span>
                         </button>
 
@@ -1187,7 +1190,7 @@ const suggestions = suggestionList || [];
                             aria-label="More options"
                           >
                             <MoreVertical className="h-6 w-6" />
-                            <span className="text-xs font-medium">More</span>
+                            <span className="text-xs font-medium">{t("nav.more")}</span>
                           </button>
 
                           {/* More Options Dropdown Menu */}
@@ -1202,7 +1205,7 @@ const suggestions = suggestionList || [];
                                   }
                                   className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-200"
                                 >
-                                  Notification Preferences
+                                  {t("nav.notificationPreferences")}
                                 </button>
                                 <button
                                   onClick={() =>
@@ -1212,7 +1215,7 @@ const suggestions = suggestionList || [];
                                   }
                                   className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-200"
                                 >
-                                  24x7 Customer Care
+                                  {t("nav.customerCare")}
                                 </button>
                                 <button
                                   onClick={() =>
@@ -1230,7 +1233,7 @@ const suggestions = suggestionList || [];
                                   >
                                     <path d="M3,20.5V3.5C3,2.91 3.34,2.39 3.84,2.15L13.69,12L3.84,21.85C3.34,21.6 3,21.09 3,20.5M16.81,15.12L6.05,21.34L14.54,12.85L16.81,15.12M20.16,10.81C20.5,11.08 20.75,11.5 20.75,12C20.75,12.5 20.53,12.9 20.18,13.18L17.89,14.5L15.39,12L17.89,9.5L20.16,10.81M6.05,2.66L16.81,8.88L14.54,11.15L6.05,2.66Z" />
                                   </svg>
-                                  <span>Download App</span>
+                                  <span>{t("nav.downloadApp")}</span>
                                 </button>
                               </div>
                             </div>

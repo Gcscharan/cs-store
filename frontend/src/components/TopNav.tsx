@@ -6,6 +6,7 @@ import { setSearchQuery } from "../store/slices/uiSlice";
 import { motion } from "framer-motion";
 import { getDisplayName } from "../utils/nameUtils";
 import { ChevronDown, Search } from "lucide-react";
+import { useLanguage } from "../contexts/LanguageContext";
 
 const TopNav = () => {
   const location = useLocation();
@@ -16,6 +17,7 @@ const TopNav = () => {
     (state: RootState) => state.auth
   );
   const { searchQuery } = useSelector((state: RootState) => state.ui);
+  const { t } = useLanguage();
 
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
@@ -100,13 +102,13 @@ const TopNav = () => {
           <button
             onClick={handleLogoClick}
             className="flex items-center space-x-2 hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-lg p-1"
-            aria-label="Go to Home page"
+            aria-label={t("nav.home")}
           >
             <div className="text-2xl">🏪</div>
-            <span className="text-xl font-bold text-gray-900">Vyapara Setu</span>
+            <span className="text-xl font-bold text-gray-900">{t("common.home")}</span>
             {isAdmin && (
               <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full ml-2">
-                Admin
+                {t("admin.dashboard")}
               </span>
             )}
           </button>
@@ -117,7 +119,7 @@ const TopNav = () => {
               <div className="relative">
                 <input
                   type="text"
-                  placeholder="Search products..."
+                  placeholder={t("nav.searchProducts")}
                   value={searchQuery}
                   onChange={handleSearchChange}
                   onFocus={() => setIsSearchFocused(true)}
@@ -137,7 +139,7 @@ const TopNav = () => {
                   onClick={handleSearch}
                   className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 transition-colors duration-200 cursor-pointer"
                   type="button"
-                  aria-label="Search"
+                  aria-label={t("common.search")}
                 >
                   <Search className="h-4 w-4" />
                 </button>
@@ -156,7 +158,7 @@ const TopNav = () => {
                 >
                   <div className="text-2xl">📊</div>
                   <span className="hidden md:block text-sm font-medium">
-                    Dashboard
+                    {t("admin.dashboard")}
                   </span>
                 </Link>
                 <Link
@@ -165,7 +167,7 @@ const TopNav = () => {
                 >
                   <div className="text-2xl">👤</div>
                   <span className="hidden md:block text-sm font-medium">
-                    Profile
+                    {t("nav.profile")}
                   </span>
                 </Link>
               </div>
@@ -211,19 +213,19 @@ const TopNav = () => {
                                 to="/account"
                                 className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors text-center"
                               >
-                                My Account
+                                {t("account.title")}
                               </Link>
                               <Link
                                 to="/orders"
                                 className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors text-center"
                               >
-                                My Orders
+                                {t("orders.title")}
                               </Link>
                               <Link
                                 to="/addresses"
                                 className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors text-center"
                               >
-                                My Addresses
+                                {t("address.savedAddresses")}
                               </Link>
                               <hr className="my-1" />
                               <button
@@ -233,7 +235,7 @@ const TopNav = () => {
                                 }}
                                 className="block w-full text-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
                               >
-                                Logout
+                                {t("auth.logout")}
                               </button>
                             </div>
                           </div>
@@ -259,7 +261,7 @@ const TopNav = () => {
                   >
                     <div className="text-2xl">👤</div>
                     <span className="hidden md:block text-sm font-medium">
-                      Login
+                      {t("auth.login")}
                     </span>
                   </Link>
                 )}

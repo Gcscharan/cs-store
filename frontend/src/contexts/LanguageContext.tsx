@@ -34,14 +34,18 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({
   };
 
   const t = (key: string, params?: Record<string, string>): string => {
-    let translation =
-      translations[language][
-        key as keyof (typeof translations)[typeof language]
-      ] || key;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const value = (translations[language] as any)[key] || key;
 
+    // If value is not a string (e.g., nested object), return the key
+    if (typeof value !== 'string') {
+      return key;
+    }
+
+    let translation = value;
     if (params) {
-      Object.entries(params).forEach(([paramKey, value]) => {
-        translation = translation.replace(`{{${paramKey}}}`, value);
+      Object.entries(params).forEach(([paramKey, paramValue]) => {
+        translation = translation.replace(`{{${paramKey}}}`, paramValue);
       });
     }
 
