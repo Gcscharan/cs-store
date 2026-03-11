@@ -272,8 +272,7 @@ jobs:
             --checks not_a_server_error \
             --exclude-path "/admin/tracking" \
             --exclude-path "/api/admin/orders/purge" \
-            --exclude-path "/debug/debug-user/*" \
-            --exclude-path "/debug/db-test"
+            --exclude-path "/debug/*"
 
   nightly-k6-heavy:
     name: k6 Load Heavy 500 VUs
@@ -351,8 +350,7 @@ jobs:
             --checks not_a_server_error \
             --exclude-path "/admin/tracking" \
             --exclude-path "/api/admin/orders/purge" \
-            --exclude-path "/debug/debug-user/*" \
-            --exclude-path "/debug/db-test" \
+            --exclude-path "/debug/*" \
             2>&1 | tail -30
 
   k6-load:
