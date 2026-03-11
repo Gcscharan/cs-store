@@ -236,6 +236,7 @@ import { ensureRedisConnection } from "./config/redis";
 import jwt from "jsonwebtoken";
 import { liveLocationEvents, liveLocationStore } from "./services/liveLocationStore";
 import { User } from "./models/User";
+import { Order } from "./models/Order";
 import { deliveryPartnerLoadService } from "./domains/operations/services/deliveryPartnerLoadService";
 import { OrderEventBroadcaster } from "./domains/orders/services/orderEventBroadcaster";
 import { initializeNotificationWriter } from "./domains/communication/services/notificationWriter";
@@ -243,6 +244,7 @@ import { initializeOutboxDispatcher } from "./domains/events/outboxDispatcher";
 import { initializeInventoryReservationSweeper } from "./domains/orders/services/inventoryReservationSweeper";
 import { startStuckPaymentScanner } from "./domains/payments/services/stuckPaymentScanner";
 import { initializePaymentReconciliation } from "./domains/payments/services/paymentReconciliationService";
+import { calculateETA } from "./domains/tracking/services/etaCalculator";
 
 // Create HTTP server
 const server = createServer(app);
@@ -315,7 +317,8 @@ app.set("orderEventBroadcaster", orderEventBroadcaster);
 // app.set("socketService", socketService);
 
 // Fan-out for accepted HTTP location updates (Phase 1B)
-liveLocationEvents.on("location", (loc: any) => {
+// Also emits to customer order rooms for live tracking
+liveLocationEvents.on("location", async (loc: any) => {
   try {
     const driverId = String(loc?.driverId || "");
     if (!driverId) return;
@@ -328,7 +331,60 @@ liveLocationEvents.on("location", (loc: any) => {
       lastUpdatedAt: new Date(Number(loc?.receivedAt || Date.now())).toISOString(),
     };
 
+    // Emit to admin room (exact coordinates)
     io.to("admin_room").emit("driver:location:update", payload);
+
+    // Emit to customer order rooms (privacy-safe rounded coordinates)
+    const orderId = String(loc?.orderId || "");
+    if (orderId) {
+      try {
+        // Check if order is still in a trackable state
+        const order = await Order.findById(orderId).select("status user deliveryPartnerId").lean();
+        if (order && !["DELIVERED", "CANCELLED", "REFUNDED"].includes(String((order as any).status || "").toUpperCase())) {
+          // Round coordinates to 3 decimal places (~111m accuracy) for privacy
+          const roundedLat = Math.round(Number(loc?.lat) * 1000) / 1000;
+          const roundedLng = Math.round(Number(loc?.lng) * 1000) / 1000;
+
+          // Calculate ETA if we have destination
+          let etaMinutes = 0;
+          let distanceRemainingM = 0;
+          
+          if ((order as any).deliveryPartnerId && loc?.lat && loc?.lng) {
+            // Get order address for ETA calculation
+            const fullOrder = await Order.findById(orderId).select("address").lean();
+            if (fullOrder?.address?.lat && fullOrder?.address?.lng) {
+              try {
+                const etaResult = await calculateETA({
+                  riderLat: Number(loc?.lat),
+                  riderLng: Number(loc?.lng),
+                  destLat: fullOrder.address.lat,
+                  destLng: fullOrder.address.lng,
+                  orderId,
+                  accuracyM: loc?.accuracy,
+                });
+                etaMinutes = etaResult.etaMinutes;
+                distanceRemainingM = etaResult.distanceRemainingM;
+              } catch (e) {
+                console.warn("[LiveLocation][ETA] calculation failed:", e);
+              }
+            }
+          }
+
+          const customerPayload = {
+            riderLat: roundedLat,
+            riderLng: roundedLng,
+            etaMinutes,
+            distanceRemainingM,
+            lastUpdated: payload.lastUpdatedAt,
+          };
+
+          // Emit to order-specific room
+          io.to(`order:${orderId}`).emit("order:location:update", customerPayload);
+        }
+      } catch (e) {
+        console.warn("[LiveLocation][customer] fan-out error:", e);
+      }
+    }
   } catch (e) {
     console.error("[LiveLocation][socket] fan-out error:", e);
   }
@@ -404,7 +460,7 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Security hard rule: only admin_room is joinable.
+    // Security hard rule: only admin_room is joinable via join_room.
     console.warn("[Socket] join_room denied: only admin_room is allowed", {
       socketId: socket.id,
       room: roomStr,
@@ -412,6 +468,64 @@ io.on("connection", (socket) => {
       userRole,
     });
     return;
+  });
+
+  // Customer: join order-specific room for live tracking
+  socket.on("join_order_room", async (data) => {
+    const { orderId, token } = data || {};
+    const orderIdStr = String(orderId || "").trim();
+
+    if (!orderIdStr) {
+      console.warn("[Socket] Customer join denied: missing orderId", { socketId: socket.id });
+      return;
+    }
+
+    try {
+      const provided =
+        (typeof token === "string" && token.trim()) ||
+        (typeof (socket.handshake as any)?.auth?.token === "string" && String((socket.handshake as any).auth.token).trim()) ||
+        (typeof socket.handshake.headers?.authorization === "string" && String(socket.handshake.headers.authorization).replace(/^Bearer\s+/i, "").trim()) ||
+        "";
+
+      if (!provided) {
+        console.warn("[Socket] Customer join denied: missing token", { socketId: socket.id, orderId: orderIdStr });
+        return;
+      }
+
+      const jwtSecret = process.env.JWT_SECRET;
+      if (!jwtSecret) {
+        console.warn("[Socket] Customer join denied: server misconfigured", { socketId: socket.id });
+        return;
+      }
+
+      const decoded = jwt.verify(provided, jwtSecret) as any;
+      const userId = String(decoded?.userId || "");
+      if (!userId) {
+        console.warn("[Socket] Customer join denied: invalid token payload", { socketId: socket.id, orderId: orderIdStr });
+        return;
+      }
+
+      // Verify user owns this order
+      const order = await Order.findById(orderIdStr).select("user status").lean();
+      if (!order) {
+        console.warn("[Socket] Customer join denied: order not found", { socketId: socket.id, orderId: orderIdStr });
+        return;
+      }
+
+      if (String((order as any).user) !== userId) {
+        console.warn("[Socket] Customer join denied: not order owner", { socketId: socket.id, orderId: orderIdStr, userId });
+        return;
+      }
+
+      // Join the order-specific room
+      const roomName = `order:${orderIdStr}`;
+      socket.join(roomName);
+      if (verboseLoggingEnabled) {
+        console.log(`✅ Customer ${userId} joined ${roomName}`);
+      }
+    } catch (e) {
+      console.warn("[Socket] Customer join denied: error", e);
+    }
   });
 
   // Handle order status updates

@@ -53,6 +53,7 @@ import paymentWebhooksRoutes from "./domains/payments/routes/webhooks.routes";
 
 // Invoice
 import invoiceRoutes from "./domains/invoice/routes/invoice.routes";
+import orderTrackingRoutes from "./routes/orderTracking";
 
 console.log("✅ App.ts loaded");
 
@@ -146,6 +147,7 @@ app.use("/api/users", mobileVerifyRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/orders", orderRoutes);
+app.use("/api/orders", orderTrackingRoutes); // Customer tracking endpoint
 app.use("/api/orders", invoiceRoutes); // Invoice routes mounted under /api/orders
 app.use("/api/delivery-fee", deliveryFeeRoutes);
 app.use("/api/delivery-fee-v2", enhancedDeliveryFeeRoutes);

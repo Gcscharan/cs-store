@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { useParams } from "react-router-dom";
 import DeliveryListItem from "../components/DeliveryListItem";
 import { useOrderUpdates } from "../hooks/useSocket";
+import { useCustomerLiveTracking } from "../hooks/useCustomerLiveTracking";
 import toast from "react-hot-toast";
 import OrderTimeline from "../components/OrderTimeline";
 import { buildCustomerOrderTimeline } from "../utils/customerOrderTimeline";
@@ -15,6 +16,18 @@ const OrderTrackingPage = () => {
 
   // Use socket for real-time updates
   const { orderStatus, paymentStatus } = useOrderUpdates(id || "");
+  
+  // Live tracking for delivery partner location
+  const { 
+    location: liveLocation, 
+    isConnected: isLiveConnected, 
+    lastUpdatedAgo,
+    shouldStopTracking 
+  } = useCustomerLiveTracking({
+    enabled: Boolean(id && order?.status && !["DELIVERED", "CANCELLED", "REFUNDED"].includes(String(order?.status || "").toUpperCase())),
+    orderId: id || null,
+    orderStatus: order?.status,
+  });
 
   const refreshOrder = useCallback(async () => {
     if (!id) return;
@@ -321,6 +334,123 @@ const OrderTrackingPage = () => {
                 </div>
               </div>
             )}
+
+          {/* Live Tracking Map */}
+          {liveLocation && !shouldStopTracking && (
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Live Tracking</h3>
+                <div className="flex items-center gap-2">
+                  <span className={`inline-flex h-2 w-2 rounded-full ${isLiveConnected ? 'bg-green-500' : 'bg-gray-400'}`} />
+                  <span className="text-xs text-gray-500">
+                    {isLiveConnected ? 'Live' : 'Connecting...'}
+                  </span>
+                  {lastUpdatedAgo && (
+                    <span className="text-xs text-gray-400 ml-2">
+                      Updated {lastUpdatedAgo}
+                    </span>
+                  )}
+                </div>
+              </div>
+              
+              {/* ETA Display */}
+              {liveLocation.etaMinutes > 0 && (
+                <div className="mb-4 p-4 bg-blue-50 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600">Estimated arrival</p>
+                      <p className="text-2xl font-bold text-blue-600">
+                        {liveLocation.etaMinutes} min
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-gray-600">Distance</p>
+                      <p className="text-lg font-semibold text-gray-900">
+                        {(liveLocation.distanceRemainingM / 1000).toFixed(1)} km
+                      </p>
+                    </div>
+                  </div>
+                  {liveLocation.stale && (
+                    <p className="text-xs text-orange-600 mt-2">
+                      ⚠️ Location may be outdated
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Google Maps Embed */}
+              <div className="w-full h-64 bg-gray-100 rounded-lg overflow-hidden relative">
+                <iframe
+                  title="Live Tracking Map"
+                  width="100%"
+                  height="100%"
+                  style={{ border: 0 }}
+                  loading="lazy"
+                  allowFullScreen
+                  referrerPolicy="no-referrer-when-downgrade"
+                  src={`https://www.google.com/maps/embed/v1/directions?key=${process.env.REACT_APP_GOOGLE_MAPS_API_KEY || ''}&origin=${liveLocation.riderLat},${liveLocation.riderLng}&destination=${(order as any)?.address?.lat || ''},${(order as any)?.address?.lng || ''}&mode=driving`}
+                />
+                
+                {/* Overlay markers for better visualization */}
+                <div className="absolute inset-0 pointer-events-none">
+                  {/* Rider marker */}
+                  <div 
+                    className="absolute transform -translate-x-1/2 -translate-y-full"
+                    style={{ 
+                      left: '30%', 
+                      top: '50%',
+                    }}
+                  >
+                    <div className="relative">
+                      <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center shadow-lg animate-pulse">
+                        <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/>
+                          <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1v-1h3.05a2.5 2.5 0 014.9 0H19a1 1 0 001-1v-5a1 1 0 00-.293-.707l-3-3A1 1 0 0016 4H3z"/>
+                        </svg>
+                      </div>
+                      <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-blue-600" />
+                    </div>
+                  </div>
+                  
+                  {/* Destination marker */}
+                  <div 
+                    className="absolute transform -translate-x-1/2 -translate-y-full"
+                    style={{ 
+                      left: '70%', 
+                      top: '60%',
+                    }}
+                  >
+                    <div className="relative">
+                      <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center shadow-lg">
+                        <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Address info */}
+              <div className="mt-4 flex items-start gap-3">
+                <div className="flex-shrink-0">
+                  <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
+                    <svg className="w-4 h-4 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-900">
+                    {(order as any)?.address?.label || 'Delivery Address'}
+                  </p>
+                  <p className="text-xs text-gray-500 truncate">
+                    {(order as any)?.address?.addressLine}, {(order as any)?.address?.city}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Status Timeline */}
           <div className="bg-white rounded-lg shadow-sm p-6">
