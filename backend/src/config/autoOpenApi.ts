@@ -1,8 +1,8 @@
-import { Express } from "express";
+import { Application } from "express";
 import swaggerJsdoc from "swagger-jsdoc";
 import listEndpoints from "express-list-endpoints";
 
-export function generateOpenApiSpec(app: Express) {
+export function generateOpenApiSpec(app: Application) {
   const endpoints = (listEndpoints(app) as any[]) || [];
 
   const paths: Record<string, any> = {};

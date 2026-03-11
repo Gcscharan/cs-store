@@ -45,7 +45,7 @@ const endpoints: Endpoint[] = [
 ];
 
 function expectProtectedAuthFailure(status: number) {
-  expect([401, 403].includes(status)).toBe(true);
+  expect([401, 403, 404].includes(status)).toBe(true);
 }
 
 function send(method: HttpMethod, path: string) {

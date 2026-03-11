@@ -20,14 +20,13 @@ describe("security: IDOR checks", () => {
 
         if (layer.name === "router" && layer.handle?.stack) {
           // best-effort mount path extraction
-          const mount = layer.regexp?.source
-            ? layer.regexp.source
-                .replace('^\\/', '/')
-                .replace('\\/?(?=\\/|$)', '')
-                .replace(/\(\?:\(\[\^\\/\]\+\?\)\)/g, "")
-                .replace(/\$\/?\?$/g, "")
-                .replace(/\\\//g, "/")
-            : "";
+          const source = layer.regexp?.source || "";
+          const mount = source
+            .replace(/^\\\//, "/")
+            .replace(/\\\/\?\(\?\=\\\/\|\$\)/g, "")
+            .replace(/\(\?\:\[\^\\\/\]\+\?\)/g, "")
+            .replace(/\$\\\/\?\$/g, "")
+            .replace(/\\\//g, "/");
           const mountPath = mount && mount !== "^/?$" ? mount : "";
           walk(layer.handle.stack, `${prefix}${mountPath}`);
         }

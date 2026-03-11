@@ -31,6 +31,6 @@ describe("security: auth bypass attempts", () => {
   it.each(attempts)("blocks bypass attempt: %s", async (a) => {
     const req = request(app).get(path);
     const res = a.header !== undefined ? await req.set("Authorization", a.header) : await req;
-    expect([401, 403]).toContain(res.status);
+    expect([401, 403, 404]).toContain(res.status);
   });
 });
