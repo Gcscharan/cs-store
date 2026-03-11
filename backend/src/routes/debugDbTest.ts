@@ -45,6 +45,16 @@ router.get("/debug-user/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
 
+    // Validate ObjectId format to avoid 500 errors from Schemathesis fuzzing
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({
+        ok: false,
+        error: "Invalid ObjectId format",
+        dbName: mongoose.connection.name,
+        dbHost: mongoose.connection.host,
+      });
+    }
+
     console.log("\n" + "=".repeat(60));
     console.log("=== DEBUG USER ADDRESSES ===");
     console.log("Requested User ID:", userId);
