@@ -3,6 +3,7 @@ import { MapPin, Check, X, Navigation, Loader2, AlertCircle, MapPinOff } from "l
 import { useNavigate } from "react-router-dom";
 import { isPincodeDeliverable } from "../utils/pincodeValidation";
 import { useGeolocation } from "../hooks/useGeolocation";
+import { useLanguage } from "../contexts/LanguageContext";
 
 interface Address {
   id: string;
@@ -30,6 +31,7 @@ const ChooseLocation: React.FC<ChooseLocationProps> = ({
   defaultAddressId,
 }) => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   
   // DEBUG: Log props received
   console.log("[ChooseLocation] Props received:", {
@@ -74,7 +76,7 @@ const ChooseLocation: React.FC<ChooseLocationProps> = ({
 
         if (!isDeliverable) {
           setIsDeliverableError(
-            `Delivery not available for pincode ${detectedPincode}. We currently deliver only in Andhra Pradesh and Telangana.`
+            t("location.deliveryNotAvailable", { pincode: detectedPincode })
           );
           return;
         }
@@ -108,7 +110,7 @@ const ChooseLocation: React.FC<ChooseLocationProps> = ({
           {/* Header */}
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold text-gray-800">
-              Choose your location
+              {t("location.chooseLocation")}
             </h2>
             <button
               onClick={onClose}
@@ -121,7 +123,7 @@ const ChooseLocation: React.FC<ChooseLocationProps> = ({
           {/* Saved Addresses */}
           <div className="space-y-3">
             <h4 className="text-sm font-medium text-gray-700">
-              Saved Addresses
+              {t("location.savedAddresses")}
             </h4>
             {addresses.length > 0 ? (
               <div className="space-y-2">
@@ -161,9 +163,9 @@ const ChooseLocation: React.FC<ChooseLocationProps> = ({
             ) : (
               <div className="text-center py-8 text-gray-500">
                 <MapPin className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                <p className="text-sm">No saved addresses yet</p>
+                <p className="text-sm">{t("location.noSavedAddresses")}</p>
                 <p className="text-xs text-gray-400 mt-1">
-                  Add a new location below to get started
+                  {t("location.addNewToStart")}
                 </p>
               </div>
             )}
@@ -179,12 +181,12 @@ const ChooseLocation: React.FC<ChooseLocationProps> = ({
               {isDetectingLocation ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>Detecting your location...</span>
+                  <span>{t("location.detectingLocation")}</span>
                 </>
               ) : (
                 <>
                   <Navigation className="w-5 h-5" />
-                  <span>Use My Current Location</span>
+                  <span>{t("location.useCurrentLocation")}</span>
                 </>
               )}
             </button>
@@ -196,13 +198,13 @@ const ChooseLocation: React.FC<ChooseLocationProps> = ({
                   <MapPinOff className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
                   <div>
                     <p className="text-sm font-medium text-amber-800">
-                      📍 Location Access Disabled
+                      📍 {t("location.accessDisabled")}
                     </p>
                     <p className="text-xs text-amber-700 mt-1">
-                      Please enable location access in your browser settings:
+                      {t("location.enableInSettings")}
                     </p>
                     <p className="text-xs text-amber-600 mt-1">
-                      Chrome → Settings → Privacy → Location
+                      {t("location.chromeSettingsPath")}
                     </p>
                   </div>
                 </div>
@@ -247,7 +249,7 @@ const ChooseLocation: React.FC<ChooseLocationProps> = ({
                   d="M12 6v6m0 0v6m0-6h6m-6 0H6"
                 />
               </svg>
-              <span>Add New Address</span>
+              <span>{t("location.addNewAddress")}</span>
             </button>
           </div>
         </div>

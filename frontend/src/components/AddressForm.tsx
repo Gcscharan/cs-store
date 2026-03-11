@@ -5,6 +5,7 @@ import { isValidPincode, getPincodeError } from "../utils/pincodeValidator";
 import { getCurrentLocationWithAddress } from "../utils/geolocation";
 import { getPincodeInfo } from "../utils/pincodeValidation";
 import { MapPin, Loader2 } from "lucide-react";
+import { useLanguage } from "../contexts/LanguageContext";
 
 interface AddressFormProps {
   onClose: () => void;
@@ -13,6 +14,7 @@ interface AddressFormProps {
 
 const AddressForm = ({ onClose, onSave }: AddressFormProps) => {
   const { success, error: showError } = useToast();
+  const { t } = useLanguage();
   const [formData, setFormData] = useState({
     label: "",
     addressLine: "",
@@ -74,7 +76,7 @@ const AddressForm = ({ onClose, onSave }: AddressFormProps) => {
         setDeliveryStatus("unavailable");
         setPincodeData({
           deliverable: false,
-          message: "Failed to validate pincode",
+          message: t("address.errors.failedValidate"),
         });
       }
     }, 500); // 500ms debounce
@@ -125,8 +127,8 @@ const AddressForm = ({ onClose, onSave }: AddressFormProps) => {
       if (!navigator.geolocation) {
         setDeliveryStatus("unavailable");
         showError(
-          "Geolocation not supported",
-          "Your browser doesn't support location services. Please enter address manually."
+          t("address.errors.geolocationNotSupported"),
+          t("address.errors.geolocationNotSupportedDesc")
         );
         return;
       }
@@ -137,8 +139,8 @@ const AddressForm = ({ onClose, onSave }: AddressFormProps) => {
       if (!locationData) {
         setDeliveryStatus("unavailable");
         showError(
-          "Location access denied",
-          "Unable to get your current location. Please enable location services and try again."
+          t("address.errors.locationAccessDenied"),
+          t("address.errors.locationAccessDeniedDesc")
         );
         return;
       }
@@ -147,7 +149,7 @@ const AddressForm = ({ onClose, onSave }: AddressFormProps) => {
       if (!isValidPincode(locationData.pincode)) {
         setDeliveryStatus("unavailable");
         const error = getPincodeError(locationData.pincode);
-        showError("Invalid Location", error);
+        showError(t("address.errors.invalidLocation"), error);
         return;
       }
 
@@ -174,14 +176,14 @@ const AddressForm = ({ onClose, onSave }: AddressFormProps) => {
         if (pincodeInfo.deliverable) {
           setDeliveryStatus("available");
           success(
-            "Location detected successfully!",
-            `Your location has been set to ${locationData.city}, ${locationData.state}. Delivery is available to this area.`
+            t("address.detectedSuccess"),
+            t("address.detectedSuccessDesc", { city: locationData.city, state: locationData.state })
           );
         } else {
           setDeliveryStatus("unavailable");
           showError(
-            "Delivery not available",
-            `We currently don't deliver to ${locationData.city}, ${locationData.state}. Please enter a different address.`
+            t("address.errors.deliveryNotAvailable"),
+            t("address.errors.deliveryNotAvailableDesc", { city: locationData.city, state: locationData.state })
           );
         }
       } catch (validationError) {
@@ -189,11 +191,11 @@ const AddressForm = ({ onClose, onSave }: AddressFormProps) => {
         setDeliveryStatus("unavailable");
         setPincodeData({
           deliverable: false,
-          message: "Failed to validate location",
+          message: t("address.errors.failedValidateLocation"),
         });
         showError(
-          "Validation failed",
-          "Unable to validate delivery to this location. Please try again or enter address manually."
+          t("address.errors.validationFailed"),
+          t("address.errors.validationFailedDesc")
         );
       }
     } catch (error) {
@@ -205,32 +207,32 @@ const AddressForm = ({ onClose, onSave }: AddressFormProps) => {
         switch (error.code) {
           case error.PERMISSION_DENIED:
             showError(
-              "Location access denied",
-              "Please allow location access in your browser settings and try again."
+              t("address.errors.locationAccessDenied"),
+              t("address.errors.locationAccessDeniedDesc2")
             );
             break;
           case error.POSITION_UNAVAILABLE:
             showError(
-              "Location unavailable",
-              "Your location could not be determined. Please check your GPS/WiFi settings."
+              t("address.errors.locationUnavailable"),
+              t("address.errors.locationUnavailableDesc")
             );
             break;
           case error.TIMEOUT:
             showError(
-              "Location timeout",
-              "Location request timed out. Please try again."
+              t("address.errors.locationTimeout"),
+              t("address.errors.locationTimeoutDesc")
             );
             break;
           default:
             showError(
-              "Location error",
-              "Unable to get your current location. Please enter address manually."
+              t("address.errors.locationError"),
+              t("address.errors.locationErrorDesc")
             );
         }
       } else {
         showError(
-          "Location error",
-          "Unable to get your current location. Please enter address manually."
+          t("address.errors.locationError"),
+          t("address.errors.locationErrorDesc")
         );
       }
     } finally {
@@ -244,15 +246,15 @@ const AddressForm = ({ onClose, onSave }: AddressFormProps) => {
     // Validate pincode first
     if (!isValidPincode(pincode)) {
       const error = getPincodeError(pincode);
-      showError("Invalid Pincode", error);
+      showError(t("address.errors.invalidPincode"), error);
       return;
     }
 
     // Check if validation is still in progress
     if (deliveryStatus === "checking") {
       showError(
-        "Please wait",
-        "Pincode validation is in progress. Please wait for the result."
+        t("address.errors.pleaseWait"),
+        t("address.errors.pleaseWaitDesc")
       );
       return;
     }
@@ -260,16 +262,16 @@ const AddressForm = ({ onClose, onSave }: AddressFormProps) => {
     // Check delivery availability
     if (deliveryStatus !== "available" || !pincodeData?.deliverable) {
       showError(
-        "Unable to deliver to this location.",
-        "Please enter a valid pincode from Andhra Pradesh or Telangana."
+        t("address.errors.unableToDeliver"),
+        t("address.errors.unableToDeliverDesc")
       );
       return;
     }
 
     if (!formData.label || !formData.addressLine || !formData.city) {
       showError(
-        "Please fill in all required fields.",
-        "All fields marked with * are required."
+        t("address.errors.fillRequired"),
+        t("address.errors.fillRequiredDesc")
       );
       return;
     }
@@ -279,7 +281,7 @@ const AddressForm = ({ onClose, onSave }: AddressFormProps) => {
       state: pincodeData?.state || formData.state,
     });
 
-    success("Address saved", "Your address has been saved successfully.");
+    success(t("address.saved"), t("address.savedDesc"));
   };
 
   return (
@@ -301,7 +303,7 @@ const AddressForm = ({ onClose, onSave }: AddressFormProps) => {
           <div className="p-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-semibold text-gray-900">
-                Add Address
+                {t("address.addAddress")}
               </h2>
               <button
                 onClick={onClose}
@@ -314,13 +316,13 @@ const AddressForm = ({ onClose, onSave }: AddressFormProps) => {
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Label */}
               <div>
-                <label className="label">Label *</label>
+                <label className="label">{t("address.label")} *</label>
                 <input
                   type="text"
                   name="label"
                   value={formData.label}
                   onChange={handleInputChange}
-                  placeholder="Home, Office, etc."
+                  placeholder={t("address.labelPlaceholder")}
                   className="input"
                   required
                 />
@@ -328,7 +330,7 @@ const AddressForm = ({ onClose, onSave }: AddressFormProps) => {
 
               {/* Address */}
               <div>
-                <label className="label">Address Line *</label>
+                <label className="label">{t("address.addressLine")} *</label>
                 <textarea
                   name="addressLine"
                   value={formData.addressLine}
@@ -338,7 +340,7 @@ const AddressForm = ({ onClose, onSave }: AddressFormProps) => {
                       addressLine: e.target.value,
                     }))
                   }
-                  placeholder="Street address, building, etc."
+                  placeholder={t("address.addressLinePlaceholder")}
                   className="input min-h-[80px] resize-none"
                   required
                 />
@@ -358,8 +360,8 @@ const AddressForm = ({ onClose, onSave }: AddressFormProps) => {
                     )}
                     <span>
                       {isLoadingLocation
-                        ? "Detecting location..."
-                        : "Use My Current Location"}
+                        ? t("address.detectingLocation")
+                        : t("address.useCurrentLocation")}
                     </span>
                   </button>
                 </div>
@@ -367,12 +369,12 @@ const AddressForm = ({ onClose, onSave }: AddressFormProps) => {
 
               {/* Pincode */}
               <div>
-                <label className="label">Pincode *</label>
+                <label className="label">{t("address.pincode")} *</label>
                 <input
                   type="text"
                   value={pincode}
                   onChange={handlePincodeChange}
-                  placeholder="6-digit pincode"
+                  placeholder={t("address.pincodePlaceholder")}
                   className="input"
                   maxLength={6}
                   required
@@ -385,30 +387,30 @@ const AddressForm = ({ onClose, onSave }: AddressFormProps) => {
                 {deliveryStatus === "checking" && (
                   <div className="text-sm text-blue-600 mt-1 flex items-center">
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Checking delivery availability...
+                    {t("address.checkingDelivery")}
                   </div>
                 )}
                 {deliveryStatus === "available" && pincodeData && (
                   <div className="text-sm text-green-600 mt-1">
-                    ✅ Delivery available to {pincodeData.state}
+                    ✅ {t("address.deliveryAvailable", { state: pincodeData.state || "" })}
                   </div>
                 )}
                 {deliveryStatus === "unavailable" && (
                   <div className="text-sm text-red-600 mt-1">
-                    ❌ Not deliverable to this location or pincode
+                    ❌ {t("address.notDeliverable")}
                   </div>
                 )}
               </div>
 
               {/* City */}
               <div>
-                <label className="label">City *</label>
+                <label className="label">{t("address.city")} *</label>
                 <input
                   type="text"
                   name="city"
                   value={formData.city}
                   onChange={handleInputChange}
-                  placeholder="City name"
+                  placeholder={t("address.cityPlaceholder")}
                   className="input"
                   required
                 />
@@ -417,7 +419,7 @@ const AddressForm = ({ onClose, onSave }: AddressFormProps) => {
               {/* State (auto-filled from pincode) */}
               {pincodeData?.state && deliveryStatus === "available" && (
                 <div>
-                  <label className="label">State</label>
+                  <label className="label">{t("address.state")}</label>
                   <input
                     type="text"
                     value={pincodeData.state}
@@ -437,7 +439,7 @@ const AddressForm = ({ onClose, onSave }: AddressFormProps) => {
                   className="rounded"
                 />
                 <label className="text-sm text-gray-700">
-                  Set as default address
+                  {t("address.setAsDefault")}
                 </label>
               </div>
 
@@ -448,7 +450,7 @@ const AddressForm = ({ onClose, onSave }: AddressFormProps) => {
                   onClick={onClose}
                   className="flex-1 py-2 px-4 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
                 >
-                  Cancel
+                  {t("common.cancel")}
                 </button>
                 <button
                   type="submit"
@@ -460,8 +462,8 @@ const AddressForm = ({ onClose, onSave }: AddressFormProps) => {
                   className="flex-1 py-2 px-4 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
                 >
                   {deliveryStatus === "checking"
-                    ? "Validating..."
-                    : "Save Address"}
+                    ? t("address.validating")
+                    : t("address.saveAddress")}
                 </button>
               </div>
             </form>

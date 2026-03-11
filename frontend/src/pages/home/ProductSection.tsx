@@ -38,6 +38,7 @@ const HomeGuestOnly = function HomeGuestOnly({ children }: { children: React.Rea
 const HomeHeader = memo(function HomeHeader() {
   const { showOtpModal } = useOtpModal();
   const { refreshToken } = useTokenRefresh();
+  const { t } = useLanguage();
 
   const auth = useSelector(
     (state: RootState) => ({
@@ -105,7 +106,7 @@ const HomeHeader = memo(function HomeHeader() {
       >
         <div className="max-w-7xl mx-auto">
           <h2 className="text-3xl font-bold text-gray-900 mb-8 text-center">
-            Browse Categories
+            {t("home.browseCategories")}
           </h2>
           <div className="grid grid-cols-3 gap-8 max-w-7xl mx-auto">
             <motion.button
@@ -118,9 +119,9 @@ const HomeHeader = memo(function HomeHeader() {
             >
               <div className="absolute inset-0 bg-gradient-to-br from-orange-400/20 to-red-500/20"></div>
               <div className="relative z-10">
-                <div className="text-base opacity-90 mb-3">Premium chocolates & more</div>
-                <div className="text-2xl font-bold mb-3">Chocolates</div>
-                <div className="text-lg opacity-90">From ₹99</div>
+                <div className="text-base opacity-90 mb-3">{t("home.premiumChocolates")}</div>
+                <div className="text-2xl font-bold mb-3">{t("home.chocolates")}</div>
+                <div className="text-lg opacity-90">{t("home.fromPrice", { price: "99" })}</div>
               </div>
               <div className="absolute -bottom-4 -right-4 text-8xl opacity-20 group-hover:opacity-30 transition-opacity">
                 🍫
@@ -137,9 +138,9 @@ const HomeHeader = memo(function HomeHeader() {
             >
               <div className="absolute inset-0 bg-gradient-to-br from-orange-400/20 to-red-500/20"></div>
               <div className="relative z-10">
-                <div className="text-base opacity-90 mb-3">Crunchy & crispy</div>
-                <div className="text-2xl font-bold mb-3">Biscuits</div>
-                <div className="text-lg opacity-90">From ₹49</div>
+                <div className="text-base opacity-90 mb-3">{t("home.crunchyCrispy")}</div>
+                <div className="text-2xl font-bold mb-3">{t("home.biscuits")}</div>
+                <div className="text-lg opacity-90">{t("home.fromPrice", { price: "49" })}</div>
               </div>
               <div className="absolute -bottom-4 -right-4 text-8xl opacity-20 group-hover:opacity-30 transition-opacity">
                 🍪
@@ -156,9 +157,9 @@ const HomeHeader = memo(function HomeHeader() {
             >
               <div className="absolute inset-0 bg-gradient-to-br from-orange-400/20 to-red-500/20"></div>
               <div className="relative z-10">
-                <div className="text-base opacity-90 mb-3">Traditional sweets</div>
-                <div className="text-2xl font-bold mb-3">Festive Ladoos</div>
-                <div className="text-lg opacity-90">From ₹199</div>
+                <div className="text-base opacity-90 mb-3">{t("home.traditionalSweets")}</div>
+                <div className="text-2xl font-bold mb-3">{t("home.festiveLadoos")}</div>
+                <div className="text-lg opacity-90">{t("home.fromPrice", { price: "199" })}</div>
               </div>
               <div className="absolute -bottom-4 -right-4 text-8xl opacity-20 group-hover:opacity-30 transition-opacity">
                 🥮
@@ -175,9 +176,9 @@ const HomeHeader = memo(function HomeHeader() {
             >
               <div className="absolute inset-0 bg-gradient-to-br from-orange-400/20 to-red-500/20"></div>
               <div className="relative z-10">
-                <div className="text-base opacity-90 mb-3">Fresh baked daily</div>
-                <div className="text-2xl font-bold mb-3">Birthday Cakes</div>
-                <div className="text-lg opacity-90">From ₹299</div>
+                <div className="text-base opacity-90 mb-3">{t("home.freshBakedDaily")}</div>
+                <div className="text-2xl font-bold mb-3">{t("home.birthdayCakes")}</div>
+                <div className="text-lg opacity-90">{t("home.fromPrice", { price: "299" })}</div>
               </div>
               <div className="absolute -bottom-4 -right-4 text-8xl opacity-20 group-hover:opacity-30 transition-opacity">
                 🎂
@@ -194,9 +195,9 @@ const HomeHeader = memo(function HomeHeader() {
             >
               <div className="absolute inset-0 bg-gradient-to-br from-orange-400/20 to-red-500/20"></div>
               <div className="relative z-10">
-                <div className="text-base opacity-90 mb-3">Spicy & tangy</div>
-                <div className="text-2xl font-bold mb-3">Hot Snacks</div>
-                <div className="text-lg opacity-90">From ₹99</div>
+                <div className="text-base opacity-90 mb-3">{t("home.spicyTangy")}</div>
+                <div className="text-2xl font-bold mb-3">{t("home.hotSnacks")}</div>
+                <div className="text-lg opacity-90">{t("home.fromPrice", { price: "99" })}</div>
               </div>
               <div className="absolute -bottom-4 -right-4 text-8xl opacity-20 group-hover:opacity-30 transition-opacity">
                 🌶️
@@ -213,9 +214,9 @@ const HomeHeader = memo(function HomeHeader() {
             >
               <div className="absolute inset-0 bg-gradient-to-br from-orange-400/20 to-red-500/20"></div>
               <div className="relative z-10">
-                <div className="text-base opacity-90 mb-3">Refreshing drinks</div>
-                <div className="text-2xl font-bold mb-3">Beverages</div>
-                <div className="text-lg opacity-90">From ₹29</div>
+                <div className="text-base opacity-90 mb-3">{t("home.refreshingDrinks")}</div>
+                <div className="text-2xl font-bold mb-3">{t("home.beverages")}</div>
+                <div className="text-lg opacity-90">{t("home.fromPrice", { price: "29" })}</div>
               </div>
               <div className="absolute -bottom-4 -right-4 text-8xl opacity-20 group-hover:opacity-30 transition-opacity">
                 🥤
@@ -260,15 +261,15 @@ const HomeFooter = memo(function HomeFooter() {
             <div className="mt-8 flex justify-center space-x-8 text-blue-100">
               <div className="text-center">
                 <div className="text-2xl font-bold">4.8★</div>
-                <div className="text-sm">App Store Rating</div>
+                <div className="text-sm">{t("home.appStoreRating")}</div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold">1M+</div>
-                <div className="text-sm">Downloads</div>
+                <div className="text-sm">{t("home.downloads")}</div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold">24/7</div>
-                <div className="text-sm">Support</div>
+                <div className="text-sm">{t("home.support")}</div>
               </div>
             </div>
           </div>
@@ -279,7 +280,7 @@ const HomeFooter = memo(function HomeFooter() {
         <div className="max-w-7xl mx-auto px-4 py-12">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             <div>
-              <h3 className="text-lg font-semibold mb-4 text-orange-400">ABOUT</h3>
+              <h3 className="text-lg font-semibold mb-4 text-orange-400">{t("footer.about")}</h3>
               <ul className="space-y-2 text-sm">
                 <li>
                   <Link to="/contact-us" className="hover:text-orange-400 transition-colors">
@@ -316,7 +317,7 @@ const HomeFooter = memo(function HomeFooter() {
             </div>
 
             <div>
-              <h3 className="text-lg font-semibold mb-4 text-orange-400">HELP</h3>
+              <h3 className="text-lg font-semibold mb-4 text-orange-400">{t("footer.help")}</h3>
               <ul className="space-y-2 text-sm">
                 <li>
                   <Link to="/payment" className="hover:text-orange-400 transition-colors">
@@ -353,7 +354,7 @@ const HomeFooter = memo(function HomeFooter() {
             </div>
 
             <div>
-              <h3 className="text-lg font-semibold mb-4 text-orange-400">CONSUMER POLICY</h3>
+              <h3 className="text-lg font-semibold mb-4 text-orange-400">{t("footer.consumerPolicy")}</h3>
               <ul className="space-y-2 text-sm">
                 <li>
                   <Link to="/terms" className="hover:text-orange-400 transition-colors">
@@ -384,7 +385,7 @@ const HomeFooter = memo(function HomeFooter() {
             </div>
 
             <div>
-              <h3 className="text-lg font-semibold mb-4 text-orange-400">Mail Us:</h3>
+              <h3 className="text-lg font-semibold mb-4 text-orange-400">{t("footer.mailUs")}</h3>
               <p className="text-sm text-gray-400">
                 Vyapara Setu
                 <br />
@@ -404,23 +405,23 @@ const HomeFooter = memo(function HomeFooter() {
           <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center text-sm text-gray-400">
             <div className="flex space-x-6 mb-4 md:mb-0">
               <Link to="/seller" className="hover:text-orange-400">
-                Become a Seller
+                {t("footer.becomeSeller")}
               </Link>
               <Link to="/advertise" className="hover:text-orange-400">
-                Advertise
+                {t("footer.advertise")}
               </Link>
               <Link to="/gift-cards" className="hover:text-orange-400">
-                Gift Cards
+                {t("footer.giftCards")}
               </Link>
               <Link to="/help" className="hover:text-orange-400">
-                Help Center
+                {t("footer.helpCenter")}
               </Link>
             </div>
-            <div className="mb-4 md:mb-0">© 2024–2026 Vyapara Setu. All rights reserved.</div>
+            <div className="mb-4 md:mb-0">{t("footer.copyright")}</div>
             <div>
               <img
                 src={getGradientPlaceholder('Banner', 1200, 300).src}
-                alt="Payment Methods"
+                alt={t("footer.paymentMethods")}
                 className="h-6"
               />
             </div>
@@ -442,6 +443,7 @@ const HomeFeaturedProductCard = memo(function HomeFeaturedProductCard({
   onNavigateToProduct: (id: string) => void;
   onAddToCart: (product: any) => void;
 }) {
+  const { t } = useLanguage();
   const id = String(product._id || product.id || "");
   const img = product.images?.[0] || HOME_PLACEHOLDER_IMAGE;
   const priority = false;
@@ -505,7 +507,7 @@ const HomeFeaturedProductCard = memo(function HomeFeaturedProductCard({
           onClick={handleAdd}
           className="w-full bg-orange-500 hover:bg-orange-600 text-white py-2 px-4 rounded-lg transition-colors duration-300 font-semibold"
         >
-          Add to Cart
+          {t("common.add_to_cart")}
         </button>
       </div>
     </motion.div>
@@ -523,6 +525,7 @@ const HomeTopDealCard = memo(function HomeTopDealCard({
   onNavigateToProduct: (id: string) => void;
   onAddToCart: (product: any) => void;
 }) {
+  const { t } = useLanguage();
   const id = String(product.id || product._id || "");
   const img = product.images?.[0] || HOME_PLACEHOLDER_IMAGE;
   const priority = false;
@@ -589,7 +592,7 @@ const HomeTopDealCard = memo(function HomeTopDealCard({
           onClick={handleAdd}
           className="w-full bg-orange-500 hover:bg-orange-600 text-white py-2 px-4 rounded-lg transition-colors duration-300 font-semibold"
         >
-          Add to Cart
+          {t("common.add_to_cart")}
         </button>
       </div>
     </motion.div>
@@ -605,6 +608,7 @@ const HomeGuestProductSections = memo(function HomeGuestProductSections({
   onNavigateToProduct: (id: string) => void;
   onAddToCart: (product: any) => void;
 }) {
+  const { t } = useLanguage();
   const topDealsProducts = useMemo(() => {
     if (products.length === 0) return [];
     const shuffled = [...products].sort(() => Math.random() - 0.5);
@@ -644,7 +648,7 @@ const HomeGuestProductSections = memo(function HomeGuestProductSections({
         className="bg-gray-50 py-8 px-4"
       >
         <div className="max-w-7xl mx-auto">
-          <h2 className="text-3xl font-bold text-center mb-8 text-gray-800">Featured Products</h2>
+          <h2 className="text-3xl font-bold text-center mb-8 text-gray-800">{t("home.featuredProducts")}</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
             {featuredProducts.map((product: any, index: number) => (
               <HomeFeaturedProductCard
@@ -672,8 +676,8 @@ const HomeGuestProductSections = memo(function HomeGuestProductSections({
 
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">🔥 Top Deals</h2>
-            <p className="text-lg text-gray-600">Limited time offers - Don't miss out!</p>
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">{t("home.topDeals")}</h2>
+            <p className="text-lg text-gray-600">{t("home.limitedTimeOffers")}</p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -735,6 +739,7 @@ const ProductSection = memo(function ProductSection() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const store = useStore<RootState>();
+  const { t } = useLanguage();
 
   const handleNavigateToProduct = useCallback(
     (id: string) => {
@@ -817,18 +822,18 @@ const ProductSection = memo(function ProductSection() {
         <div className="text-center">
           <div className="text-red-500 text-6xl mb-4">⚠️</div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            Error Loading Products
+            {t("home.errorLoadingProducts")}
           </h2>
           <p className="text-gray-600 mb-4">
             {error && "message" in error
               ? (error as any).message
-              : "Something went wrong while loading products."}
+              : t("home.somethingWentWrong")}
           </p>
           <button
             onClick={() => window.location.reload()}
             className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
           >
-            Try Again
+            {t("common.retry")}
           </button>
         </div>
       </div>

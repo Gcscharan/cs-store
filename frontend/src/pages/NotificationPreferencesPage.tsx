@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useGetNotificationPreferencesQuery, useUpdateNotificationPreferencesMutation } from "../store/api";
 import { useToast } from "../components/AccessibleToast";
+import { useLanguage } from "../contexts/LanguageContext";
 
 interface NotificationSettings {
   [channelId: string]: {
@@ -53,6 +54,7 @@ interface NotificationChannel {
 }
 
 const NotificationPreferencesPage: React.FC = () => {
+  const { t } = useLanguage();
   const [selectedChannel, setSelectedChannel] = useState<string>("whatsapp");
   const [savingItems, setSavingItems] = useState<Set<string>>(new Set());
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["reminders"]));
@@ -187,49 +189,49 @@ const NotificationPreferencesPage: React.FC = () => {
   const channels: NotificationChannel[] = [
     {
       id: "whatsapp",
-      name: "WhatsApp",
+      name: t("notifications.channels.whatsapp"),
       icon: MessageSquare,
-      description: "Get instant messages on WhatsApp",
+      description: t("notifications.channels.whatsappDesc"),
       color: "text-green-600",
       bgColor: "bg-green-50",
     },
     {
       id: "email",
-      name: "Email",
+      name: t("notifications.channels.email"),
       icon: Mail,
-      description: "Receive notifications via email",
+      description: t("notifications.channels.emailDesc"),
       color: "text-blue-600",
       bgColor: "bg-blue-50",
     },
     {
       id: "sms",
-      name: "SMS",
+      name: t("notifications.channels.sms"),
       icon: Smartphone,
-      description: "Get text messages on your phone",
+      description: t("notifications.channels.smsDesc"),
       color: "text-orange-600",
       bgColor: "bg-orange-50",
     },
     {
       id: "push",
-      name: "Push Notifications",
+      name: t("notifications.channels.push"),
       icon: Bell,
-      description: "Browser and app notifications",
+      description: t("notifications.channels.pushDesc"),
       color: "text-purple-600",
       bgColor: "bg-purple-50",
     },
     {
       id: "desktop",
-      name: "Desktop Notifications",
+      name: t("notifications.channels.desktop"),
       icon: Monitor,
-      description: "Desktop browser notifications",
+      description: t("notifications.channels.desktopDesc"),
       color: "text-indigo-600",
       bgColor: "bg-indigo-50",
     },
     {
       id: "inapp",
-      name: "In-App Notifications",
+      name: t("notifications.channels.inapp"),
       icon: Bell,
-      description: "Notifications within the app",
+      description: t("notifications.channels.inappDesc"),
       color: "text-red-600",
       bgColor: "bg-red-50",
     },
@@ -238,56 +240,56 @@ const NotificationPreferencesPage: React.FC = () => {
   const categories = [
     {
       id: "myOrders",
-      title: "My Orders & Deliveries",
-      description: "Order status, shipping updates, real-time delivery status",
+      title: t("notifications.categories.myOrders"),
+      description: t("notifications.categories.myOrdersDesc"),
       icon: ShoppingBag,
     },
     {
       id: "reminders",
-      title: "Reminders & Alerts",
-      description: "Alerts for items, payments, and low stock",
+      title: t("notifications.categories.reminders"),
+      description: t("notifications.categories.remindersDesc"),
       icon: Bell,
       expandable: true,
       subcategories: [
-        { id: "reminders_cart", title: "Reminders for Items in Cart", description: "Items left in your cart" },
-        { id: "reminders_payment", title: "Reminders for Pending Payments", description: "Payment due reminders" },
-        { id: "reminders_restock", title: "Notify Me When Item Restocks", description: "Out of stock item notifications" },
+        { id: "reminders_cart", title: t("notifications.subcategories.cart"), description: t("notifications.subcategories.cartDesc") },
+        { id: "reminders_payment", title: t("notifications.subcategories.payment"), description: t("notifications.subcategories.paymentDesc") },
+        { id: "reminders_restock", title: t("notifications.subcategories.restock"), description: t("notifications.subcategories.restockDesc") },
       ],
     },
     {
       id: "silentPay",
-      title: "Silent Payment Monitoring",
-      description: "Confirmation and status of silent payment tracking (Razorpay)",
+      title: t("notifications.categories.silentPay"),
+      description: t("notifications.categories.silentPayDesc"),
       icon: Shield,
     },
     {
       id: "recommendations",
-      title: "Recommendations from Vyapara Setu",
-      description: "Product suggestions based on viewing and purchase history",
+      title: t("notifications.categories.recommendations"),
+      description: t("notifications.categories.recommendationsDesc"),
       icon: Star,
     },
     {
       id: "newProductAlerts",
-      title: "New Product Alerts",
-      description: "Be the first to know when new products are added to Vyapara Setu",
+      title: t("notifications.categories.newProducts"),
+      description: t("notifications.categories.newProductsDesc"),
       icon: Plus,
     },
     {
       id: "newOffers",
-      title: "New Offers & Promotions",
-      description: "Exclusive deals, discounts, and upcoming sales",
+      title: t("notifications.categories.offers"),
+      description: t("notifications.categories.offersDesc"),
       icon: Gift,
     },
     {
       id: "community",
-      title: "Vyapara Setu Community",
-      description: "Reviews, Q&A, and community interaction updates",
+      title: t("notifications.categories.community"),
+      description: t("notifications.categories.communityDesc"),
       icon: Star,
     },
     {
       id: "feedback",
-      title: "Feedback & Review Requests",
-      description: "Reminders to rate products and delivery experience",
+      title: t("notifications.categories.feedback"),
+      description: t("notifications.categories.feedbackDesc"),
       icon: Shield,
     },
   ];
@@ -393,9 +395,9 @@ const NotificationPreferencesPage: React.FC = () => {
       await updatePreferences({ preferences: nextSettings }).unwrap();
   
       // Show success indication
-      showSuccess("Preferences updated");
+      showSuccess(t("notifications.preferencesUpdated"));
     } catch (error) {
-      showError("Failed to save preferences");
+      showError(t("notifications.saveFailed"));
       console.error("Save error:", error);
     } finally {
       // Remove from saving state after a short delay
@@ -429,7 +431,7 @@ const NotificationPreferencesPage: React.FC = () => {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading preferences...</p>
+          <p className="text-gray-600">{t("notifications.loading")}</p>
         </div>
       </div>
     );
@@ -445,8 +447,8 @@ const NotificationPreferencesPage: React.FC = () => {
               <div className="flex items-center gap-3">
                 <Settings className="h-8 w-8 text-blue-600" />
                 <div>
-                  <h1 className="text-2xl font-bold text-gray-900">Notification Preferences</h1>
-                  <p className="text-gray-600">Manage how you receive notifications</p>
+                  <h1 className="text-2xl font-bold text-gray-900">{t("notifications.title")}</h1>
+                  <p className="text-gray-600">{t("notifications.subtitle")}</p>
                 </div>
               </div>
               {/* Save Changes button removed for instant auto-save */}
@@ -461,7 +463,7 @@ const NotificationPreferencesPage: React.FC = () => {
           <div className="w-80 flex-shrink-0">
             <div className="bg-white rounded-lg shadow-sm border border-gray-200">
               <div className="p-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Notification Channels</h2>
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">{t("notifications.channelsTitle")}</h2>
                 <div className="space-y-2">
                   {channels.map((channel) => {
                     const Icon = channel.icon;
@@ -528,9 +530,9 @@ const NotificationPreferencesPage: React.FC = () => {
                             {selectedChannelData.name}
                           </h2>
                           <p className="text-gray-600">
-                            {selectedChannel === 'whatsapp' 
-                              ? 'Get instant messages on your Vyapara Setu registered WhatsApp number'
-                              : `Receive notifications via ${selectedChannelData.name.toLowerCase()}`
+                            {selectedChannel === 'whatsapp'
+                              ? t("notifications.whatsappDesc")
+                              : t("notifications.channelDesc", { channel: selectedChannelData.name.toLowerCase() })
                             }
                           </p>
                         </div>

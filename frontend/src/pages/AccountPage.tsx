@@ -122,14 +122,12 @@ const AccountPage = () => {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="bg-white p-8 rounded-lg shadow-lg text-center">
-          <h1 className="text-2xl font-bold mb-4">Authentication Required</h1>
+          <h1 className="text-2xl font-bold mb-4">{t("account.authRequired")}</h1>
           <p className="text-gray-600 mb-4">
-            You need to be logged in to access this page. The OTP login modal
-            should appear automatically.
+            {t("account.authRequiredDesc")}
           </p>
           <p className="text-sm text-gray-500">
-            If the modal doesn't appear, please refresh the page or check the
-            console for errors.
+            {t("account.authRequiredHelp")}
           </p>
         </div>
       </div>
@@ -150,7 +148,7 @@ const AccountPage = () => {
           </h1>
           <p className="text-gray-600 mt-2">
             {isAuthenticated && fetchedProfile
-              ? `Welcome back, ${fetchedProfile.name}!`
+              ? t("account.welcomeBack", { name: fetchedProfile.name })
               : t("account.welcome")}
           </p>
         </div>
@@ -166,10 +164,10 @@ const AccountPage = () => {
         >
           <div className="max-w-7xl mx-auto text-center">
             <h2 className="text-3xl font-bold text-gray-900 mb-2">
-              Welcome, {fetchedProfile?.name || user?.email || 'User'}!
+              {t("account.welcomeUser", { name: fetchedProfile?.name || user?.email || 'User' })}
             </h2>
             <p className="text-lg text-gray-600">
-              Manage your account settings and preferences
+              {t("account.manageSettings")}
             </p>
           </div>
         </motion.div>
@@ -208,7 +206,7 @@ const AccountPage = () => {
                 }}
               >
                 <div className="flex items-center space-x-4">
-                  {option.label !== "Logout" && (
+                  {option.label !== t("account.logout") && (
                     <div
                       className={`p-2 rounded-lg ${
                         activeSection === option.label
@@ -228,7 +226,7 @@ const AccountPage = () => {
                   <div className="flex-1">
                     <h3
                       className={`text-lg font-semibold ${
-                        option.label === "Logout"
+                        option.label === t("account.logout")
                           ? "text-red-600"
                           : "text-gray-900"
                       }`}

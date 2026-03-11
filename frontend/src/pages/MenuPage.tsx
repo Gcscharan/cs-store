@@ -1,6 +1,9 @@
 import { motion } from "framer-motion";
+import { useLanguage } from "../contexts/LanguageContext";
 
 const MenuPage = () => {
+  const { t } = useLanguage();
+  
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -8,13 +11,13 @@ const MenuPage = () => {
       className="min-h-screen bg-gray-50 py-8 px-4"
     >
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Menu</h1>
+        <h1 className="text-3xl font-bold text-gray-900 mb-8">{t("menu.title")}</h1>
         <div className="text-center py-12">
           <div className="text-6xl mb-4">☰</div>
           <h3 className="text-xl font-semibold text-gray-900 mb-2">
-            Menu Page
+            {t("menu.pageTitle")}
           </h3>
-          <p className="text-gray-600">Coming soon...</p>
+          <p className="text-gray-600">{t("common.comingSoon")}</p>
         </div>
       </div>
     </motion.div>

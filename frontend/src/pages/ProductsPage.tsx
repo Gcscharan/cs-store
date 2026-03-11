@@ -7,8 +7,10 @@ import SortingDropdown, { SortOption } from "../components/SortingDropdown";
 import SkeletonBox from "../components/SkeletonBox";
 import { ProductGridSkeleton } from "../components/PageSkeletons";
 import { motion } from "framer-motion";
+import { useLanguage } from "../contexts/LanguageContext";
 
 const ProductsPage: React.FC = () => {
+  const { t } = useLanguage();
   const [sortBy, setSortBy] = useState<SortOption>("newest");
   const [filters, setFilters] = useState({
     category: "",
@@ -42,16 +44,16 @@ const ProductsPage: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center py-12">
             <div className="text-red-500 text-lg font-medium mb-4">
-              Failed to load products
+              {t("products.failedToLoad")}
             </div>
             <p className="text-gray-600 mb-6">
-              There was an error loading the products. Please try again.
+              {t("products.errorLoading")}
             </p>
             <button
               onClick={() => refetch()}
               className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
             >
-              Try Again
+              {t("common.retry")}
             </button>
           </div>
         </div>
@@ -64,8 +66,8 @@ const ProductsPage: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Products</h1>
-          <p className="text-gray-600">Discover our wide range of products</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">{t("products.title")}</h1>
+          <p className="text-gray-600">{t("products.subtitle")}</p>
         </div>
 
         {/* Filters and Search */}
@@ -80,7 +82,7 @@ const ProductsPage: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
           <div className="mb-4 sm:mb-0">
             <p className="text-sm text-gray-600">
-              {isLoading ? <SkeletonBox height={14} width={140} /> : `${products.length} products found`}
+              {isLoading ? <SkeletonBox height={14} width={140} /> : t("products.productsFound", { count: products.length })}
             </p>
           </div>
           <div className="flex items-center space-x-4">
@@ -136,15 +138,15 @@ const ProductsPage: React.FC = () => {
           <div className="text-center py-12">
             <div className="text-gray-400 text-6xl mb-4">📦</div>
             <h3 className="text-lg font-medium text-gray-900 mb-2">
-              No products found
+              {t("products.noProducts")}
             </h3>
             <p className="text-gray-600 mb-6">
               {filters.search ||
               filters.category ||
               filters.minPrice ||
               filters.maxPrice
-                ? "Try adjusting your search or filter criteria."
-                : "No products are available at the moment."}
+                ? t("products.tryAdjusting")
+                : t("products.noProductsAvailable")}
             </p>
             {(filters.search ||
               filters.category ||
@@ -163,7 +165,7 @@ const ProductsPage: React.FC = () => {
                 }}
                 className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
               >
-                Clear Filters
+                {t("products.clearFilters")}
               </button>
             )}
           </div>

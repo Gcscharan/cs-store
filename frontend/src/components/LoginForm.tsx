@@ -91,24 +91,23 @@ const LoginForm: React.FC = () => {
     const newErrors: Record<string, string> = {};
 
     if (!formData.emailOrPhone.trim()) {
-      newErrors.emailOrPhone = "Email or phone number is required";
+      newErrors.emailOrPhone = t("auth.validation.emailOrPhoneRequired");
     } else {
       const inputType = detectInputType(formData.emailOrPhone);
       if (inputType === "email") {
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.emailOrPhone)) {
-          newErrors.emailOrPhone = "Please enter a valid email address";
+          newErrors.emailOrPhone = t("auth.validation.validEmail");
         }
       } else {
         const phoneDigits = formData.emailOrPhone.replace(/\D/g, "");
         if (!/^[0-9]{10,15}$/.test(phoneDigits)) {
-          newErrors.emailOrPhone =
-            "Please enter a valid phone number (10-15 digits)";
+          newErrors.emailOrPhone = t("auth.validation.validPhone");
         }
       }
     }
 
     if (otpSent && !formData.otp.trim()) {
-      newErrors.otp = "OTP is required";
+      newErrors.otp = t("auth.validation.otpRequired");
     }
 
     setErrors(newErrors);
@@ -163,12 +162,12 @@ const LoginForm: React.FC = () => {
           window.location.href = `/signup?prefill=${encodeURIComponent(identifier)}&fromLogin=true`;
           return;
         } else {
-          setErrors({ general: data.error || data.details || "Failed to send OTP" });
+          setErrors({ general: data.error || data.details || t("auth.errors.failedToSendOTP") });
         }
       }
     } catch (error) {
       console.error("🔍 OTP send error:", error);
-      setErrors({ general: "Network error. Please try again." });
+      setErrors({ general: t("auth.errors.networkError") });
     } finally {
       setIsLoading(false);
       inFlightRef.current = false;
@@ -233,7 +232,7 @@ const LoginForm: React.FC = () => {
           dispatch(setStatus("ACTIVE"));
         } else {
           console.warn("⚠️ Login response missing access token");
-          setErrors({ general: "Login failed: No access token received" });
+          setErrors({ general: t("auth.errors.noAccessToken") });
           setIsLoading(false);
           return;
         }
@@ -254,23 +253,21 @@ const LoginForm: React.FC = () => {
           window.location.href = "/";
         }
       } else {
-        const errorMessage = data.error || "OTP verification failed";
+        const errorMessage = data.error || t("auth.errors.otpVerificationFailed");
         if (errorMessage.includes("email already exists")) {
           setErrors({
-            emailOrPhone:
-              "An account with this email already exists. Please use a different email or try logging in.",
+            emailOrPhone: t("auth.errors.emailExists"),
           });
         } else if (errorMessage.includes("phone number already exists")) {
           setErrors({
-            emailOrPhone:
-              "An account with this phone number already exists. Please use a different phone number or try logging in.",
+            emailOrPhone: t("auth.errors.phoneExists"),
           });
         } else {
           setErrors({ general: errorMessage });
         }
       }
     } catch (error) {
-      setErrors({ general: "Network error. Please try again." });
+      setErrors({ general: t("auth.errors.networkError") });
     } finally {
       setIsLoading(false);
       inFlightRef.current = false;
@@ -365,7 +362,7 @@ const LoginForm: React.FC = () => {
               <p className="text-red-500 text-sm mt-1">{errors.otp}</p>
             )}
             <p className="text-sm text-gray-600 mt-1">
-              OTP sent to {formData.emailOrPhone}
+              {t("auth.otpSentTo", { destination: formData.emailOrPhone })}
             </p>
           </div>
         )}

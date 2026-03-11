@@ -95,9 +95,9 @@ const SettingsPage: React.FC = () => {
     
     try {
       await updatePreferences(newNotifications).unwrap();
-      toast.success("Notification preferences updated");
+      toast.success(t("settings.preferencesUpdated"));
     } catch (err: any) {
-      toast.error(err?.data?.message || "Failed to update preferences");
+      toast.error(err?.data?.message || t("settings.updateFailed"));
       // Revert on error
       setNotifications(notifications);
     }
@@ -112,15 +112,15 @@ const SettingsPage: React.FC = () => {
     const { oldPassword, newPassword, confirmPassword } = passwordData;
 
     if (!oldPassword || !newPassword) {
-      toast.error("All fields are required");
+      toast.error(t("settings.allFieldsRequired"));
       return;
     }
     if (newPassword !== confirmPassword) {
-      toast.error("New passwords do not match");
+      toast.error(t("settings.passwordsDoNotMatch"));
       return;
     }
     if (newPassword.length < 6) {
-      toast.error("New password must be at least 6 characters");
+      toast.error(t("settings.passwordTooShort"));
       return;
     }
 
@@ -130,17 +130,17 @@ const SettingsPage: React.FC = () => {
         newPassword,
       }).unwrap();
       
-      toast.success("Password changed successfully");
+      toast.success(t("settings.passwordChanged"));
       setShowPasswordModal(false);
       setPasswordData({ oldPassword: "", newPassword: "", confirmPassword: "" });
     } catch (err: any) {
-      toast.error(err?.data?.message || "Failed to change password");
+      toast.error(err?.data?.message || t("settings.passwordChangeFailed"));
     }
   };
 
   // LOGOUT HANDLER
   const handleLogout = () => {
-    const ok = window.confirm("Are you sure you want to logout?");
+    const ok = window.confirm(t("settings.logoutConfirm"));
     if (!ok) return;
 
     // Clear all local storage and session data
@@ -152,19 +152,17 @@ const SettingsPage: React.FC = () => {
     
     // Redirect to home
     navigate("/");
-    toast.success("Logged out successfully");
+    toast.success(t("settings.loggedOut"));
   };
 
   // DELETE ACCOUNT
   const handleAccountDeletion = async () => {
-    const ok = window.confirm(
-      "Are you sure you want to delete your account? This action cannot be undone and will permanently remove all your data."
-    );
+    const ok = window.confirm(t("settings.deleteConfirm"));
     if (!ok) return;
 
     try {
       await deleteAccount(undefined).unwrap();
-      toast.success("Account deleted successfully");
+      toast.success(t("settings.accountDeleted"));
       
       // Clear all local storage and session data
       localStorage.clear();
@@ -176,7 +174,7 @@ const SettingsPage: React.FC = () => {
       // Redirect to home
       navigate("/");
     } catch (err: any) {
-      toast.error(err?.data?.message || "Failed to delete account");
+      toast.error(err?.data?.message || t("settings.deleteFailed"));
     }
   };
 

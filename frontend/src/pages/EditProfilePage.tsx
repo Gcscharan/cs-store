@@ -68,12 +68,12 @@ const EditProfilePage = () => {
 
   const handleProfileUpdate = async () => {
     if (!profileData.name.trim()) {
-      toast.error("Name is required");
+      toast.error(t("profile.nameRequired"));
       return;
     }
 
     if (!profileData.email.trim()) {
-      toast.error("Email is required");
+      toast.error(t("profile.emailRequired"));
       return;
     }
 
@@ -82,7 +82,7 @@ const EditProfilePage = () => {
       // Support both E.164 format and local 10-digit numbers
       const phoneRegex = /^\+?[1-9]\d{1,14}$|^[6-9]\d{9}$/;
       if (!phoneRegex.test(profileData.phone.replace(/\s/g, ''))) {
-        setPhoneError("Invalid phone number format");
+        setPhoneError(t("profile.invalidPhone"));
         return;
       }
     } else {
@@ -101,11 +101,11 @@ const EditProfilePage = () => {
       // Refetch profile to ensure UI is in sync
       await refetchProfile();
       
-      toast.success("Profile updated successfully!");
+      toast.success(t("profile.updateSuccess"));
       navigate("/account");
     } catch (error: any) {
       console.error("Failed to update profile:", error);
-      toast.error(error?.data?.error || "Failed to update profile. Please try again.");
+      toast.error(error?.data?.error || t("profile.updateFailed"));
     }
   };
 
@@ -136,10 +136,10 @@ const EditProfilePage = () => {
             </button>
             <div>
               <h1 className="text-xl font-bold text-gray-900">
-                Edit Personal Information
+                {t("profile.edit")}
               </h1>
               <p className="text-sm text-gray-600">
-                Update your profile details
+                {t("profile.updateDetails")}
               </p>
             </div>
           </div>
@@ -170,7 +170,7 @@ const EditProfilePage = () => {
                   value={profileData.name}
                   onChange={(e) => handleInputChange("name", e.target.value)}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  placeholder="Enter your full name"
+                  placeholder={t("profile.namePlaceholder")}
                   required
                 />
               </div>
@@ -188,7 +188,7 @@ const EditProfilePage = () => {
                   value={profileData.email}
                   onChange={(e) => handleInputChange("email", e.target.value)}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  placeholder="Enter your email address"
+                  placeholder={t("profile.emailPlaceholder")}
                   required
                 />
               </div>
@@ -210,7 +210,7 @@ const EditProfilePage = () => {
                       ? "border-red-500 focus:ring-red-500" 
                       : "border-gray-300 focus:ring-blue-500"
                   }`}
-                  placeholder="Enter your phone number"
+                  placeholder={t("profile.phonePlaceholder")}
                 />
                 {phoneError && (
                   <p className="mt-1 text-sm text-red-600">{phoneError}</p>
@@ -230,7 +230,7 @@ const EditProfilePage = () => {
                 {isUpdating ? (
                   <div className="flex items-center justify-center space-x-2">
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    <span>Saving...</span>
+                    <span>{t("profile.saving")}</span>
                   </div>
                 ) : (
                   t("profile.save")
@@ -251,8 +251,7 @@ const EditProfilePage = () => {
             {/* Help Text */}
             <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
               <p className="text-sm text-blue-800">
-                <strong>Note:</strong> Your profile information helps us provide better service. 
-                Make sure your email and phone number are accurate for order updates and delivery notifications.
+                {t("profile.note")}
               </p>
             </div>
           </div>

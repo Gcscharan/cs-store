@@ -8,6 +8,8 @@ import OrderTimeline from "../components/OrderTimeline";
 import { buildCustomerOrderTimeline } from "../utils/customerOrderTimeline";
 import { shouldShowDeliveryPartner } from "../utils/deliveryPartnerVisibility";
 import { isRefundsUiEnabled } from "../config/featureFlags";
+import { useLanguage } from "../contexts/LanguageContext";
+import { translatePaymentStatus } from "../utils/translateStatus";
 
 interface OrderItem {
   productId?: {
@@ -76,6 +78,7 @@ interface Order {
 const OrderDetailsPage: React.FC = () => {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const { tokens, isAuthenticated } = useSelector(
     (state: RootState) => state.auth
   );
@@ -89,7 +92,7 @@ const OrderDetailsPage: React.FC = () => {
       return;
     }
     if (!orderId) {
-      setError("Order not found");
+      setError(t("orderDetails.notFound"));
       setIsLoading(false);
       return;
     }
@@ -103,7 +106,7 @@ const OrderDetailsPage: React.FC = () => {
 
       if (!orderId) {
         setOrder(null);
-        setError("Order not found");
+        setError(t("orderDetails.notFound"));
         return;
       }
 
@@ -116,13 +119,13 @@ const OrderDetailsPage: React.FC = () => {
 
       if (response.status === 404) {
         setOrder(null);
-        setError("Order not found");
+        setError(t("orderDetails.notFound"));
         return;
       }
 
       if (response.status === 400) {
         setOrder(null);
-        setError("Invalid order link");
+        setError(t("orderDetails.invalidLink"));
         return;
       }
 
@@ -135,20 +138,14 @@ const OrderDetailsPage: React.FC = () => {
       setOrder(orderData);
     } catch (err) {
       console.error("Error fetching order details:", err);
-      setError("Failed to load order details. Please try again later.");
+      setError(t("orderDetails.failedToLoad"));
     } finally {
       setIsLoading(false);
     }
   };
 
   const formatPaymentStatusLabel = (paymentStatus?: string): string => {
-    const s = String(paymentStatus || "").trim().toLowerCase();
-    if (s === "paid") return "Paid";
-    if (s === "refund_pending") return "Refund in progress";
-    if (s === "refunded") return "Refunded";
-    if (s === "partially_refunded") return "Partially refunded";
-    if (!s) return "Pending";
-    return s.replace(/_/g, " ");
+    return translatePaymentStatus(paymentStatus || "", t);
   };
 
   const refunds = useMemo(() => {
@@ -174,24 +171,24 @@ const OrderDetailsPage: React.FC = () => {
 
   const getRefundBadge = (statusRaw?: string): { label: string; className: string } => {
     const s = String(statusRaw || "").trim().toUpperCase();
-    if (s === "REQUESTED") return { label: "Refund requested", className: "bg-gray-100 text-gray-800" };
-    if (s === "INITIATED" || s === "PROCESSING") return { label: "Processing", className: "bg-amber-100 text-amber-900" };
-    if (s === "COMPLETED") return { label: "Completed", className: "bg-green-100 text-green-800" };
-    if (s === "FAILED") return { label: "Failed", className: "bg-red-100 text-red-800" };
-    if (s === "PARTIAL") return { label: "Partial", className: "bg-blue-100 text-blue-800" };
-    if (!s) return { label: "Refund", className: "bg-gray-100 text-gray-800" };
+    if (s === "REQUESTED") return { label: t("orderDetails.refundRequested"), className: "bg-gray-100 text-gray-800" };
+    if (s === "INITIATED" || s === "PROCESSING") return { label: t("orderDetails.processing"), className: "bg-amber-100 text-amber-900" };
+    if (s === "COMPLETED") return { label: t("orderDetails.completed"), className: "bg-green-100 text-green-800" };
+    if (s === "FAILED") return { label: t("status.failed"), className: "bg-red-100 text-red-800" };
+    if (s === "PARTIAL") return { label: t("orderDetails.partial"), className: "bg-blue-100 text-blue-800" };
+    if (!s) return { label: t("orderDetails.refund"), className: "bg-gray-100 text-gray-800" };
     return { label: s.replace(/_/g, " ").toLowerCase(), className: "bg-gray-100 text-gray-800" };
   };
 
   const refundHeadlineCopy = (statusRaw?: string): string => {
     const s = String(statusRaw || "").trim().toUpperCase();
-    if (s === "REQUESTED") return "We’ve received your refund request.";
-    if (s === "INITIATED") return "Your refund has been initiated. Banks may take 2–7 business days to reflect the amount.";
-    if (s === "PROCESSING") return "Your bank is processing the refund. Timelines depend on your bank and payment method.";
-    if (s === "COMPLETED") return "Refund completed. If you don’t see it yet, please check again in 24–48 hours.";
-    if (s === "FAILED") return "Refund could not be completed. Our support team may contact you.";
-    if (s === "PARTIAL") return "A partial refund has been completed. Remaining amount is still under review.";
-    return "Refund timelines depend on your bank and payment method.";
+    if (s === "REQUESTED") return t("orderDetails.refundRequested");
+    if (s === "INITIATED") return t("orderDetails.refundInitiated");
+    if (s === "PROCESSING") return t("orderDetails.refundTimelines");
+    if (s === "COMPLETED") return t("orderDetails.refundCompleted");
+    if (s === "FAILED") return t("orderDetails.refundFailed");
+    if (s === "PARTIAL") return t("orderDetails.partialRefund");
+    return t("orderDetails.refundTimelines");
   };
 
   useEffect(() => {
@@ -212,7 +209,7 @@ const OrderDetailsPage: React.FC = () => {
         <div className="max-w-7xl mx-auto">
           <div className="text-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading order details...</p>
+            <p className="text-gray-600">{t("orderDetails.loading")}</p>
           </div>
         </div>
       </div>
@@ -225,13 +222,13 @@ const OrderDetailsPage: React.FC = () => {
         <div className="max-w-7xl mx-auto">
           <div className="text-center py-12">
             <div className="text-red-500 text-lg font-medium mb-2">
-              {error || "Order not found"}
+              {error || t("orderDetails.notFound")}
             </div>
             <button
               onClick={() => navigate("/orders")}
               className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
             >
-              Back to Orders
+              {t("orderDetails.backToOrders")}
             </button>
           </div>
         </div>
@@ -358,7 +355,7 @@ const OrderDetailsPage: React.FC = () => {
           className="flex items-center text-blue-600 hover:text-blue-800 mb-6"
         >
           <ArrowLeft className="h-5 w-5 mr-2" />
-          Back to Orders
+          {t("orderDetails.backToOrders")}
         </button>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -380,7 +377,7 @@ const OrderDetailsPage: React.FC = () => {
 
             {showPartner && (
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-3">Delivery Partner</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">{t("orderDetails.deliveryPartner")}</h3>
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-gray-900 truncate">
@@ -401,7 +398,7 @@ const OrderDetailsPage: React.FC = () => {
                       href={`tel:${String((order as any)?.deliveryPartner?.phone)}`}
                       className="inline-flex items-center rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700"
                     >
-                      Call
+                      {t("orderDetails.call")}
                     </a>
                   )}
                 </div>
@@ -477,7 +474,7 @@ const OrderDetailsPage: React.FC = () => {
                         </p>
                       </div>
                       <p className="text-sm text-gray-600">
-                        Quantity: {quantity}
+                        {t("orderDetails.quantity")}: {quantity}
                       </p>
                     </div>
                   </div>
@@ -488,7 +485,7 @@ const OrderDetailsPage: React.FC = () => {
             {/* Order Status Timeline */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                Order Status
+                {t("orderDetails.orderStatus")}
               </h3>
               <OrderTimeline steps={timeline as any} />
             </div>
@@ -499,14 +496,14 @@ const OrderDetailsPage: React.FC = () => {
             {/* Delivery Details */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                Delivery Details
+                {t("orderDetails.deliveryDetails")}
               </h3>
               <div className="space-y-3">
                 <div className="flex items-start space-x-3">
                   <MapPin className="h-5 w-5 text-gray-500 mt-0.5" />
                   <div>
                     <p className="font-medium text-gray-900">
-                      {order.address?.label || "Home"}
+                      {order.address?.label || t("orderDetails.home")}
                     </p>
                     {addressLine && (
                       <p className="text-sm text-gray-600">{addressLine}</p>
@@ -530,18 +527,18 @@ const OrderDetailsPage: React.FC = () => {
             {/* Price Details */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                Price Details
+                {t("orderDetails.priceDetails")}
               </h3>
               <div className="space-y-3">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Listing price</span>
+                  <span className="text-gray-600">{t("orderDetails.listingPrice")}</span>
                   <span className="text-gray-500 line-through">
                     ₹{priceDetails.listingPrice}
                   </span>
                 </div>
                 {priceDetails.discount > 0 && (
                   <div className="flex justify-between text-sm">
-                    <span className="text-green-600">Discount</span>
+                    <span className="text-green-600">{t("orderDetails.discount")}</span>
                     <span className="text-green-600">
                       -₹{priceDetails.discount}
                     </span>
@@ -549,7 +546,7 @@ const OrderDetailsPage: React.FC = () => {
                 )}
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600 flex items-center">
-                    Selling price
+                    {t("orderDetails.sellingPrice")}
                     <CheckCircle className="h-4 w-4 text-green-500 ml-1" />
                   </span>
                   <span className="text-gray-900">
@@ -557,7 +554,7 @@ const OrderDetailsPage: React.FC = () => {
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Delivery fees</span>
+                  <span className="text-gray-600">{t("orderDetails.deliveryFees")}</span>
                   <span className="text-gray-900">
                     {priceDetails.deliveryFee > 0
                       ? `₹${priceDetails.deliveryFee}`
@@ -567,7 +564,7 @@ const OrderDetailsPage: React.FC = () => {
                 <div className="border-t border-gray-200 pt-3">
                   <div className="flex justify-between">
                     <span className="font-semibold text-gray-900">
-                      Total amount
+                      {t("orderDetails.totalAmount")}
                     </span>
                     <span className="font-bold text-xl text-gray-900">
                       ₹{priceDetails.totalAmount}
@@ -576,14 +573,14 @@ const OrderDetailsPage: React.FC = () => {
                 </div>
                 <div className="border-t border-gray-200 pt-3">
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Payment Status</span>
+                    <span className="text-gray-600">{t("orderDetails.paymentStatus")}</span>
                     <span className="text-gray-900 font-medium">
                       {formatPaymentStatusLabel(order.paymentStatus)}
                     </span>
                   </div>
                   {order.paymentMethod === "cod" && order.paymentReceivedAt && (
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Payment received on</span>
+                      <span className="text-gray-600">{t("orderDetails.paymentReceivedOn")}</span>
                       <span className="text-green-600 font-medium">
                         {new Date(order.paymentReceivedAt).toLocaleDateString('en-GB', {
                           day: 'numeric',
@@ -596,7 +593,7 @@ const OrderDetailsPage: React.FC = () => {
                     </div>
                   )}
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Payment method</span>
+                    <span className="text-gray-600">{t("orderDetails.paymentMethod")}</span>
                     <span className="text-gray-900 font-medium">
                       {formatPaymentInfo(order)}
                     </span>
@@ -609,13 +606,13 @@ const OrderDetailsPage: React.FC = () => {
               <div id="refunds" className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900">Refund</h3>
-                    <p className="text-sm text-gray-600 mt-1">Refund timelines depend on your bank and payment method.</p>
+                    <h3 className="text-lg font-semibold text-gray-900">{t("orderDetails.refund")}</h3>
+                    <p className="text-sm text-gray-600 mt-1">{t("orderDetails.refundTimelines")}</p>
                   </div>
                   <div className="text-right">
-                    <div className="text-sm text-gray-600">Summary</div>
+                    <div className="text-sm text-gray-600">{t("orderDetails.summary")}</div>
                     <div className="text-sm font-semibold text-gray-900">
-                      ₹{Math.max(0, refundSummary.refundedAmount).toLocaleString("en-IN")} refunded of ₹{Math.max(0, refundSummary.totalAmount).toLocaleString("en-IN")}
+                      {t("orderDetails.refundedOf", { amount: Math.max(0, refundSummary.refundedAmount).toLocaleString("en-IN"), total: Math.max(0, refundSummary.totalAmount).toLocaleString("en-IN") })}
                     </div>
                   </div>
                 </div>
@@ -641,12 +638,12 @@ const OrderDetailsPage: React.FC = () => {
                               {id ? <span className="text-xs text-gray-500 font-mono">{id}</span> : null}
                             </div>
                             <p className="text-sm text-gray-800 mt-2">{refundHeadlineCopy(r?.status)}</p>
-                            {reason ? <p className="text-xs text-gray-600 mt-2">Reason: {reason}</p> : null}
+                            {reason ? <p className="text-xs text-gray-600 mt-2">{t("orderDetails.reason")}: {reason}</p> : null}
                             {badge.label === "Failed" && failureReason ? (
                               <p className="text-xs text-red-700 mt-2">{failureReason}</p>
                             ) : null}
                             {createdAt ? (
-                              <p className="text-xs text-gray-500 mt-2">Created: {new Date(createdAt).toLocaleString()}</p>
+                              <p className="text-xs text-gray-500 mt-2">{t("orderDetails.created")}: {new Date(createdAt).toLocaleString()}</p>
                             ) : null}
                           </div>
                           <div className="text-right flex-shrink-0">

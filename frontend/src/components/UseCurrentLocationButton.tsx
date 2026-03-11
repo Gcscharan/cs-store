@@ -4,6 +4,7 @@ import { useToast } from "./AccessibleToast";
 import { isPincodeDeliverable } from "../utils/pincodeValidation";
 import { toApiUrl } from "../config/runtime";
 import { useGeolocation } from "../hooks/useGeolocation";
+import { useLanguage } from "../contexts/LanguageContext";
 
 interface UseCurrentLocationButtonProps {
   onLocationDetected: (locationData: {
@@ -22,6 +23,7 @@ const UseCurrentLocationButton: React.FC<UseCurrentLocationButtonProps> = ({
 }) => {
   const [errorMessage, setErrorMessage] = useState<string>("");
   const { error: showError, success: showSuccess } = useToast();
+  const { t } = useLanguage();
   const {
     loading: isLoading,
     error: geoError,
@@ -47,19 +49,19 @@ const UseCurrentLocationButton: React.FC<UseCurrentLocationButtonProps> = ({
       const response = await fetch(apiUrl);
 
       if (!response.ok) {
-        throw new Error("Failed to get address from coordinates");
+        throw new Error(t("location.errors.failedGeocode"));
       }
 
       const result = await response.json();
 
       if (!result.success || !result.data) {
-        throw new Error("Invalid response from geocoding service");
+        throw new Error(t("location.errors.invalidResponse"));
       }
 
       const locationData = result.data;
 
       if (!locationData.pincode) {
-        setErrorMessage("Could not detect pincode from your location");
+        setErrorMessage(t("location.errors.noPincode"));
         return;
       }
 
@@ -67,12 +69,12 @@ const UseCurrentLocationButton: React.FC<UseCurrentLocationButtonProps> = ({
 
       if (!isDeliverable) {
         setErrorMessage(
-          `(${locationData.pincode}) Unable to deliver to this location because our services are only in Andhra Pradesh and Telangana`
+          t("location.errors.notDeliverable", { pincode: locationData.pincode })
         );
         return;
       }
 
-      showSuccess(`Location detected: ${locationData.city}, ${locationData.state}`);
+      showSuccess(t("location.detectedSuccess", { city: locationData.city, state: locationData.state }));
 
       onLocationDetected({
         name: "",
@@ -85,7 +87,7 @@ const UseCurrentLocationButton: React.FC<UseCurrentLocationButtonProps> = ({
       });
     } catch (error) {
       console.error("Error fetching address:", error);
-      showError("Failed to get address from your location");
+      showError(t("location.errors.failedLocation"));
     }
   };
 
@@ -103,21 +105,21 @@ const UseCurrentLocationButton: React.FC<UseCurrentLocationButtonProps> = ({
             <>
               <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
               <span className="text-gray-700 font-medium">
-                Detecting your location...
+                {t("location.detectingLocation")}
               </span>
             </>
           ) : (
             <>
               <MapPin className="w-5 h-5 text-blue-600" />
               <span className="text-gray-900 font-medium">
-                📍 Use My Current Location
+                📍 {t("location.useCurrentLocation")}
               </span>
             </>
           )}
         </div>
         {!isLoading && !errorMessage && (
           <p className="text-xs text-gray-500 mt-2 text-center">
-            Auto-detect and fill your address using GPS
+            {t("location.autoDetectHint")}
           </p>
         )}
       </button>
@@ -153,10 +155,10 @@ const UseCurrentLocationButton: React.FC<UseCurrentLocationButtonProps> = ({
             <MapPin className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-medium text-amber-800">
-                📍 Location Access Disabled
+                📍 {t("location.accessDisabled")}
               </p>
               <p className="text-xs text-amber-700 mt-1">
-                Please enable location access in your browser settings to use this feature.
+                {t("location.enableInSettings")}
               </p>
             </div>
           </div>

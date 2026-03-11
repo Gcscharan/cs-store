@@ -95,14 +95,14 @@ const OrdersPage: React.FC = () => {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to fetch orders");
+        throw new Error(t("orders.fetchFailed"));
       }
 
       const data = await response.json();
       setOrders(data.orders || []);
     } catch (err) {
       console.error("Error fetching orders:", err);
-      setError("Failed to load orders. Please try again later.");
+      setError(t("orders.loadFailed"));
     } finally {
       setIsLoading(false);
     }
@@ -175,11 +175,11 @@ const OrdersPage: React.FC = () => {
 
   const formatPaymentStatusLabel = (paymentStatus?: string): string => {
     const s = String(paymentStatus || "").trim().toLowerCase();
-    if (s === "paid") return "Paid";
-    if (s === "refund_pending") return "Refund in progress";
-    if (s === "refunded") return "Refunded";
-    if (s === "partially_refunded") return "Partially refunded";
-    if (!s) return "Pending";
+    if (s === "paid") return t("orders.paymentStatus.paid");
+    if (s === "refund_pending") return t("orders.paymentStatus.refundInProgress");
+    if (s === "refunded") return t("orders.paymentStatus.refunded");
+    if (s === "partially_refunded") return t("orders.paymentStatus.partiallyRefunded");
+    if (!s) return t("orders.paymentStatus.pending");
     return s.replace(/_/g, " ");
   };
 
@@ -189,47 +189,47 @@ const OrdersPage: React.FC = () => {
 
     const normalized = String(status || "").trim().toLowerCase();
     if (normalized === "refund_pending") {
-      return "Refund in progress";
+      return t("orders.paymentStatus.refundInProgress");
     }
     if (normalized === "refunded") {
-      return "Refunded";
+      return t("orders.paymentStatus.refunded");
     }
     if (normalized === "partially_refunded") {
-      return "Partially refunded";
+      return t("orders.paymentStatus.partiallyRefunded");
     }
     
     if (status === "paid" && order.paymentReceivedAt) {
       if (method === "cod") {
-        return `Paid in cash on delivery on ${new Date(order.paymentReceivedAt).toLocaleDateString('en-GB', {
+        return t("orders.paidCodOn", { date: new Date(order.paymentReceivedAt).toLocaleDateString('en-GB', {
           day: 'numeric',
           month: 'short',
           year: 'numeric',
           hour: '2-digit',
           minute: '2-digit'
-        })}`;
+        }) });
       } else if (method === "upi") {
-        return `Paid via UPI on ${new Date(order.paymentReceivedAt).toLocaleDateString('en-GB', {
+        return t("orders.paidUpiOn", { date: new Date(order.paymentReceivedAt).toLocaleDateString('en-GB', {
           day: 'numeric',
           month: 'short',
           year: 'numeric',
           hour: '2-digit',
           minute: '2-digit'
-        })}`;
+        }) });
       } else {
-        return `Paid on ${new Date(order.paymentReceivedAt).toLocaleDateString('en-GB', {
+        return t("orders.paidOn", { date: new Date(order.paymentReceivedAt).toLocaleDateString('en-GB', {
           day: 'numeric',
           month: 'short',
           year: 'numeric',
           hour: '2-digit',
           minute: '2-digit'
-        })}`;
+        }) });
       }
     } else if (status === "paid") {
-      if (method === "cod") return "Paid in cash on delivery";
-      if (method === "upi") return "Paid via UPI";
-      return "Paid";
+      if (method === "cod") return t("orders.paidCod");
+      if (method === "upi") return t("orders.paidUpi");
+      return t("orders.paymentStatus.paid");
     } else {
-      return "Payment Pending";
+      return t("orders.paymentPending");
     }
   };
 
@@ -317,7 +317,7 @@ const OrdersPage: React.FC = () => {
             </h3>
             <p className="text-gray-600 mb-6">
               {selectedStatus
-                ? "Try selecting a different status or view all orders."
+                ? t("orders.noOrdersWithStatus")
                 : t("orders.emptySubtitle")}
             </p>
             {selectedStatus && (
@@ -348,10 +348,10 @@ const OrdersPage: React.FC = () => {
                 className="bg-white rounded-lg shadow-sm border border-gray-200 p-6"
               >
                 {/* Cancellation Message */}
-                {mapDatabaseStatusToUserFriendly(order.orderStatus || order.status || "") === "Cancelled" && (
+                {mapDatabaseStatusToUserFriendly(order.orderStatus || order.status || "") === t("orders.cancelled") && (
                   <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4">
                     <p className="text-red-600 font-semibold text-center">
-                      Order has been cancelled by the seller
+                      {t("orders.cancelledBySeller")}
                     </p>
                   </div>
                 )}
@@ -359,13 +359,13 @@ const OrdersPage: React.FC = () => {
                 {/* Order Items */}
                 <div className="mb-4">
                   <h4 className="text-sm font-medium text-gray-700 mb-2">
-                    Items ({order.items.length})
+                    {t("orders.items")} ({order.items.length})
                   </h4>
                   <div className="space-y-2">
                     {order.items.map((item, index) => {
                       // Handle both populated and unpopulated productId
                       const populatedProduct = typeof item.productId === 'object' ? item.productId : null;
-                      const productName = item.name || populatedProduct?.name || item.product?.name || "Product";
+                      const productName = item.name || populatedProduct?.name || item.product?.name || t("orders.product");
                       const productPrice = item.price || populatedProduct?.price || item.product?.price || 0;
                       const quantity = item.qty || item.quantity || 1;
                       
@@ -458,8 +458,8 @@ const OrdersPage: React.FC = () => {
                       {t("checkout.deliveryAddress")}
                     </h4>
                     <p className="text-sm text-gray-900">
-                      {order.address?.addressLine || order.address?.label || order.shippingAddress?.street || "N/A"}, {" "}
-                      {order.address?.city || order.shippingAddress?.city || "N/A"}
+                      {order.address?.addressLine || order.address?.label || order.shippingAddress?.street || t("orders.notAvailable")}, {" "}
+                      {order.address?.city || order.shippingAddress?.city || t("orders.notAvailable")}
                     </p>
                   </div>
                 </div>

@@ -32,7 +32,7 @@ const ProductDetailPage = () => {
   const dispatch = useDispatch();
   const cart = useSelector((state: RootState) => state.cart);
   const auth = useSelector((state: RootState) => state.auth);
-  const { t, language } = useLanguage();
+  const { language } = useLanguage();
   const [addToCartMutation, { isLoading: isAddingToCart }] =
     useAddToCartMutation();
   const { success, error: showError } = useToast();
@@ -45,14 +45,6 @@ const ProductDetailPage = () => {
       return product.nameTranslations[language];
     }
     return product?.nameTranslations?.en || product?.name || "Product";
-  };
-  
-  // Helper to get translated product description with fallback
-  const getTranslatedDescription = (product: any): string => {
-    if (product?.descriptionTranslations && product.descriptionTranslations[language]) {
-      return product.descriptionTranslations[language];
-    }
-    return product?.descriptionTranslations?.en || product?.description || "";
   };
   
   // Cart feedback

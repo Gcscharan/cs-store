@@ -1,10 +1,12 @@
 import React from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { CheckCircle } from "lucide-react";
+import { useLanguage } from "../contexts/LanguageContext";
 
 const OrderSuccessPage: React.FC = () => {
   const navigate = useNavigate();
   const { orderId } = useParams<{ orderId: string }>();
+  const { t } = useLanguage();
 
   const id = String(orderId || "").trim();
 
@@ -15,10 +17,10 @@ const OrderSuccessPage: React.FC = () => {
           <CheckCircle className="h-20 w-20 text-green-500" />
         </div>
 
-        <h1 className="mt-4 text-2xl font-bold text-gray-900">Order Placed Successfully!</h1>
+        <h1 className="mt-4 text-2xl font-bold text-gray-900">{t("orderSuccess.title")}</h1>
 
         <div className="mt-4 text-sm text-gray-700">
-          <div className="text-gray-500">Order ID</div>
+          <div className="text-gray-500">{t("orderSuccess.orderId")}</div>
           <div className="mt-1 font-mono font-semibold break-all">{id || "—"}</div>
         </div>
 
@@ -28,7 +30,7 @@ const OrderSuccessPage: React.FC = () => {
             onClick={() => navigate("/")}
             className="w-full py-3 px-4 rounded-lg font-semibold bg-orange-500 text-white hover:bg-orange-600 transition-colors"
           >
-            Continue Shopping
+            {t("orderSuccess.continueShopping")}
           </button>
 
           <button
@@ -44,7 +46,7 @@ const OrderSuccessPage: React.FC = () => {
                 : "bg-white text-gray-900 border-gray-300 hover:bg-gray-50"
             }`}
           >
-            View Order
+            {t("orderSuccess.viewOrder")}
           </button>
         </div>
       </div>

@@ -106,17 +106,16 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.name.trim()) newErrors.name = "Name is required";
-    if (!formData.email.trim()) newErrors.email = "Email is required";
+    if (!formData.name.trim()) newErrors.name = t("auth.validation.nameRequired");
+    if (!formData.email.trim()) newErrors.email = t("auth.validation.emailRequired");
     if (!formData.phone.trim()) {
-      newErrors.phone = "Please enter your mobile number";
+      newErrors.phone = t("auth.validation.phoneRequired");
     } else if (!isValidPhoneNumber(formData.phone)) {
-      newErrors.phone =
-        "Invalid number. Enter a 10-digit number starting with 6–9.";
+      newErrors.phone = t("auth.validation.validPhone");
     }
-    if (!formData.password) newErrors.password = "Password is required";
+    if (!formData.password) newErrors.password = t("auth.validation.passwordRequired");
     if (formData.password !== formData.confirmPassword) {
-      newErrors.confirmPassword = "Passwords do not match";
+      newErrors.confirmPassword = t("auth.validation.passwordsDoNotMatch");
     }
 
     setErrors(newErrors);
@@ -130,7 +129,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
   const handleSendPhoneOtp = async () => {
     // Basic guard: valid phone
     if (!formData.phone || !isValidPhoneNumber(formData.phone)) {
-      setOtpError("Please enter a valid 10-digit mobile number");
+      setOtpError(t("auth.validation.validPhone"));
       return;
     }
 
@@ -151,8 +150,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
       const checkData = await checkResponse.json();
 
       if (checkResponse.ok && checkData?.exists) {
-        const errorMsg =
-          "This phone number is already registered. Please sign in or use a different number.";
+        const errorMsg = t("auth.errors.phoneAlreadyRegistered");
         setOtpError("");
         setErrors((prev) => ({ ...prev, phone: errorMsg }));
         setPhoneOtpSent(false);
@@ -172,7 +170,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
 
       if (!response.ok) {
         // Show backend error message if present
-        throw new Error(data.error || data.message || "Failed to send OTP");
+        throw new Error(data.error || data.message || t("auth.errors.failedToSendOTP"));
       }
 
       // Mark OTP as sent — display OTP input UI
@@ -192,7 +190,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
         });
       }, 1000);
     } catch (err) {
-      setOtpError(err instanceof Error ? err.message : "Failed to send OTP");
+      setOtpError(err instanceof Error ? err.message : t("auth.errors.failedToSendOTP"));
       setPhoneOtpSent(false);
     } finally {
       setIsOtpLoading(false);
@@ -202,7 +200,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
   const handleVerifyPhoneOtp = async () => {
     // guard
     if (!phoneOtp || phoneOtp.length !== 6) {
-      setOtpError("Please enter a valid 6-digit OTP");
+      setOtpError(t("auth.validation.validOtp"));
       return;
     }
 
@@ -226,7 +224,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
 
       if (!response.ok) {
         // verification failed
-        throw new Error(data.error || data.message || "OTP verification failed");
+        throw new Error(data.error || data.message || t("auth.errors.otpVerificationFailed"));
       }
 
       // success
@@ -234,7 +232,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
       setOtpError("");
     } catch (err) {
       setPhoneOtpVerified(false);
-      setOtpError(err instanceof Error ? err.message : "OTP verification failed");
+      setOtpError(err instanceof Error ? err.message : t("auth.errors.otpVerificationFailed"));
     } finally {
       setIsOtpLoading(false);
     }
@@ -253,7 +251,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
 
     // If a phone is provided, require OTP verification
     if (formData.phone && !phoneOtpVerified) {
-      setOtpError("Please verify your mobile number with OTP first");
+      setOtpError(t("auth.errors.verifyPhoneFirst"));
       return;
     }
 
@@ -303,29 +301,29 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
           } catch (_) {}
 
           setErrors({});
-          setLoginInfo("Signup successful! Your account has been created.");
+          setLoginInfo(t("auth.signupSuccess"));
 
           // Redirect to dashboard after successful signup
           navigate("/dashboard");
         } else {
           // CASE B: Signup succeeded but NO tokens returned
           setErrors({});
-          setLoginInfo("Account created successfully. Please log in to continue.");
+          setLoginInfo(t("auth.accountCreated"));
         }
       } else {
         // ERROR HANDLING
         const errorMessage = data.error || data.message || "Signup failed";
 
         if (errorMessage.toLowerCase().includes("email") && errorMessage.toLowerCase().includes("exists")) {
-          setErrors({ email: "An account with this email already exists" });
+          setErrors({ email: t("auth.errors.emailExists") });
         } else if (errorMessage.toLowerCase().includes("phone") && errorMessage.toLowerCase().includes("exists")) {
-          setErrors({ phone: "An account with this phone number already exists" });
+          setErrors({ phone: t("auth.errors.phoneExists") });
         } else {
           setErrors({ general: errorMessage });
         }
       }
     } catch (error) {
-      setErrors({ general: "Network error. Please try again." });
+      setErrors({ general: t("auth.errors.networkError") });
     } finally {
       setIsLoading(false);
     }
