@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 import { Request, Response } from "express";
 import {
   resolvePincodeDetails,
@@ -152,7 +153,7 @@ export const validatePincodeController = async (
       deliveryAvailable: isValid,
     });
   } catch (error) {
-    console.error("Pincode validation error:", error);
+    logger.error("Pincode validation error:", error);
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -192,7 +193,7 @@ export const validateBulkPincodesController = async (
       totalInvalid: results.filter((r) => !r.valid).length,
     });
   } catch (error) {
-    console.error("Bulk pincode validation error:", error);
+    logger.error("Bulk pincode validation error:", error);
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -217,7 +218,7 @@ export const getValidPincodeRangesController = async (
       states: ["Andhra Pradesh", "Telangana"],
     });
   } catch (error) {
-    console.error("Get pincode ranges error:", error);
+    logger.error("Get pincode ranges error:", error);
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -267,7 +268,7 @@ export const checkPincodeController = async (
       message: "Not deliverable to this location or pincode",
     });
   } catch (error) {
-    console.error("Pincode check error:", error);
+    logger.error("Pincode check error:", error);
     res.status(500).json({
       deliverable: false,
       message: "Internal server error",

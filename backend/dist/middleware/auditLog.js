@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.auditLog = void 0;
+const logger_1 = require("../utils/logger");
 const AuditLog_1 = require("../models/AuditLog");
 function isPlainObject(v) {
     return !!v && typeof v === "object" && !Array.isArray(v);
@@ -88,11 +89,11 @@ const auditLog = async (req, _res, next) => {
             metadata,
             createdAt: new Date(),
         }).catch((err) => {
-            console.error("[AUDIT_LOG_ERROR]", err?.message || err);
+            logger_1.logger.error("[AUDIT_LOG_ERROR]", err?.message || err);
         });
     }
     catch (err) {
-        console.error("[AUDIT_LOG_ERROR]", err?.message || err);
+        logger_1.logger.error("[AUDIT_LOG_ERROR]", err?.message || err);
     }
     next();
 };

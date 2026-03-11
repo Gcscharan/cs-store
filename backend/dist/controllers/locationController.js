@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getCurrentLocationController = exports.reverseGeocodeController = void 0;
+const logger_1 = require("../utils/logger");
 // Reverse geocode coordinates to get address information
 const reverseGeocodeController = async (req, res) => {
     try {
@@ -71,7 +72,7 @@ const reverseGeocodeController = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Reverse geocoding error:", error);
+        logger_1.logger.error("Reverse geocoding error:", error);
         res.status(500).json({
             success: false,
             message: "Failed to reverse geocode coordinates",
@@ -92,7 +93,7 @@ const getCurrentLocationController = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Location controller error:", error);
+        logger_1.logger.error("Location controller error:", error);
         res.status(500).json({
             success: false,
             message: "Location service error",

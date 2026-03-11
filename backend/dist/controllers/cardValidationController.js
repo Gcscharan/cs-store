@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.validateCardDetails = void 0;
+const logger_1 = require("../utils/logger");
 const cardValidation_1 = require("../utils/cardValidation");
 // Validate card details (PCI compliant - no storage)
 const validateCardDetails = async (req, res) => {
@@ -31,7 +32,7 @@ const validateCardDetails = async (req, res) => {
         }
     }
     catch (error) {
-        console.error("Card validation error:", error);
+        logger_1.logger.error("Card validation error:", error);
         return res.status(500).json({
             valid: false,
             message: "Card validation failed",

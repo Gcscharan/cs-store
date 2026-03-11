@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger';
 import { CartRepository } from "../repositories/CartRepository";
 import { ProductRepository } from "../repositories/ProductRepository";
 import { Cart, CartItem, AddToCartRequest, UpdateCartItemRequest, RemoveFromCartRequest, CartResponse, CartItemResponse } from "../types/CartTypes";
@@ -13,23 +14,23 @@ export class CartService {
   }
 
   async getCart(userId: string): Promise<CartResponse> {
-    console.log('[CartService] getCart - userId:', userId);
+    logger.info('[CartService] getCart - userId:', userId);
     
     // Validate userId before proceeding
     if (!userId || userId === 'undefined' || userId === 'null') {
-      console.log('[CartService] getCart - invalid userId, throwing error');
+      logger.info('[CartService] getCart - invalid userId, throwing error');
       throw new Error("Invalid user identifier");
     }
 
     let cart = await this.cartRepository.findByUserIdWithPopulate(userId);
-    console.log('[CartService] getCart - cart found:', !!cart);
+    logger.info('[CartService] getCart - cart found:', !!cart);
     if (cart) {
-      console.log('[CartService] getCart - cart items count:', cart.items?.length || 0);
+      logger.info('[CartService] getCart - cart items count:', cart.items?.length || 0);
     }
 
     // For GET requests, return empty cart response without creating DB record
     if (!cart) {
-      console.log('[CartService] getCart - no cart found, returning empty response');
+      logger.info('[CartService] getCart - no cart found, returning empty response');
       return {
         cart: {
           items: [],
@@ -59,7 +60,7 @@ export class CartService {
     const hadDeletedItems = cleanedFormattedItems.length !== formattedItems.length;
 
     if (hadDeletedItems) {
-      console.log('[CartService] getCart - removing items whose products were deleted by admin');
+      logger.info('[CartService] getCart - removing items whose products were deleted by admin');
       cart.items = originalItems.filter((_: any, index: number) =>
         validIndexes.includes(index)
       );
@@ -80,8 +81,8 @@ export class CartService {
         itemCount: totals.itemCount,
       },
     };
-    console.log('[CartService] getCart - returning result with items:', result.cart.items.length);
-    console.log('[CartService] getCart - totalAmount:', result.cart.totalAmount);
+    logger.info('[CartService] getCart - returning result with items:', result.cart.items.length);
+    logger.info('[CartService] getCart - totalAmount:', result.cart.totalAmount);
     return result;
   }
 
@@ -103,7 +104,7 @@ export class CartService {
 
     // Verify product exists and is available for purchase
     const product = await this.productRepository.findById(productId);
-    console.log("[CART VALIDATION]", {
+    logger.info("[CART VALIDATION]", {
       productId,
       productFound: !!product,
       isSellable: product?.isSellable,
@@ -114,7 +115,7 @@ export class CartService {
       // Check if product exists but is unavailable
       const { Product } = await import("../../../models/Product");
       const rawProduct = await Product.findById(productId);
-      console.log("[CART VALIDATION] Raw product check:", {
+      logger.info("[CART VALIDATION] Raw product check:", {
         found: !!rawProduct,
         isSellable: rawProduct?.isSellable,
         deletedAt: rawProduct?.deletedAt,

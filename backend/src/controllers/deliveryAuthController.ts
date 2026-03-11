@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 import { Request, Response } from "express";
 import { User } from "../models/User";
 import { DeliveryBoy } from "../models/DeliveryBoy";
@@ -111,7 +112,7 @@ export const deliverySignup = async (
       },
     });
   } catch (error) {
-    console.error("Delivery signup error:", error);
+    logger.error("Delivery signup error:", error);
     res.status(500).json({
       error: "Failed to create delivery account. Please try again later.",
     });
@@ -143,7 +144,7 @@ export const getDeliveryReferral = async (
       referralCode,
     });
   } catch (error) {
-    console.error("Get delivery referral error:", error);
+    logger.error("Get delivery referral error:", error);
     res.status(500).json({ error: "Failed to get referral info" });
   }
 };
@@ -174,7 +175,7 @@ export const getDeliveryMessages = async (
       count: messages.length,
     });
   } catch (error) {
-    console.error("Get delivery messages error:", error);
+    logger.error("Get delivery messages error:", error);
     res.status(500).json({ error: "Failed to fetch messages" });
   }
 };
@@ -318,7 +319,7 @@ export const deliveryLogin = async (
       },
     });
   } catch (error) {
-    console.error("Delivery login error:", error);
+    logger.error("Delivery login error:", error);
     res.status(500).json({
       error: "Login failed. Please try again later.",
     });
@@ -372,7 +373,7 @@ export const getDeliveryProfile = async (
       });
 
       await deliveryBoy.save();
-      console.log(`✅ Auto-created DeliveryBoy record for user ${user._id}`);
+      logger.info(`✅ Auto-created DeliveryBoy record for user ${user._id}`);
     }
 
     const userDetails = await User.findById(user._id).select(
@@ -399,7 +400,7 @@ export const getDeliveryProfile = async (
       deId: deliveryBoy._id,
     });
   } catch (error) {
-    console.error("Get delivery profile error:", error);
+    logger.error("Get delivery profile error:", error);
     res.status(500).json({
       error: "Failed to get profile. Please try again later.",
     });
@@ -523,7 +524,7 @@ export const updateDeliveryProfile = async (
       },
     });
   } catch (error) {
-    console.error("Update delivery profile error:", error);
+    logger.error("Update delivery profile error:", error);
     res.status(500).json({
       error: "Failed to update profile. Please try again later.",
     });
@@ -577,7 +578,7 @@ export const getSelfieUrl = async (
       selfieUrl: deliveryBoy.selfieUrl || null,
     });
   } catch (error) {
-    console.error("Get selfie URL error:", error);
+    logger.error("Get selfie URL error:", error);
     res.status(500).json({
       error: "Failed to get selfie URL. Please try again later.",
     });
@@ -642,7 +643,7 @@ export const updateSelfie = async (
       selfieUrl: deliveryBoy.selfieUrl,
     });
   } catch (error) {
-    console.error("Update selfie error:", error);
+    logger.error("Update selfie error:", error);
     res.status(500).json({
       error: "Failed to update selfie. Please try again later.",
     });

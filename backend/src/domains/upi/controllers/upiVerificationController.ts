@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger';
 import { Request, Response } from "express";
 import rateLimit from "express-rate-limit";
 import { maskUpiVpa } from "../../../utils/maskUpiVpa";
@@ -47,7 +48,7 @@ export async function verifyUpi(
     res.status(200).json({ valid: false });
     return;
   } catch (err: any) {
-    console.error("[upi-verify] provider_error", {
+    logger.error("[upi-verify] provider_error", {
       vpa: masked,
       message: String(err?.message || ""),
     });

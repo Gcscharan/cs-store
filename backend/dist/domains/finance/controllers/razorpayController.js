@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.handleRazorpayWebhook = exports.verifyRazorpayPayment = exports.createRazorpayOrder = void 0;
+const logger_1 = require("../../../utils/logger");
 /**
  * Create Razorpay Order
  * This endpoint creates a Razorpay order and returns the order_id
@@ -26,7 +27,7 @@ const verifyRazorpayPayment = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Payment verification error:", error);
+        logger_1.logger.error("Payment verification error:", error);
         return res.status(500).json({
             error: "Failed to verify payment",
             message: error.message || "Unknown error occurred"
@@ -47,7 +48,7 @@ const handleRazorpayWebhook = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Webhook handling error:", error);
+        logger_1.logger.error("Webhook handling error:", error);
         return res.status(500).json({
             error: "Failed to handle webhook",
             message: error.message || "Unknown error occurred"

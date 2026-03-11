@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 import express from "express";
 import {
   getCart,
@@ -13,7 +14,7 @@ const router = express.Router();
 
 // Test endpoint to verify route is working
 router.get("/test", (req, res) => {
-  console.log('[CartRoute] Test endpoint called');
+  logger.info('[CartRoute] Test endpoint called');
   res.json({ message: "Cart route is working!" });
 });
 
@@ -25,35 +26,35 @@ router.get("/", authenticateToken, customerOnly, getCart);
 
 // Unified POST endpoint for cart operations (frontend compatibility)
 router.post("/", authenticateToken, customerOnly, async (req, res) => {
-  console.log('[CartRoute] POST /api/cart called with body:', req.body);
-  console.log('[CartRoute] POST /api/cart - req.user exists:', !!req.user);
+  logger.info('[CartRoute] POST /api/cart called with body:', req.body);
+  logger.info('[CartRoute] POST /api/cart - req.user exists:', !!req.user);
   if (req.user) {
-    console.log('[CartRoute] POST /api/cart - user role:', (req.user as IUser).role);
+    logger.info('[CartRoute] POST /api/cart - user role:', (req.user as IUser).role);
   }
   
   try {
     // If body contains productId, treat as addToCart
     if (req.body.productId) {
-      console.log('[CartRoute] Treating as addToCart request');
+      logger.info('[CartRoute] Treating as addToCart request');
       return await addToCart(req, res);
     }
     
     // Otherwise, treat as getCart request
-    console.log('[CartRoute] Treating as getCart request');
+    logger.info('[CartRoute] Treating as getCart request');
     return await getCart(req, res);
   } catch (error) {
-    console.log('[CartRoute] POST /api/cart error:', error);
+    logger.info('[CartRoute] POST /api/cart error:', error);
     res.status(500).json({ message: "Cart operation failed" });
   }
 });
 
 // Unified PUT endpoint for cart item updates (frontend compatibility)
 router.put("/", authenticateToken, customerOnly, async (req, res) => {
-  console.log('[CartRoute] PUT /api/cart called with body:', req.body);
+  logger.info('[CartRoute] PUT /api/cart called with body:', req.body);
   try {
     return await updateCartItem(req, res);
   } catch (error) {
-    console.log('[CartRoute] PUT /api/cart error:', error);
+    logger.info('[CartRoute] PUT /api/cart error:', error);
     res.status(500).json({ message: "Cart update failed" });
   }
 });

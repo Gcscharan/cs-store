@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 import mongoose from "mongoose";
 import { User } from "../models/User";
 import * as dotenv from "dotenv";
@@ -9,8 +10,8 @@ dotenv.config();
 const MONGODB_URI = process.env.MONGODB_URI;
 
 if (!MONGODB_URI) {
-  console.error("❌ CRITICAL: MONGODB_URI environment variable is not set!");
-  console.error("❌ Please set MONGODB_URI in your .env file and restart.");
+  logger.error("❌ CRITICAL: MONGODB_URI environment variable is not set!");
+  logger.error("❌ Please set MONGODB_URI in your .env file and restart.");
   process.exit(1);
 }
 
@@ -18,11 +19,11 @@ async function fixAddresses() {
   try {
     // Connect to MongoDB Atlas
     await mongoose.connect(MONGODB_URI as string);
-    console.log("✅ Connected to MongoDB Atlas");
+    logger.info("✅ Connected to MongoDB Atlas");
 
     // Find all users with addresses
     const users = await User.find({ "addresses.0": { $exists: true } });
-    console.log(`📊 Found ${users.length} users with addresses`);
+    logger.info(`📊 Found ${users.length} users with addresses`);
 
     let updatedCount = 0;
     let addressesFixed = 0;
@@ -48,17 +49,17 @@ async function fixAddresses() {
       if (userUpdated) {
         await user.save();
         updatedCount++;
-        console.log(`✅ Updated user: ${user.email} (${user.addresses.length} addresses)`);
+        logger.info(`✅ Updated user: ${user.email} (${user.addresses.length} addresses)`);
       }
     }
 
-    console.log(`\n🎉 Migration complete!`);
-    console.log(`📊 Updated ${updatedCount} users`);
-    console.log(`📊 Fixed ${addressesFixed} addresses`);
+    logger.info(`\n🎉 Migration complete!`);
+    logger.info(`📊 Updated ${updatedCount} users`);
+    logger.info(`📊 Fixed ${addressesFixed} addresses`);
 
     process.exit(0);
   } catch (error) {
-    console.error("❌ Migration failed:", error);
+    logger.error("❌ Migration failed:", error);
     process.exit(1);
   }
 }

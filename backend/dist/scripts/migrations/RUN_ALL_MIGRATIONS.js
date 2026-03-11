@@ -33,6 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
+const logger_1 = require("../../utils/logger");
 /**
  * MASTER MIGRATION RUNNER
  * Executes all database enhancements safely
@@ -48,42 +49,42 @@ const migrations = [
     "05_enhance_payments.ts",
     "06_enforce_unique_user_phone_index.ts"
 ];
-console.log("=".repeat(70));
-console.log("🚀 ENTERPRISE DATABASE ENHANCEMENT - MIGRATION RUNNER");
-console.log("=".repeat(70));
-console.log(`\nDatabase: ${process.env.MONGODB_URI?.split("@")[1]}`);
-console.log(`Migrations to run: ${migrations.length}\n`);
-console.log("⚠️  SAFETY CHECKS:");
-console.log("✅ Migrations are additive - no data will be deleted");
-console.log("✅ Existing fields remain unchanged");
-console.log("✅ All operations use $set with strict:false");
-console.log("✅ Rollback possible via MongoDB backup\n");
-console.log("Starting in 3 seconds...\n");
+logger_1.logger.info("=".repeat(70));
+logger_1.logger.info("🚀 ENTERPRISE DATABASE ENHANCEMENT - MIGRATION RUNNER");
+logger_1.logger.info("=".repeat(70));
+logger_1.logger.info(`\nDatabase: ${process.env.MONGODB_URI?.split("@")[1]}`);
+logger_1.logger.info(`Migrations to run: ${migrations.length}\n`);
+logger_1.logger.info("⚠️  SAFETY CHECKS:");
+logger_1.logger.info("✅ Migrations are additive - no data will be deleted");
+logger_1.logger.info("✅ Existing fields remain unchanged");
+logger_1.logger.info("✅ All operations use $set with strict:false");
+logger_1.logger.info("✅ Rollback possible via MongoDB backup\n");
+logger_1.logger.info("Starting in 3 seconds...\n");
 setTimeout(() => {
     migrations.forEach((migration, index) => {
-        console.log(`\n[${index + 1}/${migrations.length}] Running: ${migration}`);
-        console.log("=".repeat(70));
+        logger_1.logger.info(`\n[${index + 1}/${migrations.length}] Running: ${migration}`);
+        logger_1.logger.info("=".repeat(70));
         try {
             (0, child_process_1.execSync)(`npx ts-node src/scripts/migrations/${migration}`, {
                 stdio: "inherit",
                 cwd: process.cwd()
             });
-            console.log(`✅ ${migration} completed successfully\n`);
+            logger_1.logger.info(`✅ ${migration} completed successfully\n`);
         }
         catch (error) {
-            console.error(`❌ ${migration} failed!`);
-            console.error("Migration stopped. Fix the error and retry.");
+            logger_1.logger.error(`❌ ${migration} failed!`);
+            logger_1.logger.error("Migration stopped. Fix the error and retry.");
             process.exit(1);
         }
     });
-    console.log("\n" + "=".repeat(70));
-    console.log("🎉 ALL MIGRATIONS COMPLETED SUCCESSFULLY!");
-    console.log("=".repeat(70));
-    console.log("\n📊 Database has been enhanced with:");
-    console.log("   ✅ 60+ new enterprise fields");
-    console.log("   ✅ 15+ optimized indexes");
-    console.log("   ✅ Audit logging capabilities");
-    console.log("   ✅ Soft delete support");
-    console.log("   ✅ Analytics tracking");
-    console.log("\n🚀 Your database is now enterprise-ready!");
+    logger_1.logger.info("\n" + "=".repeat(70));
+    logger_1.logger.info("🎉 ALL MIGRATIONS COMPLETED SUCCESSFULLY!");
+    logger_1.logger.info("=".repeat(70));
+    logger_1.logger.info("\n📊 Database has been enhanced with:");
+    logger_1.logger.info("   ✅ 60+ new enterprise fields");
+    logger_1.logger.info("   ✅ 15+ optimized indexes");
+    logger_1.logger.info("   ✅ Audit logging capabilities");
+    logger_1.logger.info("   ✅ Soft delete support");
+    logger_1.logger.info("   ✅ Analytics tracking");
+    logger_1.logger.info("\n🚀 Your database is now enterprise-ready!");
 }, 3000);

@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 import dotenv from "dotenv";
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
@@ -21,7 +22,7 @@ const GOOGLE_CALLBACK_URL =
     ? "http://localhost:5001/api/auth/google/callback"
     : undefined);
 
-console.log("Google OAuth credentials:", {
+logger.info("Google OAuth credentials:", {
   clientId: GOOGLE_CLIENT_ID ? "Present" : "Missing",
   clientSecret: GOOGLE_CLIENT_SECRET ? "Present" : "Missing",
 });
@@ -51,11 +52,11 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && callbackURL) {
           // Strict lookup: only allow login if a user with this exact email already exists
           const user = await User.findOne({ email });
 
-          console.log("=== GOOGLE STRATEGY VERIFY ===");
-          console.log("Email from Google:", email);
-          console.log("User found:", !!user);
-          console.log("Returning signupRequired:", !user);
-          console.log("================================");
+          logger.info("=== GOOGLE STRATEGY VERIFY ===");
+          logger.info("Email from Google:", email);
+          logger.info("User found:", !!user);
+          logger.info("Returning signupRequired:", !user);
+          logger.info("================================");
 
           if (!user) {
             // No user with this email exists -> create a temporary user object for redirect
@@ -101,16 +102,16 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && callbackURL) {
 }
  else {
   if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
-    console.warn("⚠️  Google OAuth credentials not found. Google login will be disabled.");
+    logger.warn("⚠️  Google OAuth credentials not found. Google login will be disabled.");
   } else if (!callbackURL) {
-    console.warn(
+    logger.warn(
       "⚠️  Google OAuth callback URL is not configured (GOOGLE_CALLBACK_URL or BACKEND_URL). Google login will be disabled."
     );
   }
 }
 
 if (NODE_ENV === "production" && GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && !callbackURL) {
-  console.warn("⚠️  GOOGLE_CALLBACK_URL (or BACKEND_URL) is not set. Google OAuth will be disabled in production.");
+  logger.warn("⚠️  GOOGLE_CALLBACK_URL (or BACKEND_URL) is not set. Google OAuth will be disabled in production.");
 }
 
 export default passport;

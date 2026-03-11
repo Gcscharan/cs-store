@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SearchFallbackService = void 0;
+const logger_1 = require("../utils/logger");
 const Product_1 = require("../models/Product");
 const regex_1 = require("../utils/regex");
 const productController_1 = require("../domains/catalog/controllers/productController");
@@ -209,7 +210,7 @@ class SearchFallbackService {
             };
         }
         catch (error) {
-            console.error('Search error:', error);
+            logger_1.logger.error('Search error:', error);
             // Fallback to simple regex search
             return this.fallbackRegexSearch(options);
         }

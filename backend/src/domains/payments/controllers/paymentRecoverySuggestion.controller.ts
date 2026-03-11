@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger';
 import type { Request, Response } from "express";
 import mongoose from "mongoose";
 
@@ -68,7 +69,7 @@ export async function getPaymentRecoverySuggestion(req: Request, res: Response) 
         featureEnabled: isFeatureEnabled(),
       });
       const durationMs = Date.now() - startedAt;
-      console.log(
+      logger.info(
         `[PaymentRecoverySuggestion] order=${String(intent.orderId)} intent=${String(intent._id)} discrepancy=${suggestion.discrepancy} suggestion=${suggestion.recommendedAction} duration=${durationMs}ms`
       );
 
@@ -95,7 +96,7 @@ export async function getPaymentRecoverySuggestion(req: Request, res: Response) 
     });
 
     const durationMs = Date.now() - startedAt;
-    console.log(
+    logger.info(
       `[PaymentRecoverySuggestion] order=${String(verification.internal?.orderId || "")} intent=${String(verification.internal?.paymentIntentId || "")} discrepancy=${String(discrepancy)} suggestion=${suggestion.recommendedAction} duration=${durationMs}ms`
     );
 
@@ -107,7 +108,7 @@ export async function getPaymentRecoverySuggestion(req: Request, res: Response) 
     });
   } catch {
     const durationMs = Date.now() - startedAt;
-    console.log(
+    logger.info(
       `[PaymentRecoverySuggestion] order=${orderId || ""} intent=${paymentIntentId || ""} discrepancy=ERROR suggestion=ERROR duration=${durationMs}ms`
     );
     return res.status(500).json({ error: "INTERNAL_ERROR" });

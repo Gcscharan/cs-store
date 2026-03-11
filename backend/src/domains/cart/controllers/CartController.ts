@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger';
 import { Request, Response } from "express";
 import { CartService } from "../services/CartService";
 import { IUser } from "../../../models/User";
@@ -6,24 +7,24 @@ const cartService = new CartService();
 
 export const getCart = async (req: Request, res: Response): Promise<Response | void> => {
   try {
-    console.log('[CartController] getCart - req.user exists:', !!req.user);
+    logger.info('[CartController] getCart - req.user exists:', !!req.user);
     if (req.user) {
-      console.log('[CartController] getCart - req.user._id exists:', !!(req.user as IUser)._id);
-      console.log('[CartController] getCart - req.user._id value:', (req.user as IUser)._id);
+      logger.info('[CartController] getCart - req.user._id exists:', !!(req.user as IUser)._id);
+      logger.info('[CartController] getCart - req.user._id value:', (req.user as IUser)._id);
     }
     
     if (!req.user || !(req.user as IUser)._id) {
-      console.log('[CartController] getCart - returning 401 Unauthorized');
+      logger.info('[CartController] getCart - returning 401 Unauthorized');
       return res.status(401).json({ message: "Unauthorized" });
     }
     
     const userId = (req.user as IUser)._id.toString();
-    console.log('[CartController] getCart - userId:', userId);
+    logger.info('[CartController] getCart - userId:', userId);
     const result = await cartService.getCart(userId);
-    console.log('[CartController] getCart - result:', result);
+    logger.info('[CartController] getCart - result:', result);
     res.json(result);
   } catch (error) {
-    console.log('[CartController] getCart - error:', error);
+    logger.info('[CartController] getCart - error:', error);
     
     const message = error instanceof Error ? error.message : "Failed to fetch cart";
     

@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger';
 import { Request, Response } from "express";
 import { Product } from "../../../models/Product";
 import { AuthRequest } from "../../../middleware/auth";
@@ -99,7 +100,7 @@ export const getProducts = async (
       tags,
     } = req.query;
 
-    console.log('🔍 [GetProducts] Request received:', {
+    logger.info('🔍 [GetProducts] Request received:', {
       limit,
       page,
       category,
@@ -167,7 +168,7 @@ export const getProducts = async (
       }
     }
 
-    console.log('📊 [GetProducts] Query built:', { filter, sort });
+    logger.info('📊 [GetProducts] Query built:', { filter, sort });
 
     // Execute query
     const products = await Product.find(filter)
@@ -205,7 +206,7 @@ export const getProducts = async (
 
     return res.json(responseData);
   } catch (error) {
-    console.error("❌ [GetProducts] Error:", error);
+    logger.error("❌ [GetProducts] Error:", error);
     const err = error as any;
     res.status(500).json({ message: "Server error", error: err?.message || String(err) });
   }
@@ -224,7 +225,7 @@ export const getProductById = async (
       return res.json(cached);
     }
 
-    console.log('🔍 [GetProductById] Request received:', { id });
+    logger.info('🔍 [GetProductById] Request received:', { id });
 
     // Validate ID using mongoose.isValidObjectId
     const mongoose = require("mongoose");
@@ -236,13 +237,13 @@ export const getProductById = async (
     const product = await Product.findOne({ _id: id, ...SELLABLE_PRODUCT_FILTER });
 
     if (!product) {
-      console.log('❌ [GetProductById] Product not found in DB:', id);
+      logger.info('❌ [GetProductById] Product not found in DB:', id);
       return res.status(404).json({ message: "Product not found" });
     }
 
     // Analyze image structure
     const images = product.images || [];
-    console.log('🖼️ [GetProductById] Product images analysis:', {
+    logger.info('🖼️ [GetProductById] Product images analysis:', {
       productId: id,
       productName: product.name,
       imagesCount: images.length,
@@ -256,7 +257,7 @@ export const getProductById = async (
 
     void cacheSetJson(cacheKey, normalizedProduct, 120);
 
-    console.log('✅ [GetProductById] Response prepared:', {
+    logger.info('✅ [GetProductById] Response prepared:', {
       productId: id,
       normalizedImagesCount: normalizedProduct.images.length,
       firstImage: normalizedProduct.images[0] || null
@@ -264,7 +265,7 @@ export const getProductById = async (
 
     res.json(normalizedProduct);
   } catch (error) {
-    console.error("❌ [GetProductById] Error:", error);
+    logger.error("❌ [GetProductById] Error:", error);
     res.status(500).json({ message: "Failed to fetch product" });
   }
 };
@@ -276,9 +277,9 @@ export const createProduct = async (
 ): Promise<any> => {
   try {
     const files = (req.files as Express.Multer.File[]) || [];
-    console.log('🔥 Incoming headers:', req.headers);
-    console.log('🔥 Incoming body:', req.body);
-    console.log('🔥 Incoming files count:', files.length);
+    logger.info('🔥 Incoming headers:', req.headers);
+    logger.info('🔥 Incoming body:', req.body);
+    logger.info('🔥 Incoming files count:', files.length);
 
     const parseNumberField = (value: any): number | undefined => {
       if (value === undefined || value === null) return undefined;
@@ -289,7 +290,7 @@ export const createProduct = async (
 
     // Basic validation
     const filtered = files.filter(f => f && (f.size ?? 0) > 0 && /^image\/(jpeg|png|webp|avif)$/.test((f.mimetype ?? '')));
-    console.log('🔥 Valid files after filter (size>0 & image mimetype):', filtered.map(f=>({name:f.originalname,size:f.size,mime:f.mimetype})));
+    logger.info('🔥 Valid files after filter (size>0 & image mimetype):', filtered.map(f=>({name:f.originalname,size:f.size,mime:f.mimetype})));
 
     if (filtered.length === 0) {
       return res.status(400).json({ message: 'No valid images uploaded (empty or invalid mimetype)' });
@@ -359,7 +360,7 @@ export const createProduct = async (
       try {
         uploadedImages = await mediaService.uploadBuffersWithVariants(buffers, { folder: 'products' });
       } catch (err: any) {
-        console.error('❌ Media upload failed:', err);
+        logger.error('❌ Media upload failed:', err);
         return res.status(500).json({ message: 'Cloudinary upload failed', error: err?.message ?? String(err) });
       }
 
@@ -396,7 +397,7 @@ export const createProduct = async (
       product: normalized,
     });
   } catch (error: any) {
-    console.error("CREATE PRODUCT ERROR:", error);
+    logger.error("CREATE PRODUCT ERROR:", error);
 
     if (error?.name === "ValidationError" && error?.errors) {
       const fieldErrors: Record<string, string> = {};
@@ -426,7 +427,7 @@ export const updateProduct = async (
     const { id } = req.params;
     const { images, ...updateData } = req.body;
 
-    console.log('🔍 [UpdateProduct] Request received:', {
+    logger.info('🔍 [UpdateProduct] Request received:', {
       productId: id,
       imagesCount: (images || []).length,
       hasImages: !!(images && images.length > 0)
@@ -460,17 +461,17 @@ export const updateProduct = async (
     );
 
     if (!product) {
-      console.log('❌ [UpdateProduct] Product not found:', id);
+      logger.info('❌ [UpdateProduct] Product not found:', id);
       return res.status(404).json({ message: "Product not found" });
     }
 
-    console.log('✅ [UpdateProduct] Product updated successfully:', {
+    logger.info('✅ [UpdateProduct] Product updated successfully:', {
       productId: id,
       imagesCount: (product.images || []).length
     });
 
     // Search indexing disabled (Algolia not configured)
-    console.log('📝 [UpdateProduct] Search indexing disabled');
+    logger.info('📝 [UpdateProduct] Search indexing disabled');
 
     await invalidateCache.product(id);
 
@@ -479,7 +480,7 @@ export const updateProduct = async (
       product
     });
   } catch (error) {
-    console.error("❌ [UpdateProduct] Error:", error);
+    logger.error("❌ [UpdateProduct] Error:", error);
     const err = error as any;
     res.status(500).json({ message: "Server error", error: err?.message || String(err) });
   }
@@ -492,7 +493,7 @@ export const deleteProduct = async (
   try {
     const { id } = req.params;
 
-    console.log('🔍 [DeleteProduct] Request received:', { productId: id });
+    logger.info('🔍 [DeleteProduct] Request received:', { productId: id });
 
     // Validate ID using mongoose.isValidObjectId
     const mongoose = require("mongoose");
@@ -507,17 +508,17 @@ export const deleteProduct = async (
     );
 
     if (!product) {
-      console.log('❌ [DeleteProduct] Product not found:', id);
+      logger.info('❌ [DeleteProduct] Product not found:', id);
       return res.status(404).json({ message: "Product not found" });
     }
 
-    console.log('✅ [DeleteProduct] Product deleted successfully:', {
+    logger.info('✅ [DeleteProduct] Product deleted successfully:', {
       productId: id,
       productName: product.name
     });
 
     // Search indexing disabled (Algolia not configured)
-    console.log('🗑️ [DeleteProduct] Search indexing disabled');
+    logger.info('🗑️ [DeleteProduct] Search indexing disabled');
 
     await invalidateCache.product(id);
 
@@ -526,7 +527,7 @@ export const deleteProduct = async (
       productId: id
     });
   } catch (error) {
-    console.error("❌ [DeleteProduct] Error:", error);
+    logger.error("❌ [DeleteProduct] Error:", error);
     const err = error as any;
     res.status(500).json({ message: "Server error", error: err?.message || String(err) });
   }
@@ -636,17 +637,17 @@ export const debugProductImages = async (
   try {
     const { id } = req.params;
 
-    console.log('🔍 [Debug] Checking product images for:', id);
+    logger.info('🔍 [Debug] Checking product images for:', id);
 
     const product = await Product.findOne({ _id: id, ...SELLABLE_PRODUCT_FILTER });
     if (!product) {
-      console.log('❌ [Debug] Product not found:', id);
+      logger.info('❌ [Debug] Product not found:', id);
       return res.status(404).json({ message: "Product not found" });
     }
 
     const images = product.images || [];
     
-    console.log('📊 [Debug] Product image analysis:', {
+    logger.info('📊 [Debug] Product image analysis:', {
       productId: id,
       imagesCount: images.length,
       rawImages: images
@@ -685,7 +686,7 @@ export const debugProductImages = async (
       }
     };
 
-    console.log('✅ [Debug] Analysis complete:', analysis.summary);
+    logger.info('✅ [Debug] Analysis complete:', analysis.summary);
 
     res.json({
       productId: id,
@@ -693,7 +694,7 @@ export const debugProductImages = async (
       ...analysis
     });
   } catch (error) {
-    console.error("❌ [Debug] Error:", error);
+    logger.error("❌ [Debug] Error:", error);
     const err = error as any;
     res.status(500).json({ message: "Debug error", error: err?.message || String(err) });
   }

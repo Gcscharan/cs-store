@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger';
 import os from "os";
 import { randomUUID } from "crypto";
 import mongoose from "mongoose";
@@ -82,9 +83,9 @@ export function initializeInventoryReservationSweeper(params?: {
       consecutiveFailures = 0;
     } catch (err) {
       consecutiveFailures += 1;
-      console.error("[INVENTORY_SWEEPER_ERROR]", err);
+      logger.error("[INVENTORY_SWEEPER_ERROR]", err);
       if (consecutiveFailures >= FAILURE_THRESHOLD) {
-        console.error("[INVENTORY_SWEEPER_FATAL] Too many consecutive failures. Crashing.");
+        logger.error("[INVENTORY_SWEEPER_FATAL] Too many consecutive failures. Crashing.");
         process.exit(1);
       }
     }

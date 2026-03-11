@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger';
 import { DeliveryBoy } from "../../../models/DeliveryBoy";
 import { User } from "../../../models/User";
 
@@ -14,7 +15,7 @@ export class DeliveryPartnerLoadService {
    * Previously used to populate Redis ZSET, now data stays in MongoDB
    */
   async initializeLoads(): Promise<void> {
-    console.log("🚚 Delivery partner load service initialized (MongoDB-only mode)");
+    logger.info("🚚 Delivery partner load service initialized (MongoDB-only mode)");
   }
 
   /**
@@ -27,10 +28,10 @@ export class DeliveryPartnerLoadService {
         { $set: { currentLoad: load } }
       );
       
-      console.log(`💾 Set load for delivery partner ${deliveryBoyId}: ${load}`);
+      logger.info(`💾 Set load for delivery partner ${deliveryBoyId}: ${load}`);
       return result.modifiedCount > 0;
     } catch (error) {
-      console.error(`❌ Failed to set load for ${deliveryBoyId}:`, error);
+      logger.error(`❌ Failed to set load for ${deliveryBoyId}:`, error);
       return false;
     }
   }
@@ -46,7 +47,7 @@ export class DeliveryPartnerLoadService {
       );
 
       if (result.modifiedCount === 0) {
-        console.warn(`⚠️  Delivery partner ${deliveryBoyId} not found for load increment`);
+        logger.warn(`⚠️  Delivery partner ${deliveryBoyId} not found for load increment`);
         return null;
       }
 
@@ -54,10 +55,10 @@ export class DeliveryPartnerLoadService {
       const deliveryBoy = await DeliveryBoy.findOne({ userId: deliveryBoyId }).select('currentLoad');
       const newLoad = deliveryBoy?.currentLoad || 0;
       
-      console.log(`📈 Incremented load for delivery partner ${deliveryBoyId} by ${increment}. New load: ${newLoad}`);
+      logger.info(`📈 Incremented load for delivery partner ${deliveryBoyId} by ${increment}. New load: ${newLoad}`);
       return newLoad;
     } catch (error) {
-      console.error(`❌ Failed to increment load for ${deliveryBoyId}:`, error);
+      logger.error(`❌ Failed to increment load for ${deliveryBoyId}:`, error);
       return null;
     }
   }
@@ -71,7 +72,7 @@ export class DeliveryPartnerLoadService {
       const deliveryBoy = await DeliveryBoy.findOne({ userId: deliveryBoyId }).select('currentLoad');
       
       if (!deliveryBoy) {
-        console.warn(`⚠️  Delivery partner ${deliveryBoyId} not found for load decrement`);
+        logger.warn(`⚠️  Delivery partner ${deliveryBoyId} not found for load decrement`);
         return null;
       }
 
@@ -85,14 +86,14 @@ export class DeliveryPartnerLoadService {
       );
 
       if (result.modifiedCount === 0) {
-        console.warn(`⚠️  No update made for delivery partner ${deliveryBoyId}`);
+        logger.warn(`⚠️  No update made for delivery partner ${deliveryBoyId}`);
         return null;
       }
       
-      console.log(`📉 Decremented load for delivery partner ${deliveryBoyId} by ${decrement}. New load: ${finalLoad}`);
+      logger.info(`📉 Decremented load for delivery partner ${deliveryBoyId} by ${decrement}. New load: ${finalLoad}`);
       return finalLoad;
     } catch (error) {
-      console.error(`❌ Failed to decrement load for ${deliveryBoyId}:`, error);
+      logger.error(`❌ Failed to decrement load for ${deliveryBoyId}:`, error);
       return null;
     }
   }
@@ -105,7 +106,7 @@ export class DeliveryPartnerLoadService {
       const deliveryBoy = await DeliveryBoy.findOne({ userId: deliveryBoyId }).select('currentLoad');
       return deliveryBoy?.currentLoad || 0;
     } catch (error) {
-      console.error(`❌ Failed to get load for ${deliveryBoyId}:`, error);
+      logger.error(`❌ Failed to get load for ${deliveryBoyId}:`, error);
       return null;
     }
   }
@@ -125,12 +126,12 @@ export class DeliveryPartnerLoadService {
         load: db.currentLoad || 0
       })).filter(p => p.id); // Filter out invalid IDs
 
-      console.log(`🎯 Found ${partners.length} least loaded delivery partners:`, 
+      logger.info(`🎯 Found ${partners.length} least loaded delivery partners:`, 
         partners.map(p => `${p.id}(load:${p.load})`).join(', '));
       
       return partners;
     } catch (error) {
-      console.error("❌ Failed to get least loaded partners:", error);
+      logger.error("❌ Failed to get least loaded partners:", error);
       return [];
     }
   }
@@ -164,11 +165,11 @@ export class DeliveryPartnerLoadService {
         load: db.currentLoad || 0
       })).filter(p => p.id); // Filter out invalid IDs
 
-      console.log(`🚐 Found ${partners.length} least loaded partners for vehicle types [${vehicleTypes.join(', ')}]`);
+      logger.info(`🚐 Found ${partners.length} least loaded partners for vehicle types [${vehicleTypes.join(', ')}]`);
       
       return partners;
     } catch (error) {
-      console.error("❌ Failed to get least loaded partners by vehicle:", error);
+      logger.error("❌ Failed to get least loaded partners by vehicle:", error);
       return [];
     }
   }
@@ -183,10 +184,10 @@ export class DeliveryPartnerLoadService {
         { $set: { isActive: false } }
       );
       
-      console.log(`🗑️  Deactivated delivery partner ${deliveryBoyId}`);
+      logger.info(`🗑️  Deactivated delivery partner ${deliveryBoyId}`);
       return result.modifiedCount > 0;
     } catch (error) {
-      console.error(`❌ Failed to remove partner ${deliveryBoyId}:`, error);
+      logger.error(`❌ Failed to remove partner ${deliveryBoyId}:`, error);
       return false;
     }
   }
@@ -201,10 +202,10 @@ export class DeliveryPartnerLoadService {
         { $set: { currentLoad: 0 } }
       );
       
-      console.log(`🗑️  Reset load for ${result.modifiedCount} delivery partners`);
+      logger.info(`🗑️  Reset load for ${result.modifiedCount} delivery partners`);
       return true;
     } catch (error) {
-      console.error("❌ Failed to clear load data:", error);
+      logger.error("❌ Failed to clear load data:", error);
       return false;
     }
   }
@@ -217,7 +218,7 @@ export class DeliveryPartnerLoadService {
       const count = await DeliveryBoy.countDocuments({ isActive: true });
       return count;
     } catch (error) {
-      console.error("❌ Failed to get partner count:", error);
+      logger.error("❌ Failed to get partner count:", error);
       return 0;
     }
   }
@@ -234,17 +235,17 @@ export class DeliveryPartnerLoadService {
       
       const totalCount = await this.getTotalPartnerCount();
       
-      console.log("📊 Current Delivery Partner Load State:");
-      console.log(`   📈 Total Active Partners: ${totalCount}`);
+      logger.info("📊 Current Delivery Partner Load State:");
+      logger.info(`   📈 Total Active Partners: ${totalCount}`);
       
       if (allPartners.length > 0) {
-        console.log("   🏆 Top 5 Least Loaded:");
+        logger.info("   🏆 Top 5 Least Loaded:");
         allPartners.slice(0, 5).forEach((partner, index) => {
-          console.log(`      ${index + 1}. ID: ${partner.userId}, Load: ${partner.currentLoad}`);
+          logger.info(`      ${index + 1}. ID: ${partner.userId}, Load: ${partner.currentLoad}`);
         });
       }
     } catch (error) {
-      console.error("❌ Failed to log current state:", error);
+      logger.error("❌ Failed to log current state:", error);
     }
   }
 
@@ -253,7 +254,7 @@ export class DeliveryPartnerLoadService {
    * Data is always in MongoDB, so no sync needed
    */
   async syncLoadFromMongoDB(deliveryBoyId: string): Promise<boolean> {
-    console.log(`🔄 Sync request for ${deliveryBoyId} - no sync needed (MongoDB-only mode)`);
+    logger.info(`🔄 Sync request for ${deliveryBoyId} - no sync needed (MongoDB-only mode)`);
     return true;
   }
 }

@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger';
 import { Request, Response } from "express";
 import crypto from "crypto";
 import razorpay from "../../../config/razorpay";
@@ -21,7 +22,7 @@ export const verifyPayment = async (req: Request, res: Response) => {
       message: "This payment path has been permanently disabled. Use PaymentIntent flow.",
     });
   } catch (error) {
-    console.error("Error verifying payment:", error);
+    logger.error("Error verifying payment:", error);
     return res.status(500).json({
       success: false,
       message: "Failed to verify payment",
@@ -55,7 +56,7 @@ export const getPaymentDetails = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error("Error fetching payment details:", error);
+    logger.error("Error fetching payment details:", error);
     return res.status(500).json({
       success: false,
       message: "Failed to fetch payment details",
@@ -112,7 +113,7 @@ export const getAllPayments = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error("Error fetching payments:", error);
+    logger.error("Error fetching payments:", error);
     return res.status(500).json({
       success: false,
       message: "Failed to fetch payments",
@@ -160,7 +161,7 @@ export const getPaymentStats = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error("Error fetching payment stats:", error);
+    logger.error("Error fetching payment stats:", error);
     return res.status(500).json({
       success: false,
       message: "Failed to fetch payment statistics",
@@ -195,7 +196,7 @@ export const paymentCallback = async (req: Request, res: Response) => {
 
     if (isAuthentic) {
       // Payment is verified - you can update your database here
-      console.log("Payment verified via webhook:", {
+      logger.info("Payment verified via webhook:", {
         payment_id: razorpay_payment_id,
         order_id: razorpay_order_id,
       });
@@ -211,7 +212,7 @@ export const paymentCallback = async (req: Request, res: Response) => {
       });
     }
   } catch (error) {
-    console.error("Error processing payment callback:", error);
+    logger.error("Error processing payment callback:", error);
     return res.status(500).json({
       success: false,
       message: "Failed to process payment callback",

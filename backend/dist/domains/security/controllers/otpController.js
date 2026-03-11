@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.resendPaymentOTP = exports.verifyPaymentOTP = exports.generatePaymentOTP = exports.generateVerificationOTP = exports.verifyOtp = void 0;
+const logger_1 = require("../../../utils/logger");
 const Otp_1 = __importDefault(require("../../../models/Otp"));
 const Order_1 = require("../../../models/Order");
 const User_1 = require("../../../models/User");
@@ -176,7 +177,7 @@ const generatePaymentOTP = async (req, res) => {
         };
         // If MOCK_OTP mode, indicate it and include OTP for easier testing (only in test environment)
         if (process.env.NODE_ENV === "test" && process.env.MOCK_OTP === "true") {
-            console.log(`💳 MOCK PAYMENT OTP for order ${orderId}: ${otp}`);
+            logger_1.logger.info(`💳 MOCK PAYMENT OTP for order ${orderId}: ${otp}`);
             paymentResponse.mock = true;
             paymentResponse.message = "OTP sent successfully (mock)";
             paymentResponse.otp = otp;
@@ -184,7 +185,7 @@ const generatePaymentOTP = async (req, res) => {
             paymentResponse.note = "MOCK_OTP mode enabled - OTP included in response";
         }
         else if (process.env.NODE_ENV === "development") {
-            console.log(`💳 Development PAYMENT OTP for order ${orderId}: ${otp}`);
+            logger_1.logger.info(`💳 Development PAYMENT OTP for order ${orderId}: ${otp}`);
             paymentResponse.otp = otp;
             paymentResponse.phone = user.phone;
             paymentResponse.note = "OTP included in response for development only";
@@ -246,7 +247,7 @@ const verifyPaymentOTP = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Verify payment OTP error:", error);
+        logger_1.logger.error("Verify payment OTP error:", error);
         return res.status(500).json({ message: "Failed to verify OTP" });
     }
 };

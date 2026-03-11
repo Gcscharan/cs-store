@@ -1,3 +1,4 @@
+import { logger } from '../../utils/logger';
 /**
  * MIGRATION 05: Enhance Payments Collection
  * Adds refund tracking, status history, and reconciliation
@@ -11,9 +12,9 @@ dotenv.config();
 async function enhancePayments() {
   try {
     await mongoose.connect(process.env.MONGODB_URI!);
-    console.log("✅ Connected to MongoDB\n");
+    logger.info("✅ Connected to MongoDB\n");
 
-    console.log("🔧 Enhancing Payments Collection...");
+    logger.info("🔧 Enhancing Payments Collection...");
     
     const result = await Payment.updateMany(
       {},
@@ -46,16 +47,16 @@ async function enhancePayments() {
       { strict: false }
     );
 
-    console.log(`✅ Updated ${result.modifiedCount} payments`);
+    logger.info(`✅ Updated ${result.modifiedCount} payments`);
     
     // Create indexes
-    console.log("\n🔧 Creating indexes...");
+    logger.info("\n🔧 Creating indexes...");
     await Payment.collection.createIndex({ reconciliationStatus: 1, reconciledAt: -1 });
     await Payment.collection.createIndex({ isFraudulent: 1, riskScore: -1 });
-    console.log("✅ Indexes created");
+    logger.info("✅ Indexes created");
 
   } catch (error) {
-    console.error("❌ Error:", error);
+    logger.error("❌ Error:", error);
   } finally {
     await mongoose.connection.close();
   }

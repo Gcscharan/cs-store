@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.invalidateCache = exports.cacheMiddleware = void 0;
+const logger_1 = require("../utils/logger");
 const redis_1 = __importDefault(require("../config/redis"));
 // Cache middleware for GET requests (Cache-Aside Pattern)
 const cacheMiddleware = (options = {}) => {
@@ -14,7 +15,7 @@ const cacheMiddleware = (options = {}) => {
         }
         // Skip caching if Redis is not available
         if (!redis_1.default.isReady) {
-            console.warn("⚠️  Redis not ready, skipping cache for:", req.path);
+            logger_1.logger.warn("⚠️  Redis not ready, skipping cache for:", req.path);
             return next();
         }
         try {
@@ -35,18 +36,18 @@ const cacheMiddleware = (options = {}) => {
             const cachedData = await redis_1.default.get(cacheKey);
             if (cachedData) {
                 // Cache hit - return cached data
-                console.log(`🎯 Cache HIT: ${req.method} ${req.path}`);
+                logger_1.logger.info(`🎯 Cache HIT: ${req.method} ${req.path}`);
                 return res.json(JSON.parse(cachedData));
             }
             // Cache miss - continue to controller and cache the response
-            console.log(`💥 Cache MISS: ${req.method} ${req.path}`);
+            logger_1.logger.info(`💥 Cache MISS: ${req.method} ${req.path}`);
             // Override res.json to cache the response
             const originalJson = res.json.bind(res);
             res.json = function (data) {
                 // Cache the response data
                 const ttl = options.ttl || 3600; // Default 1 hour
                 redis_1.default.set(cacheKey, JSON.stringify(data), { EX: ttl }).catch((error) => {
-                    console.error("❌ Failed to cache response:", error);
+                    logger_1.logger.error("❌ Failed to cache response:", error);
                 });
                 // Return the response
                 return originalJson(data);
@@ -55,7 +56,7 @@ const cacheMiddleware = (options = {}) => {
             next();
         }
         catch (error) {
-            console.error("❌ Cache middleware error:", error);
+            logger_1.logger.error("❌ Cache middleware error:", error);
             // Continue without caching on error
             next();
         }
@@ -78,7 +79,7 @@ exports.invalidateCache = {
             }
         }
         catch (error) {
-            console.error(`❌ Failed to delete pattern ${pattern}:`, error);
+            logger_1.logger.error(`❌ Failed to delete pattern ${pattern}:`, error);
         }
     },
     // Invalidate all product-related cache
@@ -88,10 +89,10 @@ exports.invalidateCache = {
             await exports.invalidateCache.deleteByPattern("product:*");
             await exports.invalidateCache.deleteByPattern("search:*");
             await exports.invalidateCache.deleteByPattern("similar:*");
-            console.log("🗑️  Invalidated all product caches");
+            logger_1.logger.info("🗑️  Invalidated all product caches");
         }
         catch (error) {
-            console.error("❌ Failed to invalidate product caches:", error);
+            logger_1.logger.error("❌ Failed to invalidate product caches:", error);
         }
     },
     // Invalidate specific product cache
@@ -101,20 +102,20 @@ exports.invalidateCache = {
             await redis_1.default.del(`product:v1:${id}`);
             await exports.invalidateCache.deleteByPattern(`similar:${id}:*`);
             await exports.invalidateCache.deleteByPattern("products:*"); // Invalidate product lists
-            console.log(`🗑️  Invalidated cache for product: ${id}`);
+            logger_1.logger.info(`🗑️  Invalidated cache for product: ${id}`);
         }
         catch (error) {
-            console.error(`❌ Failed to invalidate cache for product ${id}:`, error);
+            logger_1.logger.error(`❌ Failed to invalidate cache for product ${id}:`, error);
         }
     },
     // Invalidate search cache
     search: async () => {
         try {
             await exports.invalidateCache.deleteByPattern("search:*");
-            console.log("🗑️  Invalidated all search caches");
+            logger_1.logger.info("🗑️  Invalidated all search caches");
         }
         catch (error) {
-            console.error("❌ Failed to invalidate search caches:", error);
+            logger_1.logger.error("❌ Failed to invalidate search caches:", error);
         }
     },
 };

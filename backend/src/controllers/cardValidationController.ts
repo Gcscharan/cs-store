@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 import { Request, Response } from "express";
 import { validateCard } from "../utils/cardValidation";
 
@@ -36,7 +37,7 @@ export const validateCardDetails = async (req: Request, res: Response) => {
       });
     }
   } catch (error) {
-    console.error("Card validation error:", error);
+    logger.error("Card validation error:", error);
     return res.status(500).json({
       valid: false,
       message: "Card validation failed",

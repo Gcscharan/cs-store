@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger';
 import { Request, Response, NextFunction } from "express";
 import mongoose from "mongoose";
 import { Order } from "../../../models/Order";
@@ -248,7 +249,7 @@ export const createOrder = async (req: Request, res: Response) => {
       created: result.created,
     });
   } catch (error: any) {
-    console.error("Create order error:", {
+    logger.error("Create order error:", {
       message: error.message,
       statusCode: error.statusCode,
       stack: error.stack,
@@ -272,7 +273,7 @@ export const placeOrderCOD = async (req: Request, res: Response) => {
     const idempotencyKeyBody = String(req.body?.idempotencyKey || "").trim();
     const idempotencyKey = idempotencyKeyHeader || idempotencyKeyBody || undefined;
 
-    console.log("[DEBUG] placeOrderCOD: userId:", userId, "idempotencyKey:", idempotencyKey);
+    logger.info("[DEBUG] placeOrderCOD:", { userId, idempotencyKey });
 
     const result = await createOrderFromCart({
       userId,
@@ -280,7 +281,7 @@ export const placeOrderCOD = async (req: Request, res: Response) => {
       idempotencyKey,
     });
 
-    console.log("[DEBUG] placeOrderCOD: Order created:", result.order?._id, "created:", result.created);
+    logger.info("[DEBUG] placeOrderCOD: Order created:", { orderId: result.order?._id, created: result.created });
 
     return res.status(200).json({
       message: "Order placed with Cash on Delivery",
@@ -288,7 +289,7 @@ export const placeOrderCOD = async (req: Request, res: Response) => {
       created: result.created,
     });
   } catch (error: any) {
-    console.error("[DEBUG] placeOrderCOD error:", {
+    logger.error("[DEBUG] placeOrderCOD error:", {
       message: error.message,
       statusCode: error.statusCode,
       stack: error.stack,
@@ -297,7 +298,7 @@ export const placeOrderCOD = async (req: Request, res: Response) => {
     if (statusCode >= 400 && statusCode < 500) {
       return res.status(statusCode).json({ message: error.message || "Bad request", error: error.message });
     }
-    console.error("COD order placement error:", error);
+    logger.error("COD order placement error:", error);
     return res.status(500).json({ message: "Failed to place order (COD)", error: error.message });
   }
 };
@@ -341,7 +342,7 @@ export const getPaymentStatus = async (req: Request, res: Response) => {
     });
 
   } catch (error) {
-    console.error("Get payment status error:", error);
+    logger.error("Get payment status error:", error);
     return res.status(500).json({ message: "Failed to get payment status" });
   }
 };
@@ -358,7 +359,7 @@ export const updatePaymentStatus = async (req: Request, res: Response) => {
       message: "This payment path has been permanently disabled. Use PaymentIntent flow.",
     });
   } catch (error: any) {
-    console.error("Payment status update error:", error);
+    logger.error("Payment status update error:", error);
     return res.status(500).json({ 
       error: "Failed to update payment status",
       message: error.message || "Unknown error occurred"

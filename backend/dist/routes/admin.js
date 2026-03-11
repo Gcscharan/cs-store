@@ -3,6 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const logger_1 = require("../utils/logger");
 const express_1 = __importDefault(require("express"));
 const adminController_1 = require("../controllers/adminController");
 const orderAssignmentController_1 = require("../controllers/orderAssignmentController");
@@ -33,7 +34,7 @@ router.delete("/users/:id", auth_1.authenticateToken, (0, auth_1.requireRole)(["
         });
     }
     catch (error) {
-        console.error("Error deleting user:", error);
+        logger_1.logger.error("Error deleting user:", error);
         res.status(500).json({ error: "Failed to delete user" });
     }
 });

@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.uploadToCloudinary = void 0;
+const logger_1 = require("../../../utils/logger");
 const MediaImageService_1 = require("../../media/services/MediaImageService");
 const uploadToCloudinary = async (req, res) => {
     try {
@@ -21,7 +22,7 @@ const uploadToCloudinary = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Cloudinary upload error:", error);
+        logger_1.logger.error("Cloudinary upload error:", error);
         res.status(500).json({
             error: "Failed to upload image to Cloudinary",
             details: error instanceof Error ? error.message : "Unknown error"

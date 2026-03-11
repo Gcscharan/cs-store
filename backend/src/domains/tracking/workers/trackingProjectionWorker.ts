@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger';
 import { getTrackingKillSwitchMode } from "../services/trackingKillSwitch";
 import { incCounter, incCounterWithLabels, setGauge } from "../../../ops/opsMetrics";
 import { getTrackingEventStream } from "../stream/trackingEventStream";
@@ -121,7 +122,7 @@ export async function startTrackingProjectionWorker(): Promise<{ stop: () => Pro
         const smoothed = smoothing.ok ? smoothing.value : smoothing.fallback;
         if (!smoothing.ok) {
           incCounterWithLabels("tracking_phase2_dropped_samples_total", { reason: smoothing.reason });
-          console.log(
+          logger.info(
             JSON.stringify({
               type: "tracking_phase2_sample_rejected",
               reason: smoothing.reason,
@@ -171,7 +172,7 @@ export async function startTrackingProjectionWorker(): Promise<{ stop: () => Pro
             from: String(semantic.transition.from || "NONE"),
             to: semantic.transition.to,
           });
-          console.log(
+          logger.info(
             JSON.stringify({
               type: "tracking_phase2_state_transition",
               orderId: sample.orderId,
@@ -226,7 +227,7 @@ export async function startTrackingProjectionWorker(): Promise<{ stop: () => Pro
 
         if (eta.recomputed) {
           incCounter("tracking_phase3_eta_recompute_total");
-          console.log(
+          logger.info(
             JSON.stringify({
               type: "tracking_phase3_eta_recomputed",
               orderId: sample.orderId,
@@ -265,7 +266,7 @@ export async function startTrackingProjectionWorker(): Promise<{ stop: () => Pro
         const prevRisk = (existing as any)?.slaRiskLevel;
         if (sla && String(prevRisk || "NONE") !== sla.slaRiskLevel) {
           incCounter("tracking_phase3_sla_risk_transitions_total");
-          console.log(
+          logger.info(
             JSON.stringify({
               type: "tracking_phase3_sla_risk_transition",
               orderId: sample.orderId,
@@ -330,7 +331,7 @@ export async function startTrackingProjectionWorker(): Promise<{ stop: () => Pro
 
         incCounter("tracking_projection_processed_total");
 
-        console.log(
+        logger.info(
           JSON.stringify({
             type: "tracking_projection_updated",
             riderId: sample.riderId,

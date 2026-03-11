@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 import crypto from "crypto";
 import type { NextFunction, Request, Response } from "express";
 
@@ -63,7 +64,7 @@ export function httpObservabilityMiddleware(req: RequestWithId, res: Response, n
       status,
       durationMs: Math.round(durationMs * 10) / 10,
     };
-    console.log(JSON.stringify(line));
+    logger.info(JSON.stringify(line));
   });
 
   next();

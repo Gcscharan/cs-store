@@ -37,6 +37,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.UserAccountService = void 0;
+const logger_1 = require("../../../utils/logger");
 const UserRepository_1 = require("../repositories/UserRepository");
 const CartRepository_1 = require("../repositories/CartRepository");
 const OrderRepository_1 = require("../repositories/OrderRepository");
@@ -160,7 +161,7 @@ class UserAccountService {
             };
         }
         catch (error) {
-            console.error("Error verifying mobile:", error);
+            logger_1.logger.error("Error verifying mobile:", error);
             throw error;
         }
     }
@@ -213,7 +214,7 @@ class UserAccountService {
         }
         catch (error) {
             await session.abortTransaction();
-            console.error("Error deleting account:", error);
+            logger_1.logger.error("Error deleting account:", error);
             throw error;
         }
         finally {
@@ -237,7 +238,7 @@ class UserAccountService {
             };
         }
         catch (error) {
-            console.error("Error fetching notification preferences:", error);
+            logger_1.logger.error("Error fetching notification preferences:", error);
             throw error;
         }
     }
@@ -284,7 +285,7 @@ class UserAccountService {
             };
         }
         catch (error) {
-            console.error("Error updating notification preferences:", error);
+            logger_1.logger.error("Error updating notification preferences:", error);
             throw error;
         }
     }

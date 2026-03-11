@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger';
 import { PaymentIntent } from "../models/PaymentIntent";
 import { Order } from "../../../models/Order";
 import type { PaymentIntentStatus } from "../types";
@@ -122,7 +123,7 @@ export async function runStuckPaymentScanOnce(args?: { now?: Date }): Promise<Sc
     }
   }
 
-  console.log(
+  logger.info(
     `[PaymentScanner] scanned=${counts.scanned} recoverable=${counts.recoverable} locked=${counts.locked} skippedPaid=${counts.skippedPaid}`
   );
 
@@ -134,7 +135,7 @@ export function startStuckPaymentScanner(): NodeJS.Timeout {
     try {
       await runStuckPaymentScanOnce();
     } catch (e) {
-      console.warn("[PaymentScanner] scan failed", e);
+      logger.warn("[PaymentScanner] scan failed", e);
     }
   };
 

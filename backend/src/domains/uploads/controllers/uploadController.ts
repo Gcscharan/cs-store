@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger';
 import { Request, Response } from "express";
 import { MediaImageService } from "../../media/services/MediaImageService";
 
@@ -26,7 +27,7 @@ export const uploadToCloudinary = async (
       thumb: result.thumb,
     });
   } catch (error) {
-    console.error("Cloudinary upload error:", error);
+    logger.error("Cloudinary upload error:", error);
     res.status(500).json({ 
       error: "Failed to upload image to Cloudinary",
       details: error instanceof Error ? error.message : "Unknown error"

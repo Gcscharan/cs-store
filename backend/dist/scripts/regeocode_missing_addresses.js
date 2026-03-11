@@ -1,15 +1,4 @@
 "use strict";
-/**
- * Migration Script: Re-geocode Missing Address Coordinates
- *
- * Purpose: Find addresses with missing/invalid coordinates and attempt to geocode them
- * Priority: Critical - Blocks correct delivery fee calculation
- *
- * Usage:
- *   - Dry run (test mode):  npm run migrate:addresses -- --dry-run
- *   - Live run (updates DB): npm run migrate:addresses
- *   - With throttling:       npm run migrate:addresses -- --throttle=2000
- */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     var desc = Object.getOwnPropertyDescriptor(m, k);
@@ -47,6 +36,18 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const logger_1 = require("../utils/logger");
+/**
+ * Migration Script: Re-geocode Missing Address Coordinates
+ *
+ * Purpose: Find addresses with missing/invalid coordinates and attempt to geocode them
+ * Priority: Critical - Blocks correct delivery fee calculation
+ *
+ * Usage:
+ *   - Dry run (test mode):  npm run migrate:addresses -- --dry-run
+ *   - Live run (updates DB): npm run migrate:addresses
+ *   - With throttling:       npm run migrate:addresses -- --throttle=2000
+ */
 const mongoose_1 = __importDefault(require("mongoose"));
 const User_1 = require("../models/User");
 const geocoding_1 = require("../utils/geocoding");
@@ -56,8 +57,8 @@ dotenv.config();
 // CRITICAL: Only use MONGODB_URI from environment - no fallbacks
 const MONGODB_URI = process.env.MONGODB_URI;
 if (!MONGODB_URI) {
-    console.error("❌ CRITICAL: MONGODB_URI environment variable is not set!");
-    console.error("❌ Please set MONGODB_URI in your .env file and restart.");
+    logger_1.logger.error("❌ CRITICAL: MONGODB_URI environment variable is not set!");
+    logger_1.logger.error("❌ Please set MONGODB_URI in your .env file and restart.");
     process.exit(1);
 }
 // Configuration
@@ -83,22 +84,22 @@ function hasInvalidCoordinates(address) {
 async function attemptGeocode(address, throttleMs) {
     // Throttle to respect API limits
     await new Promise(resolve => setTimeout(resolve, throttleMs));
-    console.log(`\n🌍 Attempting to geocode: ${address.addressLine}, ${address.city}, ${address.pincode}`);
+    logger_1.logger.info(`\n🌍 Attempting to geocode: ${address.addressLine}, ${address.city}, ${address.pincode}`);
     // Try full address geocoding
     const fullGeocode = await (0, geocoding_1.smartGeocode)(address.addressLine, address.city, address.state, address.pincode);
     if (fullGeocode) {
-        console.log(`✅ Full geocoding successful: lat=${fullGeocode.lat}, lng=${fullGeocode.lng}`);
+        logger_1.logger.info(`✅ Full geocoding successful: lat=${fullGeocode.lat}, lng=${fullGeocode.lng}`);
         return { ...fullGeocode, source: 'geocoded' };
     }
-    console.warn(`⚠️ Full geocoding failed, trying pincode fallback...`);
+    logger_1.logger.warn(`⚠️ Full geocoding failed, trying pincode fallback...`);
     // Fallback to pincode centroid
     const pincodeGeocode = await (0, geocoding_1.geocodeByPincode)(address.pincode);
     if (pincodeGeocode) {
-        console.log(`✅ Pincode geocoding successful: lat=${pincodeGeocode.lat}, lng=${pincodeGeocode.lng}`);
-        console.warn(`⚠️ Using PINCODE CENTROID - fee will be estimated`);
+        logger_1.logger.info(`✅ Pincode geocoding successful: lat=${pincodeGeocode.lat}, lng=${pincodeGeocode.lng}`);
+        logger_1.logger.warn(`⚠️ Using PINCODE CENTROID - fee will be estimated`);
         return { ...pincodeGeocode, source: 'pincode' };
     }
-    console.error(`❌ All geocoding attempts failed`);
+    logger_1.logger.error(`❌ All geocoding attempts failed`);
     return null;
 }
 /**
@@ -119,7 +120,7 @@ async function processBatch(batch, dryRun, throttleMs) {
         try {
             // Check if address needs geocoding
             if (!hasInvalidCoordinates(address)) {
-                console.log(`⏭️ Skipping address (has valid coordinates): ${address.addressLine}`);
+                logger_1.logger.info(`⏭️ Skipping address (has valid coordinates): ${address.addressLine}`);
                 result.status = 'skipped';
                 results.push(result);
                 continue;
@@ -146,12 +147,12 @@ async function processBatch(batch, dryRun, throttleMs) {
                         addr.isGeocoded = true;
                         addr.coordsSource = geocodeResult.source;
                         await userDoc.save();
-                        console.log(`💾 Updated address in database`);
+                        logger_1.logger.info(`💾 Updated address in database`);
                     }
                 }
             }
             else {
-                console.log(`🔍 [DRY RUN] Would update: lat=${geocodeResult.lat}, lng=${geocodeResult.lng}, source=${geocodeResult.source}`);
+                logger_1.logger.info(`🔍 [DRY RUN] Would update: lat=${geocodeResult.lat}, lng=${geocodeResult.lng}, source=${geocodeResult.source}`);
             }
             results.push(result);
         }
@@ -159,7 +160,7 @@ async function processBatch(batch, dryRun, throttleMs) {
             result.status = 'failed';
             result.error = error.message;
             results.push(result);
-            console.error(`❌ Error processing address:`, error.message);
+            logger_1.logger.error(`❌ Error processing address:`, error.message);
         }
     }
     return results;
@@ -168,12 +169,12 @@ async function processBatch(batch, dryRun, throttleMs) {
  * Main migration function
  */
 async function migrateAddresses(dryRun = true, throttleMs = DEFAULT_THROTTLE_MS) {
-    console.log(`\n${'='.repeat(80)}`);
-    console.log(`🚀 Starting Address Re-Geocoding Migration`);
-    console.log(`${'='.repeat(80)}`);
-    console.log(`Mode: ${dryRun ? '🔍 DRY RUN (no changes)' : '💾 LIVE RUN (will update database)'}`);
-    console.log(`Throttle: ${throttleMs}ms between requests`);
-    console.log(`${'='.repeat(80)}\n`);
+    logger_1.logger.info(`\n${'='.repeat(80)}`);
+    logger_1.logger.info(`🚀 Starting Address Re-Geocoding Migration`);
+    logger_1.logger.info(`${'='.repeat(80)}`);
+    logger_1.logger.info(`Mode: ${dryRun ? '🔍 DRY RUN (no changes)' : '💾 LIVE RUN (will update database)'}`);
+    logger_1.logger.info(`Throttle: ${throttleMs}ms between requests`);
+    logger_1.logger.info(`${'='.repeat(80)}\n`);
     const stats = {
         totalAddresses: 0,
         invalidAddresses: 0,
@@ -185,12 +186,12 @@ async function migrateAddresses(dryRun = true, throttleMs = DEFAULT_THROTTLE_MS)
     const allResults = [];
     try {
         // Connect to MongoDB Atlas
-        console.log(`📡 Connecting to MongoDB Atlas: MONGODB_URI\n`);
+        logger_1.logger.info(`📡 Connecting to MongoDB Atlas: MONGODB_URI\n`);
         await mongoose_1.default.connect(MONGODB_URI);
-        console.log(`✅ Connected to MongoDB Atlas\n`);
+        logger_1.logger.info(`✅ Connected to MongoDB Atlas\n`);
         // Find all users with addresses
         const users = await User_1.User.find({ 'addresses.0': { $exists: true } });
-        console.log(`👥 Found ${users.length} users with addresses\n`);
+        logger_1.logger.info(`👥 Found ${users.length} users with addresses\n`);
         // Collect all addresses that need processing
         const addressesToProcess = [];
         for (const user of users) {
@@ -199,20 +200,20 @@ async function migrateAddresses(dryRun = true, throttleMs = DEFAULT_THROTTLE_MS)
                 if (hasInvalidCoordinates(address)) {
                     stats.invalidAddresses++;
                     addressesToProcess.push({ user, address });
-                    console.log(`❌ Invalid coordinates found: ${address.addressLine} (lat=${address.lat}, lng=${address.lng})`);
+                    logger_1.logger.info(`❌ Invalid coordinates found: ${address.addressLine} (lat=${address.lat}, lng=${address.lng})`);
                 }
             }
         }
-        console.log(`\n📊 Summary: ${stats.totalAddresses} total addresses, ${stats.invalidAddresses} need geocoding\n`);
+        logger_1.logger.info(`\n📊 Summary: ${stats.totalAddresses} total addresses, ${stats.invalidAddresses} need geocoding\n`);
         if (stats.invalidAddresses === 0) {
-            console.log(`✅ No addresses need geocoding. All addresses have valid coordinates!\n`);
+            logger_1.logger.info(`✅ No addresses need geocoding. All addresses have valid coordinates!\n`);
             return;
         }
         // Process in batches
-        console.log(`🔄 Processing ${stats.invalidAddresses} addresses in batches of ${BATCH_SIZE}...\n`);
+        logger_1.logger.info(`🔄 Processing ${stats.invalidAddresses} addresses in batches of ${BATCH_SIZE}...\n`);
         for (let i = 0; i < addressesToProcess.length; i += BATCH_SIZE) {
             const batch = addressesToProcess.slice(i, i + BATCH_SIZE);
-            console.log(`\n📦 Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(addressesToProcess.length / BATCH_SIZE)} (${batch.length} addresses)`);
+            logger_1.logger.info(`\n📦 Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(addressesToProcess.length / BATCH_SIZE)} (${batch.length} addresses)`);
             const batchResults = await processBatch(batch, dryRun, throttleMs);
             allResults.push(...batchResults);
             // Update stats
@@ -232,56 +233,56 @@ async function migrateAddresses(dryRun = true, throttleMs = DEFAULT_THROTTLE_MS)
                     stats.skipped++;
                 }
             }
-            console.log(`\n✅ Batch complete. Progress: ${i + batch.length}/${addressesToProcess.length}`);
+            logger_1.logger.info(`\n✅ Batch complete. Progress: ${i + batch.length}/${addressesToProcess.length}`);
         }
     }
     catch (error) {
-        console.error(`\n❌ Migration failed:`, error);
+        logger_1.logger.error(`\n❌ Migration failed:`, error);
         throw error;
     }
     finally {
         await mongoose_1.default.disconnect();
-        console.log(`\n📡 Disconnected from MongoDB\n`);
+        logger_1.logger.info(`\n📡 Disconnected from MongoDB\n`);
     }
     // Print final report
-    console.log(`\n${'='.repeat(80)}`);
-    console.log(`📊 MIGRATION COMPLETE - Final Report`);
-    console.log(`${'='.repeat(80)}`);
-    console.log(`Total addresses scanned:        ${stats.totalAddresses}`);
-    console.log(`Addresses with invalid coords:  ${stats.invalidAddresses}`);
-    console.log(`✅ Successfully geocoded:       ${stats.geocodedSuccessful}`);
-    console.log(`⚠️  Geocoded via pincode:       ${stats.geocodedPincodeFallback}`);
-    console.log(`❌ Geocoding failed:            ${stats.geocodingFailed}`);
-    console.log(`⏭️  Skipped (already valid):    ${stats.skipped}`);
-    console.log(`${'='.repeat(80)}\n`);
+    logger_1.logger.info(`\n${'='.repeat(80)}`);
+    logger_1.logger.info(`📊 MIGRATION COMPLETE - Final Report`);
+    logger_1.logger.info(`${'='.repeat(80)}`);
+    logger_1.logger.info(`Total addresses scanned:        ${stats.totalAddresses}`);
+    logger_1.logger.info(`Addresses with invalid coords:  ${stats.invalidAddresses}`);
+    logger_1.logger.info(`✅ Successfully geocoded:       ${stats.geocodedSuccessful}`);
+    logger_1.logger.info(`⚠️  Geocoded via pincode:       ${stats.geocodedPincodeFallback}`);
+    logger_1.logger.info(`❌ Geocoding failed:            ${stats.geocodingFailed}`);
+    logger_1.logger.info(`⏭️  Skipped (already valid):    ${stats.skipped}`);
+    logger_1.logger.info(`${'='.repeat(80)}\n`);
     // Print detailed results for failed addresses
     if (stats.geocodingFailed > 0) {
-        console.log(`\n⚠️  FAILED ADDRESSES (require manual intervention):`);
-        console.log(`${'='.repeat(80)}`);
+        logger_1.logger.info(`\n⚠️  FAILED ADDRESSES (require manual intervention):`);
+        logger_1.logger.info(`${'='.repeat(80)}`);
         allResults
             .filter(r => r.status === 'failed')
             .forEach(r => {
-            console.log(`\n❌ User ID: ${r.userId}`);
-            console.log(`   Address: ${r.addressLine}, ${r.city}, ${r.pincode}`);
-            console.log(`   Error: ${r.error || 'Unknown'}`);
+            logger_1.logger.info(`\n❌ User ID: ${r.userId}`);
+            logger_1.logger.info(`   Address: ${r.addressLine}, ${r.city}, ${r.pincode}`);
+            logger_1.logger.info(`   Error: ${r.error || 'Unknown'}`);
         });
-        console.log(`\n${'='.repeat(80)}\n`);
+        logger_1.logger.info(`\n${'='.repeat(80)}\n`);
     }
     // Print pincode fallback addresses
     if (stats.geocodedPincodeFallback > 0) {
-        console.log(`\n⚠️  PINCODE FALLBACK ADDRESSES (estimated coordinates):`);
-        console.log(`${'='.repeat(80)}`);
+        logger_1.logger.info(`\n⚠️  PINCODE FALLBACK ADDRESSES (estimated coordinates):`);
+        logger_1.logger.info(`${'='.repeat(80)}`);
         allResults
             .filter(r => r.coordsSource === 'pincode')
             .forEach(r => {
-            console.log(`\n📍 User ID: ${r.userId}`);
-            console.log(`   Address: ${r.addressLine}, ${r.city}, ${r.pincode}`);
-            console.log(`   New coords: lat=${r.newCoords?.lat}, lng=${r.newCoords?.lng}`);
-            console.log(`   ⚠️  Using pincode centroid - delivery fees will be ESTIMATED`);
+            logger_1.logger.info(`\n📍 User ID: ${r.userId}`);
+            logger_1.logger.info(`   Address: ${r.addressLine}, ${r.city}, ${r.pincode}`);
+            logger_1.logger.info(`   New coords: lat=${r.newCoords?.lat}, lng=${r.newCoords?.lng}`);
+            logger_1.logger.info(`   ⚠️  Using pincode centroid - delivery fees will be ESTIMATED`);
         });
-        console.log(`\n${'='.repeat(80)}\n`);
+        logger_1.logger.info(`\n${'='.repeat(80)}\n`);
     }
-    console.log(`\n✅ Migration completed ${dryRun ? 'in DRY RUN mode (no changes made)' : 'and database updated'}\n`);
+    logger_1.logger.info(`\n✅ Migration completed ${dryRun ? 'in DRY RUN mode (no changes made)' : 'and database updated'}\n`);
 }
 // Parse command line arguments
 const args = process.argv.slice(2);
@@ -291,10 +292,10 @@ const throttleMs = throttleArg ? parseInt(throttleArg.split('=')[1]) : DEFAULT_T
 // Run migration
 migrateAddresses(isDryRun, throttleMs)
     .then(() => {
-    console.log(`✅ Script completed successfully`);
+    logger_1.logger.info(`✅ Script completed successfully`);
     process.exit(0);
 })
     .catch((error) => {
-    console.error(`❌ Script failed:`, error);
+    logger_1.logger.error(`❌ Script failed:`, error);
     process.exit(1);
 });

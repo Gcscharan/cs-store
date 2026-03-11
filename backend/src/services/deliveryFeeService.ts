@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 /**
  * Enterprise-Grade Delivery Fee Service
  * Handles all delivery fee calculations with multi-warehouse support,
@@ -145,7 +146,7 @@ export async function calculateDeliveryFeeForAddress(
 
     return result;
   } catch (error) {
-    console.error("Error calculating delivery fee:", error);
+    logger.error("Error calculating delivery fee:", error);
     throw error;
   }
 }
@@ -265,7 +266,7 @@ async function calculateDistance(
         };
       }
     } catch (error) {
-      console.error("Google Maps API error, falling back to Haversine:", error);
+      logger.error("Google Maps API error, falling back to Haversine:", error);
     }
   }
 

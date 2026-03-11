@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger';
 import { RazorpayReadonlyClient } from "./razorpayReadonlyClient";
 import {
   RazorpayVerificationError,
@@ -121,7 +122,7 @@ export async function verifyRazorpayPayment(
     };
 
     const durationMs = Date.now() - startedAt;
-    console.log(
+    logger.info(
       `[RazorpayVerify] order=${razorpayOrderId || (payment as any)?.order_id || ""} payment=${razorpayPaymentId || (payment as any)?.id || ""} status=OK duration=${durationMs}ms`
     );
 
@@ -132,7 +133,7 @@ export async function verifyRazorpayPayment(
       : new RazorpayVerificationError({ code: RazorpayVerificationErrorCode.NETWORK_ERROR, message: "Verification failed" });
 
     const durationMs = Date.now() - startedAt;
-    console.log(
+    logger.info(
       `[RazorpayVerify] order=${razorpayOrderId || ""} payment=${razorpayPaymentId || ""} status=${err.code} duration=${durationMs}ms`
     );
 

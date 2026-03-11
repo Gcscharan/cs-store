@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger';
 import { Request, Response } from "express";
 
 /**
@@ -24,7 +25,7 @@ export const verifyRazorpayPayment = async (req: Request, res: Response) => {
       message: "This payment path has been permanently disabled. Use PaymentIntent flow.",
     });
   } catch (error: any) {
-    console.error("Payment verification error:", error);
+    logger.error("Payment verification error:", error);
     return res.status(500).json({ 
       error: "Failed to verify payment",
       message: error.message || "Unknown error occurred"
@@ -44,7 +45,7 @@ export const handleRazorpayWebhook = async (req: Request, res: Response) => {
       message: "This payment path has been permanently disabled. Use PaymentIntent flow.",
     });
   } catch (error: any) {
-    console.error("Webhook handling error:", error);
+    logger.error("Webhook handling error:", error);
     return res.status(500).json({ 
       error: "Failed to handle webhook",
       message: error.message || "Unknown error occurred"

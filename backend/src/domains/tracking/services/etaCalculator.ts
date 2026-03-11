@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger';
 import { Client } from "@googlemaps/google-maps-services-js";
 import redisClient from "../../../config/redis";
 
@@ -89,7 +90,7 @@ export async function calculateETA(params: {
 
       return etaResult;
     } catch (error) {
-      console.error("[ETA] Google Directions API failed:", error);
+      logger.error("[ETA] Google Directions API failed:", error);
       // Fall through to fallback
     }
   }

@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.updatePaymentStatus = exports.getPaymentStatus = exports.placeOrderCOD = exports.createOrder = exports.cancelOrder = exports.getOrderById = exports.getOrders = void 0;
+const logger_1 = require("../../../utils/logger");
 const mongoose_1 = __importDefault(require("mongoose"));
 const Order_1 = require("../../../models/Order");
 const DeliveryBoy_1 = require("../../../models/DeliveryBoy");
@@ -210,7 +211,7 @@ const createOrder = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Create order error:", {
+        logger_1.logger.error("Create order error:", {
             message: error.message,
             statusCode: error.statusCode,
             stack: error.stack,
@@ -232,13 +233,13 @@ const placeOrderCOD = async (req, res) => {
         const idempotencyKeyHeader = String(req.header("Idempotency-Key") || "").trim();
         const idempotencyKeyBody = String(req.body?.idempotencyKey || "").trim();
         const idempotencyKey = idempotencyKeyHeader || idempotencyKeyBody || undefined;
-        console.log("[DEBUG] placeOrderCOD: userId:", userId, "idempotencyKey:", idempotencyKey);
+        logger_1.logger.info("[DEBUG] placeOrderCOD:", { userId, idempotencyKey });
         const result = await (0, orderBuilder_1.createOrderFromCart)({
             userId,
             paymentMethod: "cod",
             idempotencyKey,
         });
-        console.log("[DEBUG] placeOrderCOD: Order created:", result.order?._id, "created:", result.created);
+        logger_1.logger.info("[DEBUG] placeOrderCOD: Order created:", { orderId: result.order?._id, created: result.created });
         return res.status(200).json({
             message: "Order placed with Cash on Delivery",
             order: result.order,
@@ -246,7 +247,7 @@ const placeOrderCOD = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("[DEBUG] placeOrderCOD error:", {
+        logger_1.logger.error("[DEBUG] placeOrderCOD error:", {
             message: error.message,
             statusCode: error.statusCode,
             stack: error.stack,
@@ -255,7 +256,7 @@ const placeOrderCOD = async (req, res) => {
         if (statusCode >= 400 && statusCode < 500) {
             return res.status(statusCode).json({ message: error.message || "Bad request", error: error.message });
         }
-        console.error("COD order placement error:", error);
+        logger_1.logger.error("COD order placement error:", error);
         return res.status(500).json({ message: "Failed to place order (COD)", error: error.message });
     }
 };
@@ -293,7 +294,7 @@ const getPaymentStatus = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Get payment status error:", error);
+        logger_1.logger.error("Get payment status error:", error);
         return res.status(500).json({ message: "Failed to get payment status" });
     }
 };
@@ -311,7 +312,7 @@ const updatePaymentStatus = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Payment status update error:", error);
+        logger_1.logger.error("Payment status update error:", error);
         return res.status(500).json({
             error: "Failed to update payment status",
             message: error.message || "Unknown error occurred"

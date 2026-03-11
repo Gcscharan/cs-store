@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 import { Request, Response } from "express";
 import mongoose from "mongoose";
 import crypto from "crypto";
@@ -191,7 +192,7 @@ export const getStats = async (req: Request, res: Response) => {
       endDate,
     });
   } catch (error) {
-    console.error("Admin stats error:", error);
+    logger.error("Admin stats error:", error);
     res.status(500).json({ error: "Failed to fetch stats" });
     return;
   }
@@ -614,7 +615,7 @@ export const getAdminProfile = async (req: Request, res: Response) => {
 
     return res.json(adminProfile);
   } catch (error) {
-    console.error("Admin profile error:", error);
+    logger.error("Admin profile error:", error);
     return res.status(500).json({ error: "Failed to fetch admin profile" });
   }
 };
@@ -664,7 +665,7 @@ export const getUsers = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error("Admin users error:", error);
+    logger.error("Admin users error:", error);
     return res.status(500).json({ error: "Failed to fetch users" });
   }
 };
@@ -716,7 +717,7 @@ export const getAdminProducts = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error("Admin products error:", error);
+    logger.error("Admin products error:", error);
     return res.status(500).json({ error: "Failed to fetch products" });
   }
 };
@@ -769,7 +770,7 @@ export const getAdminOrders = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error("Admin orders error:", error);
+    logger.error("Admin orders error:", error);
     return res.status(500).json({ error: "Failed to fetch orders" });
   }
 };
@@ -865,7 +866,7 @@ export const getAdminDeliveryBoys = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error("Admin delivery boys error:", error);
+    logger.error("Admin delivery boys error:", error);
     return res.status(500).json({ error: "Failed to fetch delivery boys" });
   }
 };
@@ -934,7 +935,7 @@ export const approveDeliveryBoy = async (
       },
     });
   } catch (error) {
-    console.error("Approve delivery boy error:", error);
+    logger.error("Approve delivery boy error:", error);
     return res
       .status(500)
       .json({ error: "Failed to approve delivery partner" });
@@ -1004,7 +1005,7 @@ export const suspendDeliveryBoy = async (
         : null,
     });
   } catch (error) {
-    console.error("Suspend delivery boy error:", error);
+    logger.error("Suspend delivery boy error:", error);
     return res
       .status(500)
       .json({ error: "Failed to suspend delivery partner" });
@@ -1118,7 +1119,7 @@ export const exportOrders = async (req: Request, res: Response) => {
       res.download("/tmp/orders.csv");
     }
   } catch (error) {
-    console.error("Export error:", error);
+    logger.error("Export error:", error);
     res.status(500).json({ error: "Failed to export orders" });
     return;
   }
@@ -1172,7 +1173,7 @@ export const getDashboardStats = async (
     });
     return;
   } catch (error) {
-    console.error("Dashboard stats error:", error);
+    logger.error("Dashboard stats error:", error);
     res.status(500).json({ error: "Failed to fetch dashboard stats" });
     return;
   }
@@ -1243,7 +1244,7 @@ export const updateProduct = async (
       product,
     });
   } catch (error) {
-    console.error("Update product error:", error);
+    logger.error("Update product error:", error);
     res.status(500).json({ error: "Failed to update product" });
     return;
   }
@@ -1287,7 +1288,7 @@ export const deleteProduct = async (
       message: "Product deleted successfully",
     });
   } catch (error) {
-    console.error("Delete product error:", error);
+    logger.error("Delete product error:", error);
     res.status(500).json({ error: "Failed to delete product" });
     return;
   }
@@ -1372,7 +1373,7 @@ export const makeDeliveryBoy = async (
       },
     });
   } catch (error) {
-    console.error("Make delivery boy error:", error);
+    logger.error("Make delivery boy error:", error);
     res.status(500).json({ error: "Failed to promote user to delivery boy" });
     return;
   }
@@ -1429,7 +1430,7 @@ export const computeRoutes = async (req: Request, res: Response) => {
         excludedOrderIds.add(String(oid));
       }
     }
-    console.log("[DEBUG] computeRoutes: Active routes found:", activeRouteOrderIds.length, "Excluded order IDs:", Array.from(excludedOrderIds));
+    logger.info("[DEBUG] computeRoutes: Active routes found:", { activeRouteOrderIds: activeRouteOrderIds.length, excludedOrderIds: Array.from(excludedOrderIds) });
     
     if (orderIds && Array.isArray(orderIds) && orderIds.length > 0) {
       // Fetch specific orders - exclude any that are in active routes
@@ -1450,17 +1451,17 @@ export const computeRoutes = async (req: Request, res: Response) => {
         orderStatus: { $in: ["PACKED", "packed"] },
       };
       
-      console.log("[DEBUG] computeRoutes: Fetching orders with query:", JSON.stringify(baseQuery));
+      logger.info("[DEBUG] computeRoutes: Fetching orders with query:", JSON.stringify(baseQuery));
       orders = await Order.find(baseQuery).lean();
-      console.log("[DEBUG] computeRoutes: Found orders before route filter:", orders.length);
+      logger.info("[DEBUG] computeRoutes: Found orders before route filter:", orders.length);
       if (orders.length > 0) {
-        console.log("[DEBUG] computeRoutes: Order IDs found:", orders.map((o: any) => String(o._id)));
-        console.log("[DEBUG] computeRoutes: Order details:", orders.map((o: any) => ({ id: String(o._id), status: o.orderStatus, deliveryBoyId: o.deliveryBoyId || null })));
+        logger.info("[DEBUG] computeRoutes: Order IDs found:", orders.map((o: any) => String(o._id)));
+        logger.info("[DEBUG] computeRoutes: Order details:", orders.map((o: any) => ({ id: String(o._id), status: o.orderStatus, deliveryBoyId: o.deliveryBoyId || null })));
       }
       
       // Filter out orders that are in active routes
       orders = orders.filter((order: any) => !excludedOrderIds.has(String(order._id)));
-      console.log("[DEBUG] computeRoutes: Orders after excluding active routes:", orders.length, "Excluded IDs:", excludedOrderIds.size);
+      logger.info("[DEBUG] computeRoutes: Orders after excluding active routes:", { ordersCount: orders.length, excludedIds: excludedOrderIds.size });
     }
 
     if (orders.length === 0) {
@@ -1654,7 +1655,7 @@ export const computeRoutes = async (req: Request, res: Response) => {
       metadata: result.metadata,
     });
   } catch (error: any) {
-    console.error("Route computation error:", error);
+    logger.error("Route computation error:", error);
     res.status(400).json({
       error: "Route computation failed",
       message: error.message || "Unknown error occurred",
@@ -1890,7 +1891,7 @@ export const purgeOrders = async (req: Request, res: Response) => {
       afterCounts: { orders: 0, routes: alsoDeleteRoutes ? 0 : routesCount },
     });
   } catch (error: any) {
-    console.error("Purge orders error:", error);
+    logger.error("Purge orders error:", error);
     res.status(500).json({
       error: "Failed to purge orders",
       message: error.message || "Unknown error occurred",
@@ -1940,7 +1941,7 @@ export const getGstReportHandler = async (req: Request, res: Response) => {
 
     res.json(report);
   } catch (error: any) {
-    console.error("GST report error:", error);
+    logger.error("GST report error:", error);
     res.status(500).json({
       error: "Failed to generate GST report",
       message: error.message || "Unknown error occurred",

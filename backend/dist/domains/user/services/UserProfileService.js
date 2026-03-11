@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.UserProfileService = void 0;
+const logger_1 = require("../../../utils/logger");
 const UserRepository_1 = require("../repositories/UserRepository");
 class UserProfileService {
     constructor() {
@@ -24,7 +25,7 @@ class UserProfileService {
             };
         }
         catch (error) {
-            console.error("Error fetching user profile:", error);
+            logger_1.logger.error("Error fetching user profile:", error);
             throw error;
         }
     }
@@ -54,7 +55,7 @@ class UserProfileService {
             };
         }
         catch (error) {
-            console.error("Error updating user profile:", error);
+            logger_1.logger.error("Error updating user profile:", error);
             throw error;
         }
     }

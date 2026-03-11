@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 import { Pincode } from "../models/Pincode";
@@ -10,8 +11,8 @@ dotenv.config();
 const MONGODB_URI = process.env.MONGODB_URI;
 
 if (!MONGODB_URI) {
-  console.error("❌ CRITICAL: MONGODB_URI environment variable is not set!");
-  console.error("❌ Please set MONGODB_URI in your .env file and restart.");
+  logger.error("❌ CRITICAL: MONGODB_URI environment variable is not set!");
+  logger.error("❌ Please set MONGODB_URI in your .env file and restart.");
   process.exit(1);
 }
 
@@ -19,11 +20,11 @@ async function importPincodes() {
   try {
     // Connect to MongoDB Atlas
     await mongoose.connect(MONGODB_URI as string);
-    console.log("✅ Connected to MongoDB Atlas");
+    logger.info("✅ Connected to MongoDB Atlas");
 
     // Clear existing pincodes
     await Pincode.deleteMany({});
-    console.log("🗑️ Cleared existing pincodes");
+    logger.info("🗑️ Cleared existing pincodes");
 
     // Insert new pincodes
     const pincodes = pincodeData.map((pincode: any) => ({
@@ -34,25 +35,25 @@ async function importPincodes() {
     }));
 
     await Pincode.insertMany(pincodes);
-    console.log(`✅ Imported ${pincodes.length} pincodes`);
+    logger.info(`✅ Imported ${pincodes.length} pincodes`);
 
     // Verify import
     const count = await Pincode.countDocuments();
-    console.log(`📊 Total pincodes in database: ${count}`);
+    logger.info(`📊 Total pincodes in database: ${count}`);
 
     // Show sample data
     const samplePincodes = await Pincode.find().limit(5);
-    console.log("📋 Sample pincodes:");
+    logger.info("📋 Sample pincodes:");
     samplePincodes.forEach((pincode) => {
-      console.log(
+      logger.info(
         `  ${pincode.pincode} - ${pincode.state}, ${pincode.district}`
       );
     });
   } catch (error) {
-    console.error("❌ Error importing pincodes:", error);
+    logger.error("❌ Error importing pincodes:", error);
   } finally {
     await mongoose.disconnect();
-    console.log("🔌 Disconnected from MongoDB");
+    logger.info("🔌 Disconnected from MongoDB");
     process.exit(0);
   }
 }

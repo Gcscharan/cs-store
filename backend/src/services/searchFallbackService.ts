@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 import { Product } from "../models/Product";
 import { escapeRegex } from "../utils/regex";
 import { normalizeProductImages } from "../domains/catalog/controllers/productController";
@@ -286,7 +287,7 @@ export class SearchFallbackService {
       };
 
     } catch (error) {
-      console.error('Search error:', error);
+      logger.error('Search error:', error);
       // Fallback to simple regex search
       return this.fallbackRegexSearch(options);
     }

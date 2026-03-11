@@ -36,6 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const logger_1 = require("../../utils/logger");
 /**
  * MIGRATION 03: Enhance Orders Collection
  * Adds timing estimates, coupons, and audit logging
@@ -47,8 +48,8 @@ dotenv.config();
 async function enhanceOrders() {
     try {
         await mongoose_1.default.connect(process.env.MONGODB_URI);
-        console.log("✅ Connected to MongoDB\n");
-        console.log("🔧 Enhancing Orders Collection...");
+        logger_1.logger.info("✅ Connected to MongoDB\n");
+        logger_1.logger.info("🔧 Enhancing Orders Collection...");
         const result = await Order_1.Order.updateMany({}, {
             $set: {
                 // Timing
@@ -82,15 +83,15 @@ async function enhanceOrders() {
                 orderStatusLogs: []
             }
         }, { strict: false });
-        console.log(`✅ Updated ${result.modifiedCount} orders`);
+        logger_1.logger.info(`✅ Updated ${result.modifiedCount} orders`);
         // Create indexes
-        console.log("\n🔧 Creating indexes...");
+        logger_1.logger.info("\n🔧 Creating indexes...");
         await Order_1.Order.collection.createIndex({ estimatedDeliveryTime: 1 });
         await Order_1.Order.collection.createIndex({ isReturned: 1, returnedAt: -1 });
-        console.log("✅ Indexes created");
+        logger_1.logger.info("✅ Indexes created");
     }
     catch (error) {
-        console.error("❌ Error:", error);
+        logger_1.logger.error("❌ Error:", error);
     }
     finally {
         await mongoose_1.default.connection.close();

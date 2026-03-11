@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.checkPincodeController = exports.getValidPincodeRangesController = exports.validateBulkPincodesController = exports.validatePincodeController = void 0;
+const logger_1 = require("../utils/logger");
 const pincodeResolver_1 = require("../utils/pincodeResolver");
 // Comprehensive pincode validation for Andhra Pradesh and Telangana
 const validatePincode = (pincode) => {
@@ -130,7 +131,7 @@ const validatePincodeController = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Pincode validation error:", error);
+        logger_1.logger.error("Pincode validation error:", error);
         res.status(500).json({
             success: false,
             message: "Internal server error",
@@ -165,7 +166,7 @@ const validateBulkPincodesController = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Bulk pincode validation error:", error);
+        logger_1.logger.error("Bulk pincode validation error:", error);
         res.status(500).json({
             success: false,
             message: "Internal server error",
@@ -187,7 +188,7 @@ const getValidPincodeRangesController = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Get pincode ranges error:", error);
+        logger_1.logger.error("Get pincode ranges error:", error);
         res.status(500).json({
             success: false,
             message: "Internal server error",
@@ -228,7 +229,7 @@ const checkPincodeController = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Pincode check error:", error);
+        logger_1.logger.error("Pincode check error:", error);
         res.status(500).json({
             deliverable: false,
             message: "Internal server error",

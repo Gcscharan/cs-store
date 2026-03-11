@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.clearDeliveryBoyRoute = exports.getDeliveryBoyRoute = exports.updateDeliveryBoyLocation = exports.deleteDeliveryPersonnel = exports.updateDeliveryPersonnel = exports.addDeliveryPersonnel = exports.getDeliveryPersonnel = void 0;
+const logger_1 = require("../utils/logger");
 const DeliveryBoy_1 = require("../models/DeliveryBoy");
 const User_1 = require("../models/User");
 const smartAssignmentService_1 = require("../services/smartAssignmentService");
@@ -19,7 +20,7 @@ const getDeliveryPersonnel = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Error fetching delivery personnel:", error);
+        logger_1.logger.error("Error fetching delivery personnel:", error);
         res.status(500).json({
             error: "Failed to load delivery personnel. Please try again later.",
         });
@@ -79,7 +80,7 @@ const addDeliveryPersonnel = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Error adding delivery personnel:", error);
+        logger_1.logger.error("Error adding delivery personnel:", error);
         res.status(500).json({
             error: "Failed to add delivery personnel. Please try again later.",
         });
@@ -127,7 +128,7 @@ const updateDeliveryPersonnel = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Error updating delivery personnel:", error);
+        logger_1.logger.error("Error updating delivery personnel:", error);
         res.status(500).json({
             error: "Failed to update delivery personnel. Please try again later.",
         });
@@ -159,7 +160,7 @@ const deleteDeliveryPersonnel = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Error deleting delivery personnel:", error);
+        logger_1.logger.error("Error deleting delivery personnel:", error);
         res.status(500).json({
             error: "Failed to delete delivery personnel. Please try again later.",
         });
@@ -201,7 +202,7 @@ const updateDeliveryBoyLocation = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Error updating delivery boy location:", error);
+        logger_1.logger.error("Error updating delivery boy location:", error);
         res.status(500).json({
             error: "Failed to update location. Please try again later.",
         });
@@ -228,7 +229,7 @@ const getDeliveryBoyRoute = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Error fetching delivery boy route:", error);
+        logger_1.logger.error("Error fetching delivery boy route:", error);
         res.status(500).json({
             error: "Failed to fetch route. Please try again later.",
         });
@@ -249,7 +250,7 @@ const clearDeliveryBoyRoute = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Error clearing delivery boy route:", error);
+        logger_1.logger.error("Error clearing delivery boy route:", error);
         res.status(500).json({
             error: "Failed to clear route. Please try again later.",
         });

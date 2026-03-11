@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger';
 import mongoose from "mongoose";
 import { Order, IOrder, IInvoiceItem, ISellerDetails } from "../../../models/Order";
 import { Product } from "../../../models/Product";
@@ -263,7 +264,7 @@ export async function generateInvoiceForOrder(orderId: string): Promise<{
       
       await order.save({ session });
       
-      console.log(`[Invoice] Generated invoice ${invoiceNumber} for order ${orderId}`);
+      logger.info(`[Invoice] Generated invoice ${invoiceNumber} for order ${orderId}`);
       
       result = { success: true, invoiceNumber };
     });

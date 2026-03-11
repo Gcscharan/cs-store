@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.paymentCallback = exports.getPaymentStats = exports.getAllPayments = exports.getPaymentDetails = exports.verifyPayment = exports.createOrder = void 0;
+const logger_1 = require("../../../utils/logger");
 const crypto_1 = __importDefault(require("crypto"));
 const razorpay_1 = __importDefault(require("../../../config/razorpay"));
 const Payment_1 = require("../../../models/Payment");
@@ -26,7 +27,7 @@ const verifyPayment = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Error verifying payment:", error);
+        logger_1.logger.error("Error verifying payment:", error);
         return res.status(500).json({
             success: false,
             message: "Failed to verify payment",
@@ -58,7 +59,7 @@ const getPaymentDetails = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Error fetching payment details:", error);
+        logger_1.logger.error("Error fetching payment details:", error);
         return res.status(500).json({
             success: false,
             message: "Failed to fetch payment details",
@@ -109,7 +110,7 @@ const getAllPayments = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Error fetching payments:", error);
+        logger_1.logger.error("Error fetching payments:", error);
         return res.status(500).json({
             success: false,
             message: "Failed to fetch payments",
@@ -154,7 +155,7 @@ const getPaymentStats = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Error fetching payment stats:", error);
+        logger_1.logger.error("Error fetching payment stats:", error);
         return res.status(500).json({
             success: false,
             message: "Failed to fetch payment statistics",
@@ -181,7 +182,7 @@ const paymentCallback = async (req, res) => {
         const isAuthentic = expectedSignature === razorpay_signature;
         if (isAuthentic) {
             // Payment is verified - you can update your database here
-            console.log("Payment verified via webhook:", {
+            logger_1.logger.info("Payment verified via webhook:", {
                 payment_id: razorpay_payment_id,
                 order_id: razorpay_order_id,
             });
@@ -198,7 +199,7 @@ const paymentCallback = async (req, res) => {
         }
     }
     catch (error) {
-        console.error("Error processing payment callback:", error);
+        logger_1.logger.error("Error processing payment callback:", error);
         return res.status(500).json({
             success: false,
             message: "Failed to process payment callback",

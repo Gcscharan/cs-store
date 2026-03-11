@@ -303,7 +303,7 @@ export function initializePaymentReconciliation(params?: {
       logger.error("Reconciliation scan failed", e as Error);
 
       if (consecutiveFailures >= FAILURE_THRESHOLD) {
-        console.error("[PAYMENT_RECONCILIATION_FATAL] Too many consecutive failures. Crashing.");
+        logger.error("[PAYMENT_RECONCILIATION_FATAL] Too many consecutive failures. Crashing.");
         process.exit(1);
       }
     }

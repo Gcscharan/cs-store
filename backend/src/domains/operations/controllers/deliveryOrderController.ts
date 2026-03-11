@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger';
 import { Request, Response, NextFunction } from "express";
 import mongoose from "mongoose";
 import { Order } from "../../../models/Order";
@@ -130,7 +131,7 @@ export const getCurrentRoute = async (req: AuthRequest, res: Response): Promise<
       },
     });
   } catch (error) {
-    console.error("Get current route error:", error);
+    logger.error("Get current route error:", error);
     res.status(500).json({ error: "Failed to fetch current route" });
   }
 };
@@ -310,7 +311,7 @@ export const recordDeliveryAttempt = async (
           occurredAt: now,
         });
       } catch (e) {
-        console.error("Route lifecycle update failed (FAILED):", e);
+        logger.error("Route lifecycle update failed (FAILED):", e);
       }
     }
 
@@ -447,7 +448,7 @@ export const getDeliveryBoyInfo = async (
       return;
     }
 
-    console.log(`[GET_INFO] Fetching info for delivery boy: ${deliveryBoy._id} (${deliveryBoy.name})`);
+    logger.info(`[GET_INFO] Fetching info for delivery boy: ${deliveryBoy._id} (${deliveryBoy.name})`);
 
     res.json({
       success: true,
@@ -466,7 +467,7 @@ export const getDeliveryBoyInfo = async (
       },
     });
   } catch (error) {
-    console.error("Get delivery boy info error:", error);
+    logger.error("Get delivery boy info error:", error);
     res.status(500).json({
       error: "Failed to fetch delivery info. Please try again later.",
     });
@@ -494,7 +495,7 @@ export const getDeliveryOrders = async (
       return;
     }
 
-    console.log(`[GET_ORDERS] Fetching orders for delivery boy: ${deliveryBoy._id} (${deliveryBoy.name}) with userId: ${user._id}`);
+    logger.info(`[GET_ORDERS] Fetching orders for delivery boy: ${deliveryBoy._id} (${deliveryBoy.name}) with userId: ${user._id}`);
 
     // Only return active delivery workflow orders (include legacy casing for compatibility)
     // Also support legacy data where deliveryBoyId accidentally stored the delivery user's _id.
@@ -526,9 +527,9 @@ export const getDeliveryOrders = async (
       .populate("userId", "name phone")
       .sort({ createdAt: -1 });
 
-    console.log(`[GET_ORDERS] Found ${orders.length} orders for userId ${user._id} (deliveryBoy ${deliveryBoy._id})`);
+    logger.info(`[GET_ORDERS] Found ${orders.length} orders for userId ${user._id} (deliveryBoy ${deliveryBoy._id})`);
     orders.forEach(order => {
-      console.log(`  - Order ${order._id}: status=${order.orderStatus}, deliveryStatus=${order.deliveryStatus}`);
+      logger.info(`  - Order ${order._id}: status=${order.orderStatus}, deliveryStatus=${order.deliveryStatus}`);
     });
 
     const normalizedOrders = orders.map((o: any) => {
@@ -569,7 +570,7 @@ export const getDeliveryOrders = async (
       orders: normalizedOrders,
     });
   } catch (error) {
-    console.error("Get delivery orders error:", error);
+    logger.error("Get delivery orders error:", error);
     res.status(500).json({
       error: "Failed to fetch orders. Please try again later.",
     });
@@ -645,7 +646,7 @@ export const rejectOrder = async (
       message: "Order rejected",
     });
   } catch (error) {
-    console.error("Reject order error:", error);
+    logger.error("Reject order error:", error);
     res.status(500).json({
       error: "Failed to reject order. Please try again later.",
     });
@@ -797,7 +798,7 @@ export const updateLocation = async (
     res.status(204).send();
     return;
   } catch (error) {
-    console.error("Update location error:", error);
+    logger.error("Update location error:", error);
     res.status(500).json({
       error: "Failed to update location. Please try again later.",
     });
@@ -846,7 +847,7 @@ export const toggleStatus = async (
       availability: deliveryBoy.availability,
     });
   } catch (error) {
-    console.error("Toggle status error:", error);
+    logger.error("Toggle status error:", error);
     res.status(500).json({
       error: "Failed to update status. Please try again later.",
     });
@@ -938,7 +939,7 @@ export const getEarnings = async (
       })),
     });
   } catch (error) {
-    console.error("Get earnings error:", error);
+    logger.error("Get earnings error:", error);
     res.status(500).json({
       error: "Failed to fetch earnings. Please try again later.",
     });
@@ -981,7 +982,7 @@ export const pickupOrder = async (
         occurredAt: new Date(),
       });
     } catch (e) {
-      console.error("Route lifecycle update failed (PICKED_UP):", e);
+      logger.error("Route lifecycle update failed (PICKED_UP):", e);
     }
 
     const io = (req as any).app.get("io");
@@ -1044,7 +1045,7 @@ export const startDelivery = async (
         occurredAt: new Date(),
       });
     } catch (e) {
-      console.error("Route lifecycle update failed (IN_TRANSIT):", e);
+      logger.error("Route lifecycle update failed (IN_TRANSIT):", e);
     }
 
     res.json({
@@ -1130,7 +1131,7 @@ export const markArrived = async (
         deepLink: "/notifications",
       });
     } catch (e) {
-      console.error("Failed to create arrived in-app notification:", e);
+      logger.error("Failed to create arrived in-app notification:", e);
     }
 
     const io = (req as any).app.get("io");
@@ -1147,7 +1148,7 @@ export const markArrived = async (
 
     res.json({ success: true, order });
   } catch (error: any) {
-    console.error("Mark arrived error:", error);
+    logger.error("Mark arrived error:", error);
     const statusCode = Number(error?.statusCode) || 500;
     res.status(statusCode).json({ error: error?.message || "Failed to mark arrived" });
   }
@@ -1216,7 +1217,7 @@ export const getCodCollection = async (req: AuthRequest, res: Response): Promise
       },
     });
   } catch (error: any) {
-    console.error("Get COD collection error:", error);
+    logger.error("Get COD collection error:", error);
     const statusCode = Number(error?.statusCode) || 500;
     res.status(statusCode).json({ error: error?.message || "Failed to fetch COD collection" });
   }
@@ -1369,7 +1370,7 @@ export const createCodCollection = async (req: AuthRequest, res: Response): Prom
       },
     });
   } catch (error: any) {
-    console.error("Create COD collection error:", error);
+    logger.error("Create COD collection error:", error);
     const statusCode = Number(error?.statusCode) || 500;
     res.status(statusCode).json({ error: error?.message || "Failed to record COD collection" });
   }
@@ -1461,7 +1462,7 @@ export const deliverAttempt = async (req: AuthRequest, res: Response): Promise<v
         await sendSMS(String(customer.phone), smsMessage);
         smsSent = true;
       } catch (e) {
-        console.error("Failed to send delivery OTP via SMS:", e);
+        logger.error("Failed to send delivery OTP via SMS:", e);
       }
     }
 
@@ -1470,7 +1471,7 @@ export const deliverAttempt = async (req: AuthRequest, res: Response): Promise<v
         await sendDeliveryOtpEmail(String(customer.email), otpToSend, String(orderId));
         emailSent = true;
       } catch (e) {
-        console.error("Failed to send delivery OTP via email:", e);
+        logger.error("Failed to send delivery OTP via email:", e);
       }
     }
 
@@ -1489,7 +1490,7 @@ export const deliverAttempt = async (req: AuthRequest, res: Response): Promise<v
         deepLink: "/notifications",
       });
     } catch (e) {
-      console.error("Failed to create OTP in-app notification:", e);
+      logger.error("Failed to create OTP in-app notification:", e);
     }
 
     const io = (req as any).app.get("io");
@@ -1512,7 +1513,7 @@ export const deliverAttempt = async (req: AuthRequest, res: Response): Promise<v
       },
     });
   } catch (error: any) {
-    console.error("Delivery attempt error:", error);
+    logger.error("Delivery attempt error:", error);
     const statusCode = Number(error?.statusCode) || 500;
     res.status(statusCode).json({ error: error?.message || "Failed to start delivery attempt" });
   }
@@ -1584,7 +1585,7 @@ export const verifyDeliveryOtp = async (req: AuthRequest, res: Response): Promis
         $unset: { deliveryOtp: 1, deliveryOtpExpiresAt: 1 },
       });
     } catch (e) {
-      console.error("Failed to invalidate delivery OTP after verification:", e);
+      logger.error("Failed to invalidate delivery OTP after verification:", e);
     }
 
     try {
@@ -1594,7 +1595,7 @@ export const verifyDeliveryOtp = async (req: AuthRequest, res: Response): Promis
         occurredAt: new Date(),
       });
     } catch (e) {
-      console.error("Route lifecycle update failed (DELIVERED):", e);
+      logger.error("Route lifecycle update failed (DELIVERED):", e);
     }
 
     const io = (req as any).app.get("io");
@@ -1614,7 +1615,7 @@ export const verifyDeliveryOtp = async (req: AuthRequest, res: Response): Promis
 
     res.json({ success: true, order });
   } catch (error: any) {
-    console.error("Verify OTP error:", error);
+    logger.error("Verify OTP error:", error);
     const statusCode = Number(error?.statusCode) || 500;
     res.status(statusCode).json({ error: error?.message || "Failed to verify OTP" });
   }
@@ -1680,7 +1681,7 @@ export const failDelivery = async (
         occurredAt: new Date(),
       });
     } catch (e) {
-      console.error("Route lifecycle update failed (FAILED):", e);
+      logger.error("Route lifecycle update failed (FAILED):", e);
     }
 
     res.json({
@@ -1747,42 +1748,42 @@ export const resendDeliveryOTP = async (
     // Send OTP to customer via SMS and Email
     const customer = order.userId as any;
     
-    console.log('='.repeat(80));
-    console.log(`🔔 RESENDING DELIVERY OTP - ORDER ${orderId}`);
-    console.log('='.repeat(80));
-    console.log(`📦 Order ID: ${orderId}`);
-    console.log(`🔑 New OTP: ${order.deliveryOtp}`);
-    console.log(`⏰ OTP Expires: ${order.deliveryOtpExpiresAt}`);
-    console.log(`👤 Customer Details:`);
-    console.log(`   - Name: ${customer?.name || 'N/A'}`);
-    console.log(`   - Email: ${customer?.email || 'N/A'}`);
-    console.log(`   - Phone: ${customer?.phone || 'N/A'}`);
-    console.log('='.repeat(80));
+    logger.info('='.repeat(80));
+    logger.info(`🔔 RESENDING DELIVERY OTP - ORDER ${orderId}`);
+    logger.info('='.repeat(80));
+    logger.info(`📦 Order ID: ${orderId}`);
+    logger.info(`🔑 New OTP: ${order.deliveryOtp}`);
+    logger.info(`⏰ OTP Expires: ${order.deliveryOtpExpiresAt}`);
+    logger.info(`👤 Customer Details:`);
+    logger.info(`   - Name: ${customer?.name || 'N/A'}`);
+    logger.info(`   - Email: ${customer?.email || 'N/A'}`);
+    logger.info(`   - Phone: ${customer?.phone || 'N/A'}`);
+    logger.info('='.repeat(80));
     
     if (customer && customer.phone) {
       const smsMessage = `Your CS Store delivery OTP has been resent. Your OTP is ${order.deliveryOtp}. Valid for 30 minutes.`;
       try {
         await sendSMS(customer.phone, smsMessage);
-        console.log(`✅ OTP resent via SMS to customer ${customer.phone}`);
+        logger.info(`✅ OTP resent via SMS to customer ${customer.phone}`);
       } catch (smsError) {
-        console.error("❌ Failed to resend SMS OTP:", smsError);
+        logger.error("❌ Failed to resend SMS OTP:", smsError);
       }
     } else {
-      console.log(`⚠️ No phone number available for customer`);
+      logger.info(`⚠️ No phone number available for customer`);
     }
 
     if (customer && customer.email) {
       try {
         await sendEmailOTP(customer.email, order.deliveryOtp);
-        console.log(`✅ OTP resent via email to customer ${customer.email}`);
+        logger.info(`✅ OTP resent via email to customer ${customer.email}`);
       } catch (emailError) {
-        console.error("❌ Failed to resend email OTP:", emailError);
+        logger.error("❌ Failed to resend email OTP:", emailError);
       }
     } else {
-      console.log(`⚠️ No email available for customer`);
+      logger.info(`⚠️ No email available for customer`);
     }
     
-    console.log('='.repeat(80));
+    logger.info('='.repeat(80));
     
     // Determine what was actually sent
     const sentToPhone = customer && customer.phone;
@@ -1824,7 +1825,7 @@ export const resendDeliveryOTP = async (
       },
     });
   } catch (error) {
-    console.error("Resend OTP error:", error);
+    logger.error("Resend OTP error:", error);
     res.status(500).json({ error: "Failed to resend OTP" });
   }
 };

@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.routeAssignmentService = exports.RouteAssignmentService = void 0;
+const logger_1 = require("../utils/logger");
 const mongoose_1 = __importDefault(require("mongoose"));
 const Order_1 = require("../models/Order");
 const DeliveryBoy_1 = require("../models/DeliveryBoy");
@@ -31,7 +32,7 @@ class RouteAssignmentService {
             await session.startTransaction();
         }
         catch (error) {
-            console.warn("MongoDB transactions not available (requires replica set), continuing without transaction");
+            logger_1.logger.warn("MongoDB transactions not available (requires replica set), continuing without transaction");
             useTransaction = false;
             session = null;
         }
@@ -77,7 +78,7 @@ class RouteAssignmentService {
                     });
                 }
                 catch (error) {
-                    console.error(`Error assigning batch for pincode ${batch.pincode}:`, error);
+                    logger_1.logger.error(`Error assigning batch for pincode ${batch.pincode}:`, error);
                     result.errors.push(`Pincode ${batch.pincode}: ${error.message}`);
                     result.failedCount += batch.orders.length;
                 }
@@ -105,7 +106,7 @@ class RouteAssignmentService {
             // Handle missing or undefined pincode
             const pincode = order.address?.pincode || order.shippingAddress?.zipCode;
             if (!pincode) {
-                console.warn(`Order ${order._id} missing pincode, skipping`);
+                logger_1.logger.warn(`Order ${order._id} missing pincode, skipping`);
                 continue;
             }
             if (!pincodeMap.has(pincode)) {
@@ -216,7 +217,7 @@ class RouteAssignmentService {
             .filter((partner) => userIds.includes(partner.id))
             .map((partner) => partner.id);
         if (assignedPartnerIds.length === 0) {
-            console.log(`📭 No delivery partners found for pincode ${pincode} in Redis, falling back to MongoDB`);
+            logger_1.logger.info(`📭 No delivery partners found for pincode ${pincode} in Redis, falling back to MongoDB`);
             // Fallback to MongoDB if Redis has no data
             const query2 = DeliveryBoy_1.DeliveryBoy.find({
                 userId: { $in: userIds.map((id) => new mongoose_1.default.Types.ObjectId(id)) },
@@ -240,7 +241,7 @@ class RouteAssignmentService {
         const deliveryBoysRaw = session ? await query2.session(session) : await query2;
         const deliveryBoys = (deliveryBoysRaw || []).filter((b) => Boolean(b.userId));
         if (deliveryBoys.length === 0) {
-            console.log(`📭 Redis suggested partners for pincode ${pincode}, but none passed DB verification; falling back to MongoDB`);
+            logger_1.logger.info(`📭 Redis suggested partners for pincode ${pincode}, but none passed DB verification; falling back to MongoDB`);
             const fallbackQuery = DeliveryBoy_1.DeliveryBoy.find({
                 userId: { $in: userIds.map((id) => new mongoose_1.default.Types.ObjectId(id)) },
                 isActive: true,
@@ -253,7 +254,7 @@ class RouteAssignmentService {
             const indexB = assignedPartnerIds.indexOf(b.userId?.toString() || '');
             return indexA - indexB;
         });
-        console.log(`🎯 Found ${sortedDeliveryBoys.length} delivery partners for pincode ${pincode} using Redis ZSET`);
+        logger_1.logger.info(`🎯 Found ${sortedDeliveryBoys.length} delivery partners for pincode ${pincode} using Redis ZSET`);
         return sortedDeliveryBoys;
     }
     /**
@@ -264,7 +265,7 @@ class RouteAssignmentService {
         // Use Redis ZSET to get least loaded bike delivery partners
         const leastLoadedPartners = await deliveryPartnerLoadService_1.deliveryPartnerLoadService.getLeastLoadedPartnersByVehicle(['bike'], 1);
         if (leastLoadedPartners.length === 0) {
-            console.log("📭 No bike delivery partners found in Redis, falling back to MongoDB");
+            logger_1.logger.info("📭 No bike delivery partners found in Redis, falling back to MongoDB");
             // Fallback to MongoDB if Redis has no data
             const query3 = DeliveryBoy_1.DeliveryBoy.findOne({
                 isActive: true,
@@ -288,7 +289,7 @@ class RouteAssignmentService {
         const bikeDeliveryBoyRaw = session ? await query3.session(session) : await query3;
         const bikeDeliveryBoy = bikeDeliveryBoyRaw && bikeDeliveryBoyRaw.userId ? bikeDeliveryBoyRaw : null;
         if (!bikeDeliveryBoy) {
-            console.log(`📭 Redis suggested bike partner ${partnerId}, but it failed DB verification; falling back to MongoDB`);
+            logger_1.logger.info(`📭 Redis suggested bike partner ${partnerId}, but it failed DB verification; falling back to MongoDB`);
             const fallbackQuery = DeliveryBoy_1.DeliveryBoy.findOne({
                 isActive: true,
             })
@@ -300,7 +301,7 @@ class RouteAssignmentService {
                 .sort({ currentLoad: 1 });
             return session ? await fallbackQuery.session(session) : await fallbackQuery;
         }
-        console.log(`🎯 Found bike delivery partner ${partnerId} with load ${leastLoadedPartners[0].load} using Redis ZSET`);
+        logger_1.logger.info(`🎯 Found bike delivery partner ${partnerId} with load ${leastLoadedPartners[0].load} using Redis ZSET`);
         return bikeDeliveryBoy;
     }
     /**
@@ -312,7 +313,7 @@ class RouteAssignmentService {
         const leastLoadedPartners = await deliveryPartnerLoadService_1.deliveryPartnerLoadService.getLeastLoadedPartnersByVehicle(['car', 'auto', 'scooter'], 10 // Get more partners for distribution
         );
         if (leastLoadedPartners.length === 0) {
-            console.log("📭 No auto/car delivery partners found in Redis, falling back to MongoDB");
+            logger_1.logger.info("📭 No auto/car delivery partners found in Redis, falling back to MongoDB");
             // Fallback to MongoDB if Redis has no data
             const query4 = DeliveryBoy_1.DeliveryBoy.find({
                 isActive: true,
@@ -336,7 +337,7 @@ class RouteAssignmentService {
         const deliveryBoysRaw = session ? await query4.session(session) : await query4;
         const deliveryBoys = (deliveryBoysRaw || []).filter((b) => Boolean(b.userId));
         if (deliveryBoys.length === 0) {
-            console.log("📭 Redis suggested auto/car partners, but none passed DB verification; falling back to MongoDB");
+            logger_1.logger.info("📭 Redis suggested auto/car partners, but none passed DB verification; falling back to MongoDB");
             const fallbackQuery = DeliveryBoy_1.DeliveryBoy.find({
                 isActive: true,
             })
@@ -354,7 +355,7 @@ class RouteAssignmentService {
             const indexB = partnerIds.indexOf(b.userId?.toString() || '');
             return indexA - indexB;
         });
-        console.log(`🎯 Found ${sortedDeliveryBoys.length} auto/car delivery partners using Redis ZSET`);
+        logger_1.logger.info(`🎯 Found ${sortedDeliveryBoys.length} auto/car delivery partners using Redis ZSET`);
         return sortedDeliveryBoys;
     }
     /**

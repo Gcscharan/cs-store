@@ -1,11 +1,4 @@
 "use strict";
-/**
- * Backend Base64 Image Utilities
- *
- * These utilities are used for image processing and migration scripts.
- * Note: For production use, you might want to use a proper image processing library
- * like Sharp for better performance and quality.
- */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -18,6 +11,14 @@ exports.migrateThumbnailFromBuffer = migrateThumbnailFromBuffer;
 exports.urlToBase64 = urlToBase64;
 exports.downloadImage = downloadImage;
 exports.getImageMetadata = getImageMetadata;
+const logger_1 = require("./logger");
+/**
+ * Backend Base64 Image Utilities
+ *
+ * These utilities are used for image processing and migration scripts.
+ * Note: For production use, you might want to use a proper image processing library
+ * like Sharp for better performance and quality.
+ */
 const fs_1 = require("fs");
 const util_1 = require("util");
 const stream_1 = require("stream");
@@ -38,7 +39,7 @@ async function createThumbnail(buffer, maxSize = 220) {
     // In a real production environment, you would use Sharp or another image processing library
     // For now, just return the original buffer (no actual resizing)
     // This maintains compatibility while allowing the migration script to work
-    console.warn("⚠️  Using placeholder thumbnail generation. Consider implementing proper image processing with Sharp.");
+    logger_1.logger.warn("⚠️  Using placeholder thumbnail generation. Consider implementing proper image processing with Sharp.");
     return buffer;
 }
 /**
@@ -59,7 +60,7 @@ async function fileToThumbnailBase64(buffer) {
         return bufferToBase64(thumbnailBuffer, 'image/jpeg');
     }
     catch (error) {
-        console.error("Failed to generate thumbnail:", error);
+        logger_1.logger.error("Failed to generate thumbnail:", error);
         throw error;
     }
 }
@@ -83,7 +84,7 @@ async function urlToBase64(imageUrl) {
         return bufferToBase64(buffer, mimeType);
     }
     catch (error) {
-        console.error(`Failed to convert URL to Base64: ${imageUrl}`, error);
+        logger_1.logger.error(`Failed to convert URL to Base64: ${imageUrl}`, error);
         throw error;
     }
 }
@@ -101,7 +102,7 @@ async function downloadImage(url, filepath) {
         await pipelineAsync(response.body, (0, fs_1.createWriteStream)(filepath));
     }
     catch (error) {
-        console.error(`Failed to download image: ${url}`, error);
+        logger_1.logger.error(`Failed to download image: ${url}`, error);
         throw error;
     }
 }

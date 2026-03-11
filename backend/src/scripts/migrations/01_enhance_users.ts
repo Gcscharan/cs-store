@@ -1,3 +1,4 @@
+import { logger } from '../../utils/logger';
 /**
  * MIGRATION 01: Enhance Users Collection
  * Adds enterprise fields without breaking existing data
@@ -11,9 +12,9 @@ dotenv.config();
 async function enhanceUsers() {
   try {
     await mongoose.connect(process.env.MONGODB_URI!);
-    console.log("✅ Connected to MongoDB\n");
+    logger.info("✅ Connected to MongoDB\n");
 
-    console.log("🔧 Enhancing Users Collection...");
+    logger.info("🔧 Enhancing Users Collection...");
     
     const result = await User.updateMany(
       {},
@@ -60,17 +61,17 @@ async function enhanceUsers() {
       { strict: false } // Allow fields not in schema
     );
 
-    console.log(`✅ Updated ${result.modifiedCount} users`);
+    logger.info(`✅ Updated ${result.modifiedCount} users`);
     
     // Create indexes
-    console.log("\n🔧 Creating indexes...");
+    logger.info("\n🔧 Creating indexes...");
     await User.collection.createIndex({ lastLoginAt: -1 });
     await User.collection.createIndex({ totalOrders: -1, totalSpent: -1 });
     await User.collection.createIndex({ loyaltyPoints: -1 });
-    console.log("✅ Indexes created");
+    logger.info("✅ Indexes created");
 
   } catch (error) {
-    console.error("❌ Error:", error);
+    logger.error("❌ Error:", error);
   } finally {
     await mongoose.connection.close();
   }

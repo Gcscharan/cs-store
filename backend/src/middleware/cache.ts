@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 import { Request, Response, NextFunction } from "express";
 import redisClient from "../config/redis";
 
@@ -16,7 +17,7 @@ export const cacheMiddleware = (options: CacheOptions = {}) => {
 
     // Skip caching if Redis is not available
     if (!redisClient.isReady) {
-      console.warn("⚠️  Redis not ready, skipping cache for:", req.path);
+      logger.warn("⚠️  Redis not ready, skipping cache for:", req.path);
       return next();
     }
 
@@ -39,12 +40,12 @@ export const cacheMiddleware = (options: CacheOptions = {}) => {
       
       if (cachedData) {
         // Cache hit - return cached data
-        console.log(`🎯 Cache HIT: ${req.method} ${req.path}`);
+        logger.info(`🎯 Cache HIT: ${req.method} ${req.path}`);
         return res.json(JSON.parse(cachedData));
       }
 
       // Cache miss - continue to controller and cache the response
-      console.log(`💥 Cache MISS: ${req.method} ${req.path}`);
+      logger.info(`💥 Cache MISS: ${req.method} ${req.path}`);
       
       // Override res.json to cache the response
       const originalJson = res.json.bind(res);
@@ -52,7 +53,7 @@ export const cacheMiddleware = (options: CacheOptions = {}) => {
         // Cache the response data
         const ttl = options.ttl || 3600; // Default 1 hour
         redisClient.set(cacheKey, JSON.stringify(data), { EX: ttl }).catch((error: any) => {
-          console.error("❌ Failed to cache response:", error);
+          logger.error("❌ Failed to cache response:", error);
         });
         
         // Return the response
@@ -62,7 +63,7 @@ export const cacheMiddleware = (options: CacheOptions = {}) => {
       // Continue to the next middleware/controller
       next();
     } catch (error) {
-      console.error("❌ Cache middleware error:", error);
+      logger.error("❌ Cache middleware error:", error);
       // Continue without caching on error
       next();
     }
@@ -84,7 +85,7 @@ export const invalidateCache = {
         await redisClient.del(keys);
       }
     } catch (error) {
-      console.error(`❌ Failed to delete pattern ${pattern}:`, error);
+      logger.error(`❌ Failed to delete pattern ${pattern}:`, error);
     }
   },
 
@@ -95,9 +96,9 @@ export const invalidateCache = {
       await invalidateCache.deleteByPattern("product:*");
       await invalidateCache.deleteByPattern("search:*");
       await invalidateCache.deleteByPattern("similar:*");
-      console.log("🗑️  Invalidated all product caches");
+      logger.info("🗑️  Invalidated all product caches");
     } catch (error) {
-      console.error("❌ Failed to invalidate product caches:", error);
+      logger.error("❌ Failed to invalidate product caches:", error);
     }
   },
 
@@ -108,9 +109,9 @@ export const invalidateCache = {
       await redisClient.del(`product:v1:${id}`);
       await invalidateCache.deleteByPattern(`similar:${id}:*`);
       await invalidateCache.deleteByPattern("products:*"); // Invalidate product lists
-      console.log(`🗑️  Invalidated cache for product: ${id}`);
+      logger.info(`🗑️  Invalidated cache for product: ${id}`);
     } catch (error) {
-      console.error(`❌ Failed to invalidate cache for product ${id}:`, error);
+      logger.error(`❌ Failed to invalidate cache for product ${id}:`, error);
     }
   },
 
@@ -118,9 +119,9 @@ export const invalidateCache = {
   search: async (): Promise<void> => {
     try {
       await invalidateCache.deleteByPattern("search:*");
-      console.log("🗑️  Invalidated all search caches");
+      logger.info("🗑️  Invalidated all search caches");
     } catch (error) {
-      console.error("❌ Failed to invalidate search caches:", error);
+      logger.error("❌ Failed to invalidate search caches:", error);
     }
   },
 };

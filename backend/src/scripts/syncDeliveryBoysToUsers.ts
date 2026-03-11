@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 import mongoose from "mongoose";
 import { User } from "../models/User";
 import { DeliveryBoy } from "../models/DeliveryBoy";
@@ -10,8 +11,8 @@ dotenv.config();
 const MONGODB_URI = process.env.MONGODB_URI;
 
 if (!MONGODB_URI) {
-  console.error("❌ CRITICAL: MONGODB_URI environment variable is not set!");
-  console.error("❌ Please set MONGODB_URI in your .env file and restart.");
+  logger.error("❌ CRITICAL: MONGODB_URI environment variable is not set!");
+  logger.error("❌ Please set MONGODB_URI in your .env file and restart.");
   process.exit(1);
 }
 
@@ -22,28 +23,28 @@ if (!MONGODB_URI) {
 async function syncDeliveryBoysToUsers() {
   try {
     await mongoose.connect(MONGODB_URI as string);
-    console.log("✅ Connected to MongoDB Atlas");
+    logger.info("✅ Connected to MongoDB Atlas");
 
     // Get all delivery boys
     const deliveryBoys = await DeliveryBoy.find({});
-    console.log(`\n📊 Found ${deliveryBoys.length} delivery boy records`);
+    logger.info(`\n📊 Found ${deliveryBoys.length} delivery boy records`);
 
     let created = 0;
     let linked = 0;
     let alreadySynced = 0;
 
     for (const deliveryBoy of deliveryBoys) {
-      console.log(`\n🔍 Processing: ${deliveryBoy.name} (${deliveryBoy.phone})`);
+      logger.info(`\n🔍 Processing: ${deliveryBoy.name} (${deliveryBoy.phone})`);
 
       // Check if this delivery boy already has a userId link
       if (deliveryBoy.userId) {
         const linkedUser = await User.findById(deliveryBoy.userId);
         if (linkedUser && linkedUser.role === "delivery") {
-          console.log(`  ✓ Already synced with User: ${linkedUser.email}`);
+          logger.info(`  ✓ Already synced with User: ${linkedUser.email}`);
           alreadySynced++;
           continue;
         } else {
-          console.log(`  ⚠️ Invalid userId link, will fix...`);
+          logger.info(`  ⚠️ Invalid userId link, will fix...`);
           deliveryBoy.userId = undefined;
         }
       }
@@ -59,7 +60,7 @@ async function syncDeliveryBoysToUsers() {
       if (user) {
         // User exists - check if they have delivery role
         if (user.role !== "delivery") {
-          console.log(`  ⚠️ User exists but role is "${user.role}", updating to "delivery"...`);
+          logger.info(`  ⚠️ User exists but role is "${user.role}", updating to "delivery"...`);
           user.role = "delivery";
           user.status = deliveryBoy.isActive ? "active" : "pending";
           
@@ -80,7 +81,7 @@ async function syncDeliveryBoysToUsers() {
         deliveryBoy.userId = user._id;
         await deliveryBoy.save();
         
-        console.log(`  ✓ Linked to existing User: ${user.email}`);
+        logger.info(`  ✓ Linked to existing User: ${user.email}`);
         linked++;
       } else {
         // Create new user for this delivery boy
@@ -109,40 +110,40 @@ async function syncDeliveryBoysToUsers() {
         deliveryBoy.userId = user._id;
         await deliveryBoy.save();
 
-        console.log(`  ✓ Created new User: ${user.email}`);
-        console.log(`  🔑 Default password: ${defaultPassword}`);
+        logger.info(`  ✓ Created new User: ${user.email}`);
+        logger.info(`  🔑 Default password: ${defaultPassword}`);
         created++;
       }
     }
 
-    console.log("\n" + "=".repeat(60));
-    console.log("📊 SYNC SUMMARY:");
-    console.log("=".repeat(60));
-    console.log(`Total Delivery Boys: ${deliveryBoys.length}`);
-    console.log(`Already Synced: ${alreadySynced}`);
-    console.log(`Linked to Existing Users: ${linked}`);
-    console.log(`New Users Created: ${created}`);
-    console.log("=".repeat(60));
+    logger.info("\n" + "=".repeat(60));
+    logger.info("📊 SYNC SUMMARY:");
+    logger.info("=".repeat(60));
+    logger.info(`Total Delivery Boys: ${deliveryBoys.length}`);
+    logger.info(`Already Synced: ${alreadySynced}`);
+    logger.info(`Linked to Existing Users: ${linked}`);
+    logger.info(`New Users Created: ${created}`);
+    logger.info("=".repeat(60));
 
     if (created > 0) {
-      console.log("\n⚠️ DEFAULT PASSWORDS (Share with delivery partners):");
-      console.log("=".repeat(60));
+      logger.info("\n⚠️ DEFAULT PASSWORDS (Share with delivery partners):");
+      logger.info("=".repeat(60));
       const newUsers = await User.find({ role: "delivery" }).select("email phone name");
       for (const u of newUsers) {
         const phone = u.phone || "";
         if (phone) {
-          console.log(`📧 ${u.email} - Password: delivery${phone.slice(-4)}`);
+          logger.info(`📧 ${u.email} - Password: delivery${phone.slice(-4)}`);
         }
       }
     }
 
-    console.log("\n✅ Sync completed successfully!");
+    logger.info("\n✅ Sync completed successfully!");
     
   } catch (error) {
-    console.error("❌ Sync failed:", error);
+    logger.error("❌ Sync failed:", error);
   } finally {
     await mongoose.connection.close();
-    console.log("\n🔌 Disconnected from MongoDB");
+    logger.info("\n🔌 Disconnected from MongoDB");
   }
 }
 

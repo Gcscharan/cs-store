@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { User } from "../models/User";
@@ -73,15 +74,15 @@ export const authenticateToken = async (
     }
 
     const debug = process.env.NODE_ENV !== "production";
-    if (debug) console.log('[Auth] authenticateToken - starting');
+    if (debug) logger.info('[Auth] authenticateToken - starting');
     const authHeader = req.headers.authorization;
     const token = authHeader && authHeader.split(" ")[1];
 
-    if (debug) console.log('[Auth] authenticateToken - authHeader exists:', !!authHeader);
-    if (debug) console.log('[Auth] authenticateToken - token exists:', !!token);
+    if (debug) logger.info('[Auth] authenticateToken - authHeader exists:', !!authHeader);
+    if (debug) logger.info('[Auth] authenticateToken - token exists:', !!token);
 
     if (!token) {
-      if (debug) console.log('[Auth] authenticateToken - no token, returning 401');
+      if (debug) logger.info('[Auth] authenticateToken - no token, returning 401');
       return res.status(401).json({ message: "Authentication required" });
     }
 
@@ -90,7 +91,7 @@ export const authenticateToken = async (
       const redisClient = require('../config/redis').default;
       const isBlacklisted = await redisClient.get(`blacklist:access:${token}`);
       if (isBlacklisted) {
-        if (debug) console.log('[Auth] authenticateToken - token blacklisted, returning 401');
+        if (debug) logger.info('[Auth] authenticateToken - token blacklisted, returning 401');
         return res.status(401).json({ message: "Token revoked - please login again", code: "TOKEN_REVOKED" });
       }
     } catch (redisError) {
@@ -99,38 +100,38 @@ export const authenticateToken = async (
 
     const decoded = jwt.verify(token, jwtSecret) as any;
 
-    if (debug) console.log('[Auth] authenticateToken - token decoded, userId:', decoded.userId);
+    if (debug) logger.info('[Auth] authenticateToken - token decoded, userId:', decoded.userId);
 
     if (!mongoose.Types.ObjectId.isValid(decoded.userId)) {
       return res.status(401).json({ message: "Invalid userId in token", code: "INVALID_USERID" });
     }
     
     const user = await User.findById(decoded.userId).select("-passwordHash");
-    if (debug) console.log('[Auth] authenticateToken - user found:', !!user);
+    if (debug) logger.info('[Auth] authenticateToken - user found:', !!user);
     if (debug && user) {
-      console.log('[Auth] authenticateToken - user._id:', user._id);
+      logger.info('[Auth] authenticateToken - user._id:', user._id);
     }
 
     if (!user) {
-      if (debug) console.log('[Auth] authenticateToken - user not found, returning 404');
+      if (debug) logger.info('[Auth] authenticateToken - user not found, returning 404');
       return res.status(404).json({ message: "User not found" });
     }
 
     // Check if user account is active
     if (user.status === 'suspended') {
-      if (debug) console.log('[Auth] authenticateToken - user suspended, returning 403');
+      if (debug) logger.info('[Auth] authenticateToken - user suspended, returning 403');
       return res.status(403).json({ message: "Account suspended" });
     }
 
     // Set both user object and userId for compatibility
     req.user = user;
     (req as any).userId = user._id.toString();
-    if (debug) console.log('[Auth] authenticateToken - req.user set, calling next()');
+    if (debug) logger.info('[Auth] authenticateToken - req.user set, calling next()');
     
     next();
   } catch (error) {
     if (process.env.NODE_ENV !== "production") {
-      console.log('[Auth] authenticateToken - error:', error);
+      logger.info('[Auth] authenticateToken - error:', error);
     }
 
     if (error instanceof jwt.JsonWebTokenError) {
@@ -154,20 +155,20 @@ export const requireRole = (roles: string[]) => {
     next: NextFunction
   ): Response | void => {
     const debug = process.env.NODE_ENV !== "production";
-    if (debug) console.log('[Auth] requireRole - checking roles:', roles);
-    if (debug) console.log('[Auth] requireRole - req.user exists:', !!req.user);
+    if (debug) logger.info('[Auth] requireRole - checking roles:', roles);
+    if (debug) logger.info('[Auth] requireRole - req.user exists:', !!req.user);
     if (debug && req.user) {
-      console.log('[Auth] requireRole - user role:', req.user.role);
-      console.log('[Auth] requireRole - role check:', roles.includes(req.user.role));
+      logger.info('[Auth] requireRole - user role:', req.user.role);
+      logger.info('[Auth] requireRole - role check:', roles.includes(req.user.role));
     }
     
     if (!req.user) {
-      if (debug) console.log('[Auth] requireRole - no req.user, returning 401');
+      if (debug) logger.info('[Auth] requireRole - no req.user, returning 401');
       return res.status(401).json({ message: "Authentication required" });
     }
 
     if (!roles.includes(req.user.role)) {
-      if (debug) console.log('[Auth] requireRole - role not allowed, returning 403');
+      if (debug) logger.info('[Auth] requireRole - role not allowed, returning 403');
 
       const normalizedRoles = (roles || [])
         .map((r) => String(r || "").trim())
@@ -184,7 +185,7 @@ export const requireRole = (roles: string[]) => {
       return res.status(403).json({ message });
     }
 
-    if (debug) console.log('[Auth] requireRole - role check passed, calling next()');
+    if (debug) logger.info('[Auth] requireRole - role check passed, calling next()');
     next();
   };
 };

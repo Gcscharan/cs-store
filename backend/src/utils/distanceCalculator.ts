@@ -1,3 +1,4 @@
+import { logger } from './logger';
 import { Client } from "@googlemaps/google-maps-services-js";
 import redisClient from "../config/redis";
 
@@ -63,7 +64,7 @@ export async function getRouteDistance(
 
       return result;
     } catch (error) {
-      console.error("[DistanceCalculator] Google Directions API failed:", error);
+      logger.error("[DistanceCalculator] Google Directions API failed:", error);
       // Fall through to fallback
     }
   }

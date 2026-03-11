@@ -1,3 +1,4 @@
+import { logger } from './logger';
 import { Client } from "@googlemaps/google-maps-services-js";
 import polyline from "@mapbox/polyline";
 
@@ -24,7 +25,7 @@ export async function getRoutePolyline(
     const apiKey = process.env.GOOGLE_MAPS_API_KEY;
     
     if (!apiKey) {
-      console.warn("Google Maps API key not configured, using fallback");
+      logger.warn("Google Maps API key not configured, using fallback");
       return createFallbackRoute(origin, destination);
     }
 
@@ -61,10 +62,10 @@ export async function getRoutePolyline(
       };
     }
 
-    console.warn("No routes found from Google Directions API");
+    logger.warn("No routes found from Google Directions API");
     return createFallbackRoute(origin, destination);
   } catch (error) {
-    console.error("Error fetching route polyline:", error);
+    logger.error("Error fetching route polyline:", error);
     return createFallbackRoute(origin, destination);
   }
 }
@@ -132,7 +133,7 @@ export function isLocationNearRoute(
 
     return false;
   } catch (error) {
-    console.error("Error checking location near route:", error);
+    logger.error("Error checking location near route:", error);
     return false;
   }
 }
@@ -213,7 +214,7 @@ export function decodePolyline(
       lng,
     }));
   } catch (error) {
-    console.error("Error decoding polyline:", error);
+    logger.error("Error decoding polyline:", error);
     return [];
   }
 }
@@ -227,7 +228,7 @@ export function encodePolyline(
   try {
     return polyline.encode(path.map((p) => [p.lat, p.lng]));
   } catch (error) {
-    console.error("Error encoding polyline:", error);
+    logger.error("Error encoding polyline:", error);
     return "";
   }
 }

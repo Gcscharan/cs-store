@@ -7,6 +7,7 @@ exports.geocodeAddress = geocodeAddress;
 exports.geocodeByPincode = geocodeByPincode;
 exports.smartGeocode = smartGeocode;
 exports.reverseGeocode = reverseGeocode;
+const logger_1 = require("./logger");
 const axios_1 = __importDefault(require("axios"));
 const redis_1 = __importDefault(require("../config/redis"));
 const CACHE_PREFIX = "geocode:";
@@ -51,7 +52,7 @@ async function geocodeAddress(addressLine, city, state, pincode) {
  */
 async function geocodeWithGoogle(address, apiKey) {
     try {
-        console.log(`🌍 [Google] Geocoding: "${address}"`);
+        logger_1.logger.info(`🌍 [Google] Geocoding: "${address}"`);
         const response = await axios_1.default.get("https://maps.googleapis.com/maps/api/geocode/json", {
             params: {
                 address,
@@ -61,7 +62,7 @@ async function geocodeWithGoogle(address, apiKey) {
             timeout: 5000,
         });
         if (response.data.status !== "OK" || !response.data.results?.length) {
-            console.warn(`⚠️ [Google] Geocoding failed: ${response.data.status}`);
+            logger_1.logger.warn(`⚠️ [Google] Geocoding failed: ${response.data.status}`);
             return null;
         }
         const result = response.data.results[0];
@@ -70,12 +71,12 @@ async function geocodeWithGoogle(address, apiKey) {
         const lng = location.lng;
         // Validate coordinates are within India
         if (lat < 6 || lat > 37 || lng < 68 || lng > 98) {
-            console.warn(`⚠️ [Google] Coordinates outside India: lat=${lat}, lng=${lng}`);
+            logger_1.logger.warn(`⚠️ [Google] Coordinates outside India: lat=${lat}, lng=${lng}`);
             return null;
         }
         // Extract address components
         const components = parseGoogleAddressComponents(result.address_components);
-        console.log(`✅ [Google] Geocoding successful: lat=${lat}, lng=${lng}`);
+        logger_1.logger.info(`✅ [Google] Geocoding successful: lat=${lat}, lng=${lng}`);
         return {
             lat,
             lng,
@@ -90,7 +91,7 @@ async function geocodeWithGoogle(address, apiKey) {
         };
     }
     catch (error) {
-        console.error(`❌ [Google] Geocoding error: ${error.message}`);
+        logger_1.logger.error(`❌ [Google] Geocoding error: ${error.message}`);
         return null;
     }
 }
@@ -129,7 +130,7 @@ function parseGoogleAddressComponents(components) {
 async function geocodeWithNominatim(addressLine, city, state, pincode) {
     try {
         const searchQuery = `${addressLine}, ${city}, ${state}, ${pincode}, India`;
-        console.log(`🌍 [Nominatim] Geocoding: "${searchQuery}"`);
+        logger_1.logger.info(`🌍 [Nominatim] Geocoding: "${searchQuery}"`);
         const response = await axios_1.default.get("https://nominatim.openstreetmap.org/search", {
             params: {
                 q: searchQuery,
@@ -148,7 +149,7 @@ async function geocodeWithNominatim(addressLine, city, state, pincode) {
             const lat = parseFloat(result.lat);
             const lng = parseFloat(result.lon);
             if (lat >= 6 && lat <= 37 && lng >= 68 && lng <= 98) {
-                console.log(`✅ [Nominatim] Geocoding successful: lat=${lat}, lng=${lng}`);
+                logger_1.logger.info(`✅ [Nominatim] Geocoding successful: lat=${lat}, lng=${lng}`);
                 const address = result.address || {};
                 return {
                     lat,
@@ -163,11 +164,11 @@ async function geocodeWithNominatim(addressLine, city, state, pincode) {
                 };
             }
         }
-        console.warn(`⚠️ [Nominatim] No results found`);
+        logger_1.logger.warn(`⚠️ [Nominatim] No results found`);
         return null;
     }
     catch (error) {
-        console.error(`❌ [Nominatim] Geocoding error: ${error.message}`);
+        logger_1.logger.error(`❌ [Nominatim] Geocoding error: ${error.message}`);
         return null;
     }
 }
@@ -176,7 +177,7 @@ async function geocodeWithNominatim(addressLine, city, state, pincode) {
  */
 async function geocodeByPincode(pincode) {
     try {
-        console.log(`🌍 [Pincode] Geocoding: "${pincode}"`);
+        logger_1.logger.info(`🌍 [Pincode] Geocoding: "${pincode}"`);
         // Try Google first
         const apiKey = process.env.GOOGLE_MAPS_API_KEY;
         if (apiKey) {
@@ -192,7 +193,7 @@ async function geocodeByPincode(pincode) {
                 const result = response.data.results[0];
                 const location = result.geometry.location;
                 if (location.lat >= 6 && location.lat <= 37 && location.lng >= 68 && location.lng <= 98) {
-                    console.log(`✅ [Google Pincode] Geocoding successful`);
+                    logger_1.logger.info(`✅ [Google Pincode] Geocoding successful`);
                     return {
                         lat: location.lat,
                         lng: location.lng,
@@ -220,7 +221,7 @@ async function geocodeByPincode(pincode) {
             const lat = parseFloat(result.lat);
             const lng = parseFloat(result.lon);
             if (lat >= 6 && lat <= 37 && lng >= 68 && lng <= 98) {
-                console.log(`✅ [Nominatim Pincode] Geocoding successful`);
+                logger_1.logger.info(`✅ [Nominatim Pincode] Geocoding successful`);
                 return {
                     lat,
                     lng,
@@ -229,11 +230,11 @@ async function geocodeByPincode(pincode) {
                 };
             }
         }
-        console.warn(`⚠️ [Pincode] Geocoding failed for: ${pincode}`);
+        logger_1.logger.warn(`⚠️ [Pincode] Geocoding failed for: ${pincode}`);
         return null;
     }
     catch (error) {
-        console.error(`❌ [Pincode] Geocoding error: ${error.message}`);
+        logger_1.logger.error(`❌ [Pincode] Geocoding error: ${error.message}`);
         return null;
     }
 }
@@ -247,7 +248,7 @@ async function smartGeocode(addressLine, city, state, pincode) {
         return coords;
     }
     // Fallback to pincode-only geocoding
-    console.log("⚠️ Full address geocoding failed, trying pincode-only...");
+    logger_1.logger.info("⚠️ Full address geocoding failed, trying pincode-only...");
     coords = await geocodeByPincode(pincode);
     return coords;
 }
@@ -283,7 +284,7 @@ async function reverseGeocode(lat, lng) {
  */
 async function reverseGeocodeWithGoogle(lat, lng, apiKey) {
     try {
-        console.log(`🌍 [Google] Reverse geocoding: ${lat}, ${lng}`);
+        logger_1.logger.info(`🌍 [Google] Reverse geocoding: ${lat}, ${lng}`);
         const response = await axios_1.default.get("https://maps.googleapis.com/maps/api/geocode/json", {
             params: {
                 latlng: `${lat},${lng}`,
@@ -292,12 +293,12 @@ async function reverseGeocodeWithGoogle(lat, lng, apiKey) {
             timeout: 5000,
         });
         if (response.data.status !== "OK" || !response.data.results?.length) {
-            console.warn(`⚠️ [Google] Reverse geocoding failed: ${response.data.status}`);
+            logger_1.logger.warn(`⚠️ [Google] Reverse geocoding failed: ${response.data.status}`);
             return null;
         }
         const result = response.data.results[0];
         const components = parseGoogleAddressComponents(result.address_components);
-        console.log(`✅ [Google] Reverse geocoding successful`);
+        logger_1.logger.info(`✅ [Google] Reverse geocoding successful`);
         return {
             formattedAddress: result.formatted_address,
             addressLine: result.formatted_address.split(",")[0],
@@ -312,7 +313,7 @@ async function reverseGeocodeWithGoogle(lat, lng, apiKey) {
         };
     }
     catch (error) {
-        console.error(`❌ [Google] Reverse geocoding error: ${error.message}`);
+        logger_1.logger.error(`❌ [Google] Reverse geocoding error: ${error.message}`);
         return null;
     }
 }
@@ -321,7 +322,7 @@ async function reverseGeocodeWithGoogle(lat, lng, apiKey) {
  */
 async function reverseGeocodeWithNominatim(lat, lng) {
     try {
-        console.log(`🌍 [Nominatim] Reverse geocoding: ${lat}, ${lng}`);
+        logger_1.logger.info(`🌍 [Nominatim] Reverse geocoding: ${lat}, ${lng}`);
         const response = await axios_1.default.get("https://nominatim.openstreetmap.org/reverse", {
             params: {
                 lat,
@@ -336,7 +337,7 @@ async function reverseGeocodeWithNominatim(lat, lng) {
         });
         if (response.data && response.data.display_name) {
             const address = response.data.address || {};
-            console.log(`✅ [Nominatim] Reverse geocoding successful`);
+            logger_1.logger.info(`✅ [Nominatim] Reverse geocoding successful`);
             return {
                 formattedAddress: response.data.display_name,
                 addressLine: response.data.display_name.split(",")[0],
@@ -351,7 +352,7 @@ async function reverseGeocodeWithNominatim(lat, lng) {
         return null;
     }
     catch (error) {
-        console.error(`❌ [Nominatim] Reverse geocoding error: ${error.message}`);
+        logger_1.logger.error(`❌ [Nominatim] Reverse geocoding error: ${error.message}`);
         return null;
     }
 }

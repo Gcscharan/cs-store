@@ -3,6 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const logger_1 = require("../utils/logger");
 const dotenv_1 = __importDefault(require("dotenv"));
 const passport_1 = __importDefault(require("passport"));
 const passport_google_oauth20_1 = require("passport-google-oauth20");
@@ -20,7 +21,7 @@ const GOOGLE_CALLBACK_URL = (googleCallbackUrlFromEnv ? googleCallbackUrlFromEnv
     (NODE_ENV !== "production"
         ? "http://localhost:5001/api/auth/google/callback"
         : undefined);
-console.log("Google OAuth credentials:", {
+logger_1.logger.info("Google OAuth credentials:", {
     clientId: GOOGLE_CLIENT_ID ? "Present" : "Missing",
     clientSecret: GOOGLE_CLIENT_SECRET ? "Present" : "Missing",
 });
@@ -41,11 +42,11 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && callbackURL) {
             }
             // Strict lookup: only allow login if a user with this exact email already exists
             const user = await User_1.User.findOne({ email });
-            console.log("=== GOOGLE STRATEGY VERIFY ===");
-            console.log("Email from Google:", email);
-            console.log("User found:", !!user);
-            console.log("Returning signupRequired:", !user);
-            console.log("================================");
+            logger_1.logger.info("=== GOOGLE STRATEGY VERIFY ===");
+            logger_1.logger.info("Email from Google:", email);
+            logger_1.logger.info("User found:", !!user);
+            logger_1.logger.info("Returning signupRequired:", !user);
+            logger_1.logger.info("================================");
             if (!user) {
                 // No user with this email exists -> create a temporary user object for redirect
                 // We'll handle the signup_required logic in the callback
@@ -83,13 +84,13 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && callbackURL) {
 }
 else {
     if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
-        console.warn("⚠️  Google OAuth credentials not found. Google login will be disabled.");
+        logger_1.logger.warn("⚠️  Google OAuth credentials not found. Google login will be disabled.");
     }
     else if (!callbackURL) {
-        console.warn("⚠️  Google OAuth callback URL is not configured (GOOGLE_CALLBACK_URL or BACKEND_URL). Google login will be disabled.");
+        logger_1.logger.warn("⚠️  Google OAuth callback URL is not configured (GOOGLE_CALLBACK_URL or BACKEND_URL). Google login will be disabled.");
     }
 }
 if (NODE_ENV === "production" && GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && !callbackURL) {
-    console.warn("⚠️  GOOGLE_CALLBACK_URL (or BACKEND_URL) is not set. Google OAuth will be disabled in production.");
+    logger_1.logger.warn("⚠️  GOOGLE_CALLBACK_URL (or BACKEND_URL) is not set. Google OAuth will be disabled in production.");
 }
 exports.default = passport_1.default;

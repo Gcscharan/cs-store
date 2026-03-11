@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger';
 import { Request, Response } from "express";
 import axios from "axios";
 import rateLimit from "express-rate-limit";
@@ -67,7 +68,7 @@ export const verifyUpiId = async (
     const razorpaySecret = process.env.RAZORPAY_KEY_SECRET;
 
     if (!razorpayKeyId || !razorpaySecret) {
-      console.error("Razorpay credentials not configured");
+      logger.error("Razorpay credentials not configured");
       res.status(500).json({
         success: false,
         message: "Server error",
@@ -107,7 +108,7 @@ export const verifyUpiId = async (
 
     if (customer_name) {
       // Log successful verification
-      console.log(
+      logger.info(
         `UPI verification successful: ${maskedVpa} -> ${customer_name}`
       );
 
@@ -118,7 +119,7 @@ export const verifyUpiId = async (
       return;
     } else {
       // Log failed verification
-      console.log(
+      logger.info(
         `UPI verification failed: ${maskedVpa} - Not found in mock data`
       );
 
@@ -149,7 +150,7 @@ export const verifyUpiId = async (
 
     if (success && customer_name) {
       // Log successful verification
-      console.log(`UPI verification successful: ${maskedVpa} -> ${customer_name}`);
+      logger.info(`UPI verification successful: ${maskedVpa} -> ${customer_name}`);
       
       res.status(200).json({
         success: true,
@@ -158,7 +159,7 @@ export const verifyUpiId = async (
       return;
     } else {
       // Log failed verification
-      console.log(`UPI verification failed: ${maskedVpa} - ${error || "Unknown error"}`);
+      logger.info(`UPI verification failed: ${maskedVpa} - ${error || "Unknown error"}`);
       
       res.status(400).json({
         success: false,
@@ -171,7 +172,7 @@ export const verifyUpiId = async (
     // Log error with timestamp
     const timestamp = new Date().toISOString();
     const maskedVpa = maskUpiVpa(String(req.body?.vpa || ""));
-    console.error(`[${timestamp}] UPI verification error:`, {
+    logger.error(`[${timestamp}] UPI verification error:`, {
       error: error.message,
       vpa: maskedVpa,
       ip: req.ip,
@@ -188,7 +189,7 @@ export const verifyUpiId = async (
     }
 
     if (error.response?.status === 401) {
-      console.error("Razorpay authentication failed - check credentials");
+      logger.error("Razorpay authentication failed - check credentials");
       res.status(500).json({
         success: false,
         message: "Server error",

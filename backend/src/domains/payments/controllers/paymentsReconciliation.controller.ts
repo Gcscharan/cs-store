@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger';
 import { Request, Response } from "express";
 
 import {
@@ -73,7 +74,7 @@ export async function getPaymentsReconciliationHandler(req: Request, res: Respon
 
   const result = await getPaymentsReconciliation(query);
 
-  console.log(
+  logger.info(
     `[PaymentsReconciliation] results=${result.items.length} filters=${JSON.stringify({
       gateway: query.gateway || "RAZORPAY",
       status: __private__.normalizeStatusFilter(query.status as any) || null,

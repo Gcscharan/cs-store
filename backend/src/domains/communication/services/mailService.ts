@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger';
 import * as nodemailer from "nodemailer";
 
 // Standard SMTP transporter configuration using environment variables
@@ -32,10 +33,10 @@ interface EmailOptions {
 export const sendEmail = async (options: EmailOptions): Promise<void> => {
   try {
     if (!process.env.EMAIL_HOST || !process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-      console.error(
+      logger.error(
         "[MailService] EMAIL_HOST, EMAIL_USER or EMAIL_PASS is not configured. Skipping actual email send."
       );
-      console.log(
+      logger.info(
         `[MailService] Would send email to ${options.to} with subject "${options.subject}" (missing SMTP config)`
       );
       return;
@@ -45,7 +46,7 @@ export const sendEmail = async (options: EmailOptions): Promise<void> => {
     try {
       await smtpTransporter.verify();
     } catch (verifyErr: any) {
-      console.error("❌ [MailService] SMTP verify failed:", {
+      logger.error("❌ [MailService] SMTP verify failed:", {
         message: verifyErr?.message,
         code: verifyErr?.code,
         response: verifyErr?.response,
@@ -69,7 +70,7 @@ export const sendEmail = async (options: EmailOptions): Promise<void> => {
       })),
     });
 
-    console.log(
+    logger.info(
       `✅ [MailService] Email sent via SMTP to ${options.to} (MessageId: ${info.messageId || "unknown"})`
     );
   } catch (error: any) {
@@ -101,9 +102,9 @@ export const sendEmail = async (options: EmailOptions): Promise<void> => {
       hint = "SMTP requires TLS or authentication. Adjust secure/port or enable less secure/app passwords.";
     }
 
-    console.error("❌ [MailService] Email send failed:", details);
-    console.error("ℹ️  [MailService] Hint:", hint);
-    console.log(`⚠️  [MailService] Email could not be delivered to ${options.to}`);
+    logger.error("❌ [MailService] Email send failed:", details);
+    logger.error("ℹ️  [MailService] Hint:", hint);
+    logger.info(`⚠️  [MailService] Email could not be delivered to ${options.to}`);
   }
 };
 
@@ -143,8 +144,8 @@ export const sendOTPEmail = async (email: string, otp: string): Promise<void> =>
     </div>
   `;
 
-  console.log(`📧 Sending OTP email to: ${email}`);
-  console.log(`🔑 OTP: ${otp} (valid for 10 minutes)`);
+  logger.info(`📧 Sending OTP email to: ${email}`);
+  logger.info(`🔑 OTP: ${otp} (valid for 10 minutes)`);
 
   await sendEmail({
     to: email,

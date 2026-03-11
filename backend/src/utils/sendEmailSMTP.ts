@@ -1,3 +1,4 @@
+import { logger } from './logger';
 import nodemailer from "nodemailer";
 
 // Create Gmail SMTP transporter
@@ -6,7 +7,7 @@ const createTransporter = () => {
   const gmailUser = "gcs.charan@gmail.com";
   const gmailPass = "nwppbjguzdcjdekr"; // Gmail App Password (no spaces)
 
-  console.log("🔧 SMTP Configuration:", {
+  logger.info("🔧 SMTP Configuration:", {
     user: gmailUser,
     pass: gmailPass.substring(0, 4) + "****", // Hide password in logs
     host: "smtp.gmail.com",
@@ -74,23 +75,23 @@ export const sendEmailOTP = async (
 
     const info = await transporter.sendMail(mailOptions);
 
-    console.log("✅ OTP email sent successfully via Gmail SMTP to", email);
-    console.log("📧 Message ID:", info.messageId);
+    logger.info("✅ OTP email sent successfully via Gmail SMTP to", email);
+    logger.info("📧 Message ID:", info.messageId);
   } catch (error) {
-    console.error("❌ Gmail SMTP failed:", error);
+    logger.error("❌ Gmail SMTP failed:", error);
 
     // Fallback to console logging
-    console.log("=".repeat(80));
-    console.log("📧 EMAIL OTP SENT (CONSOLE FALLBACK)");
-    console.log("=".repeat(80));
-    console.log(`📧 To: ${email}`);
-    console.log(`🔑 OTP: ${otp}`);
-    console.log(`⏰ Valid for: 10 minutes`);
-    console.log(`📅 Time: ${new Date().toLocaleString()}`);
-    console.log("=".repeat(80));
-    console.log("✅ Use this OTP in your frontend to complete login");
-    console.log("=".repeat(80));
-    console.log("💡 SMTP configuration needed for real email delivery");
-    console.log("=".repeat(80));
+    logger.info("=".repeat(80));
+    logger.info("📧 EMAIL OTP SENT (CONSOLE FALLBACK)");
+    logger.info("=".repeat(80));
+    logger.info(`📧 To: ${email}`);
+    logger.info(`🔑 OTP: ${otp}`);
+    logger.info(`⏰ Valid for: 10 minutes`);
+    logger.info(`📅 Time: ${new Date().toLocaleString()}`);
+    logger.info("=".repeat(80));
+    logger.info("✅ Use this OTP in your frontend to complete login");
+    logger.info("=".repeat(80));
+    logger.info("💡 SMTP configuration needed for real email delivery");
+    logger.info("=".repeat(80));
   }
 };

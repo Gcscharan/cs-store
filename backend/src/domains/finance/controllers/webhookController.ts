@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger';
 import { Request, Response } from "express";
 import { Order } from "../../../models/Order";
 import crypto from "crypto";
@@ -14,7 +15,7 @@ export const razorpayWebhook = async (
       message: "This payment path has been permanently disabled. Use PaymentIntent flow.",
     });
   } catch (error) {
-    console.error("Webhook error:", error);
+    logger.error("Webhook error:", error);
     res.status(500).json({ error: "Webhook processing failed" });
     return;
   }

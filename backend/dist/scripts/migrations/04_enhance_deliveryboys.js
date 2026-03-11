@@ -36,6 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const logger_1 = require("../../utils/logger");
 /**
  * MIGRATION 04: Enhance DeliveryBoys Collection
  * Adds shift management, earnings logs, and capacity tracking
@@ -47,8 +48,8 @@ dotenv.config();
 async function enhanceDeliveryBoys() {
     try {
         await mongoose_1.default.connect(process.env.MONGODB_URI);
-        console.log("✅ Connected to MongoDB\n");
-        console.log("🔧 Enhancing DeliveryBoys Collection...");
+        logger_1.logger.info("✅ Connected to MongoDB\n");
+        logger_1.logger.info("🔧 Enhancing DeliveryBoys Collection...");
         const result = await DeliveryBoy_1.DeliveryBoy.updateMany({}, {
             $set: {
                 // Shift Management
@@ -75,17 +76,17 @@ async function enhanceDeliveryBoys() {
                 isOnline: false
             }
         }, { strict: false });
-        console.log(`✅ Updated ${result.modifiedCount} delivery boys`);
+        logger_1.logger.info(`✅ Updated ${result.modifiedCount} delivery boys`);
         // Create geospatial index
-        console.log("\n🔧 Creating geospatial index...");
+        logger_1.logger.info("\n🔧 Creating geospatial index...");
         await DeliveryBoy_1.DeliveryBoy.collection.createIndex({
             "currentLocation.lat": 1,
             "currentLocation.lng": 1
         });
-        console.log("✅ Indexes created");
+        logger_1.logger.info("✅ Indexes created");
     }
     catch (error) {
-        console.error("❌ Error:", error);
+        logger_1.logger.error("❌ Error:", error);
     }
     finally {
         await mongoose_1.default.connection.close();

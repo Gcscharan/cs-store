@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger';
 import mongoose from "mongoose";
 
 import { PaymentIntent } from "../models/PaymentIntent";
@@ -164,7 +165,7 @@ export async function runPaymentRecoveryAction(
         { session }
       );
 
-      console.log(
+      logger.info(
         `[PaymentRecovery] action=${req.action} intent=${String(intent._id)} admin=${String(req.adminEmail || "")}`
       );
 

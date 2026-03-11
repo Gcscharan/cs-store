@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 import { Request, Response } from "express";
 import mongoose from "mongoose";
 import { Order } from "../models/Order";
@@ -295,7 +296,7 @@ export const assignDeliveryBoyToOrder = async (
       order: transitionedOrder,
     });
   } catch (error: any) {
-    console.error("Error assigning delivery boy to order:", error);
+    logger.error("Error assigning delivery boy to order:", error);
 
     const statusCode = Number(error?.statusCode) || 500;
     if (statusCode === 409) {
@@ -406,7 +407,7 @@ export const unassignDeliveryBoyFromOrder = async (
       message: "Delivery boy unassigned successfully",
     });
   } catch (error) {
-    console.error("Error unassigning delivery boy from order:", error);
+    logger.error("Error unassigning delivery boy from order:", error);
     const statusCode = Number((error as any)?.statusCode) || 500;
     res.status(statusCode).json({
       error: (error as any)?.message || "Failed to unassign delivery boy. Please try again later.",
@@ -466,7 +467,7 @@ export const getOptimalDeliveryBoy = async (
       estimatedDuration: assignmentResult.estimatedDuration,
     });
   } catch (error) {
-    console.error("Error getting optimal delivery boy:", error);
+    logger.error("Error getting optimal delivery boy:", error);
     res.status(500).json({
       error: "Failed to get optimal delivery boy. Please try again later.",
     });

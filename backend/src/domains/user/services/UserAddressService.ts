@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger';
 import { UserRepository } from "../repositories/UserRepository";
 import { IAddress } from "../../../models/User";
 import mongoose from "mongoose";
@@ -80,7 +81,7 @@ export class UserAddressService {
         defaultAddressId,
       };
     } catch (error) {
-      console.error("Error fetching user addresses:", error);
+      logger.error("Error fetching user addresses:", error);
       throw error;
     }
   }
@@ -154,7 +155,7 @@ export class UserAddressService {
 
       return cleanAddress;
     } catch (error) {
-      console.error("Error adding user address:", error);
+      logger.error("Error adding user address:", error);
       throw error;
     }
   }
@@ -246,7 +247,7 @@ export class UserAddressService {
         id: address._id.toString(),
       };
     } catch (error) {
-      console.error("Error updating user address:", error);
+      logger.error("Error updating user address:", error);
       throw error;
     }
   }
@@ -282,7 +283,7 @@ export class UserAddressService {
         defaultUpdated: wasDefault && user.addresses.length > 0,
       };
     } catch (error) {
-      console.error("Error deleting user address:", error);
+      logger.error("Error deleting user address:", error);
       throw error;
     }
   }
@@ -314,7 +315,7 @@ export class UserAddressService {
         id: address._id.toString(),
       };
     } catch (error) {
-      console.error("Error setting default address:", error);
+      logger.error("Error setting default address:", error);
       throw error;
     }
   }

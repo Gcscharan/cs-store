@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 import { Request, Response } from "express";
 
 interface DeliveryFeeRequest {
@@ -36,7 +37,7 @@ export const calculateDeliveryFeeController = async (
       data: deliveryFee,
     });
   } catch (error) {
-    console.error("Error calculating delivery fee:", error);
+    logger.error("Error calculating delivery fee:", error);
     return res.status(500).json({
       success: false,
       message: "Failed to calculate delivery fee",
@@ -60,7 +61,7 @@ export const getDeliveryFeeTiersController = async (
       data: tiers,
     });
   } catch (error) {
-    console.error("Error getting delivery fee tiers:", error);
+    logger.error("Error getting delivery fee tiers:", error);
     return res.status(500).json({
       success: false,
       message: "Failed to get delivery fee tiers",
@@ -169,7 +170,7 @@ async function geocodeAddress(address: {
   }
 
   // Default fallback to Hyderabad
-  console.warn(
+  logger.warn(
     `Could not geocode address: ${address.city}, ${address.pincode}. Using default location.`
   );
   return { lat: 17.385, lng: 78.4867 };
@@ -230,7 +231,7 @@ async function getDeliveryFeeForAddress(address: {
     // Calculate delivery fee
     const deliveryFee = calculateDeliveryFee(distance);
 
-    console.log("Delivery fee calculation:", {
+    logger.info("Delivery fee calculation:", {
       address: `${address.city}, ${address.pincode}`,
       customerCoords,
       storeCoords: STORE_LOCATION,
@@ -240,7 +241,7 @@ async function getDeliveryFeeForAddress(address: {
 
     return deliveryFee;
   } catch (error) {
-    console.error("Error calculating delivery fee:", error);
+    logger.error("Error calculating delivery fee:", error);
     // Return a default fee if calculation fails
     return {
       distance: 0,

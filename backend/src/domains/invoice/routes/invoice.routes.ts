@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger';
 import express, { Request, Response, NextFunction } from "express";
 import { Order } from "../../../models/Order";
 import { authenticateToken, requireRole } from "../../../middleware/auth";
@@ -86,7 +87,7 @@ router.get(
       pdfStream.pipe(res);
       
     } catch (error) {
-      console.error("[Invoice] Error generating invoice:", error);
+      logger.error("[Invoice] Error generating invoice:", error);
       next(error);
     }
   }
@@ -176,7 +177,7 @@ router.get(
       pdfStream.pipe(res);
       
     } catch (error) {
-      console.error("[PackingSlip] Error generating packing slip:", error);
+      logger.error("[PackingSlip] Error generating packing slip:", error);
       next(error);
     }
   }

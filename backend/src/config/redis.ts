@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 import { createClient } from "redis";
 import { incCounterWithLabels } from "../ops/opsMetrics";
 
@@ -35,7 +36,7 @@ let redisConnectionReady = false;
 let redisConnectionError: Error | null = null;
 
 redis.on("connect", () => {
-  console.log("⚡ Redis connected successfully");
+  logger.info("⚡ Redis connected successfully");
   redisConnectionReady = true;
   redisConnectionError = null;
 });
@@ -45,7 +46,7 @@ redis.on("ready", () => {
 });
 
 redis.on("error", (err) => {
-  console.error("⚠️ Redis error:", err.message);
+  logger.error("⚠️ Redis error:", err.message);
   redisConnectionError = err;
 });
 
@@ -58,36 +59,36 @@ const redisClient = redis;
 // Production Redis check - call this at startup to enforce Redis availability
 export async function ensureRedisConnection(): Promise<{ connected: boolean; error?: Error }> {
   if (!resolvedRedisUrl) {
-    console.error("\n" + "=".repeat(60));
-    console.error("🚨 CRITICAL: REDIS_URL is not configured");
-    console.error("=".repeat(60));
-    console.error("❌ Redis is MANDATORY");
-    console.error("❌ The application cannot start without Redis");
-    console.error("");
-    console.error("Please set REDIS_URL in your environment variables:");
-    console.error("  Example: REDIS_URL=redis://user:password@host:6379");
-    console.error("=".repeat(60) + "\n");
+    logger.error("\n" + "=".repeat(60));
+    logger.error("🚨 CRITICAL: REDIS_URL is not configured");
+    logger.error("=".repeat(60));
+    logger.error("❌ Redis is MANDATORY");
+    logger.error("❌ The application cannot start without Redis");
+    logger.error("");
+    logger.error("Please set REDIS_URL in your environment variables:");
+    logger.error("  Example: REDIS_URL=redis://user:password@host:6379");
+    logger.error("=".repeat(60) + "\n");
     return { connected: false, error: new Error("REDIS_URL is not configured") };
   }
 
   // Wait for connection with timeout
   if (!redis.isOpen) {
     try {
-      console.log("🔌 Connecting to Redis...");
+      logger.info("🔌 Connecting to Redis...");
       await redis.connect();
     } catch (error: any) {
-      console.error("\n" + "=".repeat(60));
-      console.error("🚨 CRITICAL: Redis connection failed");
-      console.error("=".repeat(60));
-      console.error("❌ Error:", error?.message || error);
-      console.error("❌ Redis is MANDATORY");
-      console.error("❌ The application cannot start without Redis");
-      console.error("");
-      console.error("Please check:");
-      console.error("  1. Redis server is running and accessible");
-      console.error("  2. REDIS_URL is correct");
-      console.error("  3. Network connectivity to Redis host");
-      console.error("=".repeat(60) + "\n");
+      logger.error("\n" + "=".repeat(60));
+      logger.error("🚨 CRITICAL: Redis connection failed");
+      logger.error("=".repeat(60));
+      logger.error("❌ Error:", error?.message || error);
+      logger.error("❌ Redis is MANDATORY");
+      logger.error("❌ The application cannot start without Redis");
+      logger.error("");
+      logger.error("Please check:");
+      logger.error("  1. Redis server is running and accessible");
+      logger.error("  2. REDIS_URL is correct");
+      logger.error("  3. Network connectivity to Redis host");
+      logger.error("=".repeat(60) + "\n");
       return { connected: false, error };
     }
   }
@@ -101,17 +102,17 @@ export async function ensureRedisConnection(): Promise<{ connected: boolean; err
 
   if (!redisConnectionReady) {
     const error = redisConnectionError || new Error("Redis connection timeout");
-    console.error("\n" + "=".repeat(60));
-    console.error("🚨 CRITICAL: Redis connection timeout");
-    console.error("=".repeat(60));
-    console.error("❌ Redis did not become ready within 5 seconds");
-    console.error("❌ Redis is MANDATORY");
-    console.error("❌ The application cannot start without Redis");
-    console.error("=".repeat(60) + "\n");
+    logger.error("\n" + "=".repeat(60));
+    logger.error("🚨 CRITICAL: Redis connection timeout");
+    logger.error("=".repeat(60));
+    logger.error("❌ Redis did not become ready within 5 seconds");
+    logger.error("❌ Redis is MANDATORY");
+    logger.error("❌ The application cannot start without Redis");
+    logger.error("=".repeat(60) + "\n");
     return { connected: false, error };
   }
 
-  console.log("✅ Redis connection verified");
+  logger.info("✅ Redis connection verified");
   return { connected: true };
 }
 

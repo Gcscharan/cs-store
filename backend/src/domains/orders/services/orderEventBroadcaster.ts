@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger';
 import { Server } from "socket.io";
 import { OrderEvent } from "../../../models/OrderEvent";
 import { Order } from "../../../models/Order";
@@ -41,7 +42,7 @@ export class OrderEventBroadcaster {
         .lean();
 
       if (!order) {
-        console.error(`[OrderEventBroadcaster] Order ${orderId} not found`);
+        logger.error(`[OrderEventBroadcaster] Order ${orderId} not found`);
         return;
       }
 
@@ -57,9 +58,9 @@ export class OrderEventBroadcaster {
       // Broadcast to admin room (all admins)
       this.io.to("admin_room").emit("order:status:changed", eventPayload);
 
-      console.log(`✅ [OrderEventBroadcaster] Broadcasted ${from} → ${to} for order ${orderId}`);
+      logger.info(`✅ [OrderEventBroadcaster] Broadcasted ${from} → ${to} for order ${orderId}`);
     } catch (error) {
-      console.error(`[OrderEventBroadcaster] Error broadcasting event:`, error);
+      logger.error(`[OrderEventBroadcaster] Error broadcasting event:`, error);
     }
   }
 
@@ -97,10 +98,10 @@ export class OrderEventBroadcaster {
       }
 
       if (unpublishedEvents.length > 0) {
-        console.log(`✅ [OrderEventBroadcaster] Published ${unpublishedEvents.length} pending events`);
+        logger.info(`✅ [OrderEventBroadcaster] Published ${unpublishedEvents.length} pending events`);
       }
     } catch (error) {
-      console.error(`[OrderEventBroadcaster] Error polling pending events:`, error);
+      logger.error(`[OrderEventBroadcaster] Error polling pending events:`, error);
     }
   }
 
@@ -112,6 +113,6 @@ export class OrderEventBroadcaster {
       this.pollAndBroadcastPending();
     }, intervalMs);
 
-    console.log(`✅ [OrderEventBroadcaster] Started polling every ${intervalMs}ms`);
+    logger.info(`✅ [OrderEventBroadcaster] Started polling every ${intervalMs}ms`);
   }
 }

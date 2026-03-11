@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 import express from "express";
 import { authenticateToken, requireDeliveryRole } from "../middleware/auth";
 import { createRateLimit } from "../middleware/security";
@@ -104,7 +105,7 @@ router.post("/location", authenticateToken, requireDeliveryRole, ingestRateLimit
   const parsed = validateLocationPayload({ body: req.body, authRiderId });
   if (!parsed.ok) {
     incCounterWithLabels("tracking_ingestion_rejected_total", { reason: parsed.reason });
-    console.log(
+    logger.info(
       JSON.stringify({
         type: "tracking_ingestion_rejected",
         reason: parsed.reason,
@@ -121,7 +122,7 @@ router.post("/location", authenticateToken, requireDeliveryRole, ingestRateLimit
   const accuracyValidation = validateAccuracy(v.accuracyM);
   if (!accuracyValidation.valid) {
     incCounterWithLabels("tracking_ingestion_rejected_total", { reason: "accuracy_too_low" });
-    console.log(
+    logger.info(
       JSON.stringify({
         type: "tracking_ingestion_accuracy_rejected",
         reason: accuracyValidation.reason,
@@ -138,7 +139,7 @@ router.post("/location", authenticateToken, requireDeliveryRole, ingestRateLimit
   const speedValidation = validateSpeed(v.riderId, v.lat, v.lng, deviceTs);
   if (!speedValidation.valid) {
     incCounterWithLabels("tracking_ingestion_rejected_total", { reason: "impossible_speed" });
-    console.log(
+    logger.info(
       JSON.stringify({
         type: "tracking_ingestion_speed_rejected",
         reason: speedValidation.reason,
@@ -170,7 +171,7 @@ router.post("/location", authenticateToken, requireDeliveryRole, ingestRateLimit
   if (!rl.allowed) {
     incCounter("tracking_ingestion_rate_limited_total");
     incCounterWithLabels("tracking_ingestion_rate_limited_by_rider_total", { riderId: v.riderId });
-    console.log(
+    logger.info(
       JSON.stringify({
         type: "tracking_ingestion_rate_limited",
         riderId: v.riderId,
@@ -207,7 +208,7 @@ router.post("/location", authenticateToken, requireDeliveryRole, ingestRateLimit
       incCounter("tracking_ingestion_published_total");
     } catch (e: any) {
       incCounter("tracking_ingestion_publish_failures_total");
-      console.log(
+      logger.info(
         JSON.stringify({
           type: "tracking_ingestion_publish_failure",
           riderId: v.riderId,
@@ -236,7 +237,7 @@ router.post("/location", authenticateToken, requireDeliveryRole, ingestRateLimit
 
     // Check geofences for auto status updates (async, non-blocking)
     checkGeofencesAsync(v.riderId, v.orderId, processedLat, processedLng).catch((e) => {
-      console.error("[Geofence] Check failed:", e);
+      logger.error("[Geofence] Check failed:", e);
     });
 
     incCounter("tracking_ingestion_accepted_total");
@@ -246,7 +247,7 @@ router.post("/location", authenticateToken, requireDeliveryRole, ingestRateLimit
     });
   } catch (e) {
     incCounter("tracking_hot_store_write_failures_total");
-    console.log(
+    logger.info(
       JSON.stringify({
         type: "tracking_ingestion_failure",
         riderId: v.riderId,
@@ -289,7 +290,7 @@ async function checkGeofencesAsync(
     for (const result of results) {
       if (result.event) {
         const message = getGeofenceEventMessage(result.event);
-        console.log(JSON.stringify({
+        logger.info(JSON.stringify({
           type: "geofence_event",
           event: result.event,
           riderId,
@@ -305,7 +306,7 @@ async function checkGeofencesAsync(
       }
     }
   } catch (error) {
-    console.error("[Geofence] Async check error:", error);
+    logger.error("[Geofence] Async check error:", error);
   }
 }
 

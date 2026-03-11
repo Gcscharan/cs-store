@@ -4,13 +4,14 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.sendEmailOTP = void 0;
+const logger_1 = require("./logger");
 const nodemailer_1 = __importDefault(require("nodemailer"));
 // Create Gmail SMTP transporter
 const createTransporter = () => {
     // Force the correct Gmail credentials
     const gmailUser = "gcs.charan@gmail.com";
     const gmailPass = "nwppbjguzdcjdekr"; // Gmail App Password (no spaces)
-    console.log("🔧 SMTP Configuration:", {
+    logger_1.logger.info("🔧 SMTP Configuration:", {
         user: gmailUser,
         pass: gmailPass.substring(0, 4) + "****", // Hide password in logs
         host: "smtp.gmail.com",
@@ -69,24 +70,24 @@ const sendEmailOTP = async (email, otp) => {
             html: htmlContent,
         };
         const info = await transporter.sendMail(mailOptions);
-        console.log("✅ OTP email sent successfully via Gmail SMTP to", email);
-        console.log("📧 Message ID:", info.messageId);
+        logger_1.logger.info("✅ OTP email sent successfully via Gmail SMTP to", email);
+        logger_1.logger.info("📧 Message ID:", info.messageId);
     }
     catch (error) {
-        console.error("❌ Gmail SMTP failed:", error);
+        logger_1.logger.error("❌ Gmail SMTP failed:", error);
         // Fallback to console logging
-        console.log("=".repeat(80));
-        console.log("📧 EMAIL OTP SENT (CONSOLE FALLBACK)");
-        console.log("=".repeat(80));
-        console.log(`📧 To: ${email}`);
-        console.log(`🔑 OTP: ${otp}`);
-        console.log(`⏰ Valid for: 10 minutes`);
-        console.log(`📅 Time: ${new Date().toLocaleString()}`);
-        console.log("=".repeat(80));
-        console.log("✅ Use this OTP in your frontend to complete login");
-        console.log("=".repeat(80));
-        console.log("💡 SMTP configuration needed for real email delivery");
-        console.log("=".repeat(80));
+        logger_1.logger.info("=".repeat(80));
+        logger_1.logger.info("📧 EMAIL OTP SENT (CONSOLE FALLBACK)");
+        logger_1.logger.info("=".repeat(80));
+        logger_1.logger.info(`📧 To: ${email}`);
+        logger_1.logger.info(`🔑 OTP: ${otp}`);
+        logger_1.logger.info(`⏰ Valid for: 10 minutes`);
+        logger_1.logger.info(`📅 Time: ${new Date().toLocaleString()}`);
+        logger_1.logger.info("=".repeat(80));
+        logger_1.logger.info("✅ Use this OTP in your frontend to complete login");
+        logger_1.logger.info("=".repeat(80));
+        logger_1.logger.info("💡 SMTP configuration needed for real email delivery");
+        logger_1.logger.info("=".repeat(80));
     }
 };
 exports.sendEmailOTP = sendEmailOTP;

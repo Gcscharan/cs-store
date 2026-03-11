@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 /**
  * Delivery Tracking System Test Simulation
  * Demonstrates real-time ETA updates, geofencing, Kalman filtering, and customer tracking
@@ -35,11 +36,11 @@ const SIMULATION_ROUTE = [
 ];
 
 async function runSimulation() {
-  console.log("\n");
-  console.log("=".repeat(60));
-  console.log("🚚 DELIVERY TRACKING SYSTEM - TEST SIMULATION");
-  console.log("=".repeat(60));
-  console.log("\n");
+  logger.info("\n");
+  logger.info("=".repeat(60));
+  logger.info("🚚 DELIVERY TRACKING SYSTEM - TEST SIMULATION");
+  logger.info("=".repeat(60));
+  logger.info("\n");
 
   const riderId = "test-rider-001";
   const orderId = "test-order-001";
@@ -47,8 +48,8 @@ async function runSimulation() {
   // ========================================
   // TEST 1: Distance Calculator (Google Roads)
   // ========================================
-  console.log("📍 TEST 1: Road Distance Calculation");
-  console.log("-".repeat(40));
+  logger.info("📍 TEST 1: Road Distance Calculation");
+  logger.info("-".repeat(40));
 
   try {
     const distanceResult = await getRouteDistance(
@@ -58,20 +59,20 @@ async function runSimulation() {
       CUSTOMER_LOCATION.lng
     );
 
-    console.log(`   Distance: ${distanceResult.distanceKm.toFixed(2)} km`);
-    console.log(`   Duration: ${distanceResult.durationMinutes} min`);
-    console.log(`   Source: ${distanceResult.source}`);
-    console.log(`   ✅ Distance calculator working (${distanceResult.source === 'google' ? 'Google API' : 'Haversine fallback'})`);
+    logger.info(`   Distance: ${distanceResult.distanceKm.toFixed(2)} km`);
+    logger.info(`   Duration: ${distanceResult.durationMinutes} min`);
+    logger.info(`   Source: ${distanceResult.source}`);
+    logger.info(`   ✅ Distance calculator working (${distanceResult.source === 'google' ? 'Google API' : 'Haversine fallback'})`);
   } catch (error: any) {
-    console.log(`   ⚠️ Distance calculation error: ${error.message}`);
+    logger.info(`   ⚠️ Distance calculation error: ${error.message}`);
   }
-  console.log("\n");
+  logger.info("\n");
 
   // ========================================
   // TEST 2: ETA Calculator
   // ========================================
-  console.log("⏱️ TEST 2: Real-time ETA Calculation");
-  console.log("-".repeat(40));
+  logger.info("⏱️ TEST 2: Real-time ETA Calculation");
+  logger.info("-".repeat(40));
 
   for (let i = 0; i < SIMULATION_ROUTE.length; i++) {
     const point = SIMULATION_ROUTE[i];
@@ -86,22 +87,22 @@ async function runSimulation() {
         accuracyM: point.accuracyM,
       });
 
-      console.log(`   [${point.label}]`);
-      console.log(`      ETA: ${etaResult.etaMinutes} min`);
-      console.log(`      Distance remaining: ${(etaResult.distanceRemainingM / 1000).toFixed(2)} km`);
-      console.log(`      Confidence: ${etaResult.confidence}`);
-      console.log(`      Source: ${etaResult.source}`);
+      logger.info(`   [${point.label}]`);
+      logger.info(`      ETA: ${etaResult.etaMinutes} min`);
+      logger.info(`      Distance remaining: ${(etaResult.distanceRemainingM / 1000).toFixed(2)} km`);
+      logger.info(`      Confidence: ${etaResult.confidence}`);
+      logger.info(`      Source: ${etaResult.source}`);
     } catch (error: any) {
-      console.log(`   ⚠️ ETA calculation error: ${error.message}`);
+      logger.info(`   ⚠️ ETA calculation error: ${error.message}`);
     }
   }
-  console.log("\n");
+  logger.info("\n");
 
   // ========================================
   // TEST 3: Kalman Filter Smoothing
   // ========================================
-  console.log("📊 TEST 3: GPS Kalman Filter Smoothing");
-  console.log("-".repeat(40));
+  logger.info("📊 TEST 3: GPS Kalman Filter Smoothing");
+  logger.info("-".repeat(40));
 
   // Simulate noisy GPS readings
   const noisyReadings = [
@@ -112,24 +113,24 @@ async function runSimulation() {
     { lat: 17.0956, lng: 80.6089, accuracyM: 25 },
   ];
 
-  console.log("   Raw GPS readings (with noise):");
+  logger.info("   Raw GPS readings (with noise):");
   noisyReadings.forEach((r, i) => {
-    console.log(`      ${i + 1}. lat: ${r.lat.toFixed(6)}, lng: ${r.lng.toFixed(6)}, accuracy: ${r.accuracyM}m`);
+    logger.info(`      ${i + 1}. lat: ${r.lat.toFixed(6)}, lng: ${r.lng.toFixed(6)}, accuracy: ${r.accuracyM}m`);
   });
 
-  console.log("\n   Kalman smoothed readings:");
+  logger.info("\n   Kalman smoothed readings:");
   noisyReadings.forEach((r, i) => {
     const smoothed = kalmanFilterManager.update("test-rider", r.lat, r.lng, r.accuracyM);
-    console.log(`      ${i + 1}. lat: ${smoothed.lat.toFixed(6)}, lng: ${smoothed.lng.toFixed(6)}`);
+    logger.info(`      ${i + 1}. lat: ${smoothed.lat.toFixed(6)}, lng: ${smoothed.lng.toFixed(6)}`);
   });
-  console.log("   ✅ Kalman filter reducing GPS jitter");
-  console.log("\n");
+  logger.info("   ✅ Kalman filter reducing GPS jitter");
+  logger.info("\n");
 
   // ========================================
   // TEST 4: Geofencing
   // ========================================
-  console.log("🎯 TEST 4: Geofence Detection");
-  console.log("-".repeat(40));
+  logger.info("🎯 TEST 4: Geofence Detection");
+  logger.info("-".repeat(40));
 
   for (const point of SIMULATION_ROUTE) {
     const results = await checkAllGeofences({
@@ -148,43 +149,43 @@ async function runSimulation() {
       CUSTOMER_LOCATION.lat, CUSTOMER_LOCATION.lng
     );
 
-    console.log(`   [${point.label}]`);
-    console.log(`      Distance to destination: ${Math.round(distanceToDest)}m`);
+    logger.info(`   [${point.label}]`);
+    logger.info(`      Distance to destination: ${Math.round(distanceToDest)}m`);
 
     for (const result of results) {
       if (result.event) {
         const msg = getGeofenceEventMessage(result.event);
-        console.log(`      🚨 EVENT: ${result.event} - ${msg.title}`);
+        logger.info(`      🚨 EVENT: ${result.event} - ${msg.title}`);
       }
     }
   }
-  console.log("   ✅ Geofence events detected correctly");
-  console.log("\n");
+  logger.info("   ✅ Geofence events detected correctly");
+  logger.info("\n");
 
   // ========================================
   // TEST 5: Pincode Validation
   // ========================================
-  console.log("📮 TEST 5: Pincode Validation");
-  console.log("-".repeat(40));
+  logger.info("📮 TEST 5: Pincode Validation");
+  logger.info("-".repeat(40));
 
   const testPincodes = ["521235", "500001", "000000"];
   for (const pincode of testPincodes) {
     const result = await validatePincode(pincode);
-    console.log(`   ${pincode}: ${result.valid ? "✅ Valid" : "❌ Invalid"}`);
+    logger.info(`   ${pincode}: ${result.valid ? "✅ Valid" : "❌ Invalid"}`);
     if (result.suggestedCity) {
-      console.log(`      City: ${result.suggestedCity}, State: ${result.suggestedState}`);
+      logger.info(`      City: ${result.suggestedCity}, State: ${result.suggestedState}`);
     }
     if (result.error) {
-      console.log(`      Error: ${result.error}`);
+      logger.info(`      Error: ${result.error}`);
     }
   }
-  console.log("\n");
+  logger.info("\n");
 
   // ========================================
   // TEST 6: Route Optimization
   // ========================================
-  console.log("🗺️ TEST 6: Route Optimization (Nearest Neighbor TSP)");
-  console.log("-".repeat(40));
+  logger.info("🗺️ TEST 6: Route Optimization (Nearest Neighbor TSP)");
+  logger.info("-".repeat(40));
 
   const deliveries = [
     { orderId: "order-1", address: "Location A", lat: 17.1056, lng: 80.6189 },
@@ -193,32 +194,32 @@ async function runSimulation() {
     { orderId: "order-4", address: "Location D", lat: 17.0756, lng: 80.5889 },
   ];
 
-  console.log("   Unsorted deliveries:");
+  logger.info("   Unsorted deliveries:");
   deliveries.forEach((d, i) => {
-    console.log(`      ${i + 1}. ${d.orderId} - ${d.address}`);
+    logger.info(`      ${i + 1}. ${d.orderId} - ${d.address}`);
   });
 
   try {
     const optimized = await optimizeRoute(WAREHOUSE, deliveries);
     
-    console.log("\n   Optimized route:");
+    logger.info("\n   Optimized route:");
     optimized.stops.forEach((stop, i) => {
-      console.log(`      ${i + 1}. ${stop.orderId} - ${stop.address}`);
+      logger.info(`      ${i + 1}. ${stop.orderId} - ${stop.address}`);
     });
     
-    console.log(`\n   Total distance: ${(optimized.totalDistanceM / 1000).toFixed(2)} km`);
-    console.log(`   Estimated duration: ${optimized.totalDurationMinutes} min`);
-    console.log("   ✅ Route optimization working");
+    logger.info(`\n   Total distance: ${(optimized.totalDistanceM / 1000).toFixed(2)} km`);
+    logger.info(`   Estimated duration: ${optimized.totalDurationMinutes} min`);
+    logger.info("   ✅ Route optimization working");
   } catch (error: any) {
-    console.log(`   ⚠️ Route optimization error: ${error.message}`);
+    logger.info(`   ⚠️ Route optimization error: ${error.message}`);
   }
-  console.log("\n");
+  logger.info("\n");
 
   // ========================================
   // TEST 7: Geocoding
   // ========================================
-  console.log("🌍 TEST 7: Geocoding (Google Maps with Nominatim fallback)");
-  console.log("-".repeat(40));
+  logger.info("🌍 TEST 7: Geocoding (Google Maps with Nominatim fallback)");
+  logger.info("-".repeat(40));
 
   try {
     const geocodeResult = await smartGeocode(
@@ -229,41 +230,41 @@ async function runSimulation() {
     );
 
     if (geocodeResult) {
-      console.log(`   Address: Boya Bazar, Tiruvuru, AP 521235`);
-      console.log(`   Coordinates: lat ${geocodeResult.lat.toFixed(6)}, lng ${geocodeResult.lng.toFixed(6)}`);
-      console.log(`   Source: ${geocodeResult.coordsSource}`);
-      console.log("   ✅ Geocoding working");
+      logger.info(`   Address: Boya Bazar, Tiruvuru, AP 521235`);
+      logger.info(`   Coordinates: lat ${geocodeResult.lat.toFixed(6)}, lng ${geocodeResult.lng.toFixed(6)}`);
+      logger.info(`   Source: ${geocodeResult.coordsSource}`);
+      logger.info("   ✅ Geocoding working");
     } else {
-      console.log("   ⚠️ Geocoding returned no results");
+      logger.info("   ⚠️ Geocoding returned no results");
     }
   } catch (error: any) {
-    console.log(`   ⚠️ Geocoding error: ${error.message}`);
+    logger.info(`   ⚠️ Geocoding error: ${error.message}`);
   }
-  console.log("\n");
+  logger.info("\n");
 
   // ========================================
   // Summary
   // ========================================
-  console.log("=".repeat(60));
-  console.log("✅ SIMULATION COMPLETE");
-  console.log("=".repeat(60));
-  console.log("\n");
-  console.log("Implemented Features:");
-  console.log("   1. ✅ Google Roads Distance Calculator");
-  console.log("   2. ✅ Real-time ETA with Traffic Awareness");
-  console.log("   3. ✅ GPS Kalman Filter Smoothing");
-  console.log("   4. ✅ Geofencing for Auto Status Updates");
-  console.log("   5. ✅ Pincode Validation (India Post API)");
-  console.log("   6. ✅ Route Optimization (Nearest Neighbor TSP)");
-  console.log("   7. ✅ Google Geocoding with Nominatim Fallback");
-  console.log("   8. ✅ Customer Live Tracking (WebSocket + Polling)");
-  console.log("   9. ✅ Historical Route Playback");
-  console.log("  10. ✅ Offline-Resilient Frontend");
-  console.log("\n");
-  console.log("Environment Variables Required:");
-  console.log("   - GOOGLE_MAPS_API_KEY: For Google Maps APIs");
-  console.log("   - JWT_SECRET: For socket authentication");
-  console.log("\n");
+  logger.info("=".repeat(60));
+  logger.info("✅ SIMULATION COMPLETE");
+  logger.info("=".repeat(60));
+  logger.info("\n");
+  logger.info("Implemented Features:");
+  logger.info("   1. ✅ Google Roads Distance Calculator");
+  logger.info("   2. ✅ Real-time ETA with Traffic Awareness");
+  logger.info("   3. ✅ GPS Kalman Filter Smoothing");
+  logger.info("   4. ✅ Geofencing for Auto Status Updates");
+  logger.info("   5. ✅ Pincode Validation (India Post API)");
+  logger.info("   6. ✅ Route Optimization (Nearest Neighbor TSP)");
+  logger.info("   7. ✅ Google Geocoding with Nominatim Fallback");
+  logger.info("   8. ✅ Customer Live Tracking (WebSocket + Polling)");
+  logger.info("   9. ✅ Historical Route Playback");
+  logger.info("  10. ✅ Offline-Resilient Frontend");
+  logger.info("\n");
+  logger.info("Environment Variables Required:");
+  logger.info("   - GOOGLE_MAPS_API_KEY: For Google Maps APIs");
+  logger.info("   - JWT_SECRET: For socket authentication");
+  logger.info("\n");
 }
 
 // Run simulation
@@ -271,17 +272,17 @@ async function main() {
   try {
     // Connect to Redis
     await redisClient.connect();
-    console.log("✅ Connected to Redis");
+    logger.info("✅ Connected to Redis");
 
     // Run simulation (without MongoDB for testing)
     await runSimulation();
 
   } catch (error: any) {
-    console.error("❌ Simulation error:", error.message);
+    logger.error("❌ Simulation error:", error.message);
   } finally {
     // Disconnect
     await redisClient.disconnect();
-    console.log("\n👋 Disconnected from Redis");
+    logger.info("\n👋 Disconnected from Redis");
     process.exit(0);
   }
 }

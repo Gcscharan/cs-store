@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 import { AuditLog } from "../models/AuditLog";
 
 function isPlainObject(v: any): v is Record<string, any> {
@@ -98,10 +99,10 @@ export const auditLog = async (req: any, _res: any, next: any) => {
       metadata,
       createdAt: new Date(),
     }).catch((err) => {
-      console.error("[AUDIT_LOG_ERROR]", err?.message || err);
+      logger.error("[AUDIT_LOG_ERROR]", err?.message || err);
     });
   } catch (err) {
-    console.error("[AUDIT_LOG_ERROR]", (err as any)?.message || err);
+    logger.error("[AUDIT_LOG_ERROR]", (err as any)?.message || err);
   }
 
   next();

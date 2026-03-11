@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger';
 import { Response } from "express";
 import mongoose from "mongoose";
 import Notification from "../../../models/Notification";
@@ -105,7 +106,7 @@ export const emitDevNotification = async (req: AuthRequest, res: Response): Prom
       createdAt: new Date(created.createdAt || Date.now()).toISOString(),
     });
   } catch (error) {
-    console.error("Error emitting dev notification:", error);
+    logger.error("Error emitting dev notification:", error);
     res.status(500).json({ error: "Failed to emit notification" });
   }
 };

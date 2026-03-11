@@ -1,3 +1,4 @@
+import { logger } from '../../utils/logger';
 /**
  * MIGRATION 04: Enhance DeliveryBoys Collection
  * Adds shift management, earnings logs, and capacity tracking
@@ -11,9 +12,9 @@ dotenv.config();
 async function enhanceDeliveryBoys() {
   try {
     await mongoose.connect(process.env.MONGODB_URI!);
-    console.log("✅ Connected to MongoDB\n");
+    logger.info("✅ Connected to MongoDB\n");
 
-    console.log("🔧 Enhancing DeliveryBoys Collection...");
+    logger.info("🔧 Enhancing DeliveryBoys Collection...");
     
     const result = await DeliveryBoy.updateMany(
       {},
@@ -50,18 +51,18 @@ async function enhanceDeliveryBoys() {
       { strict: false }
     );
 
-    console.log(`✅ Updated ${result.modifiedCount} delivery boys`);
+    logger.info(`✅ Updated ${result.modifiedCount} delivery boys`);
     
     // Create geospatial index
-    console.log("\n🔧 Creating geospatial index...");
+    logger.info("\n🔧 Creating geospatial index...");
     await DeliveryBoy.collection.createIndex({ 
       "currentLocation.lat": 1, 
       "currentLocation.lng": 1 
     });
-    console.log("✅ Indexes created");
+    logger.info("✅ Indexes created");
 
   } catch (error) {
-    console.error("❌ Error:", error);
+    logger.error("❌ Error:", error);
   } finally {
     await mongoose.connection.close();
   }

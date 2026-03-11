@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger';
 import { UserRepository } from "../repositories/UserRepository";
 import { CartRepository } from "../repositories/CartRepository";
 import { OrderRepository } from "../repositories/OrderRepository";
@@ -200,7 +201,7 @@ export class UserAccountService {
         refreshToken,
       };
     } catch (error) {
-      console.error("Error verifying mobile:", error);
+      logger.error("Error verifying mobile:", error);
       throw error;
     }
   }
@@ -274,7 +275,7 @@ export class UserAccountService {
 
     } catch (error) {
       await session.abortTransaction();
-      console.error("Error deleting account:", error);
+      logger.error("Error deleting account:", error);
       throw error;
     } finally {
       session.endSession();
@@ -299,7 +300,7 @@ export class UserAccountService {
         },
       };
     } catch (error) {
-      console.error("Error fetching notification preferences:", error);
+      logger.error("Error fetching notification preferences:", error);
       throw error;
     }
   }
@@ -353,7 +354,7 @@ export class UserAccountService {
         preferences: user.notificationPreferences,
       };
     } catch (error) {
-      console.error("Error updating notification preferences:", error);
+      logger.error("Error updating notification preferences:", error);
       throw error;
     }
   }

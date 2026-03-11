@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createError = exports.errorHandler = void 0;
+const logger_1 = require("../utils/logger");
 const errorHandler = (error, req, res, next) => {
     let { statusCode = 500, message } = error;
     // Handle specific error types
@@ -23,7 +24,7 @@ const errorHandler = (error, req, res, next) => {
     }
     // Log error in development
     if (process.env.NODE_ENV === "development") {
-        console.error("Error:", error);
+        logger_1.logger.error("Error:", error);
     }
     res.status(statusCode).json({
         message,

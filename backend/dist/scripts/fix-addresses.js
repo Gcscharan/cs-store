@@ -36,6 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const logger_1 = require("../utils/logger");
 const mongoose_1 = __importDefault(require("mongoose"));
 const User_1 = require("../models/User");
 const dotenv = __importStar(require("dotenv"));
@@ -44,18 +45,18 @@ dotenv.config();
 // CRITICAL: Only use MONGODB_URI from environment - no fallbacks
 const MONGODB_URI = process.env.MONGODB_URI;
 if (!MONGODB_URI) {
-    console.error("❌ CRITICAL: MONGODB_URI environment variable is not set!");
-    console.error("❌ Please set MONGODB_URI in your .env file and restart.");
+    logger_1.logger.error("❌ CRITICAL: MONGODB_URI environment variable is not set!");
+    logger_1.logger.error("❌ Please set MONGODB_URI in your .env file and restart.");
     process.exit(1);
 }
 async function fixAddresses() {
     try {
         // Connect to MongoDB Atlas
         await mongoose_1.default.connect(MONGODB_URI);
-        console.log("✅ Connected to MongoDB Atlas");
+        logger_1.logger.info("✅ Connected to MongoDB Atlas");
         // Find all users with addresses
         const users = await User_1.User.find({ "addresses.0": { $exists: true } });
-        console.log(`📊 Found ${users.length} users with addresses`);
+        logger_1.logger.info(`📊 Found ${users.length} users with addresses`);
         let updatedCount = 0;
         let addressesFixed = 0;
         for (const user of users) {
@@ -76,16 +77,16 @@ async function fixAddresses() {
             if (userUpdated) {
                 await user.save();
                 updatedCount++;
-                console.log(`✅ Updated user: ${user.email} (${user.addresses.length} addresses)`);
+                logger_1.logger.info(`✅ Updated user: ${user.email} (${user.addresses.length} addresses)`);
             }
         }
-        console.log(`\n🎉 Migration complete!`);
-        console.log(`📊 Updated ${updatedCount} users`);
-        console.log(`📊 Fixed ${addressesFixed} addresses`);
+        logger_1.logger.info(`\n🎉 Migration complete!`);
+        logger_1.logger.info(`📊 Updated ${updatedCount} users`);
+        logger_1.logger.info(`📊 Fixed ${addressesFixed} addresses`);
         process.exit(0);
     }
     catch (error) {
-        console.error("❌ Migration failed:", error);
+        logger_1.logger.error("❌ Migration failed:", error);
         process.exit(1);
     }
 }

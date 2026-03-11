@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger';
 import crypto from "crypto";
 import mongoose from "mongoose";
 
@@ -363,7 +364,7 @@ export async function processRazorpayWebhook(args: {
             source: "WEBHOOK_PAYMENT_CAPTURED",
           });
         } else if (!invoiceResult.success) {
-          console.warn("[INVOICE][AUTO_GENERATION_SKIPPED]", {
+          logger.warn("[INVOICE][AUTO_GENERATION_SKIPPED]", {
             orderId,
             reason: invoiceResult.error || "Unknown reason",
             source: "WEBHOOK_PAYMENT_CAPTURED",
@@ -378,7 +379,7 @@ export async function processRazorpayWebhook(args: {
           gatewayOrderId,
           eventType: event.type,
         });
-        console.error("[INVOICE][AUTO_GENERATION_FAILED]", {
+        logger.error("[INVOICE][AUTO_GENERATION_FAILED]", {
           orderId,
           error: invoiceError?.message || "Unknown error",
           source: "WEBHOOK_PAYMENT_CAPTURED",

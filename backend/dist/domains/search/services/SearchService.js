@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SearchService = void 0;
+const logger_1 = require("../../../utils/logger");
 const ProductSearchRepository_1 = require("../repositories/ProductSearchRepository");
 const MediaImageService_1 = require("../../media/services/MediaImageService");
 const regex_1 = require("../../../utils/regex");
@@ -45,7 +46,7 @@ class SearchService {
             };
         }
         catch (error) {
-            console.error("SearchService.search error:", error);
+            logger_1.logger.error("SearchService.search error:", error);
             return {
                 products: [],
                 total: 0,

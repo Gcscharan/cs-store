@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.requireDeliveryRole = exports.requireRole = exports.authenticateToken = exports.authenticateGoogleAuthOnly = void 0;
+const logger_1 = require("../utils/logger");
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const User_1 = require("../models/User");
 const mongoose_1 = __importDefault(require("mongoose"));
@@ -47,16 +48,16 @@ const authenticateToken = async (req, res, next) => {
         }
         const debug = process.env.NODE_ENV !== "production";
         if (debug)
-            console.log('[Auth] authenticateToken - starting');
+            logger_1.logger.info('[Auth] authenticateToken - starting');
         const authHeader = req.headers.authorization;
         const token = authHeader && authHeader.split(" ")[1];
         if (debug)
-            console.log('[Auth] authenticateToken - authHeader exists:', !!authHeader);
+            logger_1.logger.info('[Auth] authenticateToken - authHeader exists:', !!authHeader);
         if (debug)
-            console.log('[Auth] authenticateToken - token exists:', !!token);
+            logger_1.logger.info('[Auth] authenticateToken - token exists:', !!token);
         if (!token) {
             if (debug)
-                console.log('[Auth] authenticateToken - no token, returning 401');
+                logger_1.logger.info('[Auth] authenticateToken - no token, returning 401');
             return res.status(401).json({ message: "Authentication required" });
         }
         // Check if token is blacklisted
@@ -65,7 +66,7 @@ const authenticateToken = async (req, res, next) => {
             const isBlacklisted = await redisClient.get(`blacklist:access:${token}`);
             if (isBlacklisted) {
                 if (debug)
-                    console.log('[Auth] authenticateToken - token blacklisted, returning 401');
+                    logger_1.logger.info('[Auth] authenticateToken - token blacklisted, returning 401');
                 return res.status(401).json({ message: "Token revoked - please login again", code: "TOKEN_REVOKED" });
             }
         }
@@ -74,37 +75,37 @@ const authenticateToken = async (req, res, next) => {
         }
         const decoded = jsonwebtoken_1.default.verify(token, jwtSecret);
         if (debug)
-            console.log('[Auth] authenticateToken - token decoded, userId:', decoded.userId);
+            logger_1.logger.info('[Auth] authenticateToken - token decoded, userId:', decoded.userId);
         if (!mongoose_1.default.Types.ObjectId.isValid(decoded.userId)) {
             return res.status(401).json({ message: "Invalid userId in token", code: "INVALID_USERID" });
         }
         const user = await User_1.User.findById(decoded.userId).select("-passwordHash");
         if (debug)
-            console.log('[Auth] authenticateToken - user found:', !!user);
+            logger_1.logger.info('[Auth] authenticateToken - user found:', !!user);
         if (debug && user) {
-            console.log('[Auth] authenticateToken - user._id:', user._id);
+            logger_1.logger.info('[Auth] authenticateToken - user._id:', user._id);
         }
         if (!user) {
             if (debug)
-                console.log('[Auth] authenticateToken - user not found, returning 404');
+                logger_1.logger.info('[Auth] authenticateToken - user not found, returning 404');
             return res.status(404).json({ message: "User not found" });
         }
         // Check if user account is active
         if (user.status === 'suspended') {
             if (debug)
-                console.log('[Auth] authenticateToken - user suspended, returning 403');
+                logger_1.logger.info('[Auth] authenticateToken - user suspended, returning 403');
             return res.status(403).json({ message: "Account suspended" });
         }
         // Set both user object and userId for compatibility
         req.user = user;
         req.userId = user._id.toString();
         if (debug)
-            console.log('[Auth] authenticateToken - req.user set, calling next()');
+            logger_1.logger.info('[Auth] authenticateToken - req.user set, calling next()');
         next();
     }
     catch (error) {
         if (process.env.NODE_ENV !== "production") {
-            console.log('[Auth] authenticateToken - error:', error);
+            logger_1.logger.info('[Auth] authenticateToken - error:', error);
         }
         if (error instanceof jsonwebtoken_1.default.JsonWebTokenError) {
             if (error.name === "TokenExpiredError") {
@@ -122,21 +123,21 @@ const requireRole = (roles) => {
     return (req, res, next) => {
         const debug = process.env.NODE_ENV !== "production";
         if (debug)
-            console.log('[Auth] requireRole - checking roles:', roles);
+            logger_1.logger.info('[Auth] requireRole - checking roles:', roles);
         if (debug)
-            console.log('[Auth] requireRole - req.user exists:', !!req.user);
+            logger_1.logger.info('[Auth] requireRole - req.user exists:', !!req.user);
         if (debug && req.user) {
-            console.log('[Auth] requireRole - user role:', req.user.role);
-            console.log('[Auth] requireRole - role check:', roles.includes(req.user.role));
+            logger_1.logger.info('[Auth] requireRole - user role:', req.user.role);
+            logger_1.logger.info('[Auth] requireRole - role check:', roles.includes(req.user.role));
         }
         if (!req.user) {
             if (debug)
-                console.log('[Auth] requireRole - no req.user, returning 401');
+                logger_1.logger.info('[Auth] requireRole - no req.user, returning 401');
             return res.status(401).json({ message: "Authentication required" });
         }
         if (!roles.includes(req.user.role)) {
             if (debug)
-                console.log('[Auth] requireRole - role not allowed, returning 403');
+                logger_1.logger.info('[Auth] requireRole - role not allowed, returning 403');
             const normalizedRoles = (roles || [])
                 .map((r) => String(r || "").trim())
                 .filter(Boolean);
@@ -147,7 +148,7 @@ const requireRole = (roles) => {
             return res.status(403).json({ message });
         }
         if (debug)
-            console.log('[Auth] requireRole - role check passed, calling next()');
+            logger_1.logger.info('[Auth] requireRole - role check passed, calling next()');
         next();
     };
 };

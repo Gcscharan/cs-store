@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger';
 import { Request, Response } from "express";
 import { SearchService } from "../../search/services/SearchService";
 
@@ -18,11 +19,11 @@ export const searchProducts = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    console.log(`🔍 Search request:`, { query: q.trim() });
+    logger.info(`🔍 Search request:`, { query: q.trim() });
 
     const result = await searchService.search({ q: q.trim() });
 
-    console.log(`📊 Search results:`, {
+    logger.info(`📊 Search results:`, {
       query: result.query,
       hits: result.products.length,
       message: result.message
@@ -37,7 +38,7 @@ export const searchProducts = async (req: Request, res: Response): Promise<void>
     });
 
   } catch (error) {
-    console.error("❌ Search error:", error);
+    logger.error("❌ Search error:", error);
     res.status(500).json({
       error: "Internal server error during search",
       message: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
@@ -48,15 +49,15 @@ export const searchProducts = async (req: Request, res: Response): Promise<void>
 export const getSearchSuggestions = async (req: Request, res: Response): Promise<void> => {
   try {
     const rawQ = (req.query.q as string) ?? "";
-    console.log("[SEARCH SUGGESTIONS] received q:", JSON.stringify(rawQ));
+    logger.info("[SEARCH SUGGESTIONS] received q:", JSON.stringify(rawQ));
 
     const { suggestions } = await searchService.suggestions({ q: rawQ });
 
-    console.log(`[SEARCH SUGGESTIONS] returning ${suggestions.length} suggestions (top scores):`, suggestions.map(s => ({ name: s.name, score: s.score })));
+    logger.info(`[SEARCH SUGGESTIONS] returning ${suggestions.length} suggestions (top scores):`, suggestions.map(s => ({ name: s.name, score: s.score })));
 
     res.json({ suggestions });
   } catch (err) {
-    console.error("[SEARCH SUGGESTIONS] error:", err);
+    logger.error("[SEARCH SUGGESTIONS] error:", err);
     res.status(500).json({ suggestions: [] });
   }
 };

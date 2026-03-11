@@ -1,3 +1,4 @@
+import { logger } from './logger';
 import { Resend } from "resend";
 import * as nodemailer from "nodemailer";
 
@@ -10,12 +11,12 @@ export const sendEmailOTP = async (
   email: string,
   otp: string
 ): Promise<void> => {
-  console.log(`\n📧 Attempting to send OTP email to: ${email}`);
-  console.log(`🔑 OTP: ${otp} (also logged for debugging)\n`);
+  logger.info(`\n📧 Attempting to send OTP email to: ${email}`);
+  logger.info(`🔑 OTP: ${otp} (also logged for debugging)\n`);
 
   // Try Gmail SMTP first (Primary method for OTP)
   try {
-    console.log("📤 Sending email via Gmail SMTP...");
+    logger.info("📤 Sending email via Gmail SMTP...");
     
     // Create transporter
     const transporter = nodemailer.createTransport({
@@ -64,20 +65,20 @@ export const sendEmailOTP = async (
       `,
     });
 
-    console.log("=".repeat(80));
-    console.log("✅ OTP EMAIL SENT VIA GMAIL SMTP");
-    console.log("=".repeat(80));
-    console.log(`📧 To: ${email}`);
-    console.log(`🔑 OTP: ${otp} (for debugging)`);
-    console.log(`⏰ Valid for: 10 minutes`);
-    console.log(`📅 Time: ${new Date().toLocaleString()}`);
-    console.log("=".repeat(80));
-    console.log("✅ User should receive email shortly!");
-    console.log("=".repeat(80));
+    logger.info("=".repeat(80));
+    logger.info("✅ OTP EMAIL SENT VIA GMAIL SMTP");
+    logger.info("=".repeat(80));
+    logger.info(`📧 To: ${email}`);
+    logger.info(`🔑 OTP: ${otp} (for debugging)`);
+    logger.info(`⏰ Valid for: 10 minutes`);
+    logger.info(`📅 Time: ${new Date().toLocaleString()}`);
+    logger.info("=".repeat(80));
+    logger.info("✅ User should receive email shortly!");
+    logger.info("=".repeat(80));
     
   } catch (gmailError: any) {
-    console.error("❌ Gmail SMTP failed:", gmailError.message);
-    console.log("🔄 Trying Resend API fallback...");
+    logger.error("❌ Gmail SMTP failed:", gmailError.message);
+    logger.info("🔄 Trying Resend API fallback...");
     
     // Fallback to Resend API
     try {
@@ -119,37 +120,37 @@ export const sendEmailOTP = async (
     });
 
     if (error) {
-      console.error("❌ Resend API Error:", error);
-      console.error("Error details:", JSON.stringify(error, null, 2));
+      logger.error("❌ Resend API Error:", error);
+      logger.error("Error details:", JSON.stringify(error, null, 2));
       throw new Error(`Resend failed: ${error.message || "Unknown error"}`);
     }
 
-      console.log("=".repeat(80));
-      console.log("✅ OTP EMAIL SENT SUCCESSFULLY VIA RESEND");
-      console.log("=".repeat(80));
-      console.log(`📧 To: ${email}`);
-      console.log(`📨 Email ID: ${data?.id}`);
-      console.log(`🔑 OTP: ${otp} (for debugging)`);
-      console.log(`⏰ Valid for: 10 minutes`);
-      console.log(`📅 Time: ${new Date().toLocaleString()}`);
-      console.log("=".repeat(80));
-      console.log("✅ User should receive email shortly!");
-      console.log("=".repeat(80));
+      logger.info("=".repeat(80));
+      logger.info("✅ OTP EMAIL SENT SUCCESSFULLY VIA RESEND");
+      logger.info("=".repeat(80));
+      logger.info(`📧 To: ${email}`);
+      logger.info(`📨 Email ID: ${data?.id}`);
+      logger.info(`🔑 OTP: ${otp} (for debugging)`);
+      logger.info(`⏰ Valid for: 10 minutes`);
+      logger.info(`📅 Time: ${new Date().toLocaleString()}`);
+      logger.info("=".repeat(80));
+      logger.info("✅ User should receive email shortly!");
+      logger.info("=".repeat(80));
       
     } catch (resendError: any) {
-      console.error("❌ Resend API also failed:", resendError.message);
+      logger.error("❌ Resend API also failed:", resendError.message);
       
       // Final fallback: Console logging
-      console.log("=".repeat(80));
-      console.log("⚠️  EMAIL OTP SENT (CONSOLE FALLBACK)");
-      console.log("=".repeat(80));
-      console.log(`📧 To: ${email}`);
-      console.log(`🔑 OTP: ${otp}`);
-      console.log(`⏰ Valid for: 10 minutes`);
-      console.log(`📅 Time: ${new Date().toLocaleString()}`);
-      console.log("=".repeat(80));
-      console.log("⚠️  All email services failed - OTP displayed in console for testing");
-      console.log("=".repeat(80));
+      logger.info("=".repeat(80));
+      logger.info("⚠️  EMAIL OTP SENT (CONSOLE FALLBACK)");
+      logger.info("=".repeat(80));
+      logger.info(`📧 To: ${email}`);
+      logger.info(`🔑 OTP: ${otp}`);
+      logger.info(`⏰ Valid for: 10 minutes`);
+      logger.info(`📅 Time: ${new Date().toLocaleString()}`);
+      logger.info("=".repeat(80));
+      logger.info("⚠️  All email services failed - OTP displayed in console for testing");
+      logger.info("=".repeat(80));
     }
   }
 };

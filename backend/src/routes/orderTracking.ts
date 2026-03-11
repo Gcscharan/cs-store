@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 import express, { Request, Response } from "express";
 import { authenticateToken } from "../middleware/auth";
 import { Order } from "../models/Order";
@@ -86,7 +87,7 @@ router.get("/:orderId/tracking", authenticateToken, async (req: Request, res: Re
         etaMinutes = etaResult.etaMinutes;
         distanceRemainingM = etaResult.distanceRemainingM;
       } catch (e) {
-        console.warn("[TrackingAPI] ETA calculation failed:", e);
+        logger.warn("[TrackingAPI] ETA calculation failed:", e);
       }
     }
 
@@ -105,7 +106,7 @@ router.get("/:orderId/tracking", authenticateToken, async (req: Request, res: Re
         : undefined,
     });
   } catch (error: any) {
-    console.error("[TrackingAPI] Error:", error);
+    logger.error("[TrackingAPI] Error:", error);
     return res.status(500).json({ error: "Failed to get tracking info" });
   }
 });

@@ -1,7 +1,8 @@
 "use strict";
-// SMS utility functions for OTP generation and console logging
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.formatPhoneNumber = exports.validatePhoneNumber = exports.sendSMS = exports.generateOTP = void 0;
+const logger_1 = require("./logger");
+// SMS utility functions for OTP generation and console logging
 // Generate 6-digit OTP
 const generateOTP = () => {
     return Math.floor(100000 + Math.random() * 900000).toString();
@@ -12,8 +13,8 @@ const sendSMS = async (phone, message) => {
     // Extract OTP from message for logging
     const otpMatch = message.match(/(\d{6})/);
     const otp = otpMatch ? otpMatch[1] : "N/A";
-    console.log(`\n🔢 OTP Generated for ${phone}: ${otp}\n`);
-    console.log(`📱 Message: ${message}\n`);
+    logger_1.logger.info(`\n🔢 OTP Generated for ${phone}: ${otp}\n`);
+    logger_1.logger.info(`📱 Message: ${message}\n`);
     return true;
 };
 exports.sendSMS = sendSMS;

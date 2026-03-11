@@ -1,3 +1,4 @@
+import { logger } from '../../utils/logger';
 /**
  * MIGRATION 02: Enhance Products Collection
  * Adds enterprise fields for inventory, ratings, and analytics
@@ -11,9 +12,9 @@ dotenv.config();
 async function enhanceProducts() {
   try {
     await mongoose.connect(process.env.MONGODB_URI!);
-    console.log("✅ Connected to MongoDB\n");
+    logger.info("✅ Connected to MongoDB\n");
 
-    console.log("🔧 Enhancing Products Collection...");
+    logger.info("🔧 Enhancing Products Collection...");
     
     const result = await Product.updateMany(
       {},
@@ -70,18 +71,18 @@ async function enhanceProducts() {
       { strict: false }
     );
 
-    console.log(`✅ Updated ${result.modifiedCount} products`);
+    logger.info(`✅ Updated ${result.modifiedCount} products`);
     
     // Create indexes
-    console.log("\n🔧 Creating indexes...");
+    logger.info("\n🔧 Creating indexes...");
     await Product.collection.createIndex({ brand: 1, isActive: 1, isDeleted: 1 });
     await Product.collection.createIndex({ averageRating: -1 });
     await Product.collection.createIndex({ viewCount: -1, purchaseCount: -1 });
     await Product.collection.createIndex({ isActive: 1, isFeatured: 1 });
-    console.log("✅ Indexes created");
+    logger.info("✅ Indexes created");
 
   } catch (error) {
-    console.error("❌ Error:", error);
+    logger.error("❌ Error:", error);
   } finally {
     await mongoose.connection.close();
   }

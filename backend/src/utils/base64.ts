@@ -1,3 +1,4 @@
+import { logger } from './logger';
 /**
  * Backend Base64 Image Utilities
  * 
@@ -31,7 +32,7 @@ export async function createThumbnail(buffer: Buffer, maxSize: number = 220): Pr
   
   // For now, just return the original buffer (no actual resizing)
   // This maintains compatibility while allowing the migration script to work
-  console.warn("⚠️  Using placeholder thumbnail generation. Consider implementing proper image processing with Sharp.");
+  logger.warn("⚠️  Using placeholder thumbnail generation. Consider implementing proper image processing with Sharp.");
   
   return buffer;
 }
@@ -55,7 +56,7 @@ export async function fileToThumbnailBase64(buffer: Buffer): Promise<string> {
     const thumbnailBuffer = await createThumbnail(buffer, 220);
     return bufferToBase64(thumbnailBuffer, 'image/jpeg');
   } catch (error) {
-    console.error("Failed to generate thumbnail:", error);
+    logger.error("Failed to generate thumbnail:", error);
     throw error;
   }
 }
@@ -82,7 +83,7 @@ export async function urlToBase64(imageUrl: string): Promise<string> {
     
     return bufferToBase64(buffer, mimeType);
   } catch (error) {
-    console.error(`Failed to convert URL to Base64: ${imageUrl}`, error);
+    logger.error(`Failed to convert URL to Base64: ${imageUrl}`, error);
     throw error;
   }
 }
@@ -100,7 +101,7 @@ export async function downloadImage(url: string, filepath: string): Promise<void
     if (!response.body) throw new Error("No response body");
     await pipelineAsync(response.body as any, createWriteStream(filepath));
   } catch (error) {
-    console.error(`Failed to download image: ${url}`, error);
+    logger.error(`Failed to download image: ${url}`, error);
     throw error;
   }
 }

@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 import type { Request, Response, NextFunction } from "express";
 
 export function deprecatedRoute(args: {
@@ -9,7 +10,7 @@ export function deprecatedRoute(args: {
     try {
       const userEmail = String((req as any)?.user?.email || "anonymous");
       const msg = `[DEPRECATED_ROUTE] label=${args.label} user=${userEmail} method=${req.method} url=${req.originalUrl}`;
-      console.warn(msg);
+      logger.warn(msg);
       res.setHeader("x-deprecated-route", args.label);
       if (args.replacement) {
         res.setHeader("x-deprecated-replacement", args.replacement);

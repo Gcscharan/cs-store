@@ -8,6 +8,7 @@ exports.isLocationNearRoute = isLocationNearRoute;
 exports.calculateHaversineDistance = calculateHaversineDistance;
 exports.decodePolyline = decodePolyline;
 exports.encodePolyline = encodePolyline;
+const logger_1 = require("./logger");
 const google_maps_services_js_1 = require("@googlemaps/google-maps-services-js");
 const polyline_1 = __importDefault(require("@mapbox/polyline"));
 const googleMapsClient = new google_maps_services_js_1.Client({});
@@ -21,7 +22,7 @@ async function getRoutePolyline(origin, destination) {
     try {
         const apiKey = process.env.GOOGLE_MAPS_API_KEY;
         if (!apiKey) {
-            console.warn("Google Maps API key not configured, using fallback");
+            logger_1.logger.warn("Google Maps API key not configured, using fallback");
             return createFallbackRoute(origin, destination);
         }
         const response = await googleMapsClient.directions({
@@ -51,11 +52,11 @@ async function getRoutePolyline(origin, destination) {
                 decodedPath,
             };
         }
-        console.warn("No routes found from Google Directions API");
+        logger_1.logger.warn("No routes found from Google Directions API");
         return createFallbackRoute(origin, destination);
     }
     catch (error) {
-        console.error("Error fetching route polyline:", error);
+        logger_1.logger.error("Error fetching route polyline:", error);
         return createFallbackRoute(origin, destination);
     }
 }
@@ -102,7 +103,7 @@ function isLocationNearRoute(location, routePolyline, thresholdKm = 2) {
         return false;
     }
     catch (error) {
-        console.error("Error checking location near route:", error);
+        logger_1.logger.error("Error checking location near route:", error);
         return false;
     }
 }
@@ -158,7 +159,7 @@ function decodePolyline(encodedPolyline) {
         }));
     }
     catch (error) {
-        console.error("Error decoding polyline:", error);
+        logger_1.logger.error("Error decoding polyline:", error);
         return [];
     }
 }
@@ -170,7 +171,7 @@ function encodePolyline(path) {
         return polyline_1.default.encode(path.map((p) => [p.lat, p.lng]));
     }
     catch (error) {
-        console.error("Error encoding polyline:", error);
+        logger_1.logger.error("Error encoding polyline:", error);
         return "";
     }
 }

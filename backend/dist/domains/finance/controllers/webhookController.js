@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.razorpayWebhook = void 0;
+const logger_1 = require("../../../utils/logger");
 const razorpayWebhook = async (req, res) => {
     try {
         // SAFETY: Disabled to enforce single payment source-of-truth
@@ -10,7 +11,7 @@ const razorpayWebhook = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Webhook error:", error);
+        logger_1.logger.error("Webhook error:", error);
         res.status(500).json({ error: "Webhook processing failed" });
         return;
     }

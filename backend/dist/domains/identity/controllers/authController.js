@@ -37,6 +37,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.deleteAccount = exports.getMe = exports.completeProfile = exports.checkPhoneExists = exports.verifyAuthOTP = exports.sendAuthOTP = exports.changePassword = exports.googleCallback = exports.logout = exports.refresh = exports.oauth = exports.login = exports.completeOnboarding = exports.verifyOnboardingOtp = exports.signup = void 0;
+const logger_1 = require("../../../utils/logger");
 const jwt = __importStar(require("jsonwebtoken"));
 const bcrypt = __importStar(require("bcryptjs"));
 const User_1 = require("../../../models/User");
@@ -101,9 +102,9 @@ const signup = async (req, res) => {
         const saltRounds = 12;
         const passwordHash = await bcrypt.hash(password, saltRounds);
         // Create user directly
-        console.log("[DB][Signup][BeforeCreate] Host:", mongoose_1.default.connection.host);
-        console.log("[DB][Signup][BeforeCreate] Database Name:", mongoose_1.default.connection.name);
-        console.log("[DB][Signup][BeforeCreate] User.collection.name:", User_1.User.collection?.name);
+        logger_1.logger.info("[DB][Signup][BeforeCreate] Host:", mongoose_1.default.connection.host);
+        logger_1.logger.info("[DB][Signup][BeforeCreate] Database Name:", mongoose_1.default.connection.name);
+        logger_1.logger.info("[DB][Signup][BeforeCreate] User.collection.name:", User_1.User.collection?.name);
         const user = await User_1.User.create({
             name,
             email,
@@ -112,10 +113,10 @@ const signup = async (req, res) => {
             addresses: addresses || [],
             role: "customer",
         });
-        console.log("[DB][Signup][AfterCreate] Host:", mongoose_1.default.connection.host);
-        console.log("[DB][Signup][AfterCreate] Database Name:", mongoose_1.default.connection.name);
-        console.log("[DB][Signup][AfterCreate] User.collection.name:", User_1.User.collection?.name);
-        console.log("[DB][Signup][AfterCreate] Created user:", { id: user?._id?.toString?.(), email: user?.email });
+        logger_1.logger.info("[DB][Signup][AfterCreate] Host:", mongoose_1.default.connection.host);
+        logger_1.logger.info("[DB][Signup][AfterCreate] Database Name:", mongoose_1.default.connection.name);
+        logger_1.logger.info("[DB][Signup][AfterCreate] User.collection.name:", User_1.User.collection?.name);
+        logger_1.logger.info("[DB][Signup][AfterCreate] Created user:", { id: user?._id?.toString?.(), email: user?.email });
         // Generate JWT tokens (same as login flow)
         const accessToken = jwt.sign({ userId: user._id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRY });
         const refreshToken = jwt.sign({ userId: user._id }, JWT_REFRESH_SECRET, {
@@ -130,7 +131,7 @@ const signup = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Signup error:", error);
+        logger_1.logger.error("Signup error:", error);
         res.status(500).json({ error: "Registration failed" });
         return;
     }
@@ -167,7 +168,7 @@ const verifyOnboardingOtp = async (req, res) => {
         return res.json({ verified: true });
     }
     catch (error) {
-        console.error("verifyOnboardingOtp error:", error);
+        logger_1.logger.error("verifyOnboardingOtp error:", error);
         return res.status(500).json({ error: "Failed to verify OTP" });
     }
 };
@@ -247,7 +248,7 @@ const completeOnboarding = async (req, res) => {
         }
         otpRecord.isUsed = true;
         await otpRecord.save();
-        console.log("[AUTH] Creating user after OTP verification:", { email, phone: nextPhone });
+        logger_1.logger.info("[AUTH] Creating user after OTP verification:", { email, phone: nextPhone });
         const newUser = new User_1.User({
             name: nextName,
             email,
@@ -287,7 +288,7 @@ const completeOnboarding = async (req, res) => {
         if (error?.code === 11000) {
             return res.status(409).json({ message: "Account already exists" });
         }
-        console.error("completeOnboarding error:", error);
+        logger_1.logger.error("completeOnboarding error:", error);
         return res.status(500).json({ message: "Failed to complete onboarding" });
     }
 };
@@ -296,8 +297,8 @@ const login = async (req, res) => {
     try {
         const { identifier, email, phone, password } = req.body;
         const loginValue = identifier || email || phone;
-        console.log("[LOGIN] Request body:", req.body);
-        console.log("[LOGIN] loginValue:", loginValue);
+        logger_1.logger.info("[LOGIN] Request body:", req.body);
+        logger_1.logger.info("[LOGIN] loginValue:", loginValue);
         if (!loginValue) {
             res.status(400).json({ message: "Email or phone is required" });
             return;
@@ -310,25 +311,25 @@ const login = async (req, res) => {
             ? String(loginValue).replace(/\D/g, "")
             : undefined;
         // DEBUG: Log what we're searching for
-        console.log("\n" + "=".repeat(60));
-        console.log("[PASSWORD LOGIN] Login attempt:");
-        console.log("  identifier:", identifier || "(not provided)");
-        console.log("  email:", normalizedEmail || "(not provided)");
-        console.log("  phone:", cleanedPhone || "(not provided)");
+        logger_1.logger.info("\n" + "=".repeat(60));
+        logger_1.logger.info("[PASSWORD LOGIN] Login attempt:");
+        logger_1.logger.info("  identifier:", identifier || "(not provided)");
+        logger_1.logger.info("  email:", normalizedEmail || "(not provided)");
+        logger_1.logger.info("  phone:", cleanedPhone || "(not provided)");
         // Look up strictly by the normalized identifier
         let user;
         if (normalizedEmail) {
-            console.log("[PASSWORD LOGIN] Looking up by email:", normalizedEmail);
+            logger_1.logger.info("[PASSWORD LOGIN] Looking up by email:", normalizedEmail);
             user = await User_1.User.findOne({ email: normalizedEmail }).select("+passwordHash");
         }
         else if (cleanedPhone) {
-            console.log("[PASSWORD LOGIN] Looking up by phone:", cleanedPhone);
+            logger_1.logger.info("[PASSWORD LOGIN] Looking up by phone:", cleanedPhone);
             user = await User_1.User.findOne({ phone: cleanedPhone }).select("+passwordHash");
         }
         // DEBUG: Log what we found
-        console.log("[PASSWORD LOGIN] User found:", !!user);
+        logger_1.logger.info("[PASSWORD LOGIN] User found:", !!user);
         if (user) {
-            console.log("[PASSWORD LOGIN] User details:", {
+            logger_1.logger.info("[PASSWORD LOGIN] User details:", {
                 _id: user._id?.toString(),
                 email: user.email,
                 phone: user.phone,
@@ -343,14 +344,14 @@ const login = async (req, res) => {
                 email: { $regex: new RegExp(`^${String(email).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
             });
             if (altUser) {
-                console.log("[PASSWORD LOGIN] Found user with case-insensitive match:", {
+                logger_1.logger.info("[PASSWORD LOGIN] Found user with case-insensitive match:", {
                     _id: altUser._id?.toString(),
                     storedEmail: altUser.email,
                     searchedEmail: String(email).toLowerCase(),
                 });
             }
         }
-        console.log("=".repeat(60) + "\n");
+        logger_1.logger.info("=".repeat(60) + "\n");
         if (user && (user.isDeleted || user.deletedAt)) {
             res.status(403).json({ message: "Account is deleted" });
             return;
@@ -378,7 +379,7 @@ const login = async (req, res) => {
         const hasPhone = /^[6-9]\d{9}$/.test(resolvedPhone10);
         const isPhoneVerified = !!user.mobileVerified || !!user.isProfileComplete;
         const profileCompleted = hasName && hasPhone;
-        console.log("[LOGIN] user found:", !!user);
+        logger_1.logger.info("[LOGIN] user found:", !!user);
         res.json({
             message: "Login successful",
             user: (0, sanitizeUser_1.toSafeUserResponse)(user),
@@ -394,7 +395,7 @@ const login = async (req, res) => {
             }));
         }
         catch (e) {
-            console.error("[authController] failed to publish ACCOUNT_NEW_LOGIN", e);
+            logger_1.logger.error("[authController] failed to publish ACCOUNT_NEW_LOGIN", e);
         }
     }
     catch (error) {
@@ -573,13 +574,13 @@ exports.logout = logout;
 const googleCallback = async (req, res) => {
     try {
         const user = req.user;
-        console.log("=== GOOGLE CALLBACK START ===");
-        console.log("req.user:", req.user);
-        console.log("signupRequired:", req.user?._signupRequired);
-        console.log("email:", req.user?.email);
-        console.log("FRONTEND_URL:", process.env.FRONTEND_URL);
-        console.log("================================");
-        console.log("[OAuth][googleCallback] Signup required:", user?._signupRequired);
+        logger_1.logger.info("=== GOOGLE CALLBACK START ===");
+        logger_1.logger.info("req.user:", req.user);
+        logger_1.logger.info("signupRequired:", req.user?._signupRequired);
+        logger_1.logger.info("email:", req.user?.email);
+        logger_1.logger.info("FRONTEND_URL:", process.env.FRONTEND_URL);
+        logger_1.logger.info("================================");
+        logger_1.logger.info("[OAuth][googleCallback] Signup required:", user?._signupRequired);
         if (!user) {
             // Redirect to frontend with error
             const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
@@ -628,7 +629,7 @@ const googleCallback = async (req, res) => {
         res.redirect(redirectUrl.toString());
     }
     catch (error) {
-        console.error("Google OAuth callback error:", error);
+        logger_1.logger.error("Google OAuth callback error:", error);
         const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
         res.redirect(`${frontendUrl}/auth/callback?error=callback_failed`);
         return;
@@ -680,14 +681,14 @@ const changePassword = async (req, res) => {
             }));
         }
         catch (e) {
-            console.error("[authController] failed to publish ACCOUNT_PASSWORD_CHANGED", e);
+            logger_1.logger.error("[authController] failed to publish ACCOUNT_PASSWORD_CHANGED", e);
         }
         res.json({
             message: "Password changed successfully",
         });
     }
     catch (error) {
-        console.error("Change password error:", error);
+        logger_1.logger.error("Change password error:", error);
         res.status(500).json({ error: "Failed to change password" });
         return;
     }
@@ -712,7 +713,7 @@ const sendAuthOTP = async (req, res) => {
                 message: "Invalid phone or email format",
             });
         }
-        console.log("[OTP LOGIN] Input type detected:", { isEmail, isPhone, userInput });
+        logger_1.logger.info("[OTP LOGIN] Input type detected:", { isEmail, isPhone, userInput });
         // Check mode: signup or login (default login)
         const isSignup = String(req.query.mode || "") === "signup";
         // ============================================================
@@ -723,27 +724,27 @@ const sendAuthOTP = async (req, res) => {
             // In LOGIN mode, look up user
             if (isPhone) {
                 const cleanedPhone = String(userInput).replace(/\D/g, "");
-                console.log("[OTP LOGIN] Looking up by phone:", cleanedPhone);
+                logger_1.logger.info("[OTP LOGIN] Looking up by phone:", cleanedPhone);
                 user = await User_1.User.findOne({ phone: cleanedPhone });
             }
             else if (isEmail) {
                 // Use case-insensitive email search from the start
                 const normalizedEmail = String(userInput).toLowerCase().trim();
-                console.log("[OTP LOGIN] Looking up by email (case-insensitive):", normalizedEmail);
+                logger_1.logger.info("[OTP LOGIN] Looking up by email (case-insensitive):", normalizedEmail);
                 // First try exact match (faster with index)
                 user = await User_1.User.findOne({ email: normalizedEmail });
                 // If not found, try case-insensitive regex
                 if (!user) {
-                    console.log("[OTP LOGIN] Exact match failed, trying case-insensitive...");
+                    logger_1.logger.info("[OTP LOGIN] Exact match failed, trying case-insensitive...");
                     user = await User_1.User.findOne({
                         email: { $regex: new RegExp(`^${normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
                     });
                 }
             }
             // DEBUG: Log what we found
-            console.log("[OTP LOGIN] User found:", !!user);
+            logger_1.logger.info("[OTP LOGIN] User found:", !!user);
             if (user) {
-                console.log("[OTP LOGIN] User details:", {
+                logger_1.logger.info("[OTP LOGIN] User details:", {
                     _id: user._id?.toString(),
                     email: user.email,
                     phone: user.phone,
@@ -758,7 +759,7 @@ const sendAuthOTP = async (req, res) => {
             // ============================================================
             // TRUE non-existent user → 404
             if (!user) {
-                console.log("[OTP LOGIN] User does not exist:", userInput);
+                logger_1.logger.info("[OTP LOGIN] User does not exist:", userInput);
                 return res.status(404).json({
                     error: "Account not found. Please sign up first.",
                     action: "signup_required",
@@ -768,25 +769,25 @@ const sendAuthOTP = async (req, res) => {
             // User EXISTS below this line - DO NOT return 404
             // Soft-deleted user → 400
             if (user.isDeleted || user.deletedAt) {
-                console.log("[OTP LOGIN] Account is deleted:", user._id);
+                logger_1.logger.info("[OTP LOGIN] Account is deleted:", user._id);
                 return res.status(400).json({
                     message: "This account has been deactivated. Please contact support.",
                 });
             }
             // Suspended/inactive user → 400
             if (user.status === "suspended") {
-                console.log("[OTP LOGIN] Account is suspended:", user._id);
+                logger_1.logger.info("[OTP LOGIN] Account is suspended:", user._id);
                 return res.status(400).json({
                     message: "This account has been suspended. Please contact support.",
                 });
             }
             if (user.status === "pending") {
-                console.log("[OTP LOGIN] Account is pending:", user._id);
+                logger_1.logger.info("[OTP LOGIN] Account is pending:", user._id);
                 return res.status(400).json({
                     message: "This account is pending verification. Please complete registration first.",
                 });
             }
-            console.log("[OTP LOGIN] ✓ User validated, proceeding with OTP");
+            logger_1.logger.info("[OTP LOGIN] ✓ User validated, proceeding with OTP");
         }
         // Determine where to send OTP:
         // - signup: use the raw input (new number/email)
@@ -832,7 +833,7 @@ const sendAuthOTP = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("sendAuthOTP error:", error);
+        logger_1.logger.error("sendAuthOTP error:", error);
         res.status(500).json({
             message: "Failed to send OTP",
             details: process.env.NODE_ENV === "development" ? error.message : undefined
@@ -980,7 +981,7 @@ const verifyAuthOTP = async (req, res) => {
         const isPhoneVerified = !!user.mobileVerified || !!user.isProfileComplete;
         const profileCompleted = hasName && hasPhone;
         // DEBUG: Log profile completion status
-        console.log("[OTP VERIFY] Profile completion check:", {
+        logger_1.logger.info("[OTP VERIFY] Profile completion check:", {
             name: resolvedName,
             phone: resolvedPhone10,
             hasName,
@@ -996,7 +997,7 @@ const verifyAuthOTP = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Verify auth OTP error:", error);
+        logger_1.logger.error("Verify auth OTP error:", error);
         res.status(500).json({ error: "Failed to verify OTP" });
         return;
     }
@@ -1023,7 +1024,7 @@ const checkPhoneExists = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Check phone exists error:", error);
+        logger_1.logger.error("Check phone exists error:", error);
         return res.status(500).json({ error: "Failed to check phone number" });
     }
 };
@@ -1120,7 +1121,7 @@ const completeProfile = async (req, res) => {
         return res.status(200).json({ success: true, user: safeUser });
     }
     catch (err) {
-        console.error("completeProfile error:", err);
+        logger_1.logger.error("completeProfile error:", err);
         res.status(500).json({ message: "Server error" });
     }
 };
@@ -1155,7 +1156,7 @@ const getMe = async (req, res) => {
         res.status(200).json({ user: safeUser });
     }
     catch (error) {
-        console.error("Get profile error:", error);
+        logger_1.logger.error("Get profile error:", error);
         res.status(500).json({ message: "Failed to fetch profile" });
     }
 };
@@ -1175,7 +1176,7 @@ const deleteAccount = async (req, res) => {
         res.json({ message: "Account deleted successfully" });
     }
     catch (error) {
-        console.error("Delete account error:", error);
+        logger_1.logger.error("Delete account error:", error);
         res.status(500).json({ message: "Failed to delete account" });
     }
 };

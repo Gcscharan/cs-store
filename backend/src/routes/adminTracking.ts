@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 import express from "express";
 import mongoose, { Types } from "mongoose";
 import crypto from "crypto";
@@ -619,7 +620,7 @@ router.post(
     },
   });
 
-  console.log(
+  logger.info(
     JSON.stringify({
       type: "tracking_admin_killswitch_requested",
       actor: { userId: String(req?.user?._id || ""), email: String(req?.user?.email || "") },

@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.verifyUpiId = exports.upiVerificationRateLimit = void 0;
+const logger_1 = require("../../../utils/logger");
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const maskUpiVpa_1 = require("../../../utils/maskUpiVpa");
 // Rate limiting for UPI verification (10 requests per minute per IP)
@@ -45,7 +46,7 @@ const verifyUpiId = async (req, res) => {
         const razorpayKeyId = process.env.RAZORPAY_KEY_ID;
         const razorpaySecret = process.env.RAZORPAY_KEY_SECRET;
         if (!razorpayKeyId || !razorpaySecret) {
-            console.error("Razorpay credentials not configured");
+            logger_1.logger.error("Razorpay credentials not configured");
             res.status(500).json({
                 success: false,
                 message: "Server error",
@@ -78,7 +79,7 @@ const verifyUpiId = async (req, res) => {
         const maskedVpa = (0, maskUpiVpa_1.maskUpiVpa)(trimmedVpa);
         if (customer_name) {
             // Log successful verification
-            console.log(`UPI verification successful: ${maskedVpa} -> ${customer_name}`);
+            logger_1.logger.info(`UPI verification successful: ${maskedVpa} -> ${customer_name}`);
             res.status(200).json({
                 success: true,
                 name: customer_name,
@@ -87,7 +88,7 @@ const verifyUpiId = async (req, res) => {
         }
         else {
             // Log failed verification
-            console.log(`UPI verification failed: ${maskedVpa} - Not found in mock data`);
+            logger_1.logger.info(`UPI verification failed: ${maskedVpa} - Not found in mock data`);
             res.status(400).json({
                 success: false,
                 message: "Invalid UPI ID",
@@ -114,7 +115,7 @@ const verifyUpiId = async (req, res) => {
     
         if (success && customer_name) {
           // Log successful verification
-          console.log(`UPI verification successful: ${maskedVpa} -> ${customer_name}`);
+          logger.info(`UPI verification successful: ${maskedVpa} -> ${customer_name}`);
           
           res.status(200).json({
             success: true,
@@ -123,7 +124,7 @@ const verifyUpiId = async (req, res) => {
           return;
         } else {
           // Log failed verification
-          console.log(`UPI verification failed: ${maskedVpa} - ${error || "Unknown error"}`);
+          logger.info(`UPI verification failed: ${maskedVpa} - ${error || "Unknown error"}`);
           
           res.status(400).json({
             success: false,
@@ -137,7 +138,7 @@ const verifyUpiId = async (req, res) => {
         // Log error with timestamp
         const timestamp = new Date().toISOString();
         const maskedVpa = (0, maskUpiVpa_1.maskUpiVpa)(String(req.body?.vpa || ""));
-        console.error(`[${timestamp}] UPI verification error:`, {
+        logger_1.logger.error(`[${timestamp}] UPI verification error:`, {
             error: error.message,
             vpa: maskedVpa,
             ip: req.ip,
@@ -152,7 +153,7 @@ const verifyUpiId = async (req, res) => {
             return;
         }
         if (error.response?.status === 401) {
-            console.error("Razorpay authentication failed - check credentials");
+            logger_1.logger.error("Razorpay authentication failed - check credentials");
             res.status(500).json({
                 success: false,
                 message: "Server error",

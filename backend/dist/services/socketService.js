@@ -3,6 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const logger_1 = require("../utils/logger");
 const socket_io_1 = require("socket.io");
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const User_1 = require("../models/User");
@@ -45,7 +46,7 @@ class SocketService {
                 next();
             }
             catch (error) {
-                console.error("Socket authentication error:", error);
+                logger_1.logger.error("Socket authentication error:", error);
                 next(new Error("Authentication error: Invalid token"));
             }
         });
@@ -55,25 +56,25 @@ class SocketService {
             const authSocket = socket;
             const userId = authSocket.userId;
             if (userId) {
-                console.log(`🔌 User ${userId} connected via WebSocket`);
+                logger_1.logger.info(`🔌 User ${userId} connected via WebSocket`);
                 this.connectedUsers.set(userId, socket.id);
                 // Join user to their personal room
                 socket.join(`user_${userId}`);
             }
             socket.on("disconnect", () => {
                 if (userId) {
-                    console.log(`🔌 User ${userId} disconnected from WebSocket`);
+                    logger_1.logger.info(`🔌 User ${userId} disconnected from WebSocket`);
                     this.connectedUsers.delete(userId);
                 }
             });
             // Handle OTP verification requests
             socket.on("verify_otp", (data) => {
-                console.log("OTP verification request:", data);
+                logger_1.logger.info("OTP verification request:", data);
                 // This will be handled by the OTP controller
             });
             // Handle payment status requests
             socket.on("get_payment_status", (data) => {
-                console.log("Payment status request:", data);
+                logger_1.logger.info("Payment status request:", data);
                 // This will be handled by the payment controller
             });
         });
@@ -83,10 +84,10 @@ class SocketService {
         const socketId = this.connectedUsers.get(userId);
         if (socketId) {
             this.io.to(socketId).emit("otp_delivered", otpData);
-            console.log(`📱 OTP sent to user ${userId} via WebSocket`);
+            logger_1.logger.info(`📱 OTP sent to user ${userId} via WebSocket`);
             return true;
         }
-        console.log(`📱 User ${userId} not connected, OTP will be sent via SMS`);
+        logger_1.logger.info(`📱 User ${userId} not connected, OTP will be sent via SMS`);
         return false;
     }
     // Send OTP verification result
@@ -94,7 +95,7 @@ class SocketService {
         const socketId = this.connectedUsers.get(userId);
         if (socketId) {
             this.io.to(socketId).emit("otp_verification_result", result);
-            console.log(`✅ OTP verification result sent to user ${userId}`);
+            logger_1.logger.info(`✅ OTP verification result sent to user ${userId}`);
             return true;
         }
         return false;
@@ -104,7 +105,7 @@ class SocketService {
         const socketId = this.connectedUsers.get(userId);
         if (socketId) {
             this.io.to(socketId).emit("payment_status_update", status);
-            console.log(`💳 Payment status update sent to user ${userId}`);
+            logger_1.logger.info(`💳 Payment status update sent to user ${userId}`);
             return true;
         }
         return false;

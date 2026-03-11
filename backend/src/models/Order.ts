@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 import mongoose, { Document, Schema } from "mongoose";
 
 export interface IOrderItem {
@@ -615,7 +616,7 @@ function throwIllegalPaidTransition(args: {
   source: string;
   orderId?: any;
 }) {
-  console.error("[SECURITY][ILLEGAL_PAID_TRANSITION]", {
+  logger.error("[SECURITY][ILLEGAL_PAID_TRANSITION]", {
     model: "Order",
     method: args.method,
     orderId: args.orderId ? String(args.orderId) : undefined,
@@ -651,7 +652,7 @@ function normalizeOrderStatusInUpdate(this: any): void {
 
   const normalized = normalizeOrderStatus(rawStatus);
   if (rawStatus !== normalized) {
-    console.log(`[Order][Migration] Normalizing orderStatus in update: "${rawStatus}" -> "${normalized}"`);
+    logger.info(`[Order][Migration] Normalizing orderStatus in update: "${rawStatus}" -> "${normalized}"`);
     
     // Update in $set if present
     if ((update as any).$set && typeof (update as any).$set === "object") {
@@ -670,7 +671,7 @@ OrderSchema.pre("save", function (next) {
       const rawStatus = String((this as any).orderStatus);
       const normalized = normalizeOrderStatus(rawStatus);
       if (rawStatus !== normalized) {
-        console.log(`[Order][Migration] Normalized orderStatus on new order: "${rawStatus}" -> "${normalized}"`);
+        logger.info(`[Order][Migration] Normalized orderStatus on new order: "${rawStatus}" -> "${normalized}"`);
         (this as any).orderStatus = normalized;
       }
       // Initial status on new order is allowed - skip authorization check
@@ -687,7 +688,7 @@ OrderSchema.pre("save", function (next) {
       const isJustNormalization = rawStatus !== normalized;
       
       if (isJustNormalization) {
-        console.log(`[Order][Migration] Normalized orderStatus: "${rawStatus}" -> "${normalized}" (orderId: ${this._id})`);
+        logger.info(`[Order][Migration] Normalized orderStatus: "${rawStatus}" -> "${normalized}" (orderId: ${this._id})`);
         (this as any).orderStatus = normalized;
       } else {
         // Not a normalization - check for authorized transition

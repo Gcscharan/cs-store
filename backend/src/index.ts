@@ -1,3 +1,4 @@
+import { logger } from './utils/logger';
 import "./config/env";
 
 // Load environment variables FIRST before any other imports
@@ -7,7 +8,7 @@ import dotenv from "dotenv";
 const ENV_PATH = path.resolve(__dirname, "..", ".env");
 dotenv.config({ path: ENV_PATH });
 
-console.log("[CACHE] Product read cache enabled");
+logger.info("[CACHE] Product read cache enabled");
 
 if (!process.env.MONGODB_URI) {
   throw new Error("❌ MONGODB_URI is missing. Backend refusing to start.");
@@ -143,21 +144,21 @@ function validateEnvironmentVariables() {
 
     // Add seller GST errors to main errors array
     if (sellerGstErrors.length > 0) {
-      console.error("\n🚨 SELLER GST CONFIGURATION ERRORS:");
-      sellerGstErrors.forEach(err => console.error(err));
-      console.error("\n❌ Invoice generation will fail without valid seller GST details.");
-      console.error("❌ Please add these variables to your .env file:\n");
-      console.error("   SELLER_LEGAL_NAME=\"Your Company Pvt Ltd\"");
-      console.error("   SELLER_GSTIN=\"29AABCU9603R1ZM\"");
-      console.error("   SELLER_ADDRESS_LINE1=\"123, Business Park\"");
-      console.error("   SELLER_CITY=\"Bengaluru\"");
-      console.error("   SELLER_STATE=\"Karnataka\"");
-      console.error("   SELLER_STATE_CODE=\"29\"");
-      console.error("   SELLER_PINCODE=\"560001\"\n");
+      logger.error("\n🚨 SELLER GST CONFIGURATION ERRORS:");
+      sellerGstErrors.forEach(err => logger.error(err));
+      logger.error("\n❌ Invoice generation will fail without valid seller GST details.");
+      logger.error("❌ Please add these variables to your .env file:\n");
+      logger.error("   SELLER_LEGAL_NAME=\"Your Company Pvt Ltd\"");
+      logger.error("   SELLER_GSTIN=\"29AABCU9603R1ZM\"");
+      logger.error("   SELLER_ADDRESS_LINE1=\"123, Business Park\"");
+      logger.error("   SELLER_CITY=\"Bengaluru\"");
+      logger.error("   SELLER_STATE=\"Karnataka\"");
+      logger.error("   SELLER_STATE_CODE=\"29\"");
+      logger.error("   SELLER_PINCODE=\"560001\"\n");
       errors.push(...sellerGstErrors);
     } else if (sellerGstin) {
       // All seller fields present and valid
-      console.log("✅ Seller GST configuration validated");
+      logger.info("✅ Seller GST configuration validated");
     }
   } else {
     // Development mode: warn if seller details missing
@@ -171,21 +172,21 @@ function validateEnvironmentVariables() {
   const warnings = errors.filter(err => err.startsWith("⚠️"));
 
   if (criticalErrors.length > 0) {
-    console.error("\n🚨 CRITICAL ENVIRONMENT ERRORS:");
-    criticalErrors.forEach(err => console.error(err));
-    console.error("\n❌ Server cannot start due to critical configuration errors.");
-    console.error("❌ Please check your .env file and restart the server.\n");
+    logger.error("\n🚨 CRITICAL ENVIRONMENT ERRORS:");
+    criticalErrors.forEach(err => logger.error(err));
+    logger.error("\n❌ Server cannot start due to critical configuration errors.");
+    logger.error("❌ Please check your .env file and restart the server.\n");
     process.exit(1);
   }
 
   if (warnings.length > 0) {
-    console.warn("\n⚠️  Environment warnings:");
-    warnings.forEach(warn => console.warn(warn));
-    console.warn("⚠️  Consider adding these variables for full functionality.\n");
+    logger.warn("\n⚠️  Environment warnings:");
+    warnings.forEach(warn => logger.warn(warn));
+    logger.warn("⚠️  Consider adding these variables for full functionality.\n");
   }
 
   if (verboseLoggingEnabled) {
-    console.log("✅ Environment variables validated successfully");
+    logger.info("✅ Environment variables validated successfully");
   }
 }
 
@@ -196,33 +197,33 @@ validateEnvironmentVariables();
 if (NODE_ENV !== "production") {
   try {
     const dbPathname = new URL(String(process.env.MONGODB_URI)).pathname;
-    console.log("[BOOT] Connected DB:", dbPathname);
+    logger.info("[BOOT] Connected DB:", dbPathname);
   } catch {
-    console.log("[BOOT] Connected DB:", "<unparseable>");
+    logger.info("[BOOT] Connected DB:", "<unparseable>");
   }
 }
 
 // Validate critical environment variables immediately
 if (verboseLoggingEnabled) {
-  console.log("\n========================================");
-  console.log("🔧 Environment Variables Check");
-  console.log("========================================");
-  console.log(`🌍 NODE_ENV: ${process.env.NODE_ENV || "development"}`);
-  console.log(`🚪 PORT: ${process.env.PORT || "5001"}`);
-  console.log(`🔗 MONGODB_URI present: ${process.env.MONGODB_URI ? "✅ Yes" : "❌ NO"}`);
-  console.log(`🔑 JWT_SECRET present: ${process.env.JWT_SECRET ? "✅ Yes" : "❌ NO"}`);
-  console.log(`🔑 JWT_REFRESH_SECRET present: ${process.env.JWT_REFRESH_SECRET ? "✅ Yes" : "❌ NO"}`);
-  console.log(`☁️ CLOUDINARY_CLOUD_NAME present: ${process.env.CLOUDINARY_CLOUD_NAME ? "✅ Yes" : "❌ NO"}`);
-  console.log(`📧 MOCK_OTP: ${process.env.MOCK_OTP || "false"}`);
-  console.log("[ENV][SMS] FAST2SMS key loaded:", !!process.env.FAST2SMS_API_KEY);
+  logger.info("\n========================================");
+  logger.info("🔧 Environment Variables Check");
+  logger.info("========================================");
+  logger.info(`🌍 NODE_ENV: ${process.env.NODE_ENV || "development"}`);
+  logger.info(`🚪 PORT: ${process.env.PORT || "5001"}`);
+  logger.info(`🔗 MONGODB_URI present: ${process.env.MONGODB_URI ? "✅ Yes" : "❌ NO"}`);
+  logger.info(`🔑 JWT_SECRET present: ${process.env.JWT_SECRET ? "✅ Yes" : "❌ NO"}`);
+  logger.info(`🔑 JWT_REFRESH_SECRET present: ${process.env.JWT_REFRESH_SECRET ? "✅ Yes" : "❌ NO"}`);
+  logger.info(`☁️ CLOUDINARY_CLOUD_NAME present: ${process.env.CLOUDINARY_CLOUD_NAME ? "✅ Yes" : "❌ NO"}`);
+  logger.info(`📧 MOCK_OTP: ${process.env.MOCK_OTP || "false"}`);
+  logger.info("[ENV][SMS] FAST2SMS key loaded:", !!process.env.FAST2SMS_API_KEY);
 }
 
 // Check FAST2SMS API key validity
 if (process.env.FAST2SMS_API_KEY && process.env.FAST2SMS_API_KEY.length < 20) {
-   console.warn("[SMS][WARN] FAST2SMS_API_KEY appears invalid.");
+   logger.warn("[SMS][WARN] FAST2SMS_API_KEY appears invalid.");
 }
 if (verboseLoggingEnabled) {
-  console.log("========================================\n");
+  logger.info("========================================\n");
 }
 
 import mongoose from "mongoose";
@@ -300,7 +301,7 @@ io.use(async (socket, next) => {
     (socket.data as any).role = String((u as any).role || "");
     return next();
   } catch (e) {
-    console.warn("[Socket] auth middleware failed", e);
+    logger.warn("[Socket] auth middleware failed", e);
     return next();
   }
 });
@@ -365,7 +366,7 @@ liveLocationEvents.on("location", async (loc: any) => {
                 etaMinutes = etaResult.etaMinutes;
                 distanceRemainingM = etaResult.distanceRemainingM;
               } catch (e) {
-                console.warn("[LiveLocation][ETA] calculation failed:", e);
+                logger.warn("[LiveLocation][ETA] calculation failed:", e);
               }
             }
           }
@@ -382,18 +383,18 @@ liveLocationEvents.on("location", async (loc: any) => {
           io.to(`order:${orderId}`).emit("order:location:update", customerPayload);
         }
       } catch (e) {
-        console.warn("[LiveLocation][customer] fan-out error:", e);
+        logger.warn("[LiveLocation][customer] fan-out error:", e);
       }
     }
   } catch (e) {
-    console.error("[LiveLocation][socket] fan-out error:", e);
+    logger.error("[LiveLocation][socket] fan-out error:", e);
   }
 });
 
 // Socket.io connection handling
 io.on("connection", (socket) => {
   if (verboseLoggingEnabled) {
-    console.log("Client connected:", socket.id);
+    logger.info("Client connected:", socket.id);
   }
 
   try {
@@ -402,7 +403,7 @@ io.on("connection", (socket) => {
       socket.join(`user_${userId}`);
     }
   } catch (e) {
-    console.warn("[Socket] personal room join failed", e);
+    logger.warn("[Socket] personal room join failed", e);
   }
 
   // Join rooms based on user role
@@ -420,20 +421,20 @@ io.on("connection", (socket) => {
           "";
 
         if (!provided) {
-          console.warn("[Socket] Admin join denied: missing token", { socketId: socket.id });
+          logger.warn("[Socket] Admin join denied: missing token", { socketId: socket.id });
           return;
         }
 
         const jwtSecret = process.env.JWT_SECRET;
         if (!jwtSecret) {
-          console.warn("[Socket] Admin join denied: server misconfigured", { socketId: socket.id });
+          logger.warn("[Socket] Admin join denied: server misconfigured", { socketId: socket.id });
           return;
         }
 
         const decoded = jwt.verify(provided, jwtSecret) as any;
         const adminId = String(decoded?.userId || "");
         if (!adminId) {
-          console.warn("[Socket] Admin join denied: invalid token payload", { socketId: socket.id });
+          logger.warn("[Socket] Admin join denied: invalid token payload", { socketId: socket.id });
           return;
         }
 
@@ -442,26 +443,26 @@ io.on("connection", (socket) => {
           .select("role")
           .then((u: any) => {
             if (!u || String(u.role) !== "admin") {
-              console.warn("[Socket] Admin join denied: role mismatch", { socketId: socket.id, adminId });
+              logger.warn("[Socket] Admin join denied: role mismatch", { socketId: socket.id, adminId });
               return;
             }
 
             socket.join("admin_room");
             if (verboseLoggingEnabled) {
-              console.log(`✅ Admin ${adminId} joined admin_room`);
+              logger.info(`✅ Admin ${adminId} joined admin_room`);
             }
           })
           .catch((e: any) => {
-            console.warn("[Socket] Admin join denied: user lookup failed", e);
+            logger.warn("[Socket] Admin join denied: user lookup failed", e);
           });
       } catch (e) {
-        console.warn("[Socket] Admin join denied: token verify failed", e);
+        logger.warn("[Socket] Admin join denied: token verify failed", e);
       }
       return;
     }
 
     // Security hard rule: only admin_room is joinable via join_room.
-    console.warn("[Socket] join_room denied: only admin_room is allowed", {
+    logger.warn("[Socket] join_room denied: only admin_room is allowed", {
       socketId: socket.id,
       room: roomStr,
       userId,
@@ -476,7 +477,7 @@ io.on("connection", (socket) => {
     const orderIdStr = String(orderId || "").trim();
 
     if (!orderIdStr) {
-      console.warn("[Socket] Customer join denied: missing orderId", { socketId: socket.id });
+      logger.warn("[Socket] Customer join denied: missing orderId", { socketId: socket.id });
       return;
     }
 
@@ -488,32 +489,32 @@ io.on("connection", (socket) => {
         "";
 
       if (!provided) {
-        console.warn("[Socket] Customer join denied: missing token", { socketId: socket.id, orderId: orderIdStr });
+        logger.warn("[Socket] Customer join denied: missing token", { socketId: socket.id, orderId: orderIdStr });
         return;
       }
 
       const jwtSecret = process.env.JWT_SECRET;
       if (!jwtSecret) {
-        console.warn("[Socket] Customer join denied: server misconfigured", { socketId: socket.id });
+        logger.warn("[Socket] Customer join denied: server misconfigured", { socketId: socket.id });
         return;
       }
 
       const decoded = jwt.verify(provided, jwtSecret) as any;
       const userId = String(decoded?.userId || "");
       if (!userId) {
-        console.warn("[Socket] Customer join denied: invalid token payload", { socketId: socket.id, orderId: orderIdStr });
+        logger.warn("[Socket] Customer join denied: invalid token payload", { socketId: socket.id, orderId: orderIdStr });
         return;
       }
 
       // Verify user owns this order
       const order = await Order.findById(orderIdStr).select("user status").lean();
       if (!order) {
-        console.warn("[Socket] Customer join denied: order not found", { socketId: socket.id, orderId: orderIdStr });
+        logger.warn("[Socket] Customer join denied: order not found", { socketId: socket.id, orderId: orderIdStr });
         return;
       }
 
       if (String((order as any).user) !== userId) {
-        console.warn("[Socket] Customer join denied: not order owner", { socketId: socket.id, orderId: orderIdStr, userId });
+        logger.warn("[Socket] Customer join denied: not order owner", { socketId: socket.id, orderId: orderIdStr, userId });
         return;
       }
 
@@ -521,10 +522,10 @@ io.on("connection", (socket) => {
       const roomName = `order:${orderIdStr}`;
       socket.join(roomName);
       if (verboseLoggingEnabled) {
-        console.log(`✅ Customer ${userId} joined ${roomName}`);
+        logger.info(`✅ Customer ${userId} joined ${roomName}`);
       }
     } catch (e) {
-      console.warn("[Socket] Customer join denied: error", e);
+      logger.warn("[Socket] Customer join denied: error", e);
     }
   });
 
@@ -552,7 +553,7 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     if (verboseLoggingEnabled) {
-      console.log("Client disconnected:", socket.id);
+      logger.info("Client disconnected:", socket.id);
     }
   });
 });
@@ -571,13 +572,13 @@ const closeExistingServer = async (port: number): Promise<void> => {
 const startServer = async () => {
   try {
     // Redis is MANDATORY in production - fail fast if unavailable
-    console.log("\n========================================");
-    console.log("🔌 Checking Redis connection...");
-    console.log("========================================");
+    logger.info("\n========================================");
+    logger.info("🔌 Checking Redis connection...");
+    logger.info("========================================");
     
     const redisCheck = await ensureRedisConnection();
     if (!redisCheck.connected) {
-      console.error("❌ Redis connection failed - exiting");
+      logger.error("❌ Redis connection failed - exiting");
       process.exit(1);
     }
     
@@ -588,7 +589,7 @@ const startServer = async () => {
     async function assertTransactionsEnabled(): Promise<void> {
       // Skip replica set check in test environment (CI uses standalone MongoDB)
       if (process.env.NODE_ENV === "test") {
-        console.log("⚠️  Skipping replica set check in test environment");
+        logger.info("⚠️  Skipping replica set check in test environment");
         return;
       }
       try {
@@ -597,17 +598,17 @@ const startServer = async () => {
         }
         const admin = mongoose.connection.db.admin();
         await admin.command({ replSetGetStatus: 1 });
-        console.log("✅ MongoDB replica set detected - transactions enabled");
+        logger.info("✅ MongoDB replica set detected - transactions enabled");
       } catch (err: any) {
-        console.error("\n❌ ═════════════════════════════════════════════════════════");
-        console.error("❌ FATAL: MongoDB must run as replica set for transactions.");
-        console.error("❌ Order creation, inventory reservation, and payment finalization");
-        console.error("❌ require atomic transactions to prevent data corruption.");
-        console.error("❌");
-        console.error("❌ To fix:");
-        console.error("❌   - Local: Start MongoDB with --replSet flag");
-        console.error("❌   - Atlas: Replica set is enabled by default");
-        console.error("❌ ═════════════════════════════════════════════════════════\n");
+        logger.error("\n❌ ═════════════════════════════════════════════════════════");
+        logger.error("❌ FATAL: MongoDB must run as replica set for transactions.");
+        logger.error("❌ Order creation, inventory reservation, and payment finalization");
+        logger.error("❌ require atomic transactions to prevent data corruption.");
+        logger.error("❌");
+        logger.error("❌ To fix:");
+        logger.error("❌   - Local: Start MongoDB with --replSet flag");
+        logger.error("❌   - Atlas: Replica set is enabled by default");
+        logger.error("❌ ═════════════════════════════════════════════════════════\n");
         process.exit(1);
       }
     }
@@ -632,11 +633,11 @@ const startServer = async () => {
       await bootstrapDevAdmin();
 
       // Initialize Redis ZSET for delivery partner load tracking
-      console.log("🚚 Initializing delivery partner load tracking...");
+      logger.info("🚚 Initializing delivery partner load tracking...");
       await deliveryPartnerLoadService.initializeLoads();
 
       // Start OrderEventBroadcaster polling for real-time sync
-      console.log("📡 Starting OrderEventBroadcaster polling...");
+      logger.info("📡 Starting OrderEventBroadcaster polling...");
       orderEventBroadcaster.startPolling(5000); // Poll every 5 seconds
     }
 
@@ -645,20 +646,20 @@ const startServer = async () => {
       return new Promise((resolve, reject) => {
         // Check if server is already listening
         if (server.listening) {
-          console.log(`✅ Server already running on port ${port}`);
+          logger.info(`✅ Server already running on port ${port}`);
           resolve();
           return;
         }
 
         const serverInstance = server.listen(port, () => {
-          console.log(`🚀 Server running on port ${port}`);
-          console.log(`🏥 Health check: /health`);
+          logger.info(`🚀 Server running on port ${port}`);
+          logger.info(`🏥 Health check: /health`);
           resolve();
         });
 
         serverInstance.on("error", (err: any) => {
           if (err.code === "EADDRINUSE") {
-            console.log(
+            logger.info(
               `⚠️  Port ${port} in use, trying next available port...`
             );
             reject(err);
@@ -695,7 +696,7 @@ const startServer = async () => {
           currentPort++;
           attempts++;
           if (attempts >= maxAttempts) {
-            console.error(
+            logger.error(
               `❌ Failed to find available port after ${maxAttempts} attempts`
             );
             process.exit(1);
@@ -706,35 +707,35 @@ const startServer = async () => {
       }
     }
   } catch (error) {
-    console.error("Failed to start server:", error);
+    logger.error("Failed to start server:", error);
     process.exit(1);
   }
 };
 
 // Graceful shutdown handling
 process.on("SIGTERM", () => {
-  console.log("SIGTERM received, shutting down gracefully");
+  logger.info("SIGTERM received, shutting down gracefully");
   server.close(() => {
-    console.log("Server closed");
+    logger.info("Server closed");
     process.exit(0);
   });
 });
 
 process.on("SIGINT", () => {
-  console.log("SIGINT received, shutting down gracefully");
+  logger.info("SIGINT received, shutting down gracefully");
   server.close(() => {
-    console.log("Server closed");
+    logger.info("Server closed");
     process.exit(0);
   });
 });
 
 process.on("unhandledRejection", (err) => {
-  console.error("[UNHANDLED_REJECTION]", err);
+  logger.error("[UNHANDLED_REJECTION]", err);
   process.exit(1);
 });
 
 process.on("uncaughtException", (err) => {
-  console.error("[UNCAUGHT_EXCEPTION]", err);
+  logger.error("[UNCAUGHT_EXCEPTION]", err);
   process.exit(1);
 });
 

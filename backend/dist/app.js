@@ -3,6 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const logger_1 = require("./utils/logger");
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const passport_1 = __importDefault(require("passport"));
@@ -12,7 +13,7 @@ const security_1 = require("./middleware/security");
 const security_2 = require("./middleware/security");
 const errorHandler_1 = require("./middleware/errorHandler");
 const observability_1 = require("./middleware/observability");
-const logger_1 = require("./utils/logger");
+const logger_2 = require("./utils/logger");
 require("./config/oauth"); // Initialize OAuth strategies
 // Routes
 const auth_1 = __importDefault(require("./domains/identity/routes/auth"));
@@ -51,8 +52,8 @@ const webhooks_routes_1 = __importDefault(require("./domains/payments/routes/web
 // Invoice
 const invoice_routes_1 = __importDefault(require("./domains/invoice/routes/invoice.routes"));
 const orderTracking_1 = __importDefault(require("./routes/orderTracking"));
-console.log("✅ App.ts loaded");
-(0, logger_1.initializeSentry)();
+logger_1.logger.info("✅ App.ts loaded");
+(0, logger_2.initializeSentry)();
 const app = (0, express_1.default)();
 /* ======================================================
    CORS — SINGLE SOURCE OF TRUTH (REGISTER FIRST)
@@ -77,8 +78,8 @@ app.use((0, cors_1.default)({
    GENERAL MIDDLEWARE
 ====================================================== */
 app.use(security_2.securityHeaders);
-app.use(logger_1.sentryMiddleware.requestHandler());
-app.use(logger_1.sentryMiddleware.tracingHandler());
+app.use(logger_2.sentryMiddleware.requestHandler());
+app.use(logger_2.sentryMiddleware.tracingHandler());
 app.use((0, compression_1.default)());
 app.use(observability_1.requestIdMiddleware);
 app.use(observability_1.httpObservabilityMiddleware);
@@ -163,6 +164,6 @@ app.use((_req, res) => {
 /* ======================================================
    ERROR HANDLER (LAST)
 ====================================================== */
-app.use(logger_1.sentryMiddleware.errorHandler());
+app.use(logger_2.sentryMiddleware.errorHandler());
 app.use(errorHandler_1.errorHandler);
 exports.default = app;

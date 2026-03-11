@@ -61,15 +61,20 @@ class Logger {
     });
   }
 
-  error(message: string, error?: Error, data?: any) {
+  error(message: string, error?: unknown, data?: any) {
     const formattedMessage = this.formatMessage("ERROR", message, data);
     console.error(formattedMessage);
     if (error) {
-      console.error("Error stack:", error.stack);
+      if (error instanceof Error) {
+        console.error("Error stack:", error.stack);
+      } else {
+        console.error("Error:", error);
+      }
     }
 
     // Send to Sentry with error level
-    Sentry.captureException(error || new Error(message), {
+    const errorObj = error instanceof Error ? error : new Error(String(error));
+    Sentry.captureException(errorObj, {
       level: "error",
       tags: {
         component: "backend",
@@ -98,11 +103,12 @@ class Logger {
   }
 
   // Payment error logging with explicit Sentry capture
-  paymentError(message: string, error?: Error, data?: any) {
+  paymentError(message: string, error?: unknown, data?: any) {
     this.setContext({ component: "payment" });
     this.error(message, error, data);
 
-    Sentry.captureException(error || new Error(message), {
+    const errorObj = error instanceof Error ? error : new Error(String(error));
+    Sentry.captureException(errorObj, {
       level: "error",
       tags: {
         component: "payment",
@@ -119,11 +125,12 @@ class Logger {
   }
 
   // Inventory error logging with explicit Sentry capture
-  inventoryError(message: string, error?: Error, data?: any) {
+  inventoryError(message: string, error?: unknown, data?: any) {
     this.setContext({ component: "inventory" });
     this.error(message, error, data);
 
-    Sentry.captureException(error || new Error(message), {
+    const errorObj = error instanceof Error ? error : new Error(String(error));
+    Sentry.captureException(errorObj, {
       level: "error",
       tags: {
         component: "inventory",
@@ -327,7 +334,7 @@ export const logSecurityEvent = (
 // Tagged error capture helpers
 export const capturePaymentError = (
   message: string,
-  error?: Error,
+  error?: unknown,
   data?: any
 ) => {
   logger.paymentError(message, error, data);
@@ -335,7 +342,7 @@ export const capturePaymentError = (
 
 export const captureInventoryError = (
   message: string,
-  error?: Error,
+  error?: unknown,
   data?: any
 ) => {
   logger.inventoryError(message, error, data);

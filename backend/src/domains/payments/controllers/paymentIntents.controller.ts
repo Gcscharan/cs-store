@@ -1,19 +1,20 @@
+import { logger } from '../../../utils/logger';
 import { Request, Response } from "express";
 
 import { createRazorpayPaymentIntent } from "../services/paymentIntentService";
 import { PaymentIntent } from "../models/PaymentIntent";
 import { isNewPaymentIntentCreationEnabled } from "../config/killSwitches";
-console.error("🔥🔥🔥 PAYMENT INTENT CONTROLLER LOADED 🔥🔥🔥");
+logger.error("🔥🔥🔥 PAYMENT INTENT CONTROLLER LOADED 🔥🔥🔥");
 /**
  * POST /api/payment-intents
  */
 export async function createPaymentIntent(req: Request, res: Response) {
   try {
-    console.log("[CHECK-5] /api/payment-intents HIT");
+    logger.info("[CHECK-5] /api/payment-intents HIT");
 
     const userId = String((req as any).user?._id || "");
     if (!userId) {
-      console.error("[CTRL][AUTH_MISSING]");
+      logger.error("[CTRL][AUTH_MISSING]");
       return res.status(401).json({ message: "Authentication required" });
     }
 
@@ -23,7 +24,7 @@ export async function createPaymentIntent(req: Request, res: Response) {
       (req.body as any)?.idempotencyKey || req.header("Idempotency-Key") || ""
     ).trim();
 
-    console.log("[CTRL][REQUEST_PARSED]", {
+    logger.info("[CTRL][REQUEST_PARSED]", {
       userId,
       orderId,
       method,
@@ -31,7 +32,7 @@ export async function createPaymentIntent(req: Request, res: Response) {
     });
 
     if (!orderId) {
-      console.error("[CTRL][VALIDATION_FAIL]", {
+      logger.error("[CTRL][VALIDATION_FAIL]", {
         reason: "MISSING_ORDER_ID",
         userId,
       });
@@ -39,7 +40,7 @@ export async function createPaymentIntent(req: Request, res: Response) {
     }
 
     if (method !== "RAZORPAY") {
-      console.error("[CTRL][VALIDATION_FAIL]", {
+      logger.error("[CTRL][VALIDATION_FAIL]", {
         reason: "UNSUPPORTED_METHOD",
         method,
       });
@@ -47,12 +48,12 @@ export async function createPaymentIntent(req: Request, res: Response) {
     }
 
     if (!isNewPaymentIntentCreationEnabled({ gateway: "RAZORPAY" })) {
-      console.warn("[CTRL][KILL_SWITCH_ACTIVE]");
+      logger.warn("[CTRL][KILL_SWITCH_ACTIVE]");
 
       if (idempotencyKey) {
         const existing = await PaymentIntent.findOne({ idempotencyKey }).lean();
         if (existing) {
-          console.log("[CTRL][KILL_SWITCH_RETURN_EXISTING]", {
+          logger.info("[CTRL][KILL_SWITCH_RETURN_EXISTING]", {
             paymentIntentId: String((existing as any)._id),
           });
           return res.status(201).json({
@@ -69,7 +70,7 @@ export async function createPaymentIntent(req: Request, res: Response) {
       });
     }
 
-    console.log("[CTRL][CALLING_SERVICE]", {
+    logger.info("[CTRL][CALLING_SERVICE]", {
       userId,
       orderId,
       idempotencyKeyPresent: !!idempotencyKey,
@@ -81,7 +82,7 @@ export async function createPaymentIntent(req: Request, res: Response) {
       idempotencyKey,
     });
 
-    console.log("[CTRL][SERVICE_SUCCESS]", {
+    logger.info("[CTRL][SERVICE_SUCCESS]", {
       paymentIntentId: result.paymentIntentId,
       razorpayOrderId: result.razorpayOrderId,
     });
@@ -102,7 +103,7 @@ export async function createPaymentIntent(req: Request, res: Response) {
           ? "Payment intent rejected by backend guard"
           : "Payment intent failed";
 
-    console.error("[CTRL][PAYMENT_INTENT_FAILED]", {
+    logger.error("[CTRL][PAYMENT_INTENT_FAILED]", {
       statusCode,
       message,
       rawErrorMessage: String(e?.message || ""),

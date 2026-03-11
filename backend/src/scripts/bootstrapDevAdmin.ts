@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import { User } from "../models/User";
@@ -22,11 +23,11 @@ export const bootstrapDevAdmin = async (): Promise<void> => {
   try {
     // Only run in development
     if (process.env.NODE_ENV === "production") {
-      console.log("⚠️  Skipping dev admin bootstrap in production");
+      logger.info("⚠️  Skipping dev admin bootstrap in production");
       return;
     }
 
-    console.log("🔧 Bootstrapping dev admin user and test data...");
+    logger.info("🔧 Bootstrapping dev admin user and test data...");
 
     // Check if dev admin user exists
     let devAdmin = await User.findOne({ email: DEV_ADMIN_EMAIL });
@@ -58,12 +59,12 @@ export const bootstrapDevAdmin = async (): Promise<void> => {
       });
 
       await devAdmin.save();
-      console.log("✅ Dev admin user created successfully");
-      console.log(`📧 Email: ${DEV_ADMIN_EMAIL}`);
-      console.log(`📱 Phone: ${DEV_ADMIN_PHONE}`);
-      console.log(`🔑 Password: ${DEV_ADMIN_PASSWORD}`);
-      console.log(`👤 Role: admin`);
-      console.log(`🔐 isAdmin: true`);
+      logger.info("✅ Dev admin user created successfully");
+      logger.info(`📧 Email: ${DEV_ADMIN_EMAIL}`);
+      logger.info(`📱 Phone: ${DEV_ADMIN_PHONE}`);
+      logger.info(`🔑 Password: ${DEV_ADMIN_PASSWORD}`);
+      logger.info(`👤 Role: admin`);
+      logger.info(`🔐 isAdmin: true`);
     } else {
       // Update existing user to ensure admin status and correct password
       const passwordHash = await bcrypt.hash(DEV_ADMIN_PASSWORD, 12);
@@ -90,19 +91,19 @@ export const bootstrapDevAdmin = async (): Promise<void> => {
       };
 
       await User.findByIdAndUpdate(devAdmin._id, updateData);
-      console.log("✅ Dev admin user updated successfully");
-      console.log(`📧 Email: ${DEV_ADMIN_EMAIL}`);
-      console.log(`📱 Phone: ${DEV_ADMIN_PHONE}`);
-      console.log(`🔑 Password: ${DEV_ADMIN_PASSWORD}`);
-      console.log(`👤 Role: admin`);
-      console.log(`🔐 isAdmin: true`);
+      logger.info("✅ Dev admin user updated successfully");
+      logger.info(`📧 Email: ${DEV_ADMIN_EMAIL}`);
+      logger.info(`📱 Phone: ${DEV_ADMIN_PHONE}`);
+      logger.info(`🔑 Password: ${DEV_ADMIN_PASSWORD}`);
+      logger.info(`👤 Role: admin`);
+      logger.info(`🔐 isAdmin: true`);
     }
 
     // QA constraint: keep dev bootstrap limited to a single deterministic user.
-    console.log("🎯 Dev admin bootstrap completed (single-user mode)");
+    logger.info("🎯 Dev admin bootstrap completed (single-user mode)");
     return;
   } catch (error) {
-    console.error("❌ Error bootstrapping dev admin:", error);
+    logger.error("❌ Error bootstrapping dev admin:", error);
     throw error;
   }
 };

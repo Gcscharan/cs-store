@@ -78,10 +78,16 @@ class Logger {
         const formattedMessage = this.formatMessage("ERROR", message, data);
         console.error(formattedMessage);
         if (error) {
-            console.error("Error stack:", error.stack);
+            if (error instanceof Error) {
+                console.error("Error stack:", error.stack);
+            }
+            else {
+                console.error("Error:", error);
+            }
         }
         // Send to Sentry with error level
-        Sentry.captureException(error || new Error(message), {
+        const errorObj = error instanceof Error ? error : new Error(String(error));
+        Sentry.captureException(errorObj, {
             level: "error",
             tags: {
                 component: "backend",
@@ -109,7 +115,8 @@ class Logger {
     paymentError(message, error, data) {
         this.setContext({ component: "payment" });
         this.error(message, error, data);
-        Sentry.captureException(error || new Error(message), {
+        const errorObj = error instanceof Error ? error : new Error(String(error));
+        Sentry.captureException(errorObj, {
             level: "error",
             tags: {
                 component: "payment",
@@ -127,7 +134,8 @@ class Logger {
     inventoryError(message, error, data) {
         this.setContext({ component: "inventory" });
         this.error(message, error, data);
-        Sentry.captureException(error || new Error(message), {
+        const errorObj = error instanceof Error ? error : new Error(String(error));
+        Sentry.captureException(errorObj, {
             level: "error",
             tags: {
                 component: "inventory",

@@ -36,6 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const logger_1 = require("../utils/logger");
 const mongoose_1 = __importDefault(require("mongoose"));
 const User_1 = require("../models/User");
 const DeliveryBoy_1 = require("../models/DeliveryBoy");
@@ -45,24 +46,24 @@ dotenv.config();
 // CRITICAL: Only use MONGODB_URI from environment - no fallbacks
 const MONGODB_URI = process.env.MONGODB_URI;
 if (!MONGODB_URI) {
-    console.error("❌ CRITICAL: MONGODB_URI environment variable is not set!");
-    console.error("❌ Please set MONGODB_URI in your .env file and restart.");
+    logger_1.logger.error("❌ CRITICAL: MONGODB_URI environment variable is not set!");
+    logger_1.logger.error("❌ Please set MONGODB_URI in your .env file and restart.");
     process.exit(1);
 }
 async function createTestDeliveryAccount() {
     try {
         await mongoose_1.default.connect(MONGODB_URI);
-        console.log("✅ Connected to MongoDB Atlas\n");
+        logger_1.logger.info("✅ Connected to MongoDB Atlas\n");
         // Check if test delivery user already exists
         const existingUser = await User_1.User.findOne({ email: "delivery@test.com" });
         if (existingUser) {
-            console.log("⚠️ Test delivery account already exists!");
-            console.log(`📧 Email: delivery@test.com`);
-            console.log(`🔑 Password: delivery123`);
+            logger_1.logger.info("⚠️ Test delivery account already exists!");
+            logger_1.logger.info(`📧 Email: delivery@test.com`);
+            logger_1.logger.info(`🔑 Password: delivery123`);
             // Check if linked DeliveryBoy exists
             const existingDeliveryBoy = await DeliveryBoy_1.DeliveryBoy.findOne({ userId: existingUser._id });
             if (!existingDeliveryBoy) {
-                console.log("\n🔧 Creating missing DeliveryBoy document...");
+                logger_1.logger.info("\n🔧 Creating missing DeliveryBoy document...");
                 const deliveryBoy = new DeliveryBoy_1.DeliveryBoy({
                     name: existingUser.name,
                     phone: existingUser.phone,
@@ -82,14 +83,14 @@ async function createTestDeliveryAccount() {
                     currentLoad: 0,
                 });
                 await deliveryBoy.save();
-                console.log("✅ DeliveryBoy document created and linked!");
+                logger_1.logger.info("✅ DeliveryBoy document created and linked!");
             }
             else {
-                console.log("✅ DeliveryBoy document already exists and linked!");
+                logger_1.logger.info("✅ DeliveryBoy document already exists and linked!");
             }
             return;
         }
-        console.log("🔧 Creating test delivery account...\n");
+        logger_1.logger.info("🔧 Creating test delivery account...\n");
         // Create User with delivery role
         const passwordHash = await bcrypt.hash("delivery123", 10);
         const user = new User_1.User({
@@ -107,12 +108,12 @@ async function createTestDeliveryAccount() {
             },
         });
         await user.save();
-        console.log("✅ User created:");
-        console.log(`   Name: ${user.name}`);
-        console.log(`   Email: ${user.email}`);
-        console.log(`   Phone: ${user.phone}`);
-        console.log(`   Role: ${user.role}`);
-        console.log(`   Status: ${user.status}`);
+        logger_1.logger.info("✅ User created:");
+        logger_1.logger.info(`   Name: ${user.name}`);
+        logger_1.logger.info(`   Email: ${user.email}`);
+        logger_1.logger.info(`   Phone: ${user.phone}`);
+        logger_1.logger.info(`   Role: ${user.role}`);
+        logger_1.logger.info(`   Status: ${user.status}`);
         // Create DeliveryBoy document
         const deliveryBoy = new DeliveryBoy_1.DeliveryBoy({
             name: user.name,
@@ -133,29 +134,29 @@ async function createTestDeliveryAccount() {
             currentLoad: 0,
         });
         await deliveryBoy.save();
-        console.log("\n✅ DeliveryBoy document created:");
-        console.log(`   ID: ${deliveryBoy._id}`);
-        console.log(`   Vehicle: ${deliveryBoy.vehicleType}`);
-        console.log(`   Availability: ${deliveryBoy.availability}`);
-        console.log(`   Linked to User: ${deliveryBoy.userId}`);
-        console.log("\n" + "=".repeat(60));
-        console.log("🎉 TEST DELIVERY ACCOUNT CREATED SUCCESSFULLY!");
-        console.log("=".repeat(60));
-        console.log("\n📝 Login Credentials:");
-        console.log("   📧 Email: delivery@test.com");
-        console.log("   🔑 Password: delivery123");
-        console.log("\n🔗 API Endpoint:");
-        console.log("   POST http://localhost:5001/api/delivery/auth/login");
-        console.log("\n📦 Request Body:");
-        console.log('   { "email": "delivery@test.com", "password": "delivery123" }');
-        console.log("=".repeat(60));
+        logger_1.logger.info("\n✅ DeliveryBoy document created:");
+        logger_1.logger.info(`   ID: ${deliveryBoy._id}`);
+        logger_1.logger.info(`   Vehicle: ${deliveryBoy.vehicleType}`);
+        logger_1.logger.info(`   Availability: ${deliveryBoy.availability}`);
+        logger_1.logger.info(`   Linked to User: ${deliveryBoy.userId}`);
+        logger_1.logger.info("\n" + "=".repeat(60));
+        logger_1.logger.info("🎉 TEST DELIVERY ACCOUNT CREATED SUCCESSFULLY!");
+        logger_1.logger.info("=".repeat(60));
+        logger_1.logger.info("\n📝 Login Credentials:");
+        logger_1.logger.info("   📧 Email: delivery@test.com");
+        logger_1.logger.info("   🔑 Password: delivery123");
+        logger_1.logger.info("\n🔗 API Endpoint:");
+        logger_1.logger.info("   POST http://localhost:5001/api/delivery/auth/login");
+        logger_1.logger.info("\n📦 Request Body:");
+        logger_1.logger.info('   { "email": "delivery@test.com", "password": "delivery123" }');
+        logger_1.logger.info("=".repeat(60));
     }
     catch (error) {
-        console.error("❌ Error:", error);
+        logger_1.logger.error("❌ Error:", error);
     }
     finally {
         await mongoose_1.default.connection.close();
-        console.log("\n🔌 Disconnected from MongoDB");
+        logger_1.logger.info("\n🔌 Disconnected from MongoDB");
     }
 }
 createTestDeliveryAccount();

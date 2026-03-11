@@ -3,6 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const logger_1 = require("../utils/logger");
 const mongoose_1 = __importDefault(require("mongoose"));
 const Product_1 = require("../models/Product");
 const dotenv_1 = __importDefault(require("dotenv"));
@@ -10,18 +11,18 @@ dotenv_1.default.config();
 // CRITICAL: Only use MONGODB_URI from environment - no fallbacks
 const MONGODB_URI = process.env.MONGODB_URI;
 if (!MONGODB_URI) {
-    console.error("❌ CRITICAL: MONGODB_URI environment variable is not set!");
-    console.error("❌ Please set MONGODB_URI in your .env file and restart.");
+    logger_1.logger.error("❌ CRITICAL: MONGODB_URI environment variable is not set!");
+    logger_1.logger.error("❌ Please set MONGODB_URI in your .env file and restart.");
     process.exit(1);
 }
 // Connect to MongoDB
 const connectDB = async () => {
     try {
         await mongoose_1.default.connect(MONGODB_URI);
-        console.log("✅ Connected to MongoDB");
+        logger_1.logger.info("✅ Connected to MongoDB");
     }
     catch (error) {
-        console.error("❌ MongoDB connection error:", error);
+        logger_1.logger.error("❌ MongoDB connection error:", error);
         process.exit(1);
     }
 };
@@ -315,30 +316,30 @@ const categoryProducts = {
 };
 const addProductsForAllCategories = async () => {
     try {
-        console.log("🚀 Adding products for all categories...");
+        logger_1.logger.info("🚀 Adding products for all categories...");
         let totalAdded = 0;
         for (const [category, products] of Object.entries(categoryProducts)) {
-            console.log(`\n📦 Adding products for ${category} category:`);
+            logger_1.logger.info(`\n📦 Adding products for ${category} category:`);
             for (const productData of products) {
                 const product = new Product_1.Product({
                     ...productData,
                     category: category,
                 });
                 await product.save();
-                console.log(`  ✅ Added: ${productData.name}`);
+                logger_1.logger.info(`  ✅ Added: ${productData.name}`);
                 totalAdded++;
             }
         }
-        console.log(`\n🎉 Successfully added ${totalAdded} products across all categories!`);
+        logger_1.logger.info(`\n🎉 Successfully added ${totalAdded} products across all categories!`);
     }
     catch (error) {
-        console.error("❌ Error adding products:", error);
+        logger_1.logger.error("❌ Error adding products:", error);
     }
 };
 const main = async () => {
     await connectDB();
     await addProductsForAllCategories();
     await mongoose_1.default.disconnect();
-    console.log("👋 Disconnected from MongoDB");
+    logger_1.logger.info("👋 Disconnected from MongoDB");
 };
-main().catch(console.error);
+main().catch((err) => logger_1.logger.error("Script failed:", err));

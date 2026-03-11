@@ -34,6 +34,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.sendWelcomeEmail = exports.sendOTPEmail = exports.sendEmail = void 0;
+const logger_1 = require("../../../utils/logger");
 const nodemailer = __importStar(require("nodemailer"));
 // Standard SMTP transporter configuration using environment variables
 const smtpPort = parseInt(process.env.EMAIL_PORT || "587", 10);
@@ -52,8 +53,8 @@ const smtpTransporter = nodemailer.createTransport({
 const sendEmail = async (options) => {
     try {
         if (!process.env.EMAIL_HOST || !process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-            console.error("[MailService] EMAIL_HOST, EMAIL_USER or EMAIL_PASS is not configured. Skipping actual email send.");
-            console.log(`[MailService] Would send email to ${options.to} with subject "${options.subject}" (missing SMTP config)`);
+            logger_1.logger.error("[MailService] EMAIL_HOST, EMAIL_USER or EMAIL_PASS is not configured. Skipping actual email send.");
+            logger_1.logger.info(`[MailService] Would send email to ${options.to} with subject "${options.subject}" (missing SMTP config)`);
             return;
         }
         // Verify transporter connectivity before sending
@@ -61,7 +62,7 @@ const sendEmail = async (options) => {
             await smtpTransporter.verify();
         }
         catch (verifyErr) {
-            console.error("❌ [MailService] SMTP verify failed:", {
+            logger_1.logger.error("❌ [MailService] SMTP verify failed:", {
                 message: verifyErr?.message,
                 code: verifyErr?.code,
                 response: verifyErr?.response,
@@ -83,7 +84,7 @@ const sendEmail = async (options) => {
                 contentType: att.contentType,
             })),
         });
-        console.log(`✅ [MailService] Email sent via SMTP to ${options.to} (MessageId: ${info.messageId || "unknown"})`);
+        logger_1.logger.info(`✅ [MailService] Email sent via SMTP to ${options.to} (MessageId: ${info.messageId || "unknown"})`);
     }
     catch (error) {
         const details = {
@@ -115,9 +116,9 @@ const sendEmail = async (options) => {
         else if (error?.responseCode === 454 || error?.responseCode === 530) {
             hint = "SMTP requires TLS or authentication. Adjust secure/port or enable less secure/app passwords.";
         }
-        console.error("❌ [MailService] Email send failed:", details);
-        console.error("ℹ️  [MailService] Hint:", hint);
-        console.log(`⚠️  [MailService] Email could not be delivered to ${options.to}`);
+        logger_1.logger.error("❌ [MailService] Email send failed:", details);
+        logger_1.logger.error("ℹ️  [MailService] Hint:", hint);
+        logger_1.logger.info(`⚠️  [MailService] Email could not be delivered to ${options.to}`);
     }
 };
 exports.sendEmail = sendEmail;
@@ -156,8 +157,8 @@ const sendOTPEmail = async (email, otp) => {
       </div>
     </div>
   `;
-    console.log(`📧 Sending OTP email to: ${email}`);
-    console.log(`🔑 OTP: ${otp} (valid for 10 minutes)`);
+    logger_1.logger.info(`📧 Sending OTP email to: ${email}`);
+    logger_1.logger.info(`🔑 OTP: ${otp} (valid for 10 minutes)`);
     await (0, exports.sendEmail)({
         to: email,
         subject: "Your CS Store OTP - Login Verification",

@@ -37,6 +37,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.updateSelfie = exports.getSelfieUrl = exports.updateDeliveryProfile = exports.getDeliveryProfile = exports.deliveryLogin = exports.getDeliveryMessages = exports.getDeliveryReferral = exports.deliverySignup = void 0;
+const logger_1 = require("../utils/logger");
 const User_1 = require("../models/User");
 const DeliveryBoy_1 = require("../models/DeliveryBoy");
 const Notification_1 = __importDefault(require("../models/Notification"));
@@ -125,7 +126,7 @@ const deliverySignup = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Delivery signup error:", error);
+        logger_1.logger.error("Delivery signup error:", error);
         res.status(500).json({
             error: "Failed to create delivery account. Please try again later.",
         });
@@ -152,7 +153,7 @@ const getDeliveryReferral = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Get delivery referral error:", error);
+        logger_1.logger.error("Get delivery referral error:", error);
         res.status(500).json({ error: "Failed to get referral info" });
     }
 };
@@ -178,7 +179,7 @@ const getDeliveryMessages = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Get delivery messages error:", error);
+        logger_1.logger.error("Get delivery messages error:", error);
         res.status(500).json({ error: "Failed to fetch messages" });
     }
 };
@@ -298,7 +299,7 @@ const deliveryLogin = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Delivery login error:", error);
+        logger_1.logger.error("Delivery login error:", error);
         res.status(500).json({
             error: "Login failed. Please try again later.",
         });
@@ -343,7 +344,7 @@ const getDeliveryProfile = async (req, res) => {
                 assignedOrders: [],
             });
             await deliveryBoy.save();
-            console.log(`✅ Auto-created DeliveryBoy record for user ${user._id}`);
+            logger_1.logger.info(`✅ Auto-created DeliveryBoy record for user ${user._id}`);
         }
         const userDetails = await User_1.User.findById(user._id).select("-passwordHash");
         // Return a flat structure that matches frontend expectations
@@ -367,7 +368,7 @@ const getDeliveryProfile = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Get delivery profile error:", error);
+        logger_1.logger.error("Get delivery profile error:", error);
         res.status(500).json({
             error: "Failed to get profile. Please try again later.",
         });
@@ -482,7 +483,7 @@ const updateDeliveryProfile = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Update delivery profile error:", error);
+        logger_1.logger.error("Update delivery profile error:", error);
         res.status(500).json({
             error: "Failed to update profile. Please try again later.",
         });
@@ -531,7 +532,7 @@ const getSelfieUrl = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Get selfie URL error:", error);
+        logger_1.logger.error("Get selfie URL error:", error);
         res.status(500).json({
             error: "Failed to get selfie URL. Please try again later.",
         });
@@ -588,7 +589,7 @@ const updateSelfie = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Update selfie error:", error);
+        logger_1.logger.error("Update selfie error:", error);
         res.status(500).json({
             error: "Failed to update selfie. Please try again later.",
         });

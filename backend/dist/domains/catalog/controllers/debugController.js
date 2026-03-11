@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.debugProductImages = void 0;
+const logger_1 = require("../../../utils/logger");
 const Product_1 = require("../../../models/Product");
 const productController_1 = require("./productController");
 const SELLABLE_PRODUCT_FILTER = {
@@ -23,7 +24,7 @@ const debugProductImages = async (req, res) => {
         });
     }
     catch (err) {
-        console.error("Debug Error:", err);
+        logger_1.logger.error("Debug Error:", err);
         return res.status(500).json({ message: "Server Error", error: err });
     }
 };

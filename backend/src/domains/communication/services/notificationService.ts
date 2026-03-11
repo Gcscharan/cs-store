@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger';
 import { User } from "../../../models/User";
 import { Order } from "../../../models/Order";
 import { sendEmail } from "./mailService";
@@ -80,7 +81,7 @@ export class NotificationService {
       if (event === "PAYMENT_SUCCESS") {
         const orderId = String((data as any)?.orderId || "").trim();
         if (!orderId) {
-          console.error("[BACKEND][NOTIFICATION_BLOCKED]", {
+          logger.error("[BACKEND][NOTIFICATION_BLOCKED]", {
             event,
             userId,
             reason: "MISSING_ORDER_ID",
@@ -91,7 +92,7 @@ export class NotificationService {
         const order = await Order.findById(orderId).select("paymentStatus").lean();
         const ps = String((order as any)?.paymentStatus || "").toUpperCase();
         if (ps !== "PAID") {
-          console.error("[BACKEND][NOTIFICATION_BLOCKED]", {
+          logger.error("[BACKEND][NOTIFICATION_BLOCKED]", {
             event,
             userId,
             orderId,
@@ -102,27 +103,27 @@ export class NotificationService {
         }
       }
 
-      console.log(`🔔 Dispatching notification: ${event} for user: ${userId}`);
+      logger.info(`🔔 Dispatching notification: ${event} for user: ${userId}`);
       
       // Fetch user with preferences and contact info
       const user = await User.findById(userId).select('notificationPreferences email phone name');
       
       if (!user) {
-        console.error(`❌ User not found: ${userId}`);
+        logger.error(`❌ User not found: ${userId}`);
         return;
       }
 
       // Get event category mapping
       const eventMapping = eventCategoryMapping[event];
       if (!eventMapping) {
-        console.error(`❌ No category mapping found for event: ${event}`);
+        logger.error(`❌ No category mapping found for event: ${event}`);
         return;
       }
 
       const { category, subcategory } = eventMapping;
       const preferences = user.notificationPreferences || {};
 
-      console.log(`📋 Checking preferences for category: ${category}${subcategory ? `, subcategory: ${subcategory}` : ''}`);
+      logger.info(`📋 Checking preferences for category: ${category}${subcategory ? `, subcategory: ${subcategory}` : ''}`);
 
       // Check each channel and send if enabled
       await this.checkAndSendEmail(user, preferences, category, subcategory, event, data);
@@ -130,9 +131,9 @@ export class NotificationService {
       await this.checkAndSendWhatsApp(user, preferences, category, subcategory, event, data);
       await this.checkAndSendPush(user, preferences, category, subcategory, event, data);
 
-      console.log(`✅ Notification dispatch completed for event: ${event}`);
+      logger.info(`✅ Notification dispatch completed for event: ${event}`);
     } catch (error) {
-      console.error(`❌ Error dispatching notification:`, error);
+      logger.error(`❌ Error dispatching notification:`, error);
     }
   }
 
@@ -144,12 +145,12 @@ export class NotificationService {
     data: NotificationData
   ): Promise<void> {
     try {
-      console.log(`📢 Dispatching batch notification: ${event} to all eligible users`);
+      logger.info(`📢 Dispatching batch notification: ${event} to all eligible users`);
       
       // Get event category mapping
       const eventMapping = eventCategoryMapping[event];
       if (!eventMapping) {
-        console.error(`❌ No category mapping found for event: ${event}`);
+        logger.error(`❌ No category mapping found for event: ${event}`);
         return;
       }
 
@@ -181,7 +182,7 @@ export class NotificationService {
 
       // Fetch eligible users
       const eligibleUsers = await User.find(query).select('_id');
-      console.log(`📊 Found ${eligibleUsers.length} eligible users for ${event}`);
+      logger.info(`📊 Found ${eligibleUsers.length} eligible users for ${event}`);
 
       // Dispatch to each user individually (preserves individual preference checking)
       let successCount = 0;
@@ -192,14 +193,14 @@ export class NotificationService {
           await this.dispatchNotification(user._id.toString(), event, data);
           successCount++;
         } catch (error) {
-          console.error(`❌ Failed to send ${event} to user ${user._id}:`, error);
+          logger.error(`❌ Failed to send ${event} to user ${user._id}:`, error);
           errorCount++;
         }
       }
 
-      console.log(`✅ Batch notification completed: ${successCount} sent, ${errorCount} failed`);
+      logger.info(`✅ Batch notification completed: ${successCount} sent, ${errorCount} failed`);
     } catch (error) {
-      console.error(`❌ Error in batch notification dispatch:`, error);
+      logger.error(`❌ Error in batch notification dispatch:`, error);
     }
   }
 
@@ -217,7 +218,7 @@ export class NotificationService {
     try {
       const emailPrefs = preferences.email;
       if (!emailPrefs?.enabled) {
-        console.log(`📧 Email disabled for user: ${user._id}`);
+        logger.info(`📧 Email disabled for user: ${user._id}`);
         return;
       }
 
@@ -233,12 +234,12 @@ export class NotificationService {
       }
 
       if (!hasPermission) {
-        console.log(`📧 Email not permitted for ${category}${subcategory ? `/${subcategory}` : ''}: ${user._id}`);
+        logger.info(`📧 Email not permitted for ${category}${subcategory ? `/${subcategory}` : ''}: ${user._id}`);
         return;
       }
 
       if (!user.email) {
-        console.log(`📧 No email address for user: ${user._id}`);
+        logger.info(`📧 No email address for user: ${user._id}`);
         return;
       }
 
@@ -277,7 +278,7 @@ export class NotificationService {
         } catch (pdfError: any) {
           // CRITICAL: Do NOT fail the email if PDF generation fails.
           // Log error and send email WITHOUT attachment.
-          console.error("[EMAIL][INVOICE_PDF_FAILED]", {
+          logger.error("[EMAIL][INVOICE_PDF_FAILED]", {
             orderId: data.orderId,
             error: pdfError?.message || "Unknown error",
             fallback: "Sending email without attachment",
@@ -302,9 +303,9 @@ export class NotificationService {
         });
       }
 
-      console.log(`✅ Email sent for ${event} to: ${user.email}`);
+      logger.info(`✅ Email sent for ${event} to: ${user.email}`);
     } catch (error) {
-      console.error(`❌ Email send error:`, error);
+      logger.error(`❌ Email send error:`, error);
     }
   }
 
@@ -322,7 +323,7 @@ export class NotificationService {
     try {
       const smsPrefs = preferences.sms;
       if (!smsPrefs?.enabled) {
-        console.log(`📱 SMS disabled for user: ${user._id}`);
+        logger.info(`📱 SMS disabled for user: ${user._id}`);
         return;
       }
 
@@ -336,12 +337,12 @@ export class NotificationService {
       }
 
       if (!hasPermission) {
-        console.log(`📱 SMS not permitted for ${category}${subcategory ? `/${subcategory}` : ''}: ${user._id}`);
+        logger.info(`📱 SMS not permitted for ${category}${subcategory ? `/${subcategory}` : ''}: ${user._id}`);
         return;
       }
 
       if (!user.phone) {
-        console.log(`📱 No phone number for user: ${user._id}`);
+        logger.info(`📱 No phone number for user: ${user._id}`);
         return;
       }
 
@@ -358,9 +359,9 @@ export class NotificationService {
         });
       }
 
-      console.log(`✅ SMS sent for ${event} to: ${user.phone}`);
+      logger.info(`✅ SMS sent for ${event} to: ${user.phone}`);
     } catch (error) {
-      console.error(`❌ SMS send error:`, error);
+      logger.error(`❌ SMS send error:`, error);
     }
   }
 
@@ -378,7 +379,7 @@ export class NotificationService {
     // TODO: Implement WhatsApp Business API integration
     const whatsappPrefs = preferences.whatsapp;
     if (whatsappPrefs?.enabled) {
-      console.log(`📲 WhatsApp notification queued for ${event} (not implemented yet)`);
+      logger.info(`📲 WhatsApp notification queued for ${event} (not implemented yet)`);
     }
   }
 
@@ -396,7 +397,7 @@ export class NotificationService {
     // TODO: Implement Push notification service
     const pushPrefs = preferences.push;
     if (pushPrefs?.enabled) {
-      console.log(`🔔 Push notification queued for ${event} (not implemented yet)`);
+      logger.info(`🔔 Push notification queued for ${event} (not implemented yet)`);
     }
   }
 
@@ -667,7 +668,7 @@ export class NotificationUtils {
    */
   static async sendCartReminders(hours: number = 24): Promise<void> {
     try {
-      console.log(`🛒 Checking for abandoned carts older than ${hours} hours...`);
+      logger.info(`🛒 Checking for abandoned carts older than ${hours} hours...`);
       
       const { Cart } = await import("../../../models/Cart");
       const cutoffTime = new Date(Date.now() - hours * 60 * 60 * 1000);
@@ -678,7 +679,7 @@ export class NotificationUtils {
         updatedAt: { $lt: cutoffTime }
       }).populate('userId', '_id');
 
-      console.log(`📊 Found ${abandonedCarts.length} abandoned carts`);
+      logger.info(`📊 Found ${abandonedCarts.length} abandoned carts`);
 
       for (const cart of abandonedCarts) {
         if (cart.userId) {
@@ -690,14 +691,14 @@ export class NotificationUtils {
                 price: item.price || 0
               })) || []
             });
-            console.log(`✅ Cart reminder sent to user: ${cart.userId}`);
+            logger.info(`✅ Cart reminder sent to user: ${cart.userId}`);
           } catch (error) {
-            console.error(`❌ Failed to send cart reminder to ${cart.userId}:`, error);
+            logger.error(`❌ Failed to send cart reminder to ${cart.userId}:`, error);
           }
         }
       }
     } catch (error) {
-      console.error(`❌ Error in sendCartReminders:`, error);
+      logger.error(`❌ Error in sendCartReminders:`, error);
     }
   }
 
@@ -706,7 +707,7 @@ export class NotificationUtils {
    */
   static async sendPaymentReminders(): Promise<void> {
     try {
-      console.log(`💳 Checking for pending COD payments...`);
+      logger.info(`💳 Checking for pending COD payments...`);
       
       const { Order } = await import("../../../models/Order");
       const cutoffTime = new Date(Date.now() - 24 * 60 * 60 * 1000); // 24 hours ago
@@ -718,7 +719,7 @@ export class NotificationUtils {
         deliveredAt: { $lt: cutoffTime }
       });
 
-      console.log(`📊 Found ${pendingPayments.length} pending COD payments`);
+      logger.info(`📊 Found ${pendingPayments.length} pending COD payments`);
 
       for (const order of pendingPayments) {
         try {
@@ -727,13 +728,13 @@ export class NotificationUtils {
             orderNumber: order._id.toString(),
             amount: order.totalAmount
           });
-          console.log(`✅ Payment reminder sent for order: ${order._id}`);
+          logger.info(`✅ Payment reminder sent for order: ${order._id}`);
         } catch (error) {
-          console.error(`❌ Failed to send payment reminder for order ${order._id}:`, error);
+          logger.error(`❌ Failed to send payment reminder for order ${order._id}:`, error);
         }
       }
     } catch (error) {
-      console.error(`❌ Error in sendPaymentReminders:`, error);
+      logger.error(`❌ Error in sendPaymentReminders:`, error);
     }
   }
 
@@ -742,13 +743,13 @@ export class NotificationUtils {
    */
   static async sendRestockNotifications(productId: string): Promise<void> {
     try {
-      console.log(`📦 Sending restock notifications for product: ${productId}`);
+      logger.info(`📦 Sending restock notifications for product: ${productId}`);
       
       // TODO: Implement wishlist/restock notification tracking
       // For now, this is a placeholder for future implementation
-      console.log(`🚧 Restock notifications not yet implemented - requires wishlist feature`);
+      logger.info(`🚧 Restock notifications not yet implemented - requires wishlist feature`);
     } catch (error) {
-      console.error(`❌ Error in sendRestockNotifications:`, error);
+      logger.error(`❌ Error in sendRestockNotifications:`, error);
     }
   }
 
@@ -761,9 +762,9 @@ export class NotificationUtils {
         orderId,
         orderNumber: orderId
       });
-      console.log(`✅ Feedback request sent for order: ${orderId}`);
+      logger.info(`✅ Feedback request sent for order: ${orderId}`);
     } catch (error) {
-      console.error(`❌ Failed to send feedback request for order ${orderId}:`, error);
+      logger.error(`❌ Failed to send feedback request for order ${orderId}:`, error);
     }
   }
 }

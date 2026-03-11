@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 import { Request, Response } from "express";
 
 export interface LocationData {
@@ -113,7 +114,7 @@ export const reverseGeocodeController = async (
       data: locationData,
     });
   } catch (error) {
-    console.error("Reverse geocoding error:", error);
+    logger.error("Reverse geocoding error:", error);
     res.status(500).json({
       success: false,
       message: "Failed to reverse geocode coordinates",
@@ -136,7 +137,7 @@ export const getCurrentLocationController = async (
       example: "/api/location/reverse-geocode?lat=17.3850&lng=78.4867",
     });
   } catch (error) {
-    console.error("Location controller error:", error);
+    logger.error("Location controller error:", error);
     res.status(500).json({
       success: false,
       message: "Location service error",

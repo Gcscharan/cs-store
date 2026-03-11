@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 import { Request, Response, NextFunction } from "express";
 
 export interface AppError extends Error {
@@ -33,7 +34,7 @@ export const errorHandler = (
 
   // Log error in development
   if (process.env.NODE_ENV === "development") {
-    console.error("Error:", error);
+    logger.error("Error:", error);
   }
 
   res.status(statusCode).json({

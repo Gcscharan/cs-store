@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 import { Server as SocketIOServer, Socket } from "socket.io";
 import { Server as HTTPServer } from "http";
 import jwt from "jsonwebtoken";
@@ -56,7 +57,7 @@ class SocketService {
         (socket as AuthenticatedSocket).user = user;
         next();
       } catch (error) {
-        console.error("Socket authentication error:", error);
+        logger.error("Socket authentication error:", error);
         next(new Error("Authentication error: Invalid token"));
       }
     });
@@ -68,7 +69,7 @@ class SocketService {
       const userId = authSocket.userId;
 
       if (userId) {
-        console.log(`🔌 User ${userId} connected via WebSocket`);
+        logger.info(`🔌 User ${userId} connected via WebSocket`);
         this.connectedUsers.set(userId, socket.id);
 
         // Join user to their personal room
@@ -77,20 +78,20 @@ class SocketService {
 
       socket.on("disconnect", () => {
         if (userId) {
-          console.log(`🔌 User ${userId} disconnected from WebSocket`);
+          logger.info(`🔌 User ${userId} disconnected from WebSocket`);
           this.connectedUsers.delete(userId);
         }
       });
 
       // Handle OTP verification requests
       socket.on("verify_otp", (data: any) => {
-        console.log("OTP verification request:", data);
+        logger.info("OTP verification request:", data);
         // This will be handled by the OTP controller
       });
 
       // Handle payment status requests
       socket.on("get_payment_status", (data: any) => {
-        console.log("Payment status request:", data);
+        logger.info("Payment status request:", data);
         // This will be handled by the payment controller
       });
     });
@@ -101,10 +102,10 @@ class SocketService {
     const socketId = this.connectedUsers.get(userId);
     if (socketId) {
       this.io.to(socketId).emit("otp_delivered", otpData);
-      console.log(`📱 OTP sent to user ${userId} via WebSocket`);
+      logger.info(`📱 OTP sent to user ${userId} via WebSocket`);
       return true;
     }
-    console.log(`📱 User ${userId} not connected, OTP will be sent via SMS`);
+    logger.info(`📱 User ${userId} not connected, OTP will be sent via SMS`);
     return false;
   }
 
@@ -113,7 +114,7 @@ class SocketService {
     const socketId = this.connectedUsers.get(userId);
     if (socketId) {
       this.io.to(socketId).emit("otp_verification_result", result);
-      console.log(`✅ OTP verification result sent to user ${userId}`);
+      logger.info(`✅ OTP verification result sent to user ${userId}`);
       return true;
     }
     return false;
@@ -124,7 +125,7 @@ class SocketService {
     const socketId = this.connectedUsers.get(userId);
     if (socketId) {
       this.io.to(socketId).emit("payment_status_update", status);
-      console.log(`💳 Payment status update sent to user ${userId}`);
+      logger.info(`💳 Payment status update sent to user ${userId}`);
       return true;
     }
     return false;

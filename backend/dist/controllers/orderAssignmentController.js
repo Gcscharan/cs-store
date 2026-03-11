@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getOptimalDeliveryBoy = exports.unassignDeliveryBoyFromOrder = exports.assignDeliveryBoyToOrder = void 0;
 exports.assignPackedOrderToDeliveryBoy = assignPackedOrderToDeliveryBoy;
+const logger_1 = require("../utils/logger");
 const mongoose_1 = __importDefault(require("mongoose"));
 const Order_1 = require("../models/Order");
 const DeliveryBoy_1 = require("../models/DeliveryBoy");
@@ -240,7 +241,7 @@ const assignDeliveryBoyToOrder = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Error assigning delivery boy to order:", error);
+        logger_1.logger.error("Error assigning delivery boy to order:", error);
         const statusCode = Number(error?.statusCode) || 500;
         if (statusCode === 409) {
             res.status(409).json({
@@ -325,7 +326,7 @@ const unassignDeliveryBoyFromOrder = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Error unassigning delivery boy from order:", error);
+        logger_1.logger.error("Error unassigning delivery boy from order:", error);
         const statusCode = Number(error?.statusCode) || 500;
         res.status(statusCode).json({
             error: error?.message || "Failed to unassign delivery boy. Please try again later.",
@@ -376,7 +377,7 @@ const getOptimalDeliveryBoy = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Error getting optimal delivery boy:", error);
+        logger_1.logger.error("Error getting optimal delivery boy:", error);
         res.status(500).json({
             error: "Failed to get optimal delivery boy. Please try again later.",
         });

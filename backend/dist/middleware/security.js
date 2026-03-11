@@ -193,7 +193,7 @@ const verifyRazorpaySignature = (req, res, next) => {
     }
     const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET;
     if (!razorpayKeySecret) {
-        console.error("RAZORPAY_KEY_SECRET not configured");
+        logger_1.logger.error("RAZORPAY_KEY_SECRET not configured");
         return res.status(500).json({
             error: "Payment verification not configured",
         });
@@ -205,7 +205,7 @@ const verifyRazorpaySignature = (req, res, next) => {
             .update(body)
             .digest("hex");
         if (expectedSignature !== razorpay_signature) {
-            console.warn("Invalid Razorpay signature:", {
+            logger_1.logger.warn("Invalid Razorpay signature:", {
                 expected: expectedSignature,
                 received: razorpay_signature,
                 orderId: razorpay_order_id,
@@ -224,7 +224,7 @@ const verifyRazorpaySignature = (req, res, next) => {
         next();
     }
     catch (error) {
-        console.error("Razorpay signature verification error:", error);
+        logger_1.logger.error("Razorpay signature verification error:", error);
         res.status(500).json({
             error: "Payment verification failed",
         });
@@ -300,7 +300,7 @@ const securityLogger = (req, res, next) => {
     const startTime = Date.now();
     // Log security-relevant events
     const logSecurityEvent = (event, details) => {
-        console.log(`[SECURITY] ${event}:`, {
+        logger_1.logger.info(`[SECURITY] ${event}:`, {
             timestamp: new Date().toISOString(),
             ip: req.ip,
             userAgent: req.get("User-Agent"),

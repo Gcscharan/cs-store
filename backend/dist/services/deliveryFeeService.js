@@ -1,9 +1,4 @@
 "use strict";
-/**
- * Enterprise-Grade Delivery Fee Service
- * Handles all delivery fee calculations with multi-warehouse support,
- * Google Maps integration, caching, and advanced pricing rules
- */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -11,6 +6,12 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.calculateDeliveryFeeForAddress = calculateDeliveryFeeForAddress;
 exports.clearDistanceCache = clearDistanceCache;
 exports.getCacheStats = getCacheStats;
+const logger_1 = require("../utils/logger");
+/**
+ * Enterprise-Grade Delivery Fee Service
+ * Handles all delivery fee calculations with multi-warehouse support,
+ * Google Maps integration, caching, and advanced pricing rules
+ */
 const google_maps_services_js_1 = require("@googlemaps/google-maps-services-js");
 const node_cache_1 = __importDefault(require("node-cache"));
 const deliveryFeeConfig_1 = require("../config/deliveryFeeConfig");
@@ -91,7 +92,7 @@ async function calculateDeliveryFeeForAddress(userAddress, orderAmount, orderWei
         return result;
     }
     catch (error) {
-        console.error("Error calculating delivery fee:", error);
+        logger_1.logger.error("Error calculating delivery fee:", error);
         throw error;
     }
 }
@@ -182,7 +183,7 @@ async function calculateDistance(warehouse, userAddress) {
             }
         }
         catch (error) {
-            console.error("Google Maps API error, falling back to Haversine:", error);
+            logger_1.logger.error("Google Maps API error, falling back to Haversine:", error);
         }
     }
     // Fallback to Haversine formula

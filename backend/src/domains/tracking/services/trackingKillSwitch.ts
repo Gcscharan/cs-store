@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger';
 import redisClient from "../../../config/redis";
 
 export type TrackingKillSwitchMode = "OFF" | "INGEST_ONLY" | "CUSTOMER_READ_ENABLED";
@@ -63,5 +64,5 @@ export async function setTrackingKillSwitchMode(params: {
     actor: params.actor || null,
     ts: new Date().toISOString(),
   };
-  console.log(JSON.stringify(log));
+  logger.info(JSON.stringify(log));
 }

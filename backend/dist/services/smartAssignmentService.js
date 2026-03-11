@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.smartAssignmentService = exports.SmartAssignmentService = void 0;
+const logger_1 = require("../utils/logger");
 const DeliveryBoy_1 = require("../models/DeliveryBoy");
 const routeUtils_1 = require("../utils/routeUtils");
 /**
@@ -23,25 +24,25 @@ class SmartAssignmentService {
                 $expr: { $lt: [{ $size: "$assignedOrders" }, maxConcurrentOrders] },
             }).lean();
             if (availableDeliveryBoys.length === 0) {
-                console.log("No available delivery boys found");
+                logger_1.logger.info("No available delivery boys found");
                 return null;
             }
             // Step 1: Check for delivery boys with active routes
             const routeMatch = await this.findRouteMatch(orderLocation, availableDeliveryBoys);
             if (routeMatch) {
-                console.log(`✅ Route match found: ${routeMatch.deliveryBoy.name} (${routeMatch.reason})`);
+                logger_1.logger.info(`✅ Route match found: ${routeMatch.deliveryBoy.name} (${routeMatch.reason})`);
                 return routeMatch;
             }
             // Step 2: Find nearest available delivery boy
             const nearestMatch = this.findNearestDeliveryBoy(orderLocation, availableDeliveryBoys);
             if (nearestMatch) {
-                console.log(`✅ Nearest delivery boy assigned: ${nearestMatch.deliveryBoy.name} (${nearestMatch.distance.toFixed(2)} km away)`);
+                logger_1.logger.info(`✅ Nearest delivery boy assigned: ${nearestMatch.deliveryBoy.name} (${nearestMatch.distance.toFixed(2)} km away)`);
                 return nearestMatch;
             }
             return null;
         }
         catch (error) {
-            console.error("Error in smart assignment:", error);
+            logger_1.logger.error("Error in smart assignment:", error);
             return null;
         }
     }
@@ -98,7 +99,7 @@ class SmartAssignmentService {
         try {
             const deliveryBoy = await DeliveryBoy_1.DeliveryBoy.findById(deliveryBoyId);
             if (!deliveryBoy) {
-                console.error("Delivery boy not found");
+                logger_1.logger.error("Delivery boy not found");
                 return;
             }
             // Get route from current location to destination
@@ -114,11 +115,11 @@ class SmartAssignmentService {
                     estimatedArrival,
                 };
                 await deliveryBoy.save();
-                console.log(`✅ Route updated for ${deliveryBoy.name}: ${routeInfo.distance.toFixed(2)} km, ETA: ${routeInfo.duration / 60} mins`);
+                logger_1.logger.info(`✅ Route updated for ${deliveryBoy.name}: ${routeInfo.distance.toFixed(2)} km, ETA: ${routeInfo.duration / 60} mins`);
             }
         }
         catch (error) {
-            console.error("Error updating delivery boy route:", error);
+            logger_1.logger.error("Error updating delivery boy route:", error);
         }
     }
     /**
@@ -129,10 +130,10 @@ class SmartAssignmentService {
             await DeliveryBoy_1.DeliveryBoy.findByIdAndUpdate(deliveryBoyId, {
                 $unset: { activeRoute: 1 },
             });
-            console.log(`✅ Route cleared for delivery boy ${deliveryBoyId}`);
+            logger_1.logger.info(`✅ Route cleared for delivery boy ${deliveryBoyId}`);
         }
         catch (error) {
-            console.error("Error clearing delivery boy route:", error);
+            logger_1.logger.error("Error clearing delivery boy route:", error);
         }
     }
     /**
@@ -154,7 +155,7 @@ class SmartAssignmentService {
             };
         }
         catch (error) {
-            console.error("Error getting delivery boy route:", error);
+            logger_1.logger.error("Error getting delivery boy route:", error);
             return null;
         }
     }

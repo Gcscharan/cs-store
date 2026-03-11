@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getDeliveryFeeTiersController = exports.calculateDeliveryFeeController = void 0;
+const logger_1 = require("../utils/logger");
 /**
  * Calculate delivery fee based on customer address
  * POST /api/delivery/calculate-fee
@@ -23,7 +24,7 @@ const calculateDeliveryFeeController = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Error calculating delivery fee:", error);
+        logger_1.logger.error("Error calculating delivery fee:", error);
         return res.status(500).json({
             success: false,
             message: "Failed to calculate delivery fee",
@@ -44,7 +45,7 @@ const getDeliveryFeeTiersController = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Error getting delivery fee tiers:", error);
+        logger_1.logger.error("Error getting delivery fee tiers:", error);
         return res.status(500).json({
             success: false,
             message: "Failed to get delivery fee tiers",
@@ -140,7 +141,7 @@ async function geocodeAddress(address) {
         return { lat: 22.5726, lng: 88.3639 };
     }
     // Default fallback to Hyderabad
-    console.warn(`Could not geocode address: ${address.city}, ${address.pincode}. Using default location.`);
+    logger_1.logger.warn(`Could not geocode address: ${address.city}, ${address.pincode}. Using default location.`);
     return { lat: 17.385, lng: 78.4867 };
 }
 /**
@@ -185,7 +186,7 @@ async function getDeliveryFeeForAddress(address) {
         const distance = calculateDistance(STORE_LOCATION, customerCoords);
         // Calculate delivery fee
         const deliveryFee = calculateDeliveryFee(distance);
-        console.log("Delivery fee calculation:", {
+        logger_1.logger.info("Delivery fee calculation:", {
             address: `${address.city}, ${address.pincode}`,
             customerCoords,
             storeCoords: STORE_LOCATION,
@@ -195,7 +196,7 @@ async function getDeliveryFeeForAddress(address) {
         return deliveryFee;
     }
     catch (error) {
-        console.error("Error calculating delivery fee:", error);
+        logger_1.logger.error("Error calculating delivery fee:", error);
         // Return a default fee if calculation fails
         return {
             distance: 0,

@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 import axios from "axios";
 import redisClient from "../config/redis";
 
@@ -112,7 +113,7 @@ export async function validatePincode(pincode: string): Promise<PincodeValidatio
 
     return validationResult;
   } catch (error: any) {
-    console.error("[PincodeValidator] API error:", error?.message);
+    logger.error("[PincodeValidator] API error:", error?.message);
 
     // Return error but don't cache failures (might be temporary)
     return {

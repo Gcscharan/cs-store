@@ -1,27 +1,28 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.clearCart = exports.removeFromCart = exports.updateCartItem = exports.addToCart = exports.getCart = void 0;
+const logger_1 = require("../../../utils/logger");
 const CartService_1 = require("../services/CartService");
 const cartService = new CartService_1.CartService();
 const getCart = async (req, res) => {
     try {
-        console.log('[CartController] getCart - req.user exists:', !!req.user);
+        logger_1.logger.info('[CartController] getCart - req.user exists:', !!req.user);
         if (req.user) {
-            console.log('[CartController] getCart - req.user._id exists:', !!req.user._id);
-            console.log('[CartController] getCart - req.user._id value:', req.user._id);
+            logger_1.logger.info('[CartController] getCart - req.user._id exists:', !!req.user._id);
+            logger_1.logger.info('[CartController] getCart - req.user._id value:', req.user._id);
         }
         if (!req.user || !req.user._id) {
-            console.log('[CartController] getCart - returning 401 Unauthorized');
+            logger_1.logger.info('[CartController] getCart - returning 401 Unauthorized');
             return res.status(401).json({ message: "Unauthorized" });
         }
         const userId = req.user._id.toString();
-        console.log('[CartController] getCart - userId:', userId);
+        logger_1.logger.info('[CartController] getCart - userId:', userId);
         const result = await cartService.getCart(userId);
-        console.log('[CartController] getCart - result:', result);
+        logger_1.logger.info('[CartController] getCart - result:', result);
         res.json(result);
     }
     catch (error) {
-        console.log('[CartController] getCart - error:', error);
+        logger_1.logger.info('[CartController] getCart - error:', error);
         const message = error instanceof Error ? error.message : "Failed to fetch cart";
         // Return specific status codes based on error type
         if (message === "Invalid user identifier") {

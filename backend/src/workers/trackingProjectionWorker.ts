@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 import { connectDB } from "../utils/database";
 import { startTrackingProjectionWorker } from "../domains/tracking/workers/trackingProjectionWorker";
 
@@ -10,6 +11,6 @@ async function main() {
 }
 
 void main().catch((e) => {
-  console.error("Failed to start tracking projection worker", e);
+  logger.error("Failed to start tracking projection worker", e);
   process.exit(1);
 });

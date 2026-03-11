@@ -34,6 +34,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CartService = void 0;
+const logger_1 = require("../../../utils/logger");
 const CartRepository_1 = require("../repositories/CartRepository");
 const ProductRepository_1 = require("../repositories/ProductRepository");
 const CartUtils_1 = require("../utils/CartUtils");
@@ -43,20 +44,20 @@ class CartService {
         this.productRepository = new ProductRepository_1.ProductRepository();
     }
     async getCart(userId) {
-        console.log('[CartService] getCart - userId:', userId);
+        logger_1.logger.info('[CartService] getCart - userId:', userId);
         // Validate userId before proceeding
         if (!userId || userId === 'undefined' || userId === 'null') {
-            console.log('[CartService] getCart - invalid userId, throwing error');
+            logger_1.logger.info('[CartService] getCart - invalid userId, throwing error');
             throw new Error("Invalid user identifier");
         }
         let cart = await this.cartRepository.findByUserIdWithPopulate(userId);
-        console.log('[CartService] getCart - cart found:', !!cart);
+        logger_1.logger.info('[CartService] getCart - cart found:', !!cart);
         if (cart) {
-            console.log('[CartService] getCart - cart items count:', cart.items?.length || 0);
+            logger_1.logger.info('[CartService] getCart - cart items count:', cart.items?.length || 0);
         }
         // For GET requests, return empty cart response without creating DB record
         if (!cart) {
-            console.log('[CartService] getCart - no cart found, returning empty response');
+            logger_1.logger.info('[CartService] getCart - no cart found, returning empty response');
             return {
                 cart: {
                     items: [],
@@ -79,7 +80,7 @@ class CartService {
         });
         const hadDeletedItems = cleanedFormattedItems.length !== formattedItems.length;
         if (hadDeletedItems) {
-            console.log('[CartService] getCart - removing items whose products were deleted by admin');
+            logger_1.logger.info('[CartService] getCart - removing items whose products were deleted by admin');
             cart.items = originalItems.filter((_, index) => validIndexes.includes(index));
         }
         const totals = (0, CartUtils_1.calculateCartTotals)(cleanedFormattedItems);
@@ -95,8 +96,8 @@ class CartService {
                 itemCount: totals.itemCount,
             },
         };
-        console.log('[CartService] getCart - returning result with items:', result.cart.items.length);
-        console.log('[CartService] getCart - totalAmount:', result.cart.totalAmount);
+        logger_1.logger.info('[CartService] getCart - returning result with items:', result.cart.items.length);
+        logger_1.logger.info('[CartService] getCart - totalAmount:', result.cart.totalAmount);
         return result;
     }
     async addToCart(userId, request) {
@@ -114,7 +115,7 @@ class CartService {
         }
         // Verify product exists and is available for purchase
         const product = await this.productRepository.findById(productId);
-        console.log("[CART VALIDATION]", {
+        logger_1.logger.info("[CART VALIDATION]", {
             productId,
             productFound: !!product,
             isSellable: product?.isSellable,
@@ -125,7 +126,7 @@ class CartService {
             // Check if product exists but is unavailable
             const { Product } = await Promise.resolve().then(() => __importStar(require("../../../models/Product")));
             const rawProduct = await Product.findById(productId);
-            console.log("[CART VALIDATION] Raw product check:", {
+            logger_1.logger.info("[CART VALIDATION] Raw product check:", {
                 found: !!rawProduct,
                 isSellable: rawProduct?.isSellable,
                 deletedAt: rawProduct?.deletedAt,

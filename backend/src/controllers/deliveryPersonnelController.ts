@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 import { Request, Response } from "express";
 import { DeliveryBoy } from "../models/DeliveryBoy";
 import { User } from "../models/User";
@@ -21,7 +22,7 @@ export const getDeliveryPersonnel = async (
       deliveryBoys: deliveryBoys,
     });
   } catch (error) {
-    console.error("Error fetching delivery personnel:", error);
+    logger.error("Error fetching delivery personnel:", error);
     res.status(500).json({
       error: "Failed to load delivery personnel. Please try again later.",
     });
@@ -88,7 +89,7 @@ export const addDeliveryPersonnel = async (
       },
     });
   } catch (error) {
-    console.error("Error adding delivery personnel:", error);
+    logger.error("Error adding delivery personnel:", error);
     res.status(500).json({
       error: "Failed to add delivery personnel. Please try again later.",
     });
@@ -137,7 +138,7 @@ export const updateDeliveryPersonnel = async (
       },
     });
   } catch (error) {
-    console.error("Error updating delivery personnel:", error);
+    logger.error("Error updating delivery personnel:", error);
     res.status(500).json({
       error: "Failed to update delivery personnel. Please try again later.",
     });
@@ -175,7 +176,7 @@ export const deleteDeliveryPersonnel = async (
       message: "Delivery personnel deleted successfully",
     });
   } catch (error) {
-    console.error("Error deleting delivery personnel:", error);
+    logger.error("Error deleting delivery personnel:", error);
     res.status(500).json({
       error: "Failed to delete delivery personnel. Please try again later.",
     });
@@ -227,7 +228,7 @@ export const updateDeliveryBoyLocation = async (
       location: deliveryBoy.currentLocation,
     });
   } catch (error) {
-    console.error("Error updating delivery boy location:", error);
+    logger.error("Error updating delivery boy location:", error);
     res.status(500).json({
       error: "Failed to update location. Please try again later.",
     });
@@ -259,7 +260,7 @@ export const getDeliveryBoyRoute = async (
       route,
     });
   } catch (error) {
-    console.error("Error fetching delivery boy route:", error);
+    logger.error("Error fetching delivery boy route:", error);
     res.status(500).json({
       error: "Failed to fetch route. Please try again later.",
     });
@@ -284,7 +285,7 @@ export const clearDeliveryBoyRoute = async (
       message: "Route cleared successfully",
     });
   } catch (error) {
-    console.error("Error clearing delivery boy route:", error);
+    logger.error("Error clearing delivery boy route:", error);
     res.status(500).json({
       error: "Failed to clear route. Please try again later.",
     });

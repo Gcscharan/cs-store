@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger';
 import { UserRepository } from "../repositories/UserRepository";
 
 export interface UserProfileData {
@@ -43,7 +44,7 @@ export class UserProfileService {
         updatedAt: user.updatedAt,
       };
     } catch (error) {
-      console.error("Error fetching user profile:", error);
+      logger.error("Error fetching user profile:", error);
       throw error;
     }
   }
@@ -77,7 +78,7 @@ export class UserProfileService {
         },
       };
     } catch (error) {
-      console.error("Error updating user profile:", error);
+      logger.error("Error updating user profile:", error);
       throw error;
     }
   }

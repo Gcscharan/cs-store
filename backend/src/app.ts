@@ -1,3 +1,4 @@
+import { logger } from './utils/logger';
 import express, { Application } from "express";
 import cors from "cors";
 import passport from "passport";
@@ -55,7 +56,7 @@ import paymentWebhooksRoutes from "./domains/payments/routes/webhooks.routes";
 import invoiceRoutes from "./domains/invoice/routes/invoice.routes";
 import orderTrackingRoutes from "./routes/orderTracking";
 
-console.log("✅ App.ts loaded");
+logger.info("✅ App.ts loaded");
 
 initializeSentry();
 

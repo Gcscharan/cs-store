@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger';
 import { EventEmitter } from "events";
 import type { LocationSampleV1 } from "./locationSampleV1";
 
@@ -54,7 +55,7 @@ function createInMemoryTrackingEventStream(): TrackingEventStream {
     async subscribeLocationSampleV1(handler) {
       const fn = (msg: TrackingStreamMessage<LocationSampleV1>) => {
         handler(msg).catch((err) => {
-          console.error("[TRACKING_HANDLER_ERROR]", err);
+          logger.error("[TRACKING_HANDLER_ERROR]", err);
         });
       };
       bus.on("tracking.location_sample.v1", fn);

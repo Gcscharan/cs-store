@@ -1,3 +1,4 @@
+import { logger } from './logger';
 import { Resend } from "resend";
 
 const resend = new Resend(
@@ -13,17 +14,17 @@ export const sendDeliveryOtpEmail = async (
 
   // Console fallback for development
   if (isDevelopment) {
-    console.log("=".repeat(80));
-    console.log("📧 DELIVERY OTP EMAIL SENT (CONSOLE MODE)");
-    console.log("=".repeat(80));
-    console.log(`📧 To: ${email}`);
-    console.log(`📦 Order ID: ${orderId}`);
-    console.log(`🔑 OTP: ${otp}`);
-    console.log(`⏰ Valid for: 10 minutes`);
-    console.log(`📅 Time: ${new Date().toLocaleString()}`);
-    console.log("=".repeat(80));
-    console.log("✅ Share this OTP with your delivery person for order verification");
-    console.log("=".repeat(80));
+    logger.info("=".repeat(80));
+    logger.info("📧 DELIVERY OTP EMAIL SENT (CONSOLE MODE)");
+    logger.info("=".repeat(80));
+    logger.info(`📧 To: ${email}`);
+    logger.info(`📦 Order ID: ${orderId}`);
+    logger.info(`🔑 OTP: ${otp}`);
+    logger.info(`⏰ Valid for: 10 minutes`);
+    logger.info(`📅 Time: ${new Date().toLocaleString()}`);
+    logger.info("=".repeat(80));
+    logger.info("✅ Share this OTP with your delivery person for order verification");
+    logger.info("=".repeat(80));
     return;
   }
 
@@ -89,28 +90,28 @@ export const sendDeliveryOtpEmail = async (
     });
 
     if (error) {
-      console.error("❌ Resend email error:", error);
+      logger.error("❌ Resend email error:", error);
       // Fall back to console
-      console.log("=".repeat(80));
-      console.log("📧 DELIVERY OTP EMAIL (FALLBACK - RESEND FAILED)");
-      console.log("=".repeat(80));
-      console.log(`📧 To: ${email}`);
-      console.log(`📦 Order ID: ${orderId}`);
-      console.log(`🔑 OTP: ${otp}`);
-      console.log("=".repeat(80));
+      logger.info("=".repeat(80));
+      logger.info("📧 DELIVERY OTP EMAIL (FALLBACK - RESEND FAILED)");
+      logger.info("=".repeat(80));
+      logger.info(`📧 To: ${email}`);
+      logger.info(`📦 Order ID: ${orderId}`);
+      logger.info(`🔑 OTP: ${otp}`);
+      logger.info("=".repeat(80));
       return;
     }
 
-    console.log(`✅ Delivery OTP email sent successfully to ${email} via Resend`);
+    logger.info(`✅ Delivery OTP email sent successfully to ${email} via Resend`);
   } catch (error) {
-    console.error("❌ Error sending delivery OTP email:", error);
+    logger.error("❌ Error sending delivery OTP email:", error);
     // Fall back to console
-    console.log("=".repeat(80));
-    console.log("📧 DELIVERY OTP EMAIL (FALLBACK - ERROR)");
-    console.log("=".repeat(80));
-    console.log(`📧 To: ${email}`);
-    console.log(`📦 Order ID: ${orderId}`);
-    console.log(`🔑 OTP: ${otp}`);
-    console.log("=".repeat(80));
+    logger.info("=".repeat(80));
+    logger.info("📧 DELIVERY OTP EMAIL (FALLBACK - ERROR)");
+    logger.info("=".repeat(80));
+    logger.info(`📧 To: ${email}`);
+    logger.info(`📦 Order ID: ${orderId}`);
+    logger.info(`🔑 OTP: ${otp}`);
+    logger.info("=".repeat(80));
   }
 };

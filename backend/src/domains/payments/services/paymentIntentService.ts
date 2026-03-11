@@ -113,7 +113,7 @@ export async function createRazorpayPaymentIntent(args: {
       "userId orderStatus totalAmount deliveryFee itemsTotal grandTotal paymentStatus items"
     );
     if (!order) {
-      console.error("[PI][ORDER_NOT_FOUND]", {
+      logger.error("[PI][ORDER_NOT_FOUND]", {
         orderId: String(args.orderId || ""),
       });
       const err: any = new Error("Order not found");
@@ -142,7 +142,7 @@ export async function createRazorpayPaymentIntent(args: {
     });
 
   if (typeof (order as any).totalAmount !== "number") {
-    console.error("[PI][AMOUNT_CHECK]", {
+    logger.error("[PI][AMOUNT_CHECK]", {
       orderId: String((order as any)._id || args.orderId),
       totalAmount: (order as any).totalAmount,
       grandTotal: (order as any).grandTotal,
@@ -155,7 +155,7 @@ export async function createRazorpayPaymentIntent(args: {
   }
 
   if (String(order.userId) !== String(args.userId)) {
-    console.error("[PI][USER_MISMATCH]", {
+    logger.error("[PI][USER_MISMATCH]", {
       orderId: String((order as any)._id || args.orderId),
       orderUserId: String((order as any).userId || ""),
       requestUserId: String(args.userId || ""),
@@ -174,7 +174,7 @@ export async function createRazorpayPaymentIntent(args: {
     });
 
     if (ps === "PAID") {
-    console.error("[PI][ELIGIBILITY_CHECK]", {
+    logger.error("[PI][ELIGIBILITY_CHECK]", {
       orderId: String((order as any)._id || args.orderId),
       reason: "ALREADY_PAID",
       paymentStatus: ps,
@@ -190,7 +190,7 @@ export async function createRazorpayPaymentIntent(args: {
     (allowNonPendingInTest || ps === "PENDING") &&
     (os === "CREATED" || os === "PENDING" || os === "PENDING_PAYMENT");
   if (!isEligibleStatus) {
-    console.error("[PI][ELIGIBILITY_CHECK]", {
+    logger.error("[PI][ELIGIBILITY_CHECK]", {
       orderId: String((order as any)._id || args.orderId),
       reason: "INELIGIBLE_STATUS",
       paymentStatus: ps,
@@ -323,7 +323,7 @@ export async function createRazorpayPaymentIntent(args: {
     });
 
   if (!Number.isFinite(payableAmount) || !Number.isFinite(amountInPaise) || amountInPaise <= 0) {
-    console.error("[PI][AMOUNT_CHECK]", {
+    logger.error("[PI][AMOUNT_CHECK]", {
       orderId: String((order as any)._id || args.orderId),
       userId: String((order as any).userId || ""),
       paymentStatus: (order as any).paymentStatus,
@@ -344,7 +344,7 @@ export async function createRazorpayPaymentIntent(args: {
   }
 
   if (amountInPaise < 100) {
-    console.error("[PI][AMOUNT_CHECK]", {
+    logger.error("[PI][AMOUNT_CHECK]", {
       orderId: String((order as any)._id || args.orderId),
       reason: "BELOW_MINIMUM",
       amountInPaise,
@@ -361,7 +361,7 @@ export async function createRazorpayPaymentIntent(args: {
   const razorpayKeyId = String(process.env.RAZORPAY_KEY_ID || (isTest ? "rzp_test_key" : "")).trim();
   const razorpayKeySecret = String(process.env.RAZORPAY_KEY_SECRET || (isTest ? "rzp_test_secret" : "")).trim();
   if (!razorpayKeyId || !razorpayKeySecret) {
-    console.error("[PI][CONFIG]", {
+    logger.error("[PI][CONFIG]", {
       reason: "RAZORPAY_KEYS_MISSING",
       hasKeyId: !!razorpayKeyId,
       hasKeySecret: !!razorpayKeySecret,
@@ -469,7 +469,7 @@ export async function createRazorpayPaymentIntent(args: {
       payload: gatewayCreatePayload,
     });
 
-    console.log("[CHECK-6] Razorpay order creation about to happen");
+    logger.info("[CHECK-6] Razorpay order creation about to happen");
     
     let created: any;
     try {
@@ -482,7 +482,7 @@ export async function createRazorpayPaymentIntent(args: {
               currency,
             }
           : await razorpay.orders.create(gatewayCreatePayload);
-      console.log("[CHECK-7] Razorpay order created:", String(created?.id || ""));
+      logger.info("[CHECK-7] Razorpay order created:", String(created?.id || ""));
     } catch (razorpayError: any) {
       // Check if this is a provider unavailability error
       if (isProviderUnavailableError(razorpayError)) {
@@ -530,7 +530,7 @@ export async function createRazorpayPaymentIntent(args: {
 
     const gatewayOrderId = String(created?.id || "");
     if (!gatewayOrderId) {
-      console.error("[PI][GATEWAY_CREATE_FAILED]", {
+      logger.error("[PI][GATEWAY_CREATE_FAILED]", {
         orderId: String(args.orderId || ""),
         reason: "NO_ORDER_ID_IN_RESPONSE",
         response: created,
@@ -589,7 +589,7 @@ export async function createRazorpayPaymentIntent(args: {
       checkoutPayload,
     };
   } catch (e: any) {
-    console.error("[PI][GATEWAY_CREATE_FAILED]", {
+    logger.error("[PI][GATEWAY_CREATE_FAILED]", {
       orderId: String(args.orderId || ""),
       paymentIntentId: String((intent as any)?._id || ""),
       statusCode: Number(e?.statusCode) || Number(e?.response?.status) || undefined,
@@ -640,7 +640,7 @@ export async function createRazorpayPaymentIntent(args: {
           ? "PaymentIntent rejected by backend (unknown guard)"
           : "Payment intent failed";
 
-    console.error("[PI][FATAL_THROW]", {
+    logger.error("[PI][FATAL_THROW]", {
       orderId: String(args.orderId || ""),
       statusCode,
       message,
@@ -648,7 +648,7 @@ export async function createRazorpayPaymentIntent(args: {
       rawError: e,
     });
 
-    console.error("[PI][FAIL]", {
+    logger.error("[PI][FAIL]", {
       orderId: String(args.orderId || ""),
       message,
       statusCode,

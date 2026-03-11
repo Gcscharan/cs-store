@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger';
 import type { Request, Response } from "express";
 
 import { executeRecoveryAction } from "../recoveryExecution/recoveryExecutionService";
@@ -74,7 +75,7 @@ export async function postPaymentRecoveryExecute(req: Request, res: Response) {
     if (status === 404) return res.status(404).json({ error: "NOT_FOUND" });
     if (status === 409) return res.status(409).json({ error: "INVALID_STATE_TRANSITION" });
 
-    console.log(
+    logger.info(
       `[PaymentRecoveryExecute] intent=${paymentIntentId} action=${action || ""} error=${code}`
     );
     return res.status(500).json({ error: "INTERNAL_ERROR" });

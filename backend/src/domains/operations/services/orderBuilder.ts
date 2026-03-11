@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger';
 import mongoose from "mongoose";
 import { Cart } from "../../../models/Cart";
 import { Order } from "../../../models/Order";
@@ -140,36 +141,36 @@ export async function createOrderFromCart(params: {
   // ============================================================
   // DEBUG: Trace user and addresses in checkout
   // ============================================================
-  console.log("\n" + "=".repeat(60));
-  console.log("=== CHECKOUT DEBUG START ===");
-  console.log("Checkout User ID:", user._id.toString());
-  console.log("Total Addresses Count:", (user.addresses || []).length);
-  console.log("All User Addresses:");
+  logger.info("\n" + "=".repeat(60));
+  logger.info("=== CHECKOUT DEBUG START ===");
+  logger.info("Checkout User ID:", user._id.toString());
+  logger.info("Total Addresses Count:", (user.addresses || []).length);
+  logger.info("All User Addresses:");
   (user.addresses || []).forEach((addr: any, idx: number) => {
-    console.log(`  [${idx}] ID: ${addr._id}`);
-    console.log(`      Label: ${addr.label}`);
-    console.log(`      isDefault: ${addr.isDefault}`);
-    console.log(`      lat: ${addr.lat} (type: ${typeof addr.lat})`);
-    console.log(`      lng: ${addr.lng} (type: ${typeof addr.lng})`);
+    logger.info(`  [${idx}] ID: ${addr._id}`);
+    logger.info(`      Label: ${addr.label}`);
+    logger.info(`      isDefault: ${addr.isDefault}`);
+    logger.info(`      lat: ${addr.lat} (type: ${typeof addr.lat})`);
+    logger.info(`      lng: ${addr.lng} (type: ${typeof addr.lng})`);
   });
-  console.log("=".repeat(60));
+  logger.info("=".repeat(60));
 
   const defaultAddress = (user.addresses || []).find((a: any) => a.isDefault);
   
-  console.log("\n=== DEFAULT ADDRESS SELECTION ===");
+  logger.info("\n=== DEFAULT ADDRESS SELECTION ===");
   if (defaultAddress) {
-    console.log("Found Default Address:");
-    console.log("  ID:", defaultAddress._id?.toString());
-    console.log("  Label:", defaultAddress.label);
-    console.log("  isDefault:", defaultAddress.isDefault);
-    console.log("  lat:", defaultAddress.lat, "(type:", typeof defaultAddress.lat, ")");
-    console.log("  lng:", defaultAddress.lng, "(type:", typeof defaultAddress.lng, ")");
+    logger.info("Found Default Address:");
+    logger.info("  ID:", defaultAddress._id?.toString());
+    logger.info("  Label:", defaultAddress.label);
+    logger.info("  isDefault:", defaultAddress.isDefault);
+    logger.info("  lat:", { lat: defaultAddress.lat, type: typeof defaultAddress.lat });
+    logger.info("  lng:", { lng: defaultAddress.lng, type: typeof defaultAddress.lng });
   } else {
-    console.log("NO DEFAULT ADDRESS FOUND!");
-    console.log("This means no address has isDefault: true");
+    logger.info("NO DEFAULT ADDRESS FOUND!");
+    logger.info("This means no address has isDefault: true");
   }
-  console.log("=== CHECKOUT DEBUG END ===");
-  console.log("=".repeat(60) + "\n");
+  logger.info("=== CHECKOUT DEBUG END ===");
+  logger.info("=".repeat(60) + "\n");
 
   if (!defaultAddress) {
     const err: any = new Error("Default address is required");
@@ -181,7 +182,7 @@ export async function createOrderFromCart(params: {
   const addr = (defaultAddress as any).toObject ? (defaultAddress as any).toObject() : defaultAddress;
 
   // DEBUG: Log the address being validated
-  console.log("[ORDER VALIDATION] Address being validated:", JSON.stringify({
+  logger.info("[ORDER VALIDATION] Address being validated:", JSON.stringify({
     _id: addr._id,
     name: addr.name,
     pincode: addr.pincode,
@@ -227,21 +228,21 @@ export async function createOrderFromCart(params: {
   // 5a. Validate pincode is in serviceable area (ADDR-007)
   // This check prevents orders from outside our delivery zone
   if (!isPincodeServiceable(String(addr.pincode))) {
-    console.error("[ORDER VALIDATION] FAILED - Pincode not serviceable:", addr.pincode);
+    logger.error("[ORDER VALIDATION] FAILED - Pincode not serviceable:", addr.pincode);
     const err: any = new Error("Delivery not available to this pincode");
     err.statusCode = 400;
     throw err;
   }
-  console.log("[ORDER VALIDATION] ✓ Pincode is serviceable:", addr.pincode);
+  logger.info("[ORDER VALIDATION] ✓ Pincode is serviceable:", addr.pincode);
 
   // 6. Validate coordinates
   if (!hasValidCoordinates(addr)) {
-    console.error("[ORDER VALIDATION] FAILED - Invalid coordinates:", { lat: addr.lat, lng: addr.lng });
+    logger.error("[ORDER VALIDATION] FAILED - Invalid coordinates:", { lat: addr.lat, lng: addr.lng });
     const err: any = new Error("Address coordinates are missing");
     err.statusCode = 400;
     throw err;
   }
-  console.log("[ORDER VALIDATION] ✓ Coordinates validated successfully");
+  logger.info("[ORDER VALIDATION] ✓ Coordinates validated successfully");
 
   // 7. Validate pincode serviceability
   const resolved = await resolvePincodeDetails(String(addr.pincode));
@@ -423,12 +424,12 @@ export async function createOrderFromCart(params: {
     !Number.isFinite(addressSnapshot.lat) ||
     !Number.isFinite(addressSnapshot.lng)
   ) {
-    console.error("[ORDER VALIDATION] KILL-SWITCH triggered - Invalid coordinates in snapshot:", addressSnapshot);
+    logger.error("[ORDER VALIDATION] KILL-SWITCH triggered - Invalid coordinates in snapshot:", addressSnapshot);
     const err: any = new Error("Address coordinates are missing");
     err.statusCode = 400;
     throw err;
   }
-  console.log("[ORDER VALIDATION] ✓ Kill-switch passed - coordinates confirmed:", { lat: addressSnapshot.lat, lng: addressSnapshot.lng });
+  logger.info("[ORDER VALIDATION] ✓ Kill-switch passed - coordinates confirmed:", { lat: addressSnapshot.lat, lng: addressSnapshot.lng });
 
   // ============================================================
   // PHASE 2: TRANSACTION (ONLY FOR DB PERSISTENCE)
@@ -457,7 +458,7 @@ export async function createOrderFromCart(params: {
       !Number.isFinite(addressSnapshot.lat) ||
       !Number.isFinite(addressSnapshot.lng)
     ) {
-      console.error("[ORDER CREATION] BLOCKED - Invalid coordinates in addressSnapshot:", addressSnapshot);
+      logger.error("[ORDER CREATION] BLOCKED - Invalid coordinates in addressSnapshot:", addressSnapshot);
       const err: any = new Error("Address coordinates are missing");
       err.statusCode = 400;
       throw err;
@@ -496,7 +497,7 @@ export async function createOrderFromCart(params: {
       };
     }
 
-    console.log('📦 [OrderBuilder] Order object before save:', {
+    logger.info('📦 [OrderBuilder] Order object before save:', {
       distanceKm: order.distanceKm,
       coordsSource: order.coordsSource,
       deliveryFee: order.deliveryFee,
@@ -506,7 +507,7 @@ export async function createOrderFromCart(params: {
     try {
       await order.save({ session: s });
     } catch (saveError: any) {
-      console.error('❌ [OrderBuilder] Order save failed:', {
+      logger.error('❌ [OrderBuilder] Order save failed:', {
         error: saveError.message,
         validationErrors: saveError.errors,
       });
@@ -565,7 +566,7 @@ export async function createOrderFromCart(params: {
         { session: s }
       );
     } catch (e) {
-      console.error("[OrderBuilder] failed to publish ORDER_CREATED", e);
+      logger.error("[OrderBuilder] failed to publish ORDER_CREATED", e);
     }
 
     return { order, created: true };

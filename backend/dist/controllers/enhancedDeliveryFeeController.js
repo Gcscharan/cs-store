@@ -1,9 +1,4 @@
 "use strict";
-/**
- * Enhanced Delivery Fee Controller
- * Handles API requests for delivery fee calculation
- * Automatically fetches user's default address from database
- */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     var desc = Object.getOwnPropertyDescriptor(m, k);
@@ -39,6 +34,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.clearDeliveryFeeCache = exports.estimateDeliveryFee = exports.getDeliveryFeeConfig = exports.calculateDeliveryFeeForSpecificAddress = exports.calculateDeliveryFeeForUser = void 0;
+const logger_1 = require("../utils/logger");
 const User_1 = require("../models/User");
 const deliveryFeeService_1 = require("../services/deliveryFeeService");
 /**
@@ -107,7 +103,7 @@ const calculateDeliveryFeeForUser = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Error calculating delivery fee:", error);
+        logger_1.logger.error("Error calculating delivery fee:", error);
         res.status(500).json({
             success: false,
             message: error.message || "Failed to calculate delivery fee",
@@ -181,7 +177,7 @@ const calculateDeliveryFeeForSpecificAddress = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Error calculating delivery fee:", error);
+        logger_1.logger.error("Error calculating delivery fee:", error);
         res.status(500).json({
             success: false,
             message: error.message || "Failed to calculate delivery fee",
@@ -218,7 +214,7 @@ const getDeliveryFeeConfig = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Error fetching delivery fee config:", error);
+        logger_1.logger.error("Error fetching delivery fee config:", error);
         res.status(500).json({
             success: false,
             message: "Failed to fetch delivery fee configuration",
@@ -257,7 +253,7 @@ const estimateDeliveryFee = async (req, res) => {
         const pincodeRecord = await Pincode.findOne({
             $or: [{ pincode: pincodeStr }, { pincode: Number(pincodeStr) }],
         }).lean();
-        console.log("[DELIVERY ESTIMATE DEBUG]", {
+        logger_1.logger.info("[DELIVERY ESTIMATE DEBUG]", {
             requestPincode: pincode,
             normalized: pincodeStr,
             found: !!pincodeRecord,
@@ -295,13 +291,13 @@ const estimateDeliveryFee = async (req, res) => {
                 111.32) *
                 10) / 10
             : NaN;
-        console.log("[DELIVERY DISTANCE]", {
+        logger_1.logger.info("[DELIVERY DISTANCE]", {
             warehouse,
             destination: { lat: tempAddress.lat, lng: tempAddress.lng, pincode: tempAddress.pincode },
             distanceKm,
         });
         if (!Number.isFinite(distanceKm) || distanceKm < 0) {
-            console.error("[DELIVERY DISTANCE ERROR]", { distanceKm });
+            logger_1.logger.error("[DELIVERY DISTANCE ERROR]", { distanceKm });
             res.status(500).json({ message: "Invalid distance calculation" });
             return;
         }
@@ -320,7 +316,7 @@ const estimateDeliveryFee = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Error estimating delivery fee:", error);
+        logger_1.logger.error("Error estimating delivery fee:", error);
         res.status(500).json({
             success: false,
             message: error.message || "Failed to estimate delivery fee",
@@ -357,7 +353,7 @@ const clearDeliveryFeeCache = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Error clearing cache:", error);
+        logger_1.logger.error("Error clearing cache:", error);
         res.status(500).json({
             success: false,
             message: "Failed to clear cache",

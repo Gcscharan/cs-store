@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger';
 import { Request, Response } from "express";
 import { Product } from "../../../models/Product";
 import { normalizeProductImages } from "./productController";
@@ -24,7 +25,7 @@ export const debugProductImages = async (req: Request, res: Response) => {
       normalizedImages: normalized
     });
   } catch (err) {
-    console.error("Debug Error:", err);
+    logger.error("Debug Error:", err);
     return res.status(500).json({ message: "Server Error", error: err });
   }
 };

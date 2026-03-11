@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.debugProductImages = exports.getSimilarProducts = exports.deleteProduct = exports.updateProduct = exports.createProduct = exports.getProductById = exports.getProducts = exports.getCategories = void 0;
 exports.normalizeProductImages = normalizeProductImages;
+const logger_1 = require("../../../utils/logger");
 const Product_1 = require("../../../models/Product");
 const MediaImageService_1 = require("../../media/services/MediaImageService");
 const cache_1 = require("../../../middleware/cache");
@@ -68,7 +69,7 @@ exports.getCategories = getCategories;
 const getProducts = async (req, res) => {
     try {
         const { limit = 10, page = 1, category, minPrice, maxPrice, sortBy, sortOrder, search, tags, } = req.query;
-        console.log('🔍 [GetProducts] Request received:', {
+        logger_1.logger.info('🔍 [GetProducts] Request received:', {
             limit,
             page,
             category,
@@ -130,7 +131,7 @@ const getProducts = async (req, res) => {
                 return res.json(cached);
             }
         }
-        console.log('📊 [GetProducts] Query built:', { filter, sort });
+        logger_1.logger.info('📊 [GetProducts] Query built:', { filter, sort });
         // Execute query
         const products = await Product_1.Product.find(filter)
             .sort(sort)
@@ -162,7 +163,7 @@ const getProducts = async (req, res) => {
         return res.json(responseData);
     }
     catch (error) {
-        console.error("❌ [GetProducts] Error:", error);
+        logger_1.logger.error("❌ [GetProducts] Error:", error);
         const err = error;
         res.status(500).json({ message: "Server error", error: err?.message || String(err) });
     }
@@ -176,7 +177,7 @@ const getProductById = async (req, res) => {
         if (cached && cached._id) {
             return res.json(cached);
         }
-        console.log('🔍 [GetProductById] Request received:', { id });
+        logger_1.logger.info('🔍 [GetProductById] Request received:', { id });
         // Validate ID using mongoose.isValidObjectId
         const mongoose = require("mongoose");
         if (!mongoose.isValidObjectId(id)) {
@@ -185,12 +186,12 @@ const getProductById = async (req, res) => {
         // Fetch from MongoDB
         const product = await Product_1.Product.findOne({ _id: id, ...SELLABLE_PRODUCT_FILTER });
         if (!product) {
-            console.log('❌ [GetProductById] Product not found in DB:', id);
+            logger_1.logger.info('❌ [GetProductById] Product not found in DB:', id);
             return res.status(404).json({ message: "Product not found" });
         }
         // Analyze image structure
         const images = product.images || [];
-        console.log('🖼️ [GetProductById] Product images analysis:', {
+        logger_1.logger.info('🖼️ [GetProductById] Product images analysis:', {
             productId: id,
             productName: product.name,
             imagesCount: images.length,
@@ -201,7 +202,7 @@ const getProductById = async (req, res) => {
         const clean = product.toObject ? product.toObject() : product;
         const normalizedProduct = await normalizeProductImages(clean);
         void (0, productReadCache_1.cacheSetJson)(cacheKey, normalizedProduct, 120);
-        console.log('✅ [GetProductById] Response prepared:', {
+        logger_1.logger.info('✅ [GetProductById] Response prepared:', {
             productId: id,
             normalizedImagesCount: normalizedProduct.images.length,
             firstImage: normalizedProduct.images[0] || null
@@ -209,7 +210,7 @@ const getProductById = async (req, res) => {
         res.json(normalizedProduct);
     }
     catch (error) {
-        console.error("❌ [GetProductById] Error:", error);
+        logger_1.logger.error("❌ [GetProductById] Error:", error);
         res.status(500).json({ message: "Failed to fetch product" });
     }
 };
@@ -218,9 +219,9 @@ exports.getProductById = getProductById;
 const createProduct = async (req, res) => {
     try {
         const files = req.files || [];
-        console.log('🔥 Incoming headers:', req.headers);
-        console.log('🔥 Incoming body:', req.body);
-        console.log('🔥 Incoming files count:', files.length);
+        logger_1.logger.info('🔥 Incoming headers:', req.headers);
+        logger_1.logger.info('🔥 Incoming body:', req.body);
+        logger_1.logger.info('🔥 Incoming files count:', files.length);
         const parseNumberField = (value) => {
             if (value === undefined || value === null)
                 return undefined;
@@ -231,7 +232,7 @@ const createProduct = async (req, res) => {
         };
         // Basic validation
         const filtered = files.filter(f => f && (f.size ?? 0) > 0 && /^image\/(jpeg|png|webp|avif)$/.test((f.mimetype ?? '')));
-        console.log('🔥 Valid files after filter (size>0 & image mimetype):', filtered.map(f => ({ name: f.originalname, size: f.size, mime: f.mimetype })));
+        logger_1.logger.info('🔥 Valid files after filter (size>0 & image mimetype):', filtered.map(f => ({ name: f.originalname, size: f.size, mime: f.mimetype })));
         if (filtered.length === 0) {
             return res.status(400).json({ message: 'No valid images uploaded (empty or invalid mimetype)' });
         }
@@ -285,7 +286,7 @@ const createProduct = async (req, res) => {
                 uploadedImages = await mediaService.uploadBuffersWithVariants(buffers, { folder: 'products' });
             }
             catch (err) {
-                console.error('❌ Media upload failed:', err);
+                logger_1.logger.error('❌ Media upload failed:', err);
                 return res.status(500).json({ message: 'Cloudinary upload failed', error: err?.message ?? String(err) });
             }
             imageDocs = uploadedImages.map((img) => ({
@@ -317,7 +318,7 @@ const createProduct = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("CREATE PRODUCT ERROR:", error);
+        logger_1.logger.error("CREATE PRODUCT ERROR:", error);
         if (error?.name === "ValidationError" && error?.errors) {
             const fieldErrors = {};
             for (const [field, err] of Object.entries(error.errors)) {
@@ -342,7 +343,7 @@ const updateProduct = async (req, res) => {
     try {
         const { id } = req.params;
         const { images, ...updateData } = req.body;
-        console.log('🔍 [UpdateProduct] Request received:', {
+        logger_1.logger.info('🔍 [UpdateProduct] Request received:', {
             productId: id,
             imagesCount: (images || []).length,
             hasImages: !!(images && images.length > 0)
@@ -371,15 +372,15 @@ const updateProduct = async (req, res) => {
             runValidators: true,
         });
         if (!product) {
-            console.log('❌ [UpdateProduct] Product not found:', id);
+            logger_1.logger.info('❌ [UpdateProduct] Product not found:', id);
             return res.status(404).json({ message: "Product not found" });
         }
-        console.log('✅ [UpdateProduct] Product updated successfully:', {
+        logger_1.logger.info('✅ [UpdateProduct] Product updated successfully:', {
             productId: id,
             imagesCount: (product.images || []).length
         });
         // Search indexing disabled (Algolia not configured)
-        console.log('📝 [UpdateProduct] Search indexing disabled');
+        logger_1.logger.info('📝 [UpdateProduct] Search indexing disabled');
         await cache_1.invalidateCache.product(id);
         res.json({
             message: "Product updated successfully",
@@ -387,7 +388,7 @@ const updateProduct = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("❌ [UpdateProduct] Error:", error);
+        logger_1.logger.error("❌ [UpdateProduct] Error:", error);
         const err = error;
         res.status(500).json({ message: "Server error", error: err?.message || String(err) });
     }
@@ -396,7 +397,7 @@ exports.updateProduct = updateProduct;
 const deleteProduct = async (req, res) => {
     try {
         const { id } = req.params;
-        console.log('🔍 [DeleteProduct] Request received:', { productId: id });
+        logger_1.logger.info('🔍 [DeleteProduct] Request received:', { productId: id });
         // Validate ID using mongoose.isValidObjectId
         const mongoose = require("mongoose");
         if (!mongoose.isValidObjectId(id)) {
@@ -404,15 +405,15 @@ const deleteProduct = async (req, res) => {
         }
         const product = await Product_1.Product.findOneAndUpdate({ _id: id, ...SELLABLE_PRODUCT_FILTER }, { $set: { isSellable: false, isActive: false, deletedAt: new Date() } }, { new: true });
         if (!product) {
-            console.log('❌ [DeleteProduct] Product not found:', id);
+            logger_1.logger.info('❌ [DeleteProduct] Product not found:', id);
             return res.status(404).json({ message: "Product not found" });
         }
-        console.log('✅ [DeleteProduct] Product deleted successfully:', {
+        logger_1.logger.info('✅ [DeleteProduct] Product deleted successfully:', {
             productId: id,
             productName: product.name
         });
         // Search indexing disabled (Algolia not configured)
-        console.log('🗑️ [DeleteProduct] Search indexing disabled');
+        logger_1.logger.info('🗑️ [DeleteProduct] Search indexing disabled');
         await cache_1.invalidateCache.product(id);
         res.json({
             message: "Product deleted successfully",
@@ -420,7 +421,7 @@ const deleteProduct = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("❌ [DeleteProduct] Error:", error);
+        logger_1.logger.error("❌ [DeleteProduct] Error:", error);
         const err = error;
         res.status(500).json({ message: "Server error", error: err?.message || String(err) });
     }
@@ -510,14 +511,14 @@ exports.getSimilarProducts = getSimilarProducts;
 const debugProductImages = async (req, res) => {
     try {
         const { id } = req.params;
-        console.log('🔍 [Debug] Checking product images for:', id);
+        logger_1.logger.info('🔍 [Debug] Checking product images for:', id);
         const product = await Product_1.Product.findOne({ _id: id, ...SELLABLE_PRODUCT_FILTER });
         if (!product) {
-            console.log('❌ [Debug] Product not found:', id);
+            logger_1.logger.info('❌ [Debug] Product not found:', id);
             return res.status(404).json({ message: "Product not found" });
         }
         const images = product.images || [];
-        console.log('📊 [Debug] Product image analysis:', {
+        logger_1.logger.info('📊 [Debug] Product image analysis:', {
             productId: id,
             imagesCount: images.length,
             rawImages: images
@@ -550,7 +551,7 @@ const debugProductImages = async (req, res) => {
                     (typeof img === 'object' && (!img.variants || !img.formats || !img.metadata))).length
             }
         };
-        console.log('✅ [Debug] Analysis complete:', analysis.summary);
+        logger_1.logger.info('✅ [Debug] Analysis complete:', analysis.summary);
         res.json({
             productId: id,
             productName: product.name,
@@ -558,7 +559,7 @@ const debugProductImages = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("❌ [Debug] Error:", error);
+        logger_1.logger.error("❌ [Debug] Error:", error);
         const err = error;
         res.status(500).json({ message: "Debug error", error: err?.message || String(err) });
     }

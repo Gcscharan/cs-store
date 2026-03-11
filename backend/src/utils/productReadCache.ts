@@ -1,3 +1,4 @@
+import { logger } from './logger';
 import crypto from "crypto";
 import redisClient from "../config/redis";
 
@@ -9,10 +10,10 @@ function warnOnce(msg: string, err?: unknown) {
   if (warnedOnce) return;
   warnedOnce = true;
   if (err) {
-    console.warn(msg, err);
+    logger.warn(msg, err);
     return;
   }
-  console.warn(msg);
+  logger.warn(msg);
 }
 
 function stableNormalize(value: unknown): unknown {

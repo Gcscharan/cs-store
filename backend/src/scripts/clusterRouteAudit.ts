@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 import mongoose from "mongoose";
 import * as dotenv from "dotenv";
 import { Client } from "@googlemaps/google-maps-services-js";
@@ -397,19 +398,19 @@ function percentDiff(current: number, best: number): number {
 async function main() {
   const { routeId } = parseArgs();
   if (!routeId) {
-    console.error("Usage: ts-node src/scripts/clusterRouteAudit.ts --routeId=<ROUTE_ID>");
+    logger.error("Usage: ts-node src/scripts/clusterRouteAudit.ts --routeId=<ROUTE_ID>");
     process.exit(1);
   }
 
   const MONGODB_URI = process.env.MONGODB_URI;
   if (!MONGODB_URI) {
-    console.error("❌ CRITICAL: MONGODB_URI environment variable is not set!");
+    logger.error("❌ CRITICAL: MONGODB_URI environment variable is not set!");
     process.exit(1);
   }
 
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
   if (!apiKey) {
-    console.error("❌ CRITICAL: GOOGLE_MAPS_API_KEY environment variable is not set!");
+    logger.error("❌ CRITICAL: GOOGLE_MAPS_API_KEY environment variable is not set!");
     process.exit(1);
   }
 
@@ -418,7 +419,7 @@ async function main() {
   try {
     const route = await PersistedRoute.findOne({ routeId }).lean();
     if (!route) {
-      console.error(`❌ Route not found: ${routeId}`);
+      logger.error(`❌ Route not found: ${routeId}`);
       process.exitCode = 1;
       return;
     }
@@ -565,20 +566,20 @@ async function main() {
       })),
     ];
 
-    console.log("\nCLUSTER ROUTE AUDIT REPORT");
-    console.log("-------------------------");
-    console.log(`RouteId: ${routeId}`);
-    console.log(`Warehouse: ${WAREHOUSE.lat},${WAREHOUSE.lng}`);
-    console.log(`Checkpoints: ${checkpoints.length}`);
-    console.log(`Current distance: ${CURRENT_ROUTE_METRICS.distanceKm.toFixed(2)} km`);
-    console.log(`Current time: ${CURRENT_ROUTE_METRICS.timeMin.toFixed(1)} min`);
-    console.log(`Current turns: ${CURRENT_ROUTE_METRICS.turns}`);
-    console.log(`Backtracking distance: ${CURRENT_ROUTE_METRICS.backtrackingDistanceKm.toFixed(2)} km`);
-    console.log(`Best alternative distance: ${bestDistance.toFixed(2)} km (${bestAlt.routeType})`);
-    console.log(`Deviation: ${deviationPct >= 0 ? "+" : ""}${deviationPct.toFixed(1)}%`);
-    console.log("");
+    logger.info("\nCLUSTER ROUTE AUDIT REPORT");
+    logger.info("-------------------------");
+    logger.info(`RouteId: ${routeId}`);
+    logger.info(`Warehouse: ${WAREHOUSE.lat},${WAREHOUSE.lng}`);
+    logger.info(`Checkpoints: ${checkpoints.length}`);
+    logger.info(`Current distance: ${CURRENT_ROUTE_METRICS.distanceKm.toFixed(2)} km`);
+    logger.info(`Current time: ${CURRENT_ROUTE_METRICS.timeMin.toFixed(1)} min`);
+    logger.info(`Current turns: ${CURRENT_ROUTE_METRICS.turns}`);
+    logger.info(`Backtracking distance: ${CURRENT_ROUTE_METRICS.backtrackingDistanceKm.toFixed(2)} km`);
+    logger.info(`Best alternative distance: ${bestDistance.toFixed(2)} km (${bestAlt.routeType})`);
+    logger.info(`Deviation: ${deviationPct >= 0 ? "+" : ""}${deviationPct.toFixed(1)}%`);
+    logger.info("");
 
-    console.log(prettyTable([
+    logger.info(prettyTable([
       { type: "Current", dist: CURRENT_ROUTE_METRICS.distanceKm, time: CURRENT_ROUTE_METRICS.timeMin, pct: "baseline" },
       ...alternates.map((a) => ({
         type: a.routeType,
@@ -588,37 +589,37 @@ async function main() {
       })),
     ]));
 
-    console.log("");
-    console.log(`VERDICT: ${verdictLabel}`);
+    logger.info("");
+    logger.info(`VERDICT: ${verdictLabel}`);
 
     if (issues.length > 0) {
-      console.log("\nTop issues:");
+      logger.info("\nTop issues:");
       for (const it of issues) {
-        console.log(`- ${it}`);
+        logger.info(`- ${it}`);
       }
     }
 
     if (verdictLabel === "POOR ROUTE") {
-      console.warn("\n[DEV WARNING] Route deviation > 15% — investigate checkpoint ordering.");
+      logger.warn("\n[DEV WARNING] Route deviation > 15% — investigate checkpoint ordering.");
     }
 
     if (global) {
       const ids = global.order.map((c) => c.orderId);
-      console.log("\nGlobal Optimal order (orderIds):");
-      console.log(ids.join(" -> "));
+      logger.info("\nGlobal Optimal order (orderIds):");
+      logger.info(ids.join(" -> "));
     }
 
-    console.log("\nCurrent order (orderIds):");
-    console.log(checkpoints.map((c) => c.orderId).join(" -> "));
+    logger.info("\nCurrent order (orderIds):");
+    logger.info(checkpoints.map((c) => c.orderId).join(" -> "));
 
     if (nnOrder.length > 0) {
-      console.log("\nNearest Neighbor order (orderIds):");
-      console.log(nnOrder.map((c) => c.orderId).join(" -> "));
+      logger.info("\nNearest Neighbor order (orderIds):");
+      logger.info(nnOrder.map((c) => c.orderId).join(" -> "));
     }
 
     if (optOrder.length > 0) {
-      console.log("\n2-Opt Optimized order (orderIds):");
-      console.log(optOrder.map((c) => c.orderId).join(" -> "));
+      logger.info("\n2-Opt Optimized order (orderIds):");
+      logger.info(optOrder.map((c) => c.orderId).join(" -> "));
     }
 
   } finally {
@@ -627,6 +628,6 @@ async function main() {
 }
 
 main().catch((e) => {
-  console.error("❌ Audit failed:", e);
+  logger.error("❌ Audit failed:", e);
   process.exitCode = 1;
 });

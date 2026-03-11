@@ -36,6 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const logger_1 = require("../../utils/logger");
 /**
  * MIGRATION 05: Enhance Payments Collection
  * Adds refund tracking, status history, and reconciliation
@@ -47,8 +48,8 @@ dotenv.config();
 async function enhancePayments() {
     try {
         await mongoose_1.default.connect(process.env.MONGODB_URI);
-        console.log("✅ Connected to MongoDB\n");
-        console.log("🔧 Enhancing Payments Collection...");
+        logger_1.logger.info("✅ Connected to MongoDB\n");
+        logger_1.logger.info("🔧 Enhancing Payments Collection...");
         const result = await Payment_1.Payment.updateMany({}, {
             $set: {
                 // Refund Management
@@ -72,15 +73,15 @@ async function enhancePayments() {
                 fraudCheckStatus: "passed"
             }
         }, { strict: false });
-        console.log(`✅ Updated ${result.modifiedCount} payments`);
+        logger_1.logger.info(`✅ Updated ${result.modifiedCount} payments`);
         // Create indexes
-        console.log("\n🔧 Creating indexes...");
+        logger_1.logger.info("\n🔧 Creating indexes...");
         await Payment_1.Payment.collection.createIndex({ reconciliationStatus: 1, reconciledAt: -1 });
         await Payment_1.Payment.collection.createIndex({ isFraudulent: 1, riskScore: -1 });
-        console.log("✅ Indexes created");
+        logger_1.logger.info("✅ Indexes created");
     }
     catch (error) {
-        console.error("❌ Error:", error);
+        logger_1.logger.error("❌ Error:", error);
     }
     finally {
         await mongoose_1.default.connection.close();

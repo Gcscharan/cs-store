@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger';
 import type { Request, Response } from "express";
 
 import { runInternalPaymentVerification } from "../services/paymentVerificationFacade";
@@ -21,7 +22,7 @@ export async function paymentVerificationController(req: Request, res: Response)
     );
 
     const durationMs = Date.now() - startedAt;
-    console.log(
+    logger.info(
       `[PaymentVerifyInternal] intent=${out.internal?.paymentIntentId || ""} order=${out.internal?.orderId || ""} discrepancy=${out.assessment.discrepancy} duration=${durationMs}ms`
     );
 
@@ -31,7 +32,7 @@ export async function paymentVerificationController(req: Request, res: Response)
     const durationMs = Date.now() - startedAt;
 
     const code = String(e?.message || "ERROR");
-    console.log(
+    logger.info(
       `[PaymentVerifyInternal] intent=${paymentIntentId || ""} order= discrepancy=${code} duration=${durationMs}ms`
     );
 

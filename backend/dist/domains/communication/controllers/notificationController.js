@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.sendTestNotificationsAllChannels = exports.getUnreadCount = exports.deleteNotification = exports.markAllAsRead = exports.markAsRead = exports.getNotifications = exports.getNotificationsV2 = void 0;
+const logger_1 = require("../../../utils/logger");
 const mongoose_1 = __importDefault(require("mongoose"));
 const Notification_1 = __importDefault(require("../../../models/Notification"));
 const notificationService_1 = require("../services/notificationService");
@@ -184,7 +185,7 @@ const getNotificationsV2 = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Error fetching notifications v2:", error);
+        logger_1.logger.error("Error fetching notifications v2:", error);
         res.status(500).json({ error: "Failed to fetch notifications" });
     }
 };
@@ -210,7 +211,7 @@ const getNotifications = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Error fetching notifications:", error);
+        logger_1.logger.error("Error fetching notifications:", error);
         res.status(500).json({ error: "Failed to fetch notifications" });
     }
 };
@@ -244,7 +245,7 @@ const markAsRead = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Error marking notification as read:", error);
+        logger_1.logger.error("Error marking notification as read:", error);
         res.status(500).json({ error: "Failed to update notification" });
     }
 };
@@ -270,7 +271,7 @@ const markAllAsRead = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Error marking all notifications as read:", error);
+        logger_1.logger.error("Error marking all notifications as read:", error);
         res.status(500).json({ error: "Failed to update notifications" });
     }
 };
@@ -301,7 +302,7 @@ const deleteNotification = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Error deleting notification:", error);
+        logger_1.logger.error("Error deleting notification:", error);
         res.status(500).json({ error: "Failed to delete notification" });
     }
 };
@@ -327,7 +328,7 @@ const getUnreadCount = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Error fetching unread count:", error);
+        logger_1.logger.error("Error fetching unread count:", error);
         res.status(500).json({ error: "Failed to fetch unread count" });
     }
 };
@@ -377,7 +378,7 @@ const sendTestNotificationsAllChannels = async (req, res) => {
                 results.push({ event, success: true });
             }
             catch (err) {
-                console.error(`Error dispatching test event ${event} for user ${userId}:`, err);
+                logger_1.logger.error(`Error dispatching test event ${event} for user ${userId}:`, err);
                 results.push({
                     event,
                     success: false,
@@ -393,7 +394,7 @@ const sendTestNotificationsAllChannels = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Error in sendTestNotificationsAllChannels:", error);
+        logger_1.logger.error("Error in sendTestNotificationsAllChannels:", error);
         res
             .status(500)
             .json({ error: "Failed to dispatch multi-channel test notifications" });

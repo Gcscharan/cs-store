@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.UserAddressService = void 0;
+const logger_1 = require("../../../utils/logger");
 const UserRepository_1 = require("../repositories/UserRepository");
 const mongoose_1 = __importDefault(require("mongoose"));
 const geocoding_1 = require("../../../utils/geocoding");
@@ -33,7 +34,7 @@ class UserAddressService {
             };
         }
         catch (error) {
-            console.error("Error fetching user addresses:", error);
+            logger_1.logger.error("Error fetching user addresses:", error);
             throw error;
         }
     }
@@ -95,7 +96,7 @@ class UserAddressService {
             return cleanAddress;
         }
         catch (error) {
-            console.error("Error adding user address:", error);
+            logger_1.logger.error("Error adding user address:", error);
             throw error;
         }
     }
@@ -178,7 +179,7 @@ class UserAddressService {
             };
         }
         catch (error) {
-            console.error("Error updating user address:", error);
+            logger_1.logger.error("Error updating user address:", error);
             throw error;
         }
     }
@@ -204,7 +205,7 @@ class UserAddressService {
             };
         }
         catch (error) {
-            console.error("Error deleting user address:", error);
+            logger_1.logger.error("Error deleting user address:", error);
             throw error;
         }
     }
@@ -229,7 +230,7 @@ class UserAddressService {
             };
         }
         catch (error) {
-            console.error("Error setting default address:", error);
+            logger_1.logger.error("Error setting default address:", error);
             throw error;
         }
     }

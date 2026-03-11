@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger';
 import mongoose from "mongoose";
 import { Order } from "../../../models/Order";
 import { OrderEvent } from "../../../models/OrderEvent";
@@ -623,7 +624,7 @@ export const orderStateService = {
           }
         }
       } catch (e) {
-        console.error("[orderStateService] failed to publish event", e);
+        logger.error("[orderStateService] failed to publish event", e);
       }
 
       return updatedOrder;

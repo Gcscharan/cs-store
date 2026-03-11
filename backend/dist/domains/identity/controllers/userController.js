@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.updateNotificationPreferences = exports.getNotificationPreferences = exports.deleteAccount = exports.setDefaultAddress = exports.deleteUserAddress = exports.updateUserAddress = exports.addUserAddress = exports.getUserAddresses = exports.updateUserProfile = exports.markMobileAsVerified = exports.getUserProfile = void 0;
+const logger_1 = require("../../../utils/logger");
 const UserProfileService_1 = require("../../user/services/UserProfileService");
 const UserAddressService_1 = require("../../user/services/UserAddressService");
 const UserAccountService_1 = require("../../user/services/UserAccountService");
@@ -39,7 +40,7 @@ const getUserProfile = async (req, res) => {
         res.json(result);
     }
     catch (error) {
-        console.error("Error fetching user profile:", error);
+        logger_1.logger.error("Error fetching user profile:", error);
         res.status(500).json({ error: "Internal server error" });
     }
 };
@@ -58,7 +59,7 @@ const markMobileAsVerified = async (req, res) => {
         res.status(userId ? 200 : 201).json(result);
     }
     catch (error) {
-        console.error("Error verifying mobile:", error);
+        logger_1.logger.error("Error verifying mobile:", error);
         res.status(500).json({ error: "Failed to verify mobile number" });
     }
 };
@@ -87,12 +88,12 @@ const updateUserProfile = async (req, res) => {
             }));
         }
         catch (e) {
-            console.error("[userController] failed to publish ACCOUNT_PROFILE_UPDATED", e);
+            logger_1.logger.error("[userController] failed to publish ACCOUNT_PROFILE_UPDATED", e);
         }
         res.json(result);
     }
     catch (error) {
-        console.error("❌ Error updating user profile:", error);
+        logger_1.logger.error("❌ Error updating user profile:", error);
         res.status(500).json({ error: "Failed to update profile" });
     }
 };
@@ -113,7 +114,7 @@ const getUserAddresses = async (req, res) => {
         res.status(200).json(result);
     }
     catch (error) {
-        console.error("Error fetching user addresses:", error);
+        logger_1.logger.error("Error fetching user addresses:", error);
         res.status(500).json({
             success: false,
             message: "Internal server error",
@@ -124,7 +125,7 @@ exports.getUserAddresses = getUserAddresses;
 // Add user address
 const addUserAddress = async (req, res) => {
     try {
-        console.error("🔥 addUserAddress controller HIT");
+        logger_1.logger.error("🔥 addUserAddress controller HIT");
         const userId = req.userId || req.user?._id;
         console.info("[addUserAddress] Incoming payload:", {
             userId,
@@ -143,7 +144,7 @@ const addUserAddress = async (req, res) => {
             throw new Error("resolvePincodeAuthoritatively is undefined");
         }
         if (!pincode || typeof pincode !== "string" || pincode.length !== 6 || !/^\d{6}$/.test(pincode)) {
-            console.warn("[addUserAddress] Invalid pincode:", pincode);
+            logger_1.logger.warn("[addUserAddress] Invalid pincode:", pincode);
             res.status(400).json({
                 success: false,
                 message: "Invalid pincode",
@@ -151,7 +152,7 @@ const addUserAddress = async (req, res) => {
             return;
         }
         if (!city || typeof city !== "string" || !city.trim()) {
-            console.warn("[addUserAddress] Missing/invalid city:", city);
+            logger_1.logger.warn("[addUserAddress] Missing/invalid city:", city);
             res.status(400).json({
                 success: false,
                 message: "City is required",
@@ -159,7 +160,7 @@ const addUserAddress = async (req, res) => {
             return;
         }
         if (!name || typeof name !== "string" || !name.trim()) {
-            console.warn("[addUserAddress] Missing/invalid name:", name);
+            logger_1.logger.warn("[addUserAddress] Missing/invalid name:", name);
             res.status(400).json({
                 success: false,
                 message: "Name is required",
@@ -168,7 +169,7 @@ const addUserAddress = async (req, res) => {
         }
         const cleanedPhone = typeof phone === "string" ? phone.trim() : "";
         if (!cleanedPhone || !/^[6-9]\d{9}$/.test(cleanedPhone)) {
-            console.warn("[addUserAddress] Missing/invalid phone:", phone);
+            logger_1.logger.warn("[addUserAddress] Missing/invalid phone:", phone);
             res.status(400).json({
                 success: false,
                 message: "Phone is required",
@@ -176,7 +177,7 @@ const addUserAddress = async (req, res) => {
             return;
         }
         if (!addressLine || typeof addressLine !== "string" || !addressLine.trim()) {
-            console.warn("[addUserAddress] Missing/invalid addressLine:", addressLine);
+            logger_1.logger.warn("[addUserAddress] Missing/invalid addressLine:", addressLine);
             res.status(400).json({
                 success: false,
                 message: "Address line is required",
@@ -194,7 +195,7 @@ const addUserAddress = async (req, res) => {
         // Validate pincode with India Post API
         const pincodeResult = await (0, pincodeValidator_1.validatePincode)(pincode);
         if (!pincodeResult.valid) {
-            console.warn(`[addUserAddress] Invalid pincode: ${pincode}`);
+            logger_1.logger.warn(`[addUserAddress] Invalid pincode: ${pincode}`);
             res.status(400).json({
                 success: false,
                 message: "Invalid pincode",
@@ -213,7 +214,7 @@ const addUserAddress = async (req, res) => {
             const suggestedCityLower = pincodeResult.suggestedCity.toLowerCase();
             if (userCityLower !== suggestedCityLower) {
                 // Warn but don't block — user might use local name
-                console.warn(`[addUserAddress] City mismatch for pincode ${pincode}: user entered "${city}", India Post says "${pincodeResult.suggestedCity}"`);
+                logger_1.logger.warn(`[addUserAddress] City mismatch for pincode ${pincode}: user entered "${city}", India Post says "${pincodeResult.suggestedCity}"`);
                 cityHint = pincodeResult.suggestedCity;
                 stateHint = pincodeResult.suggestedState;
             }
@@ -234,7 +235,7 @@ const addUserAddress = async (req, res) => {
                 continue;
             const addrPincode = (addr.pincode || "").toString();
             if (!/^\d{6}$/.test(addrPincode)) {
-                console.error("[addUserAddress] Existing address has invalid pincode; cannot backfill", {
+                logger_1.logger.error("[addUserAddress] Existing address has invalid pincode; cannot backfill", {
                     addressId: addr._id?.toString?.(),
                     pincode: addrPincode,
                 });
@@ -251,7 +252,7 @@ const addUserAddress = async (req, res) => {
             }
             const backfill = await (0, authoritativePincodeResolver_1.resolvePincodeAuthoritatively)(addrPincode);
             if (!backfill) {
-                console.error("[addUserAddress] Failed to backfill existing address districts", {
+                logger_1.logger.error("[addUserAddress] Failed to backfill existing address districts", {
                     addressId: addr._id?.toString?.(),
                     pincode: addrPincode,
                 });
@@ -271,22 +272,22 @@ const addUserAddress = async (req, res) => {
             addr.admin_district = backfill.admin_district;
         }
         // AUTO-GEOCODE: Convert address to GPS coordinates with fallback chain
-        console.log(`\n🌍 Auto-geocoding address for user ${userId}...`);
+        logger_1.logger.info(`\n🌍 Auto-geocoding address for user ${userId}...`);
         // Try full address geocoding first
         let geocodeResult = await (0, geocoding_1.smartGeocode)(addressLine, city, state, pincode);
         let coordsSource = 'geocoded';
         if (!geocodeResult) {
             // Full geocoding failed, try pincode fallback
-            console.warn(`⚠️ Full address geocoding failed, trying pincode fallback for ${pincode}...`);
+            logger_1.logger.warn(`⚠️ Full address geocoding failed, trying pincode fallback for ${pincode}...`);
             geocodeResult = await (0, geocoding_1.geocodeByPincode)(pincode);
             if (geocodeResult) {
-                console.log(`✅ Pincode geocoding successful: lat=${geocodeResult.lat}, lng=${geocodeResult.lng}`);
-                console.warn(`⚠️ Using PINCODE CENTROID - delivery fee will be ESTIMATED`);
+                logger_1.logger.info(`✅ Pincode geocoding successful: lat=${geocodeResult.lat}, lng=${geocodeResult.lng}`);
+                logger_1.logger.warn(`⚠️ Using PINCODE CENTROID - delivery fee will be ESTIMATED`);
                 coordsSource = 'pincode';
             }
             else {
                 // Both geocoding attempts failed
-                console.error(`❌ All geocoding failed for: ${addressLine}, ${city}, ${state} - ${pincode}`);
+                logger_1.logger.error(`❌ All geocoding failed for: ${addressLine}, ${city}, ${state} - ${pincode}`);
                 res.status(400).json({
                     success: false,
                     message: "Unable to locate this address or pincode. Please check:\n• Address has specific details (street name, landmark)\n• Pincode is correct\n• City and state are correct",
@@ -295,7 +296,7 @@ const addUserAddress = async (req, res) => {
             }
         }
         else {
-            console.log(`✅ Full address geocoding successful: lat=${geocodeResult.lat}, lng=${geocodeResult.lng}`);
+            logger_1.logger.info(`✅ Full address geocoding successful: lat=${geocodeResult.lat}, lng=${geocodeResult.lng}`);
         }
         // If this is set as default, remove default from all other addresses
         if (isDefault) {
@@ -304,7 +305,7 @@ const addUserAddress = async (req, res) => {
             });
         }
         const resolved = await (0, authoritativePincodeResolver_1.resolvePincodeAuthoritatively)(pincode);
-        console.error("🔥 Resolver output:", resolved);
+        logger_1.logger.error("🔥 Resolver output:", resolved);
         if (!resolved) {
             res.status(400).json({
                 success: false,
@@ -338,7 +339,7 @@ const addUserAddress = async (req, res) => {
             await user.save();
         }
         catch (dbErr) {
-            console.error("🔥 Mongo save failed", dbErr);
+            logger_1.logger.error("🔥 Mongo save failed", dbErr);
             throw dbErr;
         }
         // Get the saved address from the user document
@@ -361,7 +362,7 @@ const addUserAddress = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("🔥 addUserAddress CRASH", error, error?.stack);
+        logger_1.logger.error("🔥 addUserAddress CRASH", error, error?.stack);
         if (error?.name === "ValidationError") {
             res.status(400).json({
                 success: false,
@@ -428,21 +429,21 @@ const updateUserAddress = async (req, res) => {
             const finalCity = city || address.city;
             const finalState = state || address.state;
             const finalPincode = pincode || address.pincode;
-            console.log(`\n🌍 Re-geocoding updated address for user ${userId}...`);
+            logger_1.logger.info(`\n🌍 Re-geocoding updated address for user ${userId}...`);
             let geocodeResult = await (0, geocoding_1.smartGeocode)(finalAddressLine, finalCity, finalState, finalPincode);
             let coordsSource = 'geocoded';
             if (!geocodeResult) {
                 // Full geocoding failed, try pincode fallback
-                console.warn(`⚠️ Full address geocoding failed, trying pincode fallback for ${finalPincode}...`);
+                logger_1.logger.warn(`⚠️ Full address geocoding failed, trying pincode fallback for ${finalPincode}...`);
                 geocodeResult = await (0, geocoding_1.geocodeByPincode)(finalPincode);
                 if (geocodeResult) {
-                    console.log(`✅ Pincode geocoding successful: lat=${geocodeResult.lat}, lng=${geocodeResult.lng}`);
-                    console.warn(`⚠️ Using PINCODE CENTROID - delivery fee will be ESTIMATED`);
+                    logger_1.logger.info(`✅ Pincode geocoding successful: lat=${geocodeResult.lat}, lng=${geocodeResult.lng}`);
+                    logger_1.logger.warn(`⚠️ Using PINCODE CENTROID - delivery fee will be ESTIMATED`);
                     coordsSource = 'pincode';
                 }
                 else {
                     // Both attempts failed
-                    console.error(`❌ All geocoding failed for: ${finalAddressLine}, ${finalCity}, ${finalState} - ${finalPincode}`);
+                    logger_1.logger.error(`❌ All geocoding failed for: ${finalAddressLine}, ${finalCity}, ${finalState} - ${finalPincode}`);
                     res.status(400).json({
                         success: false,
                         message: "Unable to locate this address or pincode. Please check your address details.",
@@ -451,7 +452,7 @@ const updateUserAddress = async (req, res) => {
                 }
             }
             else {
-                console.log(`✅ Full address re-geocoding successful: lat=${geocodeResult.lat}, lng=${geocodeResult.lng}`);
+                logger_1.logger.info(`✅ Full address re-geocoding successful: lat=${geocodeResult.lat}, lng=${geocodeResult.lng}`);
             }
             address.lat = geocodeResult.lat;
             address.lng = geocodeResult.lng;
@@ -534,7 +535,7 @@ const updateUserAddress = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Error updating user address:", error);
+        logger_1.logger.error("Error updating user address:", error);
         res.status(500).json({
             success: false,
             message: "Internal server error",
@@ -587,7 +588,7 @@ const deleteUserAddress = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Error deleting user address:", error);
+        logger_1.logger.error("Error deleting user address:", error);
         res.status(500).json({
             success: false,
             message: "Internal server error",
@@ -631,7 +632,7 @@ const setDefaultAddress = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("Error setting default address:", error);
+        logger_1.logger.error("Error setting default address:", error);
         res.status(500).json({
             success: false,
             message: "Internal server error",
@@ -643,7 +644,7 @@ exports.setDefaultAddress = setDefaultAddress;
 const deleteAccount = async (req, res) => {
     const session = await mongoose_1.default.startSession();
     try {
-        console.log('🗑️ ACCOUNT DELETION: Starting comprehensive account deletion process...');
+        logger_1.logger.info('🗑️ ACCOUNT DELETION: Starting comprehensive account deletion process...');
         const userId = req.userId || req.user?._id;
         if (!userId) {
             res.status(401).json({
@@ -652,7 +653,7 @@ const deleteAccount = async (req, res) => {
             });
             return;
         }
-        console.log(`🗑️ ACCOUNT DELETION: Processing deletion for user ID: ${userId}`);
+        logger_1.logger.info(`🗑️ ACCOUNT DELETION: Processing deletion for user ID: ${userId}`);
         // Start transaction for data integrity
         await session.startTransaction();
         // Step 1: Verify user exists
@@ -665,13 +666,13 @@ const deleteAccount = async (req, res) => {
             });
             return;
         }
-        console.log(`🗑️ ACCOUNT DELETION: Found user: ${user.email} (${user.name})`);
+        logger_1.logger.info(`🗑️ ACCOUNT DELETION: Found user: ${user.email} (${user.name})`);
         // Step 2: Delete Cart data
-        console.log('🗑️ STEP 2: Deleting Cart data...');
+        logger_1.logger.info('🗑️ STEP 2: Deleting Cart data...');
         const cartDeleteResult = await Cart_1.Cart.deleteMany({ userId }).session(session);
-        console.log(`✅ Deleted ${cartDeleteResult.deletedCount} cart records`);
+        logger_1.logger.info(`✅ Deleted ${cartDeleteResult.deletedCount} cart records`);
         // Step 3: Anonymize Orders (DO NOT DELETE - preserve business records)
-        console.log('🗑️ STEP 3: Anonymizing Order data...');
+        logger_1.logger.info('🗑️ STEP 3: Anonymizing Order data...');
         const orderAnonymizeResult = await Order_1.Order.updateMany({ userId }, {
             $set: {
                 userId: null, // Remove user reference
@@ -686,32 +687,32 @@ const deleteAccount = async (req, res) => {
                 customerPhone: "",
             }
         }, { session });
-        console.log(`✅ Anonymized ${orderAnonymizeResult.modifiedCount} order records`);
+        logger_1.logger.info(`✅ Anonymized ${orderAnonymizeResult.modifiedCount} order records`);
         // Step 4: Delete Payment records
-        console.log('🗑️ STEP 4: Deleting Payment records...');
+        logger_1.logger.info('🗑️ STEP 4: Deleting Payment records...');
         const paymentDeleteResult = await Payment_1.Payment.deleteMany({ userId }).session(session);
-        console.log(`✅ Deleted ${paymentDeleteResult.deletedCount} payment records`);
+        logger_1.logger.info(`✅ Deleted ${paymentDeleteResult.deletedCount} payment records`);
         // Step 5: Delete OTP records (by phone number)
-        console.log('🗑️ STEP 5: Deleting OTP records...');
+        logger_1.logger.info('🗑️ STEP 5: Deleting OTP records...');
         const otpDeleteResult = await Otp_1.default.deleteMany({ phone: user.phone }).session(session);
-        console.log(`✅ Deleted ${otpDeleteResult.deletedCount} OTP records`);
+        logger_1.logger.info(`✅ Deleted ${otpDeleteResult.deletedCount} OTP records`);
         // Step 6: Delete Notifications
-        console.log('🗑️ STEP 6: Deleting Notification records...');
+        logger_1.logger.info('🗑️ STEP 6: Deleting Notification records...');
         const notificationDeleteResult = await Notification_1.default.deleteMany({ userId }).session(session);
-        console.log(`✅ Deleted ${notificationDeleteResult.deletedCount} notification records`);
+        logger_1.logger.info(`✅ Deleted ${notificationDeleteResult.deletedCount} notification records`);
         // Step 7: Delete the User document itself
-        console.log('🗑️ STEP 7: Deleting User document...');
+        logger_1.logger.info('🗑️ STEP 7: Deleting User document...');
         await User_1.User.findByIdAndDelete(userId).session(session);
-        console.log(`✅ Deleted user document: ${userId}`);
+        logger_1.logger.info(`✅ Deleted user document: ${userId}`);
         // Commit the transaction
         await session.commitTransaction();
-        console.log('✅ Database transaction committed successfully');
+        logger_1.logger.info('✅ Database transaction committed successfully');
         // Step 8: Security - Invalidate current session token
-        console.log('🗑️ STEP 8: Token invalidation...');
+        logger_1.logger.info('🗑️ STEP 8: Token invalidation...');
         // Note: Token invalidation is handled by the client-side logout process
         // The token will naturally expire, and the user is deleted so no refresh possible
-        console.log('✅ Token invalidation noted (handled by client logout)');
-        console.log('🎉 ACCOUNT DELETION COMPLETED SUCCESSFULLY');
+        logger_1.logger.info('✅ Token invalidation noted (handled by client logout)');
+        logger_1.logger.info('🎉 ACCOUNT DELETION COMPLETED SUCCESSFULLY');
         res.status(200).json({
             success: true,
             message: "Account deleted successfully. All personal data has been removed.",
@@ -729,7 +730,7 @@ const deleteAccount = async (req, res) => {
     catch (error) {
         // Rollback transaction on error
         await session.abortTransaction();
-        console.error('❌ ACCOUNT DELETION FAILED:', error);
+        logger_1.logger.error('❌ ACCOUNT DELETION FAILED:', error);
         res.status(500).json({
             success: false,
             error: "Failed to delete account. Please try again or contact support.",
@@ -883,7 +884,7 @@ const getNotificationPreferences = async (req, res) => {
         res.json(hasStored ? stored : defaultPreferences);
     }
     catch (error) {
-        console.error("Error fetching notification preferences:", error);
+        logger_1.logger.error("Error fetching notification preferences:", error);
         res.status(500).json({ error: "Internal server error" });
     }
 };
@@ -973,7 +974,7 @@ const updateNotificationPreferences = async (req, res) => {
         });
     }
     catch (error) {
-        console.error("❌ Error updating notification preferences:", error);
+        logger_1.logger.error("❌ Error updating notification preferences:", error);
         res.status(500).json({ error: "Failed to update notification preferences" });
     }
 };

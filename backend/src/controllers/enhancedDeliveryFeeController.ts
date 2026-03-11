@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 /**
  * Enhanced Delivery Fee Controller
  * Handles API requests for delivery fee calculation
@@ -83,7 +84,7 @@ export const calculateDeliveryFeeForUser = async (req: AuthRequest, res: Respons
       },
     });
   } catch (error: any) {
-    console.error("Error calculating delivery fee:", error);
+    logger.error("Error calculating delivery fee:", error);
     res.status(500).json({
       success: false,
       message: error.message || "Failed to calculate delivery fee",
@@ -166,7 +167,7 @@ export const calculateDeliveryFeeForSpecificAddress = async (req: AuthRequest, r
       },
     });
   } catch (error: any) {
-    console.error("Error calculating delivery fee:", error);
+    logger.error("Error calculating delivery fee:", error);
     res.status(500).json({
       success: false,
       message: error.message || "Failed to calculate delivery fee",
@@ -203,7 +204,7 @@ export const getDeliveryFeeConfig = async (req: AuthRequest, res: Response): Pro
       },
     });
   } catch (error: any) {
-    console.error("Error fetching delivery fee config:", error);
+    logger.error("Error fetching delivery fee config:", error);
     res.status(500).json({
       success: false,
       message: "Failed to fetch delivery fee configuration",
@@ -246,7 +247,7 @@ export const estimateDeliveryFee = async (req: AuthRequest, res: Response): Prom
     const pincodeRecord = await Pincode.findOne({
       $or: [{ pincode: pincodeStr }, { pincode: Number(pincodeStr) as any }],
     }).lean();
-    console.log("[DELIVERY ESTIMATE DEBUG]", {
+    logger.info("[DELIVERY ESTIMATE DEBUG]", {
       requestPincode: pincode,
       normalized: pincodeStr,
       found: !!pincodeRecord,
@@ -292,14 +293,14 @@ export const estimateDeliveryFee = async (req: AuthRequest, res: Response): Prom
         ) / 10
       : NaN;
 
-    console.log("[DELIVERY DISTANCE]", {
+    logger.info("[DELIVERY DISTANCE]", {
       warehouse,
       destination: { lat: tempAddress.lat, lng: tempAddress.lng, pincode: tempAddress.pincode },
       distanceKm,
     });
 
     if (!Number.isFinite(distanceKm) || distanceKm < 0) {
-      console.error("[DELIVERY DISTANCE ERROR]", { distanceKm });
+      logger.error("[DELIVERY DISTANCE ERROR]", { distanceKm });
       res.status(500).json({ message: "Invalid distance calculation" });
       return;
     }
@@ -320,7 +321,7 @@ export const estimateDeliveryFee = async (req: AuthRequest, res: Response): Prom
       totalAmount: Number(orderAmount || 0),
     });
   } catch (error: any) {
-    console.error("Error estimating delivery fee:", error);
+    logger.error("Error estimating delivery fee:", error);
     res.status(500).json({
       success: false,
       message: error.message || "Failed to estimate delivery fee",
@@ -360,7 +361,7 @@ export const clearDeliveryFeeCache = async (req: AuthRequest, res: Response): Pr
       },
     });
   } catch (error: any) {
-    console.error("Error clearing cache:", error);
+    logger.error("Error clearing cache:", error);
     res.status(500).json({
       success: false,
       message: "Failed to clear cache",

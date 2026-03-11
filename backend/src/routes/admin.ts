@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 import express from "express";
 import {
   getStats,
@@ -66,7 +67,7 @@ router.delete("/users/:id", authenticateToken, requireRole(["admin"]), auditLog,
       result,
     });
   } catch (error) {
-    console.error("Error deleting user:", error);
+    logger.error("Error deleting user:", error);
     res.status(500).json({ error: "Failed to delete user" });
   }
 });

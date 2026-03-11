@@ -6,6 +6,7 @@ exports.calculateDeliveryFee = calculateDeliveryFee;
 exports.getAdminAddress = getAdminAddress;
 exports.isDeliveryAvailable = isDeliveryAvailable;
 exports.getDeliveryFeeBreakdown = getDeliveryFeeBreakdown;
+const logger_1 = require("./logger");
 const google_maps_services_js_1 = require("@googlemaps/google-maps-services-js");
 const distanceCalculator_1 = require("./distanceCalculator");
 // Admin's warehouse address (Boya Bazar, Tiruvuru, Krishna District)
@@ -108,7 +109,7 @@ async function calculateDeliveryFee(userAddress, orderAmount) {
     // Road distance in kilometers
     const distance = routeResult.distanceKm;
     // Debug logs for verification
-    console.log('🚚 [Backend] Delivery Fee Calculation (Road Distance):', {
+    logger_1.logger.info('🚚 [Backend] Delivery Fee Calculation (Road Distance):', {
         warehouseCoords: { lat: ADMIN_ADDRESS.lat, lng: ADMIN_ADDRESS.lng, location: ADMIN_ADDRESS.addressLine },
         userCoords: { lat: userAddress.lat, lng: userAddress.lng, location: `${userAddress.city}, ${userAddress.state}` },
         coordsSource: 'saved',
@@ -126,7 +127,7 @@ async function calculateDeliveryFee(userAddress, orderAmount) {
     // Check if order qualifies for free delivery
     const isFreeDelivery = orderAmount >= DELIVERY_CONFIG.FREE_DELIVERY_THRESHOLD;
     if (isFreeDelivery) {
-        console.log('✅ [Backend] Free Delivery Applied! (Order ≥ ₹2000)');
+        logger_1.logger.info('✅ [Backend] Free Delivery Applied! (Order ≥ ₹2000)');
         return {
             distance: distance,
             baseFee: 0,
@@ -144,7 +145,7 @@ async function calculateDeliveryFee(userAddress, orderAmount) {
     if (distance <= 2) {
         // Up to 2 km: ₹25
         deliveryFee = DELIVERY_CONFIG.BASE_FEE_0_2_KM;
-        console.log(`📍 [Backend] Distance: ${distance.toFixed(2)} km (≤2 km) → Base Fee: ₹${deliveryFee}`);
+        logger_1.logger.info(`📍 [Backend] Distance: ${distance.toFixed(2)} km (≤2 km) → Base Fee: ₹${deliveryFee}`);
     }
     else if (distance <= 6) {
         // 2 to 6 km: ₹35 to ₹60 (progressive increase)
@@ -153,16 +154,16 @@ async function calculateDeliveryFee(userAddress, orderAmount) {
         deliveryFee = DELIVERY_CONFIG.BASE_FEE_2_6_KM_MIN +
             (progressInRange * (DELIVERY_CONFIG.BASE_FEE_2_6_KM_MAX - DELIVERY_CONFIG.BASE_FEE_2_6_KM_MIN));
         deliveryFee = Math.round(deliveryFee); // Round to nearest rupee
-        console.log(`📍 [Backend] Distance: ${distance.toFixed(2)} km (2-6 km) → Progressive Fee: ₹${deliveryFee}`);
+        logger_1.logger.info(`📍 [Backend] Distance: ${distance.toFixed(2)} km (2-6 km) → Progressive Fee: ₹${deliveryFee}`);
     }
     else {
         // Beyond 6 km: ₹60 + ₹8 per extra km
         const extraDistance = distance - 6;
         deliveryFee = DELIVERY_CONFIG.BASE_FEE_BEYOND_6_KM + (extraDistance * DELIVERY_CONFIG.EXTRA_KM_RATE);
         deliveryFee = Math.round(deliveryFee); // Round to nearest rupee
-        console.log(`📍 [Backend] Distance: ${distance.toFixed(2)} km (>6 km) → ₹60 + (${extraDistance.toFixed(2)} km × ₹8) = ₹${deliveryFee}`);
+        logger_1.logger.info(`📍 [Backend] Distance: ${distance.toFixed(2)} km (>6 km) → ₹60 + (${extraDistance.toFixed(2)} km × ₹8) = ₹${deliveryFee}`);
     }
-    console.log(`💰 [Backend] Final Delivery Fee: ₹${deliveryFee} (road distance)`);
+    logger_1.logger.info(`💰 [Backend] Final Delivery Fee: ₹${deliveryFee} (road distance)`);
     return {
         distance: distance,
         baseFee: deliveryFee,

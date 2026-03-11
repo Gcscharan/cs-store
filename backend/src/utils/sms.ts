@@ -1,3 +1,4 @@
+import { logger } from './logger';
 // SMS utility functions for OTP generation and console logging
 
 // Generate 6-digit OTP
@@ -14,8 +15,8 @@ export const sendSMS = async (
   const otpMatch = message.match(/(\d{6})/);
   const otp = otpMatch ? otpMatch[1] : "N/A";
   
-  console.log(`\n🔢 OTP Generated for ${phone}: ${otp}\n`);
-  console.log(`📱 Message: ${message}\n`);
+  logger.info(`\n🔢 OTP Generated for ${phone}: ${otp}\n`);
+  logger.info(`📱 Message: ${message}\n`);
   
   return true;
 };

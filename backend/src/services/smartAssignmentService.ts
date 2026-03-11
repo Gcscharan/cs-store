@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 import { DeliveryBoy, IDeliveryBoy } from "../models/DeliveryBoy";
 import {
   getRoutePolyline,
@@ -36,7 +37,7 @@ export class SmartAssignmentService {
       }).lean();
 
       if (availableDeliveryBoys.length === 0) {
-        console.log("No available delivery boys found");
+        logger.info("No available delivery boys found");
         return null;
       }
 
@@ -47,7 +48,7 @@ export class SmartAssignmentService {
       );
 
       if (routeMatch) {
-        console.log(
+        logger.info(
           `✅ Route match found: ${routeMatch.deliveryBoy.name} (${routeMatch.reason})`
         );
         return routeMatch;
@@ -60,7 +61,7 @@ export class SmartAssignmentService {
       );
 
       if (nearestMatch) {
-        console.log(
+        logger.info(
           `✅ Nearest delivery boy assigned: ${nearestMatch.deliveryBoy.name} (${nearestMatch.distance.toFixed(2)} km away)`
         );
         return nearestMatch;
@@ -68,7 +69,7 @@ export class SmartAssignmentService {
 
       return null;
     } catch (error) {
-      console.error("Error in smart assignment:", error);
+      logger.error("Error in smart assignment:", error);
       return null;
     }
   }
@@ -157,7 +158,7 @@ export class SmartAssignmentService {
     try {
       const deliveryBoy = await DeliveryBoy.findById(deliveryBoyId);
       if (!deliveryBoy) {
-        console.error("Delivery boy not found");
+        logger.error("Delivery boy not found");
         return;
       }
 
@@ -183,12 +184,12 @@ export class SmartAssignmentService {
 
         await deliveryBoy.save();
 
-        console.log(
+        logger.info(
           `✅ Route updated for ${deliveryBoy.name}: ${routeInfo.distance.toFixed(2)} km, ETA: ${routeInfo.duration / 60} mins`
         );
       }
     } catch (error) {
-      console.error("Error updating delivery boy route:", error);
+      logger.error("Error updating delivery boy route:", error);
     }
   }
 
@@ -201,9 +202,9 @@ export class SmartAssignmentService {
         $unset: { activeRoute: 1 },
       });
 
-      console.log(`✅ Route cleared for delivery boy ${deliveryBoyId}`);
+      logger.info(`✅ Route cleared for delivery boy ${deliveryBoyId}`);
     } catch (error) {
-      console.error("Error clearing delivery boy route:", error);
+      logger.error("Error clearing delivery boy route:", error);
     }
   }
 
@@ -227,7 +228,7 @@ export class SmartAssignmentService {
         estimatedArrival: deliveryBoy.activeRoute.estimatedArrival,
       };
     } catch (error) {
-      console.error("Error getting delivery boy route:", error);
+      logger.error("Error getting delivery boy route:", error);
       return null;
     }
   }

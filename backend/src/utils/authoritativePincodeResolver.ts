@@ -1,3 +1,4 @@
+import { logger } from './logger';
 import { resolvePincodeDetails, applyDistrictOverride } from './pincodeResolver';
 
 export interface ResolvedPincodeAuthoritative {
@@ -19,12 +20,12 @@ export async function resolvePincodeAuthoritatively(
   const resolved = await resolvePincodeDetails(pincode);
   
   if (!resolved) {
-    console.warn(`[resolvePincodeAuthoritatively] Pincode not found: ${pincode}`);
+    logger.warn(`[resolvePincodeAuthoritatively] Pincode not found: ${pincode}`);
     return null;
   }
 
   if (!resolved.state || !resolved.postal_district) {
-    console.warn(`[resolvePincodeAuthoritatively] Missing state/district for pincode: ${pincode}`, {
+    logger.warn(`[resolvePincodeAuthoritatively] Missing state/district for pincode: ${pincode}`, {
       state: resolved.state,
       postal_district: resolved.postal_district,
     });
@@ -34,7 +35,7 @@ export async function resolvePincodeAuthoritatively(
   const admin_district = applyDistrictOverride(resolved.state, resolved.postal_district);
   
   if (!admin_district) {
-    console.warn(`[resolvePincodeAuthoritatively] No admin district for pincode: ${pincode}`, {
+    logger.warn(`[resolvePincodeAuthoritatively] No admin district for pincode: ${pincode}`, {
       state: resolved.state,
       postal_district: resolved.postal_district,
     });

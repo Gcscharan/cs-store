@@ -1,3 +1,4 @@
+import { logger } from '../../utils/logger';
 /**
  * MIGRATION 06: Enforce Unique Phone Index (Users)
  * Creates a partial unique index on phone to enforce DB-level uniqueness
@@ -16,9 +17,9 @@ dotenv.config();
 async function enforceUniqueUserPhoneIndex() {
   try {
     await mongoose.connect(process.env.MONGODB_URI!);
-    console.log("✅ Connected to MongoDB\n");
+    logger.info("✅ Connected to MongoDB\n");
 
-    console.log("🔧 Enforcing unique phone index on Users (partial)...");
+    logger.info("🔧 Enforcing unique phone index on Users (partial)...");
 
     const duplicates = await User.aggregate([
       {
@@ -39,18 +40,18 @@ async function enforceUniqueUserPhoneIndex() {
     ]);
 
     if (Array.isArray(duplicates) && duplicates.length > 0) {
-      console.warn("⚠️  Duplicate phone values detected; skipping index creation.");
-      console.warn(
+      logger.warn("⚠️  Duplicate phone values detected; skipping index creation.");
+      logger.warn(
         "⚠️  Examples:",
         duplicates.map((d: any) => ({ phone: d._id, count: d.count }))
       );
-      console.warn(
+      logger.warn(
         "⚠️  Resolve duplicates before enabling DB-level uniqueness (no changes were made)."
       );
       return;
     }
 
-    console.log("✅ No duplicate phones detected. Creating partial unique index...");
+    logger.info("✅ No duplicate phones detected. Creating partial unique index...");
 
     await User.collection.createIndex(
       { phone: 1 },
@@ -62,9 +63,9 @@ async function enforceUniqueUserPhoneIndex() {
       }
     );
 
-    console.log("✅ Unique phone index created successfully");
+    logger.info("✅ Unique phone index created successfully");
   } catch (error) {
-    console.error("❌ Error:", error);
+    logger.error("❌ Error:", error);
   } finally {
     await mongoose.connection.close();
   }

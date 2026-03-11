@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 import mongoose from "mongoose";
 import * as dotenv from "dotenv";
 import * as bcrypt from "bcryptjs";
@@ -9,7 +10,7 @@ dotenv.config();
 const MONGODB_URI = process.env.MONGODB_URI;
 
 if (!MONGODB_URI) {
-  console.error("❌ CRITICAL: MONGODB_URI environment variable is not set!");
+  logger.error("❌ CRITICAL: MONGODB_URI environment variable is not set!");
   process.exit(1);
 }
 
@@ -126,27 +127,27 @@ async function ensureAccount(acc: SeedDeliveryBoy) {
 async function main() {
   await mongoose.connect(MONGODB_URI as string);
 
-  console.log("✅ Connected to MongoDB\n");
-  console.log(`🔧 Ensuring ${seedAccounts.length} AUTO delivery boys...\n`);
+  logger.info("✅ Connected to MongoDB\n");
+  logger.info(`🔧 Ensuring ${seedAccounts.length} AUTO delivery boys...\n`);
 
   for (const acc of seedAccounts) {
     const r = await ensureAccount(acc);
-    console.log(`✅ ${acc.name} created/updated (userId=${String(r.userId)})`);
-    console.log(`   📧 ${acc.email}`);
-    console.log(`   📞 ${acc.phone}`);
-    console.log(`   🔑 password: ${TEST_PASSWORD}`);
-    console.log("   🚗 vehicleType: AUTO\n");
+    logger.info(`✅ ${acc.name} created/updated (userId=${String(r.userId)})`);
+    logger.info(`   📧 ${acc.email}`);
+    logger.info(`   📞 ${acc.phone}`);
+    logger.info(`   🔑 password: ${TEST_PASSWORD}`);
+    logger.info("   🚗 vehicleType: AUTO\n");
   }
 
-  console.log("🎉 Done.");
+  logger.info("🎉 Done.");
 }
 
 main()
   .catch((e) => {
-    console.error("❌ Error:", e);
+    logger.error("❌ Error:", e);
     process.exitCode = 1;
   })
   .finally(async () => {
     await mongoose.connection.close();
-    console.log("\n🔌 Disconnected from MongoDB");
+    logger.info("\n🔌 Disconnected from MongoDB");
   });

@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 import mongoose from "mongoose";
 import { Product } from "../models/Product";
 import dotenv from "dotenv";
@@ -8,8 +9,8 @@ dotenv.config();
 const MONGODB_URI = process.env.MONGODB_URI;
 
 if (!MONGODB_URI) {
-  console.error("❌ CRITICAL: MONGODB_URI environment variable is not set!");
-  console.error("❌ Please set MONGODB_URI in your .env file and restart.");
+  logger.error("❌ CRITICAL: MONGODB_URI environment variable is not set!");
+  logger.error("❌ Please set MONGODB_URI in your .env file and restart.");
   process.exit(1);
 }
 
@@ -19,9 +20,9 @@ const connectDB = async () => {
     await mongoose.connect(
       MONGODB_URI
     );
-    console.log("✅ Connected to MongoDB");
+    logger.info("✅ Connected to MongoDB");
   } catch (error) {
-    console.error("❌ MongoDB connection error:", error);
+    logger.error("❌ MongoDB connection error:", error);
     process.exit(1);
   }
 };
@@ -317,12 +318,12 @@ const categoryProducts = {
 
 const addProductsForAllCategories = async () => {
   try {
-    console.log("🚀 Adding products for all categories...");
+    logger.info("🚀 Adding products for all categories...");
 
     let totalAdded = 0;
 
     for (const [category, products] of Object.entries(categoryProducts)) {
-      console.log(`\n📦 Adding products for ${category} category:`);
+      logger.info(`\n📦 Adding products for ${category} category:`);
 
       for (const productData of products) {
         const product = new Product({
@@ -330,16 +331,16 @@ const addProductsForAllCategories = async () => {
           category: category,
         });
         await product.save();
-        console.log(`  ✅ Added: ${productData.name}`);
+        logger.info(`  ✅ Added: ${productData.name}`);
         totalAdded++;
       }
     }
 
-    console.log(
+    logger.info(
       `\n🎉 Successfully added ${totalAdded} products across all categories!`
     );
   } catch (error) {
-    console.error("❌ Error adding products:", error);
+    logger.error("❌ Error adding products:", error);
   }
 };
 
@@ -347,7 +348,7 @@ const main = async () => {
   await connectDB();
   await addProductsForAllCategories();
   await mongoose.disconnect();
-  console.log("👋 Disconnected from MongoDB");
+  logger.info("👋 Disconnected from MongoDB");
 };
 
-main().catch(console.error);
+main().catch((err) => logger.error("Script failed:", err));

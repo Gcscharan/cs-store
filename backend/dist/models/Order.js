@@ -34,6 +34,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Order = void 0;
+const logger_1 = require("../utils/logger");
 const mongoose_1 = __importStar(require("mongoose"));
 const OrderItemSchema = new mongoose_1.Schema({
     productId: {
@@ -415,7 +416,7 @@ function extractPaidSourceFromOptions(opts) {
     return typeof fromCtx === "string" ? fromCtx : "";
 }
 function throwIllegalPaidTransition(args) {
-    console.error("[SECURITY][ILLEGAL_PAID_TRANSITION]", {
+    logger_1.logger.error("[SECURITY][ILLEGAL_PAID_TRANSITION]", {
         model: "Order",
         method: args.method,
         orderId: args.orderId ? String(args.orderId) : undefined,
@@ -449,7 +450,7 @@ function normalizeOrderStatusInUpdate() {
         return;
     const normalized = normalizeOrderStatus(rawStatus);
     if (rawStatus !== normalized) {
-        console.log(`[Order][Migration] Normalizing orderStatus in update: "${rawStatus}" -> "${normalized}"`);
+        logger_1.logger.info(`[Order][Migration] Normalizing orderStatus in update: "${rawStatus}" -> "${normalized}"`);
         // Update in $set if present
         if (update.$set && typeof update.$set === "object") {
             update.$set.orderStatus = normalized;
@@ -467,7 +468,7 @@ OrderSchema.pre("save", function (next) {
             const rawStatus = String(this.orderStatus);
             const normalized = normalizeOrderStatus(rawStatus);
             if (rawStatus !== normalized) {
-                console.log(`[Order][Migration] Normalized orderStatus on new order: "${rawStatus}" -> "${normalized}"`);
+                logger_1.logger.info(`[Order][Migration] Normalized orderStatus on new order: "${rawStatus}" -> "${normalized}"`);
                 this.orderStatus = normalized;
             }
             // Initial status on new order is allowed - skip authorization check
@@ -481,7 +482,7 @@ OrderSchema.pre("save", function (next) {
             // This is allowed without the authorized symbol
             const isJustNormalization = rawStatus !== normalized;
             if (isJustNormalization) {
-                console.log(`[Order][Migration] Normalized orderStatus: "${rawStatus}" -> "${normalized}" (orderId: ${this._id})`);
+                logger_1.logger.info(`[Order][Migration] Normalized orderStatus: "${rawStatus}" -> "${normalized}" (orderId: ${this._id})`);
                 this.orderStatus = normalized;
             }
             else {

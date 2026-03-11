@@ -36,6 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const logger_1 = require("../../utils/logger");
 /**
  * MIGRATION 01: Enhance Users Collection
  * Adds enterprise fields without breaking existing data
@@ -47,8 +48,8 @@ dotenv.config();
 async function enhanceUsers() {
     try {
         await mongoose_1.default.connect(process.env.MONGODB_URI);
-        console.log("✅ Connected to MongoDB\n");
-        console.log("🔧 Enhancing Users Collection...");
+        logger_1.logger.info("✅ Connected to MongoDB\n");
+        logger_1.logger.info("🔧 Enhancing Users Collection...");
         const result = await User_1.User.updateMany({}, {
             $set: {
                 // Analytics
@@ -85,16 +86,16 @@ async function enhanceUsers() {
             }
         }, { strict: false } // Allow fields not in schema
         );
-        console.log(`✅ Updated ${result.modifiedCount} users`);
+        logger_1.logger.info(`✅ Updated ${result.modifiedCount} users`);
         // Create indexes
-        console.log("\n🔧 Creating indexes...");
+        logger_1.logger.info("\n🔧 Creating indexes...");
         await User_1.User.collection.createIndex({ lastLoginAt: -1 });
         await User_1.User.collection.createIndex({ totalOrders: -1, totalSpent: -1 });
         await User_1.User.collection.createIndex({ loyaltyPoints: -1 });
-        console.log("✅ Indexes created");
+        logger_1.logger.info("✅ Indexes created");
     }
     catch (error) {
-        console.error("❌ Error:", error);
+        logger_1.logger.error("❌ Error:", error);
     }
     finally {
         await mongoose_1.default.connection.close();

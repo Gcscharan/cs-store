@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger';
 import { ProductSearchRepository } from "../repositories/ProductSearchRepository";
 import { MediaImageService } from "../../media/services/MediaImageService";
 import { SearchOptions, SuggestionOptions } from "../types/SearchTypes";
@@ -52,7 +53,7 @@ export class SearchService {
         query: q,
       };
     } catch (error) {
-      console.error("SearchService.search error:", error);
+      logger.error("SearchService.search error:", error);
       return {
         products: [],
         total: 0,

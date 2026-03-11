@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 import mongoose from "mongoose";
 import { Product } from "../models/Product";
 import dotenv from "dotenv";
@@ -8,8 +9,8 @@ dotenv.config();
 const MONGODB_URI = process.env.MONGODB_URI;
 
 if (!MONGODB_URI) {
-  console.error("❌ CRITICAL: MONGODB_URI environment variable is not set!");
-  console.error("❌ Please set MONGODB_URI in your .env file and restart.");
+  logger.error("❌ CRITICAL: MONGODB_URI environment variable is not set!");
+  logger.error("❌ Please set MONGODB_URI in your .env file and restart.");
   process.exit(1);
 }
 
@@ -17,11 +18,11 @@ const addMrpToProducts = async () => {
   try {
     // Connect to MongoDB Atlas
     await mongoose.connect(MONGODB_URI as string);
-    console.log("✅ Connected to MongoDB Atlas");
+    logger.info("✅ Connected to MongoDB Atlas");
 
     // Get all products
     const products = await Product.find({ deletedAt: null, isSellable: { $ne: false } });
-    console.log(`📦 Found ${products.length} products`);
+    logger.info(`📦 Found ${products.length} products`);
 
     let updatedCount = 0;
 
@@ -35,22 +36,22 @@ const addMrpToProducts = async () => {
         product.mrp = mrp;
         await product.save();
         
-        console.log(`✅ Updated ${product.name}: Price ₹${product.price} → MRP ₹${mrp}`);
+        logger.info(`✅ Updated ${product.name}: Price ₹${product.price} → MRP ₹${mrp}`);
         updatedCount++;
       } else {
-        console.log(`⏭️  Skipped ${product.name}: Already has MRP ₹${product.mrp}`);
+        logger.info(`⏭️  Skipped ${product.name}: Already has MRP ₹${product.mrp}`);
       }
     }
 
-    console.log(`\n🎉 Successfully updated ${updatedCount} products with MRP values`);
+    logger.info(`\n🎉 Successfully updated ${updatedCount} products with MRP values`);
     
     // Close connection
     await mongoose.disconnect();
-    console.log("✅ Disconnected from MongoDB");
+    logger.info("✅ Disconnected from MongoDB");
     
     process.exit(0);
   } catch (error) {
-    console.error("❌ Error updating products:", error);
+    logger.error("❌ Error updating products:", error);
     process.exit(1);
   }
 };

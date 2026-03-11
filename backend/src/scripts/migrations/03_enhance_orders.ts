@@ -1,3 +1,4 @@
+import { logger } from '../../utils/logger';
 /**
  * MIGRATION 03: Enhance Orders Collection
  * Adds timing estimates, coupons, and audit logging
@@ -11,9 +12,9 @@ dotenv.config();
 async function enhanceOrders() {
   try {
     await mongoose.connect(process.env.MONGODB_URI!);
-    console.log("✅ Connected to MongoDB\n");
+    logger.info("✅ Connected to MongoDB\n");
 
-    console.log("🔧 Enhancing Orders Collection...");
+    logger.info("🔧 Enhancing Orders Collection...");
     
     const result = await Order.updateMany(
       {},
@@ -58,16 +59,16 @@ async function enhanceOrders() {
       { strict: false }
     );
 
-    console.log(`✅ Updated ${result.modifiedCount} orders`);
+    logger.info(`✅ Updated ${result.modifiedCount} orders`);
     
     // Create indexes
-    console.log("\n🔧 Creating indexes...");
+    logger.info("\n🔧 Creating indexes...");
     await Order.collection.createIndex({ estimatedDeliveryTime: 1 });
     await Order.collection.createIndex({ isReturned: 1, returnedAt: -1 });
-    console.log("✅ Indexes created");
+    logger.info("✅ Indexes created");
 
   } catch (error) {
-    console.error("❌ Error:", error);
+    logger.error("❌ Error:", error);
   } finally {
     await mongoose.connection.close();
   }
