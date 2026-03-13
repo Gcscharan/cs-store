@@ -29,7 +29,7 @@ export const OtpModalProvider: React.FC<OtpModalProviderProps> = ({
   children,
 }) => {
   const [isOtpModalOpen, setIsOtpModalOpen] = useState(false);
-  const [redirectTo, setRedirectTo] = useState("/account/profile");
+  const [redirectTo, setRedirectTo] = useState("/");
   const { isAuthenticated, loading: isAuthLoading } = useSelector(
     (state: RootState) => state.auth
   );
@@ -55,7 +55,7 @@ export const OtpModalProvider: React.FC<OtpModalProviderProps> = ({
       "OtpModalContext: showOtpModal called with redirectPath:",
       redirectPath
     );
-    setRedirectTo(redirectPath || "/account/profile");
+    setRedirectTo(redirectPath || "/");
     requestAnimationFrame(() => setIsOtpModalOpen(true));
     console.log("OtpModalContext: Modal should now be open");
   };

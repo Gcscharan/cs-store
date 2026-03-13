@@ -17,7 +17,7 @@ type AuthMethod = "choose" | "phone" | "email" | "google";
 const OtpLoginModal: React.FC<OtpLoginModalProps> = ({
   isOpen,
   onClose,
-  redirectTo = "/account/profile",
+  redirectTo = "/",
 }) => {
   const dispatch = useDispatch();
   const { isAuthenticated } = useSelector((state: RootState) => state.auth);

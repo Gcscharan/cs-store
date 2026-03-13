@@ -40,6 +40,12 @@ const OtpSchema = new mongoose_1.Schema({
         required: true,
         trim: true,
     },
+    email: {
+        type: String,
+        required: false,
+        trim: true,
+        lowercase: true,
+    },
     otp: {
         type: String,
         required: true,
@@ -81,5 +87,6 @@ const OtpSchema = new mongoose_1.Schema({
 });
 // Index for efficient queries
 OtpSchema.index({ phone: 1, type: 1, isUsed: 1 });
+OtpSchema.index({ email: 1, type: 1, isUsed: 1 });
 OtpSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 exports.default = mongoose_1.default.model("Otp", OtpSchema);
