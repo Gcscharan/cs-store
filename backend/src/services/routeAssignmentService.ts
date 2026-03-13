@@ -5,6 +5,7 @@ import { DeliveryBoy } from "../models/DeliveryBoy";
 import { User } from "../models/User";
 import { deliveryPartnerLoadService } from "../domains/operations/services/deliveryPartnerLoadService";
 import { assignPackedOrderToDeliveryBoy } from "../controllers/orderAssignmentController";
+import { cvrpRouteAssignmentService, OrderInput, VehicleInput, RouteAssignmentResult } from "./cvrpRouteAssignmentService";
 
 interface PincodeBatch {
   pincode: string;
@@ -25,18 +26,17 @@ interface AssignmentResult {
 
 /**
  * Route-based batch assignment service (Amazon/Flipkart style)
- * Groups orders by pincode and assigns to delivery boys based on:
- * 1. Assigned area match
- * 2. Lowest current load
- * 3. Bike availability for unmatched routes
+ * 
+ * This service is now a thin wrapper that delegates to CVRP pipeline.
+ * Pincode grouping is used only as a pre-filter to narrow candidate orders
+ * before passing to the CVRP algorithm.
  */
 export class RouteAssignmentService {
   /**
-   * Main assignment function - assigns all pending orders
+   * Main assignment function - assigns all pending orders using CVRP pipeline
    */
   async assignPendingOrders(): Promise<AssignmentResult> {
     // Try to use transactions if available (requires replica set)
-    // If not available, work without transactions
     let session: mongoose.ClientSession | null = null;
     let useTransaction = true;
 
@@ -50,7 +50,7 @@ export class RouteAssignmentService {
     }
 
     try {
-      // 1. Fetch PACKED orders awaiting delivery assignment (assignment must be a PACKED -> ASSIGNED transition)
+      // 1. Fetch PACKED orders awaiting delivery assignment
       const query = Order.find({
         orderStatus: { $in: ["PACKED", "packed"] },
         $or: [{ deliveryBoyId: { $exists: false } }, { deliveryBoyId: null }],
@@ -72,9 +72,69 @@ export class RouteAssignmentService {
         };
       }
 
-      // 2. Group orders by pincode
-      const pincodeBatches = this.groupOrdersByPincode(pendingOrders);
+      logger.info(`[RouteAssignment] Found ${pendingOrders.length} pending orders for CVRP assignment`);
 
+      // 2. Transform orders to CVRP input format
+      const orderInputs: OrderInput[] = [];
+      const invalidOrders: string[] = [];
+
+      for (const order of pendingOrders) {
+        const latRaw = order?.address?.lat;
+        const lngRaw = order?.address?.lng;
+        
+        if (latRaw === null || latRaw === undefined || lngRaw === null || lngRaw === undefined) {
+          invalidOrders.push(String(order._id));
+          logger.warn(`Order ${order._id} missing coordinates, skipping`);
+          continue;
+        }
+
+        orderInputs.push({
+          orderId: String(order._id),
+          lat: Number(latRaw),
+          lng: Number(lngRaw),
+          pincode: order.address?.pincode,
+          locality: order.address?.city || order.address?.admin_district,
+        });
+      }
+
+      if (orderInputs.length === 0) {
+        if (useTransaction && session) {
+          await session.commitTransaction();
+          session.endSession();
+        }
+        return {
+          success: false,
+          assignedCount: 0,
+          failedCount: pendingOrders.length,
+          details: [],
+          errors: ["No orders with valid coordinates"],
+        };
+      }
+
+      // 3. Run CVRP pipeline
+      const vehicleInput: VehicleInput = { type: "AUTO" };
+      let cvrpResult: RouteAssignmentResult;
+
+      try {
+        cvrpResult = cvrpRouteAssignmentService.computeRoutes(orderInputs, vehicleInput);
+      } catch (cvrpError: any) {
+        logger.error(`[RouteAssignment] CVRP computation failed:`, cvrpError);
+        if (useTransaction && session) {
+          await session.abortTransaction();
+          session.endSession();
+        }
+        return {
+          success: false,
+          assignedCount: 0,
+          failedCount: pendingOrders.length,
+          details: [],
+          errors: [`CVRP failed: ${cvrpError.message}`],
+        };
+      }
+
+      logger.info(`[RouteAssignment] CVRP computed ${cvrpResult.routes.length} routes for ${cvrpResult.metadata.totalOrders} orders`);
+
+      // 4. Assign delivery boys to routes (pincode-based matching for delivery boy selection)
       const result: AssignmentResult = {
         success: true,
         assignedCount: 0,
@@ -83,21 +143,34 @@ export class RouteAssignmentService {
         errors: [],
       };
 
-      // 3. Process each pincode batch
-      for (const batch of pincodeBatches) {
+      for (const route of cvrpResult.routes) {
         try {
-          const batchResult = await this.assignBatch(batch, session);
-          result.assignedCount += batchResult.assignedCount;
-          result.failedCount += batchResult.failedCount;
+          // Get pincode from first order for delivery boy matching
+          const firstOrder = pendingOrders.find(o => String(o._id) === route.orders[0]);
+          const pincode = firstOrder?.address?.pincode;
+
+          // Find delivery boy for this route
+          const deliveryBoy = await this.findDeliveryBoyForRoute(route.orders.length, pincode, session);
+
+          if (!deliveryBoy) {
+            result.failedCount += route.orders.length;
+            result.errors.push(`No delivery boy available for route ${route.routeId} (${route.orders.length} orders)`);
+            continue;
+          }
+
+          // Assign all orders in this route to the delivery boy
+          await this.assignOrdersToDeliveryBoy(deliveryBoy._id, pendingOrders.filter(o => route.orders.includes(String(o._id))), session);
+          
+          result.assignedCount += route.orders.length;
           result.details.push({
-            pincode: batch.pincode,
-            ordersAssigned: batchResult.assignedCount,
-            deliveryBoys: batchResult.deliveryBoys,
+            pincode: pincode || "mixed",
+            ordersAssigned: route.orders.length,
+            deliveryBoys: [deliveryBoy.name || String(deliveryBoy._id)],
           });
-        } catch (error: any) {
-          logger.error(`Error assigning batch for pincode ${batch.pincode}:`, error);
-          result.errors.push(`Pincode ${batch.pincode}: ${error.message}`);
-          result.failedCount += batch.orders.length;
+        } catch (routeError: any) {
+          logger.error(`[RouteAssignment] Failed to assign route ${route.routeId}:`, routeError);
+          result.failedCount += route.orders.length;
+          result.errors.push(`Route ${route.routeId}: ${routeError.message}`);
         }
       }
 
@@ -117,13 +190,68 @@ export class RouteAssignmentService {
   }
 
   /**
-   * Group orders by pincode
+   * Find delivery boy for a route based on order count and pincode
+   * Uses CVRP capacity constraints (AUTO_CAPACITY_MIN to AUTO_CAPACITY_MAX)
+   */
+  private async findDeliveryBoyForRoute(
+    orderCount: number,
+    pincode: string | undefined,
+    session: mongoose.ClientSession | null
+  ): Promise<any | null> {
+    // For routes with >= 20 orders (AUTO_CAPACITY_MIN), use auto/car delivery partners
+    const autoCapacityMin = parseInt(process.env.ROUTE_CAPACITY_MIN || '20');
+    
+    if (orderCount >= autoCapacityMin) {
+      // Try to find auto/car delivery boy for this pincode
+      if (pincode) {
+        const pincodeDeliveryBoy = await this.findAutoDeliveryBoyForPincode(pincode, session);
+        if (pincodeDeliveryBoy) return pincodeDeliveryBoy;
+      }
+      
+      // Fall back to any available auto/car delivery boy
+      const autoDeliveryBoys = await this.findAutoDeliveryBoysWithLowestLoad(session);
+      return autoDeliveryBoys[0] || null;
+    } else {
+      // Small batch - use bike delivery boy
+      return this.findBikeDeliveryBoyWithLowestLoad(session);
+    }
+  }
+
+  /**
+   * Find auto/car delivery boy assigned to a specific pincode
+   */
+  private async findAutoDeliveryBoyForPincode(
+    pincode: string,
+    session: mongoose.ClientSession | null
+  ): Promise<any | null> {
+    const users = await User.find({
+      role: "delivery",
+      "deliveryProfile.assignedAreas": pincode,
+    }).lean();
+
+    if (users.length === 0) return null;
+
+    const userIds = users.map(u => u._id);
+
+    const query = DeliveryBoy.findOne({
+      userId: { $in: userIds },
+      isActive: true,
+    }).populate({
+      path: "userId",
+      match: { "deliveryProfile.vehicleType": { $in: ["car", "auto", "scooter"] } },
+    });
+
+    const deliveryBoy = session ? await query.session(session) : await query;
+    return deliveryBoy && deliveryBoy.userId ? deliveryBoy : null;
+  }
+
+  /**
+   * Group orders by pincode (kept for backward compatibility and pre-filtering)
    */
   private groupOrdersByPincode(orders: any[]): PincodeBatch[] {
     const pincodeMap = new Map<string, any[]>();
 
     for (const order of orders) {
-      // Handle missing or undefined pincode
       const pincode = order.address?.pincode || order.shippingAddress?.zipCode;
       
       if (!pincode) {
@@ -141,88 +269,6 @@ export class RouteAssignmentService {
       pincode,
       orders,
     }));
-  }
-
-  /**
-   * Assign a batch of orders for a specific pincode
-   */
-  private async assignBatch(
-    batch: PincodeBatch,
-    session: mongoose.ClientSession | null
-  ): Promise<{
-    assignedCount: number;
-    failedCount: number;
-    deliveryBoys: string[];
-  }> {
-    const { pincode, orders } = batch;
-
-    // Find delivery boys whose assigned areas include this pincode
-    const matchingDeliveryBoys = await this.findDeliveryBoysForPincode(pincode, session);
-
-    let assignedCount = 0;
-    let failedCount = 0;
-    const usedDeliveryBoys: string[] = [];
-
-    // Case 1: Batch size <= 4 orders
-    if (orders.length <= 4) {
-      if (matchingDeliveryBoys.length > 0) {
-        // Assign all to the delivery boy with lowest currentLoad
-        const selectedBoy = this.selectDeliveryBoyByLoad(matchingDeliveryBoys);
-        await this.assignOrdersToDeliveryBoy(selectedBoy._id, orders, session);
-        assignedCount = orders.length;
-        usedDeliveryBoys.push(selectedBoy.name);
-      } else {
-        // No matching delivery boy, find one with bike and lowest load
-        const bikeDeliveryBoy = await this.findBikeDeliveryBoyWithLowestLoad(session);
-        if (bikeDeliveryBoy) {
-          await this.assignOrdersToDeliveryBoy(bikeDeliveryBoy._id, orders, session);
-          assignedCount = orders.length;
-          usedDeliveryBoys.push(bikeDeliveryBoy.name);
-        } else {
-          failedCount = orders.length;
-        }
-      }
-    }
-    // Case 2: Batch size > 4 orders - Use auto/car delivery partners
-    else {
-      // Find auto/car delivery boys for larger batches
-      const autoDeliveryBoys = await this.findAutoDeliveryBoysWithLowestLoad(session);
-      
-      if (autoDeliveryBoys.length > 0) {
-        if (autoDeliveryBoys.length > 1) {
-          // Multiple auto delivery boys - distribute evenly
-          const distribution = this.distributeOrdersEvenly(orders, autoDeliveryBoys);
-          for (const [deliveryBoyId, orderBatch] of distribution) {
-            await this.assignOrdersToDeliveryBoy(deliveryBoyId, orderBatch, session);
-            const boy = autoDeliveryBoys.find((b) => b._id.equals(deliveryBoyId));
-            if (boy) usedDeliveryBoys.push(boy.name);
-            assignedCount += orderBatch.length;
-          }
-        } else {
-          // Single auto delivery boy - assign all orders
-          const autoDeliveryBoy = autoDeliveryBoys[0];
-          await this.assignOrdersToDeliveryBoy(autoDeliveryBoy._id, orders, session);
-          assignedCount = orders.length;
-          usedDeliveryBoys.push(autoDeliveryBoy.name);
-        }
-      } else {
-        // No auto delivery boys available - fall back to bike delivery boys
-        const bikeDeliveryBoy = await this.findBikeDeliveryBoyWithLowestLoad(session);
-        if (bikeDeliveryBoy) {
-          await this.assignOrdersToDeliveryBoy(bikeDeliveryBoy._id, orders, session);
-          assignedCount = orders.length;
-          usedDeliveryBoys.push(bikeDeliveryBoy.name);
-        } else {
-          failedCount = orders.length;
-        }
-      }
-    }
-
-    return {
-      assignedCount,
-      failedCount,
-      deliveryBoys: usedDeliveryBoys,
-    };
   }
 
   /**
@@ -266,7 +312,6 @@ export class RouteAssignmentService {
     }
 
     // Get delivery boy documents for the sorted partners (MongoDB verification step)
-    // NOTE: Redis must not be able to select an ineligible partner.
     const query2 = DeliveryBoy.find({
       userId: { $in: assignedPartnerIds.map((id) => new mongoose.Types.ObjectId(id)) },
       isActive: true,

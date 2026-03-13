@@ -1,9 +1,42 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getGstReportHandler = exports.purgeOrders = exports.assignComputedCluster = exports.computeRoutes = exports.makeDeliveryBoy = exports.deleteProduct = exports.updateProduct = exports.getDashboardStats = exports.exportOrders = exports.suspendDeliveryBoy = exports.approveDeliveryBoy = exports.getAdminDeliveryBoys = exports.getAdminOrders = exports.getAdminProducts = exports.getUsers = exports.getAdminProfile = exports.getRouteDetail = exports.listRecentAssignedRoutes = exports.getRouteStatus = exports.assignRoute = exports.listRoutes = exports.getStats = void 0;
+exports.getRouteOverview = exports.getGstReportHandler = exports.purgeOrders = exports.assignComputedCluster = exports.computeRoutes = exports.makeDeliveryBoy = exports.deleteProduct = exports.updateProduct = exports.getDashboardStats = exports.exportOrders = exports.suspendDeliveryBoy = exports.approveDeliveryBoy = exports.getAdminDeliveryBoys = exports.getAdminOrders = exports.getAdminProducts = exports.getUsers = exports.getAdminProfile = exports.getRouteDetail = exports.listRecentAssignedRoutes = exports.getRouteStatus = exports.assignRoute = exports.listRoutes = exports.getStats = void 0;
 const logger_1 = require("../utils/logger");
 const mongoose_1 = __importDefault(require("mongoose"));
 const crypto_1 = __importDefault(require("crypto"));
@@ -517,6 +550,9 @@ const getRouteDetail = async (req, res) => {
                 },
                 progressPct,
                 warehouse,
+                // Outlier fields
+                isOutlierRoute: route.isOutlierRoute || false,
+                outlierReason: route.outlierReason || null,
             },
             orders,
             checkpoints,
@@ -1689,3 +1725,148 @@ const getGstReportHandler = async (req, res) => {
     }
 };
 exports.getGstReportHandler = getGstReportHandler;
+/**
+ * Get Route Health Overview
+ *
+ * Returns summary statistics about route health for admin dashboard.
+ */
+const getRouteOverview = async (req, res) => {
+    try {
+        const AUTO_CAPACITY_MIN = parseInt(process.env.ROUTE_CAPACITY_MIN || '20');
+        const AUTO_CAPACITY_MAX = parseInt(process.env.ROUTE_CAPACITY_MAX || '30');
+        // Get all routes
+        const routes = await Route_1.Route.find({}).lean();
+        // Count by status
+        const statusCounts = {
+            CREATED: 0,
+            ASSIGNED: 0,
+            IN_PROGRESS: 0,
+            COMPLETED: 0,
+        };
+        let underloadedRoutes = 0;
+        let overloadedRoutes = 0;
+        let cancelledOrdersInRoutes = 0;
+        for (const route of routes) {
+            const status = route.status;
+            if (statusCounts[status] !== undefined) {
+                statusCounts[status]++;
+            }
+            const orderCount = route.orderIds?.length || 0;
+            // Check capacity
+            if (orderCount < AUTO_CAPACITY_MIN) {
+                underloadedRoutes++;
+            }
+            else if (orderCount > AUTO_CAPACITY_MAX) {
+                overloadedRoutes++;
+            }
+            // Check for cancelled orders (failed count indicates cancellations)
+            cancelledOrdersInRoutes += route.failedCount || 0;
+        }
+        // Count unassigned orders (PACKED without deliveryBoyId and not in any route)
+        const allRouteOrderIds = new Set();
+        for (const route of routes) {
+            if (route.status !== 'COMPLETED') {
+                for (const oid of route.orderIds || []) {
+                    allRouteOrderIds.add(String(oid));
+                }
+            }
+        }
+        const unassignedOrders = await Order_1.Order.countDocuments({
+            orderStatus: { $in: ['PACKED', 'packed'] },
+            $or: [
+                { deliveryBoyId: { $exists: false } },
+                { deliveryBoyId: null },
+            ],
+            _id: { $nin: Array.from(allRouteOrderIds).map(id => new mongoose_1.default.Types.ObjectId(id)) },
+        });
+        // Get last computed time
+        const lastComputedRoute = await Route_1.Route.findOne({})
+            .sort({ computedAt: -1 })
+            .select('computedAt')
+            .lean();
+        const lastComputedAt = lastComputedRoute?.computedAt || null;
+        // Get next scheduled recompute (from auto scheduler if available)
+        let nextScheduledRecompute = null;
+        try {
+            const { getNextScheduledRecompute } = await Promise.resolve().then(() => __importStar(require('../services/routeAutoScheduler')));
+            nextScheduledRecompute = getNextScheduledRecompute();
+        }
+        catch {
+            // Auto scheduler not available
+        }
+        const summary = {
+            totalRoutes: routes.length,
+            statusCounts,
+            assignedRoutes: statusCounts.ASSIGNED + statusCounts.IN_PROGRESS,
+            unassignedOrders,
+            underloadedRoutes,
+            overloadedRoutes,
+            cancelledOrdersInRoutes,
+            lastComputedAt,
+            nextScheduledRecompute,
+            capacityConfig: {
+                min: AUTO_CAPACITY_MIN,
+                max: AUTO_CAPACITY_MAX,
+            },
+        };
+        // Hub-wise breakdown
+        const hubStats = [];
+        // Group routes by hub
+        const routesByHub = new Map();
+        for (const route of routes) {
+            const hubId = route.hubId || 'warehouse';
+            if (!routesByHub.has(hubId))
+                routesByHub.set(hubId, []);
+            routesByHub.get(hubId).push(route);
+        }
+        // Get hub names from config
+        let hubs = [{ id: 'warehouse', name: 'Warehouse (Local)' }];
+        try {
+            const { HUBS } = await Promise.resolve().then(() => __importStar(require('../services/hubAssignmentService')));
+            hubs = [...hubs, ...HUBS.map(h => ({ id: h.id, name: h.name }))];
+        }
+        catch {
+            // Hub service not available
+        }
+        // Build hub stats
+        for (const hub of hubs) {
+            const hubRoutes = routesByHub.get(hub.id) || [];
+            const totalOrders = hubRoutes.reduce((sum, r) => sum + (r.orderIds?.length || 0), 0);
+            const totalRoutes = hubRoutes.length;
+            const assignedRoutes = hubRoutes.filter(r => r.status === 'ASSIGNED' || r.status === 'IN_PROGRESS').length;
+            // Count pending orders for this hub (orders not in any route yet)
+            // This is approximate - would need order hub assignment for exact count
+            const pendingOrders = hubRoutes.filter(r => r.status === 'CREATED')
+                .reduce((sum, r) => sum + Math.max(0, AUTO_CAPACITY_MIN - (r.orderIds?.length || 0)), 0);
+            hubStats.push({
+                hubId: hub.id,
+                hubName: hub.name,
+                totalOrders,
+                totalRoutes,
+                assignedRoutes,
+                pendingOrders,
+            });
+        }
+        // Count outlier routes
+        const outlierRoutes = routes.filter(r => r.isOutlierRoute === true);
+        const outlierOrderIds = outlierRoutes.flatMap(r => r.orderIds?.map(id => String(id)) || []);
+        res.json({
+            success: true,
+            summary,
+            hubs: hubStats,
+            outliers: {
+                count: outlierRoutes.length,
+                orderIds: outlierOrderIds,
+            },
+            generatedAt: new Date().toISOString(),
+        });
+    }
+    catch (error) {
+        logger_1.logger.error('Route overview error:', error);
+        res.status(500).json({
+            error: 'Failed to get route overview',
+            message: error.message || 'Unknown error occurred',
+        });
+    }
+};
+exports.getRouteOverview = getRouteOverview;

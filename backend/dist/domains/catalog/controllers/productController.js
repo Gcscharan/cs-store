@@ -7,6 +7,7 @@ const Product_1 = require("../../../models/Product");
 const MediaImageService_1 = require("../../media/services/MediaImageService");
 const cache_1 = require("../../../middleware/cache");
 const productReadCache_1 = require("../../../utils/productReadCache");
+const autoTranslateService_1 = require("../../../services/autoTranslateService");
 const mediaService = new MediaImageService_1.MediaImageService();
 const SELLABLE_PRODUCT_FILTER = {
     deletedAt: null,
@@ -308,6 +309,18 @@ const createProduct = async (req, res) => {
             images: imageDocs,
         });
         const saved = await product.save();
+        // Auto-translate product name and description to all languages
+        try {
+            const { nameTranslations, descriptionTranslations } = await (0, autoTranslateService_1.translateProduct)(name, description);
+            saved.nameTranslations = nameTranslations;
+            saved.descriptionTranslations = descriptionTranslations;
+            await saved.save();
+            logger_1.logger.info('✅ Product translations saved:', { productId: saved._id });
+        }
+        catch (translateError) {
+            // Log but don't fail - translations can be added later
+            logger_1.logger.warn('⚠️ Product translation failed (non-blocking):', translateError);
+        }
         await cache_1.invalidateCache.products();
         // Normalize before sending to frontend
         const clean = saved.toObject ? saved.toObject() : saved;
@@ -342,7 +355,7 @@ exports.createProduct = createProduct;
 const updateProduct = async (req, res) => {
     try {
         const { id } = req.params;
-        const { images, ...updateData } = req.body;
+        const { images, name, description, ...updateData } = req.body;
         logger_1.logger.info('🔍 [UpdateProduct] Request received:', {
             productId: id,
             imagesCount: (images || []).length,
@@ -355,6 +368,10 @@ const updateProduct = async (req, res) => {
         }
         // Prepare update data
         const updateFields = { ...updateData };
+        if (name !== undefined)
+            updateFields.name = name;
+        if (description !== undefined)
+            updateFields.description = description;
         if (images !== undefined) {
             updateFields.images = images;
         }
@@ -374,6 +391,19 @@ const updateProduct = async (req, res) => {
         if (!product) {
             logger_1.logger.info('❌ [UpdateProduct] Product not found:', id);
             return res.status(404).json({ message: "Product not found" });
+        }
+        // Re-translate if name or description changed
+        if (name !== undefined || description !== undefined) {
+            try {
+                const { nameTranslations, descriptionTranslations } = await (0, autoTranslateService_1.translateProduct)(product.name, product.description);
+                product.nameTranslations = nameTranslations;
+                product.descriptionTranslations = descriptionTranslations;
+                await product.save();
+                logger_1.logger.info('✅ [UpdateProduct] Product translations updated:', { productId: id });
+            }
+            catch (translateError) {
+                logger_1.logger.warn('⚠️ [UpdateProduct] Translation failed (non-blocking):', translateError);
+            }
         }
         logger_1.logger.info('✅ [UpdateProduct] Product updated successfully:', {
             productId: id,

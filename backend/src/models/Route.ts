@@ -4,6 +4,8 @@ export type VehicleType = "AUTO";
 
 export type RouteStatus = "CREATED" | "ASSIGNED" | "IN_PROGRESS" | "COMPLETED";
 
+export type RouteTier = "local" | "hub";
+
 export interface IRoute extends Document {
   routeId: string;
   orderIds: mongoose.Types.ObjectId[];
@@ -13,6 +15,17 @@ export interface IRoute extends Document {
   estimatedTimeMin: number;
   status: RouteStatus;
   deliveryBoyId?: mongoose.Types.ObjectId | null;
+
+  // Hub & Spoke fields
+  hubId: string;
+  hubName: string;
+  tier: RouteTier;
+  depotLat: number;
+  depotLng: number;
+
+  // Outlier detection fields
+  isOutlierRoute: boolean;
+  outlierReason?: string;
 
   deliveredCount: number;
   failedCount: number;
@@ -75,6 +88,46 @@ const RouteSchema = new Schema<IRoute>(
       ref: "DeliveryBoy",
       default: null,
       index: true,
+    },
+    // Hub & Spoke fields
+    hubId: {
+      type: String,
+      required: true,
+      default: "warehouse",
+      index: true,
+    },
+    hubName: {
+      type: String,
+      required: true,
+      default: "Warehouse (Local)",
+    },
+    tier: {
+      type: String,
+      enum: ["local", "hub"],
+      required: true,
+      default: "local",
+      index: true,
+    },
+    depotLat: {
+      type: Number,
+      required: true,
+      default: 17.094,
+    },
+    depotLng: {
+      type: Number,
+      required: true,
+      default: 80.598,
+    },
+    // Outlier detection fields
+    isOutlierRoute: {
+      type: Boolean,
+      required: true,
+      default: false,
+      index: true,
+    },
+    outlierReason: {
+      type: String,
+      default: null,
     },
     deliveredCount: {
       type: Number,

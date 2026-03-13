@@ -20,6 +20,18 @@ const LanguageContext = createContext<LanguageContextType | undefined>(
 // Translation keys loaded from JSON files
 const translations = { en, te, hi } as const;
 
+function getNestedValue(obj: unknown, key: string): unknown {
+  if (!obj || typeof obj !== 'object') return undefined;
+  const parts = key.split('.');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let current: any = obj as any;
+  for (const part of parts) {
+    if (current == null) return undefined;
+    current = current[part];
+  }
+  return current;
+}
+
 export const LanguageProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
@@ -34,8 +46,9 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({
   };
 
   const t = (key: string, params?: Record<string, string>): string => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const value = (translations[language] as any)[key] || key;
+    const primary = getNestedValue(translations[language], key);
+    const fallback = getNestedValue(translations.en, key);
+    const value = (primary ?? fallback) ?? key;
 
     // If value is not a string (e.g., nested object), return the key
     if (typeof value !== 'string') {

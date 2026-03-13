@@ -64,6 +64,7 @@ router.get("/orders/export", auth_1.authenticateToken, (0, auth_1.requireRole)([
 // CVRP Route Assignment
 router.post("/routes/compute", auth_1.authenticateToken, (0, auth_1.requireRole)(["admin"]), auditLog_1.auditLog, adminController_1.computeRoutes);
 router.post("/routes/assign", auth_1.authenticateToken, (0, auth_1.requireRole)(["admin"]), auditLog_1.auditLog, adminController_1.assignComputedCluster);
+router.get("/routes/overview", auth_1.authenticateToken, (0, auth_1.requireRole)(["admin"]), auditLog_1.auditLog, adminController_1.getRouteOverview);
 router.get("/routes", auth_1.authenticateToken, (0, auth_1.requireRole)(["admin"]), auditLog_1.auditLog, adminController_1.listRoutes);
 router.get("/routes/recent", auth_1.authenticateToken, (0, auth_1.requireRole)(["admin"]), auditLog_1.auditLog, adminController_1.listRecentAssignedRoutes);
 router.post("/routes/:routeId/assign", auth_1.authenticateToken, (0, auth_1.requireRole)(["admin"]), auditLog_1.auditLog, adminController_1.assignRoute);

@@ -23,6 +23,7 @@ import {
   getRouteDetail,
   purgeOrders,
   getGstReportHandler,
+  getRouteOverview,
 } from "../controllers/adminController";
 import { assignDeliveryBoyToOrder } from "../controllers/orderAssignmentController";
 import { authenticateToken, requireRole } from "../middleware/auth";
@@ -186,6 +187,14 @@ router.post(
   requireRole(["admin"]),
   auditLog,
   assignComputedCluster
+);
+
+router.get(
+  "/routes/overview",
+  authenticateToken,
+  requireRole(["admin"]),
+  auditLog,
+  getRouteOverview
 );
 
 router.get(

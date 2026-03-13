@@ -48,6 +48,18 @@ const ProductSchema = new mongoose_1.Schema({
         trim: true,
         maxlength: [1000, "Description cannot exceed 1000 characters"],
     },
+    // Multilingual translations for product name
+    nameTranslations: {
+        en: { type: String, trim: true },
+        te: { type: String, trim: true },
+        hi: { type: String, trim: true },
+    },
+    // Multilingual translations for product description
+    descriptionTranslations: {
+        en: { type: String, trim: true },
+        te: { type: String, trim: true },
+        hi: { type: String, trim: true },
+    },
     category: {
         type: String,
         required: [true, "Category is required"],
