@@ -1,13 +1,17 @@
 {
-  "name": "cps-store",
+  "name": "vyaparsetu-monorepo",
   "private": true,
   "version": "1.0.0",
-  "description": "CS Store - Complete E-commerce Platform",
+  "description": "VyaparSetu - Complete E-commerce Platform (Web + Mobile)",
   "scripts": {
     "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:backend": "cd backend && ts-node-dev --respawn --transpile-only src/index.ts",
     "dev:frontend": "cd frontend && npm run dev",
+    "mobile:customer": "npm run start --workspace=@vyaparsetu/customer-app",
+    "mobile:delivery": "npm run start --workspace=@vyaparsetu/delivery-app",
+    "web": "npm run dev --workspace=frontend",
+    "backend": "npm run dev --workspace=backend",
     "build": "npm run build:backend && npm run build:frontend",
     "build:backend": "cd backend && npm run build",
     "build:frontend": "cd frontend && npm run build",
@@ -48,16 +52,21 @@
     "concurrently": "^8.2.2",
     "ts-node-dev": "^2.0.0"
   },
-  "workspaces": ["backend", "frontend", "mobile"],
-  "keywords": ["ecommerce", "react", "nodejs", "typescript", "playwright", "jest"],
-  "author": "CS Store Team",
+  "workspaces": [
+    "packages/*",
+    "apps/*",
+    "backend",
+    "frontend"
+  ],
+  "keywords": ["ecommerce", "react", "nodejs", "typescript", "playwright", "jest", "react-native", "expo"],
+  "author": "VyaparSetu Team",
   "license": "ISC",
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-org/cps-store.git"
+    "url": "https://github.com/Gcscharan/cs-store.git"
   },
   "bugs": {
-    "url": "https://github.com/your-org/cps-store/issues"
+    "url": "https://github.com/Gcscharan/cs-store/issues"
   },
-  "homepage": "https://github.com/your-org/cps-store#readme"
+  "homepage": "https://github.com/Gcscharan/cs-store#readme"
 }
