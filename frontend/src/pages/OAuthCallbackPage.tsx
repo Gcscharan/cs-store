@@ -72,6 +72,7 @@ const OAuthCallbackPage: React.FC = () => {
 
       (async () => {
         try {
+          console.log('[OAuthCallback] Fetching /auth/me with token:', token?.substring(0, 20) + '...');
           const meRes = await fetch(
             toApiUrl("/auth/me"),
             {
@@ -82,8 +83,12 @@ const OAuthCallbackPage: React.FC = () => {
           );
 
           const meData = await meRes.json();
+          console.log('[OAuthCallback] /auth/me response:', meData);
           if (meRes.ok && meData?.user) {
+            console.log('[OAuthCallback] Dispatching setUser with:', meData.user);
             dispatch(setUser(meData.user));
+          } else {
+            console.error('[OAuthCallback] /auth/me failed or no user:', meRes.status, meData);
           }
 
           // PRIORITY 1: Admins

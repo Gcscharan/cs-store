@@ -1357,6 +1357,8 @@ export const getMe = async (
   try {
     const userId = (req as any).userId || (req as any).user?._id;
     
+    logger.info("[getMe] Called with userId:", userId);
+    
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
     }
@@ -1365,6 +1367,15 @@ export const getMe = async (
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
+
+    logger.info("[getMe] Found user:", {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      avatar: user.avatar,
+      oauthProviders: user.oauthProviders?.length || 0,
+    });
 
     // Authoritative profile completion check (server-side)
     const resolvedName = String((user as any).name || (user as any).fullName || "").trim();
@@ -1384,6 +1395,8 @@ export const getMe = async (
       profileCompleted,
       authState: "ACTIVE",
     };
+
+    logger.info("[getMe] Returning safeUser:", safeUser);
 
     res.status(200).json({ user: safeUser });
   } catch (error: any) {

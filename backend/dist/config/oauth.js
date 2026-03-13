@@ -53,6 +53,7 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && callbackURL) {
                 const tempUser = {
                     email: email,
                     name: profile.displayName || "",
+                    avatar: profile.photos?.[0]?.value || undefined,
                     oauthProviders: [
                         {
                             provider: "google",
@@ -68,11 +69,27 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && callbackURL) {
                 user.oauthProviders = [];
             }
             const alreadyLinked = user.oauthProviders.some((p) => p.provider === "google" && p.providerId === googleId);
+            // Populate name from Google profile if missing or empty
+            const googleName = profile.displayName || profile.name?.givenName
+                ? [profile.name?.givenName, profile.name?.familyName].filter(Boolean).join(" ").trim() || profile.displayName
+                : "";
+            const currentName = String(user.name || "").trim();
+            if (!currentName && googleName) {
+                user.name = googleName;
+            }
+            // Populate avatar from Google profile if missing
+            const googleAvatar = profile.photos?.[0]?.value;
+            if (googleAvatar && !user.avatar) {
+                user.avatar = googleAvatar;
+            }
             if (!alreadyLinked) {
                 user.oauthProviders.push({
                     provider: "google",
                     providerId: googleId,
                 });
+            }
+            // Save if we made any changes (name/avatar populated or provider linked)
+            if ((!currentName && googleName) || (googleAvatar && !user.avatar) || !alreadyLinked) {
                 await user.save();
             }
             return done(null, user);

@@ -115,6 +115,12 @@ const UserSchema = new mongoose_1.Schema({
             "Please enter a valid Indian phone number (10 digits starting with 6-9)",
         ],
     },
+    avatar: {
+        type: String,
+        required: false,
+        default: undefined,
+        trim: true,
+    },
     isDeleted: {
         type: Boolean,
         default: false,

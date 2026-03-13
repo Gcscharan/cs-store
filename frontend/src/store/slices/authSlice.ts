@@ -119,6 +119,7 @@ const authSlice = createSlice({
 
     // Save user object (from login, profile fetch)
     setUser(state, action: PayloadAction<any>) {
+      console.log('[authSlice] setUser called with:', action.payload);
       state.user = action.payload;
       saveToLocalStorage("authUser", JSON.stringify(action.payload));
       // Store authoritative profileCompleted from backend

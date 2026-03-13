@@ -38,7 +38,14 @@ const EditProfilePage = () => {
 
   // Update profile data when MongoDB data loads
   useEffect(() => {
+    console.log('[EditProfilePage] fetchedProfile changed:', fetchedProfile);
     if (fetchedProfile) {
+      console.log('[EditProfilePage] Setting profileData:', {
+        name: fetchedProfile.name,
+        email: fetchedProfile.email,
+        phone: fetchedProfile.phone,
+        avatar: fetchedProfile.avatar,
+      });
       setProfileData({
         name: fetchedProfile.name || "",
         email: fetchedProfile.email || "",
