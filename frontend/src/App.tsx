@@ -191,6 +191,9 @@ const AdminFinancePage = lazy(() =>
 const AdminProfilePage = lazy(() =>
   import(/* webpackChunkName: "page-admin" */ "./pages/AdminProfilePage")
 );
+const AdminSettingsPage = lazy(() =>
+  import(/* webpackChunkName: "page-admin" */ "./pages/AdminSettingsPage")
+);
 const PaymentLogs = lazy(() =>
   import(/* webpackChunkName: "page-admin" */ "./components/PaymentLogs")
 );
@@ -670,6 +673,14 @@ function AuthRouter() {
         element={
           <AuthGate requireAuth requiredRole="admin">
             <FinanceReportsPage />
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/admin/settings"
+        element={
+          <AuthGate requireAuth requiredRole="admin">
+            <AdminSettingsPage />
           </AuthGate>
         }
       />
