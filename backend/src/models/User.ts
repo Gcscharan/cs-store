@@ -168,6 +168,7 @@ export interface IUser extends Document {
   name: string;
   email: string;
   phone: string;
+  avatar?: string; // Profile picture from OAuth or upload
   isDeleted?: boolean;
   deletedAt?: Date | null;
   passwordHash?: string;
@@ -274,6 +275,12 @@ const UserSchema = new Schema<IUser>(
         /^[6-9]\d{9}$/,
         "Please enter a valid Indian phone number (10 digits starting with 6-9)",
       ],
+    },
+    avatar: {
+      type: String,
+      required: false,
+      default: undefined,
+      trim: true,
     },
     isDeleted: {
       type: Boolean,

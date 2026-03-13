@@ -68,6 +68,7 @@ export function toSafeUserResponse(user: any): any {
     name: sanitized.name,
     email: sanitized.email,
     phone: sanitized.phone,
+    avatar: sanitized.avatar || undefined,
     role: sanitized.role,
     isAdmin: sanitized.role === "admin",
     status: sanitized.status,

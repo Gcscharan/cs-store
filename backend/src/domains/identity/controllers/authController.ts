@@ -173,7 +173,7 @@ export const completeOnboarding = async (
 ): Promise<Response | void> => {
   try {
     const googleClaims = (req as any).googleAuthOnly as
-      | { email: string; name?: string; providerId?: string }
+      | { email: string; name?: string; avatar?: string; providerId?: string }
       | undefined;
 
     if (!googleClaims?.email) {
@@ -273,6 +273,7 @@ export const completeOnboarding = async (
       name: nextName,
       email,
       phone: nextPhone,
+      avatar: googleClaims.avatar || undefined,
       oauthProviders: googleClaims.providerId
         ? [{ provider: "google", providerId: String(googleClaims.providerId) }]
         : [],
@@ -694,6 +695,7 @@ export const googleCallback = async (
 
       const email = String(user.email || "").toLowerCase();
       const name = String(user.name || "");
+      const avatar = String(user.avatar || "");
       const providerId = String(user.oauthProviders?.[0]?.providerId || "");
 
       const onboardingToken = jwt.sign(
@@ -701,6 +703,7 @@ export const googleCallback = async (
           authState: "GOOGLE_AUTH_ONLY",
           email,
           name,
+          avatar,
           provider: "google",
           providerId,
         },
@@ -712,6 +715,7 @@ export const googleCallback = async (
       redirectUrl.searchParams.set("authState", "GOOGLE_AUTH_ONLY");
       redirectUrl.searchParams.set("email", email);
       redirectUrl.searchParams.set("name", name);
+      redirectUrl.searchParams.set("avatar", avatar);
 
       res.redirect(redirectUrl.toString());
       return;
@@ -738,6 +742,7 @@ export const googleCallback = async (
     redirectUrl.searchParams.set("name", user.name || "");
     redirectUrl.searchParams.set("email", user.email || "");
     redirectUrl.searchParams.set("phone", user.phone || "");
+    redirectUrl.searchParams.set("avatar", user.avatar || "");
     redirectUrl.searchParams.set("role", user.role || "customer");
     redirectUrl.searchParams.set("isAdmin", (user.role === "admin").toString());
     redirectUrl.searchParams.set("isProfileComplete", (user.isProfileComplete || false).toString());
