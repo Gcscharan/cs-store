@@ -41,7 +41,14 @@
     "title": "Account",
     "welcome": "Welcome",
     "welcomeBack": "Welcome back",
-    "welcomeUser": "Welcome, {{name}}"
+    "welcomeUser": "Welcome, {{name}}",
+    "profileDescription": "View and edit your personal information",
+    "ordersDescription": "Track and manage your orders",
+    "settingsDescription": "App preferences and security",
+    "notificationsDescription": "Manage your notification preferences",
+    "languageDescription": "Change your preferred language",
+    "helpDescription": "Get help and support",
+    "logoutDescription": "Sign out of your account"
   },
   "address": {
     "addAddress": "Add Address",

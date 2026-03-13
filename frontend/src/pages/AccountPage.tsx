@@ -70,37 +70,37 @@ const AccountPage = () => {
     {
       icon: User,
       label: t("account.profile"),
-      description: t("account.profile.description"),
+      description: t("account.profileDescription"),
       action: "edit",
     },
     {
       icon: CreditCard,
       label: t("account.orders"),
-      description: t("account.orders.description"),
+      description: t("account.ordersDescription"),
       action: "navigate",
     },
     {
       icon: Settings,
       label: t("account.settings"),
-      description: t("account.settings.description"),
+      description: t("account.settingsDescription"),
       action: "settings",
     },
     {
       icon: Bell,
       label: t("account.notifications"),
-      description: t("account.notifications.description"),
+      description: t("account.notificationsDescription"),
       action: "notifications",
     },
     {
       icon: Globe,
       label: t("account.language"),
-      description: t("account.language.description"),
+      description: t("account.languageDescription"),
       action: "language",
     },
     {
       icon: HelpCircle,
       label: t("account.help"),
-      description: t("account.help.description"),
+      description: t("account.helpDescription"),
       action: "help",
     },
     // Only show logout option if user is authenticated
@@ -109,7 +109,7 @@ const AccountPage = () => {
           {
             icon: LogOut,
             label: t("account.logout"),
-            description: t("account.logout.description"),
+            description: t("account.logoutDescription"),
             action: "logout",
             className: "text-red-600 hover:text-red-700",
           },
