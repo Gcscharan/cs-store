@@ -34,11 +34,18 @@ RUN npm run build
 # Production image, copy all the files and run the app
 FROM nginx:alpine AS production
 
+# Install envsubst for variable substitution
+RUN apk add --no-cache gettext
+
 # Copy the built application
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Copy nginx configuration
 COPY nginx.conf /etc/nginx/nginx.conf
+
+# Copy entrypoint script for Railway PORT handling
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 
 # Create a non-root user
 RUN addgroup --system --gid 1001 nodejs
@@ -54,10 +61,11 @@ RUN chown -R nextjs:nodejs /var/run/nginx.pid
 
 USER nextjs
 
-EXPOSE 80
+# Railway sets PORT dynamically - default to 8080
+EXPOSE 8080
 
-# Health check
+# Health check (uses PORT env var at runtime)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:80/ || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-8080}/health || exit 1
 
-CMD ["nginx", "-g", "daemon off;"]
+ENTRYPOINT ["/docker-entrypoint.sh"]
