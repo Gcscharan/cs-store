@@ -455,12 +455,27 @@ const EnhancedHomeTab: React.FC<HomeTabProps> = () => {
 
     newSocket.on("connect", () => {
       console.log("Socket connected");
+      // Join delivery room for notifications
+      if (user?.id) {
+        newSocket.emit("join_room", {
+          room: `delivery:${user.id}`,
+          userId: user.id,
+          userRole: "delivery",
+          token: tokens?.accessToken,
+        });
+      }
     });
 
     newSocket.on("order:assigned", (data: any) => {
       console.log("[SOCKET] New order assigned:", data);
-      toast.success("New order assigned to you!");
+      toast.success(data.message || "New order assigned to you!");
       // Refresh orders list to show the new assignment
+      fetchOrders();
+    });
+
+    newSocket.on("route:order:removed", (data: any) => {
+      console.log("[SOCKET] Order removed from route:", data);
+      toast.error(data.message || "Order removed from your route");
       fetchOrders();
     });
 

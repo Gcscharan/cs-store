@@ -18,8 +18,15 @@ const EditProfilePage = () => {
   
   // Fetch fresh profile data from MongoDB
   const { data: fetchedProfile, refetch: refetchProfile } = useGetProfileQuery(undefined, {
-    skip: !isAuthenticated,
+    skip: false, // Always fetch - RTK Query handles 401 gracefully
   });
+
+  // Refetch when auth state becomes active
+  useEffect(() => {
+    if (isAuthenticated) {
+      refetchProfile();
+    }
+  }, [isAuthenticated, refetchProfile]);
   
   // Use mutation for updating profile
   const [updateProfileMutation, { isLoading: isUpdating }] = useUpdateProfileMutation();
@@ -47,9 +54,9 @@ const EditProfilePage = () => {
         avatar: fetchedProfile.avatar,
       });
       setProfileData({
-        name: fetchedProfile.name || "",
-        email: fetchedProfile.email || "",
-        phone: fetchedProfile.phone || "",
+        name: fetchedProfile.name ?? "",
+        email: fetchedProfile.email ?? "",
+        phone: fetchedProfile.phone ?? "",
       });
     }
   }, [fetchedProfile]);

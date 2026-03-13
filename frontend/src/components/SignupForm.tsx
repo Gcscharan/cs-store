@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useDispatch } from "react-redux";
+import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { setUser, setTokens, setStatus } from "../store/slices/authSlice";
 import { toApiUrl } from "../config/runtime";
@@ -22,6 +23,7 @@ interface SignupFormProps {
 
 const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const { t } = useLanguage();
   const [formData, setFormData] = useState<SignupFormData>({
     name: "",
@@ -268,18 +270,17 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
         const refreshToken = data.refreshToken || data.refresh_token || null;
 
         if (accessToken) {
-          // Store tokens FIRST so setUser can detect them
+          // Save to localStorage FIRST before any navigation
+          localStorage.setItem("accessToken", accessToken);
+          if (refreshToken) localStorage.setItem("refreshToken", refreshToken);
+          
+          // Then update Redux state
           dispatch(setTokens({
             accessToken,
             refreshToken,
           }));
           dispatch(setUser(data.user));
-          
-          // Stabilize auth state BEFORE redirect so AuthGate doesn't bounce
           dispatch(setStatus("ACTIVE"));
-
-          localStorage.setItem("accessToken", accessToken);
-          if (refreshToken) localStorage.setItem("refreshToken", refreshToken);
 
           // TRY OTP generation (no modal) — best-effort
           try {
@@ -296,8 +297,8 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
           setErrors({});
           setLoginInfo(t("auth.signupSuccess"));
 
-          // Redirect to home after successful signup (matching login flow)
-          window.location.href = "/";
+          // Use navigate() NOT window.location.href - preserves Redux state
+          navigate("/");
         } else {
           // CASE B: Signup succeeded but NO tokens returned
           setErrors({});

@@ -89,12 +89,7 @@ const CheckoutPage = () => {
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [isPincodeServiceable, setIsPincodeServiceable] = useState<boolean | null>(null);
   
-  // Fetch addresses using RTK Query (same as navbar and Layout)
-  const { data: addressesData, refetch: refetchAddresses, isLoading: isLoadingAddresses } = useGetAddressesQuery(undefined, {
-    skip: !isAuthenticated,
-  });
-  const [setDefaultAddressMutation] = useSetDefaultAddressMutation();
-
+  // Payment method state - must be declared before any conditional returns
   const LAST_METHOD_KEY = "vyapara_setu_last_payment_method_v1";
   const loadLastMethod = (): "cod" | "upi" | "card" | "netbanking" => {
     try {
@@ -105,6 +100,38 @@ const CheckoutPage = () => {
       return "upi";
     }
   };
+
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"cod" | "upi" | "card" | "netbanking">(() => loadLastMethod());
+  const [upiVpa, setUpiVpa] = useState("");
+  const [isUpiVerified, setIsUpiVerified] = useState(false);
+  const [isVerifyingUpi, setIsVerifyingUpi] = useState(false);
+  const [upiVerificationError, setUpiVerificationError] = useState<string | null>(null);
+  const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+  const [razorpayAttempt, setRazorpayAttempt] = useState(1);
+  const [isRazorpayPolling, setIsRazorpayPolling] = useState(false);
+
+  const [terminalHelper, setTerminalHelper] = useState<string | null>(null);
+
+  const [expiresAt, setExpiresAt] = useState<Date | null>(null);
+  const [remainingSeconds, setRemainingSeconds] = useState<number>(0);
+
+  const [paymentSession, setPaymentSession] = useState<PaymentSession | null>(null);
+  const [paymentState, setPaymentState] = useState<PaymentState>(PaymentStates.IDLE);
+  const [paymentBannerHidden, setPaymentBannerHidden] = useState(false);
+  const [paymentBannerNotice, setPaymentBannerNotice] = useState<string | undefined>(undefined);
+  const [retryAvailableAtMs, setRetryAvailableAtMs] = useState<number | null>(null);
+  const [failureReason, setFailureReason] = useState<"MODAL_CLOSED" | "GATEWAY_ERROR" | "POLL_TIMEOUT" | null>(null);
+
+  const pollAbortRef = React.useRef<AbortController | null>(null);
+  const expiryIntervalRef = React.useRef<number | null>(null);
+  const didInitPaymentSessionRef = React.useRef(false);
+  const razorpayFlowInFlightRef = React.useRef(false);
+  
+  // Fetch addresses using RTK Query (same as navbar and Layout)
+  const { data: addressesData, refetch: refetchAddresses, isLoading: isLoadingAddresses } = useGetAddressesQuery(undefined, {
+    skip: !isAuthenticated,
+  });
+  const [setDefaultAddressMutation] = useSetDefaultAddressMutation();
 
   const invalidateExistingOrder = () => {
     pollAbortRef.current?.abort();
@@ -162,29 +189,6 @@ const CheckoutPage = () => {
   if (isAuthenticated && isLoadingAddresses && cart.items.length > 0) {
     return <CheckoutPageSkeleton />;
   }
-
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"cod" | "upi" | "card" | "netbanking">(() => loadLastMethod());
-  const [upiVpa, setUpiVpa] = useState("");
-  const [isPlacingOrder, setIsPlacingOrder] = useState(false);
-  const [razorpayAttempt, setRazorpayAttempt] = useState(1);
-  const [isRazorpayPolling, setIsRazorpayPolling] = useState(false);
-
-  const [terminalHelper, setTerminalHelper] = useState<string | null>(null);
-
-  const [expiresAt, setExpiresAt] = useState<Date | null>(null);
-  const [remainingSeconds, setRemainingSeconds] = useState<number>(0);
-
-  const [paymentSession, setPaymentSession] = useState<PaymentSession | null>(null);
-  const [paymentState, setPaymentState] = useState<PaymentState>(PaymentStates.IDLE);
-  const [paymentBannerHidden, setPaymentBannerHidden] = useState(false);
-  const [paymentBannerNotice, setPaymentBannerNotice] = useState<string | undefined>(undefined);
-  const [retryAvailableAtMs, setRetryAvailableAtMs] = useState<number | null>(null);
-  const [failureReason, setFailureReason] = useState<"MODAL_CLOSED" | "GATEWAY_ERROR" | "POLL_TIMEOUT" | null>(null);
-
-  const pollAbortRef = React.useRef<AbortController | null>(null);
-  const expiryIntervalRef = React.useRef<number | null>(null);
-  const didInitPaymentSessionRef = React.useRef(false);
-  const razorpayFlowInFlightRef = React.useRef(false);
 
   React.useEffect(() => {
     return () => {
@@ -968,11 +972,51 @@ const CheckoutPage = () => {
   const upiVpaRegex = /^[\w.-]{2,}@[\w.-]{2,}$/;
   const normalizedUpiVpa = String(upiVpa || "").trim().toLowerCase();
   const isUpiValid = upiVpaRegex.test(normalizedUpiVpa);
+
+  // UPI verification function
+  const verifyUpiId = async () => {
+    if (!isUpiValid) {
+      toast.error("Please enter a valid UPI ID");
+      return;
+    }
+
+    setIsVerifyingUpi(true);
+    setUpiVerificationError(null);
+
+    try {
+      const response = await authFetch(toApiUrl("/upi/verify"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ vpa: normalizedUpiVpa }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.valid) {
+        setIsUpiVerified(true);
+        setUpiVerificationError(null);
+        toast.success("UPI ID verified successfully!");
+      } else {
+        setIsUpiVerified(false);
+        setUpiVerificationError(data.reason || "UPI verification failed");
+        toast.error(data.reason || "UPI ID could not be verified");
+      }
+    } catch (error) {
+      setIsUpiVerified(false);
+      setUpiVerificationError("Verification failed. Please try again.");
+      toast.error("UPI verification failed. Please try again.");
+    } finally {
+      setIsVerifyingUpi(false);
+    }
+  };
+
   const isPrimaryDisabled =
     !canAttemptCheckout ||
     isPlacingOrder ||
     isRazorpayPolling ||
-    (selectedPaymentMethod === "upi" && !isUpiValid);
+    (selectedPaymentMethod === "upi" && (!isUpiValid || !isUpiVerified));
   const primaryActionLabel =
     isPlacingOrder || isRazorpayPolling
       ? t("checkout.processing")
@@ -1144,22 +1188,59 @@ const CheckoutPage = () => {
                     <label className="block text-[16px] font-semibold text-gray-900 mb-2">
                       {t("checkout.upiId")}
                     </label>
-                    <input
-                      type="text"
-                      data-testid="upi-id-input"
-                      placeholder="example@upi"
-                      value={upiVpa}
-                      onChange={(e) => {
-                        setUpiVpa(e.target.value);
-                      }}
-                      className={
-                        "w-full h-14 px-4 text-[16px] border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent " +
-                        (upiVpa.length === 0 || isUpiValid ? "border-gray-300" : "border-red-400")
-                      }
-                    />
-                    <div className="mt-2 text-sm text-gray-600">
-                      {t("checkout.upiHint")}
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        data-testid="upi-id-input"
+                        placeholder="example@upi"
+                        value={upiVpa}
+                        onChange={(e) => {
+                          setUpiVpa(e.target.value);
+                          // Reset verification state when input changes
+                          setIsUpiVerified(false);
+                          setUpiVerificationError(null);
+                        }}
+                        className={
+                          "flex-1 h-14 px-4 text-[16px] border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent " +
+                          (upiVpa.length === 0 || isUpiValid ? "border-gray-300" : "border-red-400")
+                        }
+                      />
+                      <button
+                        type="button"
+                        onClick={verifyUpiId}
+                        disabled={!isUpiValid || isVerifyingUpi || isUpiVerified}
+                        data-testid="verify-upi-button"
+                        className={
+                          "h-14 px-4 rounded-lg font-semibold text-[16px] transition-colors " +
+                          (isUpiVerified
+                            ? "bg-green-500 text-white"
+                            : isVerifyingUpi
+                              ? "bg-gray-300 text-gray-600 cursor-wait"
+                              : !isUpiValid
+                                ? "bg-gray-300 text-gray-600 cursor-not-allowed"
+                                : "bg-orange-500 text-white hover:bg-orange-600")
+                        }
+                      >
+                        {isUpiVerified ? "✓" : isVerifyingUpi ? "..." : "Verify"}
+                      </button>
                     </div>
+                    {/* Verification status */}
+                    {isUpiVerified && (
+                      <div className="mt-2 flex items-center gap-2 text-sm text-green-600">
+                        <span>✓</span>
+                        <span>UPI ID verified</span>
+                      </div>
+                    )}
+                    {upiVerificationError && !isUpiVerified && (
+                      <div className="mt-2 text-sm text-red-600">
+                        {upiVerificationError}
+                      </div>
+                    )}
+                    {!isUpiVerified && !upiVerificationError && (
+                      <div className="mt-2 text-sm text-gray-600">
+                        {t("checkout.upiHint")}
+                      </div>
+                    )}
                   </div>
                 ) : null}
 

@@ -259,35 +259,28 @@ export const assignDeliveryBoyToOrder = async (
 
     const io = (req as any).app.get("io");
     if (io) {
+      // Emit to admin room
       io.to("admin_room").emit("order_assigned", {
         orderId: String(orderId),
         deliveryBoyId: String(deliveryBoyId || ""),
       });
-      io.to(`delivery_${String(deliveryBoyId)}`).emit("order_assigned", {
-        orderId: String(orderId),
-        deliveryBoyId: String(deliveryBoyId),
-      });
-      io.to(`driver_${String(deliveryBoyId)}`).emit("order_assigned", {
-        orderId: String(orderId),
-        deliveryBoyId: String(deliveryBoyId),
-      });
-
       io.to("admin_room").emit("order:assigned", {
         orderId: String(orderId),
         deliveryBoyId: String(deliveryBoyId),
       });
-      io.to(`delivery_${String(deliveryBoyId)}`).emit("order:assigned", {
-        orderId: String(orderId),
-        deliveryBoyId: String(deliveryBoyId),
-      });
-      io.to(`driver_${String(deliveryBoyId)}`).emit("order:assigned", {
-        orderId: String(orderId),
-        deliveryBoyId: String(deliveryBoyId),
-      });
-
       io.to("admin_room").emit("refresh_orders");
-      io.to(`delivery_${String(deliveryBoyId)}`).emit("refresh_orders");
-      io.to(`driver_${String(deliveryBoyId)}`).emit("refresh_orders");
+
+      // Emit to delivery boy's personal room (standardized format)
+      io.to(`delivery:${String(deliveryBoyId)}`).emit("order_assigned", {
+        orderId: String(orderId),
+        deliveryBoyId: String(deliveryBoyId),
+      });
+      io.to(`delivery:${String(deliveryBoyId)}`).emit("order:assigned", {
+        orderId: String(orderId),
+        deliveryBoyId: String(deliveryBoyId),
+        message: "New order assigned to you",
+      });
+      io.to(`delivery:${String(deliveryBoyId)}`).emit("refresh_orders");
     }
 
     res.json({

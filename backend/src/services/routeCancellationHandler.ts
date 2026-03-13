@@ -189,11 +189,12 @@ function notifyDeliveryBoyOfRemoval(
       return;
     }
 
-    // Emit to delivery boy's room
-    io.to(`deliveryBoy:${deliveryBoyId}`).emit('route:order:removed', {
+    // Emit to delivery boy's room (standardized format)
+    io.to(`delivery:${deliveryBoyId}`).emit('route:order:removed', {
       routeId: route.routeId,
       orderId,
       remainingOrders,
+      message: "Order removed from your route",
       timestamp: new Date().toISOString(),
     });
 
