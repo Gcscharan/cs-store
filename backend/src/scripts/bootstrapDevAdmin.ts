@@ -62,7 +62,7 @@ export const bootstrapDevAdmin = async (): Promise<void> => {
       logger.info("✅ Dev admin user created successfully");
       logger.info(`📧 Email: ${DEV_ADMIN_EMAIL}`);
       logger.info(`📱 Phone: ${DEV_ADMIN_PHONE}`);
-      logger.info(`🔑 Password: ${DEV_ADMIN_PASSWORD}`);
+      logger.info(`🔑 Password: [REDACTED - check .env or scripts]`);
       logger.info(`👤 Role: admin`);
       logger.info(`🔐 isAdmin: true`);
     } else {
@@ -94,7 +94,7 @@ export const bootstrapDevAdmin = async (): Promise<void> => {
       logger.info("✅ Dev admin user updated successfully");
       logger.info(`📧 Email: ${DEV_ADMIN_EMAIL}`);
       logger.info(`📱 Phone: ${DEV_ADMIN_PHONE}`);
-      logger.info(`🔑 Password: ${DEV_ADMIN_PASSWORD}`);
+      logger.info(`🔑 Password: [REDACTED - check .env or scripts]`);
       logger.info(`👤 Role: admin`);
       logger.info(`🔐 isAdmin: true`);
     }

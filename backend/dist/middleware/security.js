@@ -15,8 +15,8 @@ const noOpMiddleware = (req, res, next) => next();
 exports.apiLimiter = isTestEnv
     ? noOpMiddleware
     : (0, express_rate_limit_1.default)({
-        windowMs: 60 * 1000, // 1 minute
-        max: 120,
+        windowMs: 15 * 1000, // 15 seconds
+        max: 300, // 300 requests per 15 seconds = 20 req/sec
         standardHeaders: true,
         legacyHeaders: false,
     });

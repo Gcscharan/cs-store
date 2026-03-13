@@ -407,8 +407,58 @@ io.on("connection", (socket) => {
             }
             return;
         }
-        // Security hard rule: only admin_room is joinable via join_room.
-        logger_1.logger.warn("[Socket] join_room denied: only admin_room is allowed", {
+        // Delivery boy: join their personal delivery room for order notifications
+        if (roomStr.startsWith("delivery:")) {
+            try {
+                const provided = (typeof token === "string" && token.trim()) ||
+                    (typeof socket.handshake?.auth?.token === "string" && String(socket.handshake.auth.token).trim()) ||
+                    (typeof socket.handshake.headers?.authorization === "string" && String(socket.handshake.headers.authorization).replace(/^Bearer\s+/i, "").trim()) ||
+                    "";
+                if (!provided) {
+                    logger_1.logger.warn("[Socket] Delivery join denied: missing token", { socketId: socket.id });
+                    return;
+                }
+                const jwtSecret = process.env.JWT_SECRET;
+                if (!jwtSecret) {
+                    logger_1.logger.warn("[Socket] Delivery join denied: server misconfigured", { socketId: socket.id });
+                    return;
+                }
+                const decoded = jsonwebtoken_1.default.verify(provided, jwtSecret);
+                const deliveryBoyId = String(decoded?.userId || "");
+                if (!deliveryBoyId) {
+                    logger_1.logger.warn("[Socket] Delivery join denied: invalid token payload", { socketId: socket.id });
+                    return;
+                }
+                // Verify the room matches the user's ID (delivery:{userId})
+                const expectedRoom = `delivery:${deliveryBoyId}`;
+                if (roomStr !== expectedRoom) {
+                    logger_1.logger.warn("[Socket] Delivery join denied: room mismatch", { socketId: socket.id, roomStr, expectedRoom });
+                    return;
+                }
+                // Role check - must be delivery role
+                User_1.User.findById(deliveryBoyId)
+                    .select("role")
+                    .then((u) => {
+                    if (!u || String(u.role) !== "delivery") {
+                        logger_1.logger.warn("[Socket] Delivery join denied: role mismatch", { socketId: socket.id, deliveryBoyId });
+                        return;
+                    }
+                    socket.join(roomStr);
+                    if (verboseLoggingEnabled) {
+                        logger_1.logger.info(`✅ Delivery boy ${deliveryBoyId} joined ${roomStr}`);
+                    }
+                })
+                    .catch((e) => {
+                    logger_1.logger.warn("[Socket] Delivery join denied: user lookup failed", e);
+                });
+            }
+            catch (e) {
+                logger_1.logger.warn("[Socket] Delivery join denied: token verify failed", e);
+            }
+            return;
+        }
+        // Security hard rule: only admin_room and delivery: rooms are joinable via join_room.
+        logger_1.logger.warn("[Socket] join_room denied: only admin_room and delivery:{userId} are allowed", {
             socketId: socket.id,
             room: roomStr,
             userId,

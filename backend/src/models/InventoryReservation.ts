@@ -20,7 +20,7 @@ export interface IInventoryReservation extends Document {
 
 const InventoryReservationSchema = new Schema<IInventoryReservation>(
   {
-    orderId: { type: Schema.Types.ObjectId, ref: "Order", required: true, index: true },
+    orderId: { type: Schema.Types.ObjectId, ref: "Order", required: true },
     productId: { type: Schema.Types.ObjectId, ref: "Product", required: true, index: true },
     qty: { type: Number, required: true, min: 1 },
     status: {
