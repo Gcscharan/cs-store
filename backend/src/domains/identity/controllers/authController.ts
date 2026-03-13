@@ -950,20 +950,25 @@ export const sendAuthOTP = async (
       targetEmail = isSignup ? userInput : (user?.email || userInput);
     }
 
+    const normalizedTargetEmail = targetEmail
+      ? String(targetEmail).toLowerCase().trim()
+      : undefined;
+
     // Generate 6-digit OTP
     const otp = generateOTP();
 
-    // Create OTP record. Always include phone field (required by model) and optionally email.
+    // Create OTP record. The model requires phone, but email OTP flows may not have a phone.
+    // Use a stable placeholder phone for email-based OTPs so verify can query reliably.
     const otpPayload: any = {
-      phone: targetPhone || user?.phone || userInput, // Always provide phone
+      phone: targetPhone ? String(targetPhone).replace(/\D/g, "") : "EMAIL",
       otp,
       type: isSignup ? "signup" : "login",
       expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
       isUsed: false,
       attempts: 0,
     };
-    // Include email field if it's an email-based OTP
-    if (targetEmail) otpPayload.email = String(targetEmail);
+    // Include normalized email field if it's an email-based OTP
+    if (normalizedTargetEmail) otpPayload.email = normalizedTargetEmail;
 
     const otpRecord = new Otp(otpPayload);
     await otpRecord.save();
@@ -973,9 +978,9 @@ export const sendAuthOTP = async (
       // Send OTP via SMS
       const message = `Your CS Store ${isSignup ? "signup" : "login"} OTP is ${otp}. Valid for 10 minutes. Do not share this OTP with anyone.`;
       await sendSMS(targetPhone, message);
-    } else if (targetEmail) {
+    } else if (normalizedTargetEmail) {
       // Send OTP via Email using Gmail SMTP or fallback
-      await sendEmailOTP(targetEmail, otp);
+      await sendEmailOTP(normalizedTargetEmail, otp);
     }
 
     res.json({
@@ -1009,6 +1014,9 @@ export const verifyAuthOTP = async (
       return res.status(400).json({ error: "Phone or email is required" });
     }
 
+    const normalizedPhone = phone ? String(phone).replace(/\D/g, "") : undefined;
+    const normalizedEmail = email ? String(email).toLowerCase().trim() : undefined;
+
     // Determine mode
     const isSignup = String(req.query.mode || "") === "signup";
 
@@ -1016,8 +1024,8 @@ export const verifyAuthOTP = async (
     if (isSignup) {
       // Find OTP record by phone or email
       const otpRecord = await Otp.findOne({
-        ...(phone ? { phone } : {}),
-        ...(email ? { email } : {}),
+        ...(normalizedPhone ? { phone: normalizedPhone } : {}),
+        ...(normalizedEmail ? { email: normalizedEmail } : {}),
         type: "signup",
         isUsed: false,
         expiresAt: { $gt: new Date() },
