@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { RootState } from "../store";
 import { motion } from "framer-motion";
-import { Camera, Upload, X, Check, AlertCircle } from "lucide-react";
+import { Camera, Upload, X, Check, AlertCircle, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const DeliverySelfiePage: React.FC = () => {
@@ -160,6 +160,15 @@ const DeliverySelfiePage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <div className="max-w-md mx-auto">
+        {/* Back button */}
+        <button
+          onClick={() => navigate(-1)}
+          className="mb-4 flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+          aria-label="Go back"
+        >
+          <ArrowLeft className="h-5 w-5" />
+          <span>Back</span>
+        </button>
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}

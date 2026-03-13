@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import {
   Phone,
   Mail,
@@ -14,9 +15,11 @@ import {
   RefreshCw,
   CreditCard,
   Gift,
+  ArrowLeft,
 } from "lucide-react";
 
 const CustomerCarePage: React.FC = () => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("contact");
   const [formData, setFormData] = useState({
     name: "",
@@ -139,6 +142,15 @@ const CustomerCarePage: React.FC = () => {
       {/* Header */}
       <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Back button */}
+          <button
+            onClick={() => navigate(-1)}
+            className="mb-6 flex items-center gap-2 text-white/80 hover:text-white transition-colors"
+            aria-label="Go back"
+          >
+            <ArrowLeft className="h-5 w-5" />
+            <span>Back</span>
+          </button>
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}

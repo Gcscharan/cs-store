@@ -1475,6 +1475,8 @@
     "accountDeleted": "Account deleted successfully",
     "allFieldsRequired": "All fields are required",
     "appearance": "Appearance",
+    "authMethod": "Authentication Method",
+    "authMethodInfo": "You sign in using Google or OTP (one-time password). Password login has been disabled for your security.",
     "changePassword": "Change Password",
     "changing": "Changing...",
     "currency": "Currency",

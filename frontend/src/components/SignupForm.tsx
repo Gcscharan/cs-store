@@ -9,8 +9,6 @@ interface SignupFormData {
   name: string;
   email: string;
   phone: string;
-  password: string;
-  confirmPassword: string;
 }
 
 interface PrefilledCredentials {
@@ -29,8 +27,6 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
     name: "",
     email: "",
     phone: "",
-    password: "",
-    confirmPassword: "",
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -110,10 +106,6 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
       newErrors.phone = t("auth.validation.phoneRequired");
     } else if (!isValidPhoneNumber(formData.phone)) {
       newErrors.phone = t("auth.validation.validPhone");
-    }
-    if (!formData.password) newErrors.password = t("auth.validation.passwordRequired");
-    if (formData.password !== formData.confirmPassword) {
-      newErrors.confirmPassword = t("auth.validation.passwordsDoNotMatch");
     }
 
     setErrors(newErrors);
@@ -264,7 +256,6 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
             name: formData.name,
             email: formData.email,
             phone: formData.phone,
-            password: formData.password,
           }),
         }
       );
@@ -455,7 +446,7 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
             </div>
           )}
 
-          {/* RESEND BUTTON BETWEEN OTP AND PASSWORD */}
+          {/* RESEND BUTTON */}
           {phoneOtpSent && !phoneOtpVerified && (
             <div className="mt-2 flex items-center justify-between">
               <button
@@ -488,44 +479,6 @@ const SignupForm: React.FC<SignupFormProps> = ({ prefilledCredentials }) => {
 
           {otpError && !phoneOtpVerified && (
             <p className="text-red-500 text-sm mt-2">{otpError}</p>
-          )}
-        </div>
-
-        {/* Password */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700">
-            {t("auth.password")}
-          </label>
-          <input
-            type="password"
-            name="password"
-            value={formData.password}
-            onChange={handleInputChange}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder={t("auth.passwordPlaceholder")}
-            disabled={isLoading || isOtpLoading}
-          />
-          {errors.password && (
-            <p className="text-red-500 text-sm mt-1">{errors.password}</p>
-          )}
-        </div>
-
-        {/* Confirm Password */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700">
-            {t("auth.confirmPassword")}
-          </label>
-          <input
-            type="password"
-            name="confirmPassword"
-            value={formData.confirmPassword}
-            onChange={handleInputChange}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder={t("auth.confirmPasswordPlaceholder")}
-            disabled={isLoading || isOtpLoading}
-          />
-          {errors.confirmPassword && (
-            <p className="text-red-500 text-sm mt-1">{errors.confirmPassword}</p>
           )}
         </div>
 

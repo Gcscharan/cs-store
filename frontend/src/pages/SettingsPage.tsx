@@ -11,8 +11,6 @@ import {
   Download,
   HelpCircle,
   Eye,
-  EyeOff,
-  X,
   ArrowLeft,
 } from "lucide-react";
 import toast from "react-hot-toast";
@@ -26,7 +24,6 @@ import {
   useGetNotificationPreferencesQuery,
   useUpdateNotificationPreferencesMutation,
   useGetProfileQuery,
-  useChangePasswordMutation,
   useDeleteAccountMutation,
 } from "../store/api";
 
@@ -37,18 +34,8 @@ const SettingsPage: React.FC = () => {
     (state: RootState) => state.auth
   );
 
-  // Password change modal
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [passwordData, setPasswordData] = useState({
-    oldPassword: "",
-    newPassword: "",
-    confirmPassword: "",
-  });
-  const [showPasswords, setShowPasswords] = useState({
-    old: false,
-    new: false,
-    confirm: false,
-  });
+  // Password feature disabled - OTP/Google OAuth only
+  const [showAuthMethodInfo, setShowAuthMethodInfo] = useState(false);
 
   // RTK Query (Profile)
   const { data: _profile } = useGetProfileQuery(undefined, {
@@ -65,7 +52,6 @@ const SettingsPage: React.FC = () => {
   });
 
   const [updatePreferences] = useUpdateNotificationPreferencesMutation();
-  const [changePassword, { isLoading: isChangingPassword }] = useChangePasswordMutation();
   const [deleteAccount, { isLoading: isDeleting }] = useDeleteAccountMutation();
   
   const { currency, setCurrency } = useCurrency();
@@ -100,41 +86,6 @@ const SettingsPage: React.FC = () => {
       toast.error(err?.data?.message || t("settings.updateFailed"));
       // Revert on error
       setNotifications(notifications);
-    }
-  };
-
-  // PASSWORD CHANGE LOGIC
-  const togglePasswordVisibility = (key: "old" | "new" | "confirm") => {
-    setShowPasswords((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
-
-  const handlePasswordSubmit = async () => {
-    const { oldPassword, newPassword, confirmPassword } = passwordData;
-
-    if (!oldPassword || !newPassword) {
-      toast.error(t("settings.allFieldsRequired"));
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      toast.error(t("settings.passwordsDoNotMatch"));
-      return;
-    }
-    if (newPassword.length < 6) {
-      toast.error(t("settings.passwordTooShort"));
-      return;
-    }
-
-    try {
-      await changePassword({
-        currentPassword: oldPassword,
-        newPassword,
-      }).unwrap();
-      
-      toast.success(t("settings.passwordChanged"));
-      setShowPasswordModal(false);
-      setPasswordData({ oldPassword: "", newPassword: "", confirmPassword: "" });
-    } catch (err: any) {
-      toast.error(err?.data?.message || t("settings.passwordChangeFailed"));
     }
   };
 
@@ -367,16 +318,24 @@ const SettingsPage: React.FC = () => {
           </div>
 
           <div className="space-y-6">
-            <button
-              onClick={() => setShowPasswordModal(true)}
-              className="w-full flex items-center justify-between px-4 py-3 border rounded-lg hover:bg-gray-50"
+            {/* Auth method info - Password disabled */}
+            <div 
+              onClick={() => setShowAuthMethodInfo(!showAuthMethodInfo)}
+              className="w-full flex items-center justify-between px-4 py-3 border rounded-lg hover:bg-gray-50 cursor-pointer"
             >
               <div className="flex items-center space-x-3">
                 <Lock className="h-5 w-5 text-gray-600" />
-                <span>{t("settings.changePassword")}</span>
+                <span>{t("settings.authMethod")}</span>
               </div>
               <span className="text-gray-400">›</span>
-            </button>
+            </div>
+            {showAuthMethodInfo && (
+              <div className="px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  {t("settings.authMethodInfo")}
+                </p>
+              </div>
+            )}
 
             <button className="w-full flex items-center justify-between px-4 py-3 border rounded-lg hover:bg-gray-50">
               <div className="flex items-center space-x-3">
@@ -437,146 +396,6 @@ const SettingsPage: React.FC = () => {
           </div>
         </div>
       </div>
-
-      {/* PASSWORD CHANGE MODAL */}
-      {showPasswordModal && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-40 p-4"
-        >
-          <motion.div
-            initial={{ scale: 0.95 }}
-            animate={{ scale: 1 }}
-            className="bg-white p-6 rounded-xl w-full max-w-md shadow-xl"
-          >
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold">{t("settings.changePassword")}</h3>
-              <button
-                className="p-2 hover:bg-gray-100 rounded-lg"
-                onClick={() => setShowPasswordModal(false)}
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            {/* FORM */}
-            <div className="space-y-4">
-              {/* OLD PASSWORD */}
-              <div>
-                <label className="text-sm font-medium text-gray-700">
-                  {t("settings.currentPassword")}
-                </label>
-                <div className="relative mt-1">
-                  <input
-                    type={showPasswords.old ? "text" : "password"}
-                    value={passwordData.oldPassword}
-                    onChange={(e) =>
-                      setPasswordData((p) => ({
-                        ...p,
-                        oldPassword: e.target.value,
-                      }))
-                    }
-                    className="w-full border px-3 py-2 rounded-lg"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => togglePasswordVisibility("old")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2"
-                  >
-                    {showPasswords.old ? (
-                      <EyeOff className="h-4 w-4 text-gray-500" />
-                    ) : (
-                      <Eye className="h-4 w-4 text-gray-500" />
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              {/* NEW PASSWORD */}
-              <div>
-                <label className="text-sm font-medium text-gray-700">
-                  {t("auth.password")}
-                </label>
-                <div className="relative mt-1">
-                  <input
-                    type={showPasswords.new ? "text" : "password"}
-                    value={passwordData.newPassword}
-                    onChange={(e) =>
-                      setPasswordData((p) => ({
-                        ...p,
-                        newPassword: e.target.value,
-                      }))
-                    }
-                    className="w-full border px-3 py-2 rounded-lg"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => togglePasswordVisibility("new")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2"
-                  >
-                    {showPasswords.new ? (
-                      <EyeOff className="h-4 w-4 text-gray-500" />
-                    ) : (
-                      <Eye className="h-4 w-4 text-gray-500" />
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              {/* CONFIRM NEW PASSWORD */}
-              <div>
-                <label className="text-sm font-medium text-gray-700">
-                  {t("auth.confirmPassword")}
-                </label>
-                <div className="relative mt-1">
-                  <input
-                    type={showPasswords.confirm ? "text" : "password"}
-                    value={passwordData.confirmPassword}
-                    onChange={(e) =>
-                      setPasswordData((p) => ({
-                        ...p,
-                        confirmPassword: e.target.value,
-                      }))
-                    }
-                    className="w-full border px-3 py-2 rounded-lg"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => togglePasswordVisibility("confirm")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2"
-                  >
-                    {showPasswords.confirm ? (
-                      <EyeOff className="h-4 w-4 text-gray-500" />
-                    ) : (
-                      <Eye className="h-4 w-4 text-gray-500" />
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* ACTION BUTTONS */}
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={handlePasswordSubmit}
-                disabled={isChangingPassword}
-                className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
-                data-testid="change-password-submit"
-              >
-                {isChangingPassword && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-                <span>{isChangingPassword ? t("settings.changing") : t("settings.changePassword")}</span>
-              </button>
-              <button
-                onClick={() => setShowPasswordModal(false)}
-                className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300"
-              >
-                {t("common.cancel")}
-              </button>
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
     </div>
   );
 };

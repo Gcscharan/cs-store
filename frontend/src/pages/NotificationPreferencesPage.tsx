@@ -16,10 +16,12 @@ import {
   Monitor,
   Check,
   Plus,
+  ArrowLeft,
 } from "lucide-react";
 import { useGetNotificationPreferencesQuery, useUpdateNotificationPreferencesMutation } from "../store/api";
 import { useToast } from "../components/AccessibleToast";
 import { useLanguage } from "../contexts/LanguageContext";
+import { useNavigate } from "react-router-dom";
 
 interface NotificationSettings {
   [channelId: string]: {
@@ -55,6 +57,7 @@ interface NotificationChannel {
 
 const NotificationPreferencesPage: React.FC = () => {
   const { t } = useLanguage();
+  const navigate = useNavigate();
   const [selectedChannel, setSelectedChannel] = useState<string>("whatsapp");
   const [savingItems, setSavingItems] = useState<Set<string>>(new Set());
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["reminders"]));
@@ -445,6 +448,13 @@ const NotificationPreferencesPage: React.FC = () => {
           <div className="py-6">
             <div className="flex items-center gap-3 justify-between">
               <div className="flex items-center gap-3">
+                <button
+                  onClick={() => navigate(-1)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  aria-label="Go back"
+                >
+                  <ArrowLeft className="h-5 w-5 text-gray-600" />
+                </button>
                 <Settings className="h-8 w-8 text-blue-600" />
                 <div>
                   <h1 className="text-2xl font-bold text-gray-900">{t("notifications.title")}</h1>

@@ -3,10 +3,14 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
+import { compression } from "vite-plugin-compression2";
 
 export default defineConfig(() => {
   return {
-    plugins: [react()],
+    plugins: [
+      react(),
+      compression({ algorithm: "brotliCompress" }),
+    ],
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),
@@ -16,6 +20,26 @@ export default defineConfig(() => {
       rollupOptions: {
         output: {
           manualChunks(id) {
+            // Vendor chunks - split heavy libraries
+            if (id.includes("node_modules/react/") || id.includes("node_modules/react-dom/") || id.includes("node_modules/react-router-dom/")) {
+              return "vendor-react";
+            }
+            if (id.includes("node_modules/@reduxjs/") || id.includes("node_modules/react-redux/")) {
+              return "vendor-redux";
+            }
+            if (id.includes("node_modules/framer-motion/")) {
+              return "vendor-ui-motion";
+            }
+            if (id.includes("node_modules/lucide-react/")) {
+              return "vendor-ui-icons";
+            }
+            if (id.includes("node_modules/recharts/")) {
+              return "vendor-charts";
+            }
+            if (id.includes("node_modules/@googlemaps/")) {
+              return "vendor-maps";
+            }
+            // Page chunks
             if (id.includes("/src/pages/HomePage")) return "page-home";
             if (id.includes("/src/pages/ProductsPage") || id.includes("/src/pages/SearchResultsPage")) return "page-products";
             if (id.includes("/src/pages/ProductDetailPage")) return "page-product-detail";

@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { RootState } from "../store";
 import { setUser } from "../store/slices/authSlice";
 import { useToast } from "../components/AccessibleToast";
-import { Plus, MapPin, Phone, User } from "lucide-react";
+import { Plus, MapPin, Phone, User, ArrowLeft } from "lucide-react";
 import { isPincodeDeliverable } from "../utils/pincodeValidation";
 import { toApiUrl } from "../config/runtime";
 import {
@@ -290,6 +290,17 @@ const AddressesPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header with back button */}
+        <div className="flex items-center space-x-4 mb-6">
+          <button
+            onClick={() => navigate(-1)}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            aria-label="Go back"
+          >
+            <ArrowLeft className="h-5 w-5 text-gray-600" />
+          </button>
+          <h1 className="text-2xl font-bold text-gray-900">Addresses</h1>
+        </div>
         <div className="flex gap-8">
           {/* Left Sidebar - Account Menu */}
           <div className="w-64 bg-white rounded-lg shadow-sm p-6 h-fit">

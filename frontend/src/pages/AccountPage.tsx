@@ -8,6 +8,7 @@ import {
   LogOut,
   CreditCard,
   Globe,
+  ArrowLeft,
 } from "lucide-react";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
@@ -143,14 +144,25 @@ const AccountPage = () => {
         className="bg-white py-6 px-4 shadow-sm"
       >
         <div className="max-w-7xl mx-auto">
-          <h1 className="text-2xl font-bold text-gray-900">
-            {t("account.title")}
-          </h1>
-          <p className="text-gray-600 mt-2">
-            {isAuthenticated && fetchedProfile
-              ? t("account.welcomeBack", { name: fetchedProfile.name })
-              : t("account.welcome")}
-          </p>
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={() => navigate(-1)}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              aria-label="Go back"
+            >
+              <ArrowLeft className="h-5 w-5 text-gray-600" />
+            </button>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">
+                {t("account.title")}
+              </h1>
+              <p className="text-gray-600 mt-2">
+                {isAuthenticated && fetchedProfile
+                  ? t("account.welcomeBack", { name: fetchedProfile.name })
+                  : t("account.welcome")}
+              </p>
+            </div>
+          </div>
         </div>
       </motion.div>
 

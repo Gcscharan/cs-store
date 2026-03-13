@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
 import DeliveryListItem from "../components/DeliveryListItem";
 import { useOrderUpdates } from "../hooks/useSocket";
 import { useCustomerLiveTracking } from "../hooks/useCustomerLiveTracking";
@@ -11,6 +12,7 @@ import { shouldShowDeliveryPartner } from "../utils/deliveryPartnerVisibility";
 
 const OrderTrackingPage = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [order, setOrder] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -299,9 +301,19 @@ const OrderTrackingPage = () => {
       className="min-h-screen bg-gray-50 py-8 px-4"
     >
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">
-          Order Tracking
-        </h1>
+        {/* Header with back button */}
+        <div className="flex items-center space-x-4 mb-8">
+          <button
+            onClick={() => navigate("/orders")}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            aria-label="Go back to orders"
+          >
+            <ArrowLeft className="h-5 w-5 text-gray-600" />
+          </button>
+          <h1 className="text-3xl font-bold text-gray-900">
+            Order Tracking
+          </h1>
+        </div>
         <div className="space-y-6">
           <DeliveryListItem order={order} />
 

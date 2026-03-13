@@ -169,14 +169,6 @@ export const api = createApi({
         body: { refreshToken },
       }),
     }),
-    changePassword: builder.mutation({
-      query: (payload: { currentPassword: string; newPassword: string }) => ({
-        url: toApiUrl("/auth/change-password"),
-        method: "POST",
-        body: payload,
-      }),
-      invalidatesTags: ["User"],
-    }),
     logout: builder.mutation({
       query: (payload?: { refreshToken?: string }) => ({
         url: toApiUrl("/auth/logout"),
@@ -668,7 +660,6 @@ export const {
   useLoginMutation,
   useSignupMutation,
   useRefreshTokenMutation,
-  useChangePasswordMutation,
   useLogoutMutation,
   useGetProfileQuery,
   useUpdateProfileMutation,

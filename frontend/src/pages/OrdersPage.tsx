@@ -10,6 +10,7 @@ import {
   CheckCircle,
   XCircle,
   Eye,
+  ArrowLeft,
 } from "lucide-react";
 import { getProductImage } from "../utils/image";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -273,8 +274,19 @@ const OrdersPage: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">{t("orders.title")}</h1>
-          <p className="text-gray-600">{t("orders.viewDetails")}</p>
+          <div className="flex items-center space-x-4 mb-2">
+            <button
+              onClick={() => navigate(-1)}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              aria-label="Go back"
+            >
+              <ArrowLeft className="h-5 w-5 text-gray-600" />
+            </button>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">{t("orders.title")}</h1>
+              <p className="text-gray-600">{t("orders.viewDetails")}</p>
+            </div>
+          </div>
         </div>
 
         {/* Status Filter */}

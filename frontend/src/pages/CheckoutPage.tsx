@@ -14,7 +14,7 @@ import {
   calculateDeliveryFee,
 } from "../utils/deliveryFeeCalculator";
 import toast from "react-hot-toast";
-import { CreditCard, Landmark, MapPin, Shield, Wallet } from "lucide-react";
+import { CreditCard, Landmark, MapPin, Shield, Wallet, ArrowLeft } from "lucide-react";
 import {
   useClearCartMutation,
   useGetAddressesQuery,
@@ -985,9 +985,18 @@ const CheckoutPage = () => {
       <div className="max-w-7xl mx-auto px-4 py-8 text-[17px]">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            {t("checkout.secureCheckout")}
-          </h1>
+          <div className="flex items-center space-x-4 mb-2">
+            <button
+              onClick={() => navigate("/cart")}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              aria-label="Go back to cart"
+            >
+              <ArrowLeft className="h-5 w-5 text-gray-600" />
+            </button>
+            <h1 className="text-3xl font-bold text-gray-900">
+              {t("checkout.secureCheckout")}
+            </h1>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

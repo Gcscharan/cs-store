@@ -28,13 +28,13 @@ export const signup = async (
 ): Promise<Response | void> => {
   try {
     // FIX: accept both name and fullName from the frontend safely
-    const { fullName, name: rawName, email, phone, password, addresses } = req.body;
+    const { fullName, name: rawName, email, phone, addresses } = req.body;
     const name = rawName || fullName;
 
-    // Validate required fields for email/password registration
-    if (!name || !email || !phone || !password) {
+    // Validate required fields (password no longer required - OTP/Google OAuth only)
+    if (!name || !email || !phone) {
       res.status(400).json({
-        message: "Name, email, phone, and password are required for registration",
+        message: "Name, email, and phone are required for registration",
       });
       return;
     }
@@ -76,11 +76,7 @@ export const signup = async (
       return;
     }
 
-    // Hash password
-    const saltRounds = 12;
-    const passwordHash = await bcrypt.hash(password, saltRounds);
-
-    // Create user directly
+    // Create user directly (no password - OTP/Google OAuth only)
     logger.info("[DB][Signup][BeforeCreate] Host:", mongoose.connection.host);
     logger.info("[DB][Signup][BeforeCreate] Database Name:", mongoose.connection.name);
     logger.info("[DB][Signup][BeforeCreate] User.collection.name:", (User as any).collection?.name);
@@ -88,9 +84,9 @@ export const signup = async (
       name,
       email,
       phone,
-      passwordHash,
       addresses: addresses || [],
       role: "customer",
+      mobileVerified: true, // Phone verified via OTP before signup
     });
     logger.info("[DB][Signup][AfterCreate] Host:", mongoose.connection.host);
     logger.info("[DB][Signup][AfterCreate] Database Name:", mongoose.connection.name);
@@ -325,6 +321,18 @@ export const completeOnboarding = async (
 };
 
 export const login = async (
+  req: Request,
+  res: Response
+): Promise<Response | void> => {
+  // Password login disabled - use OTP or Google OAuth
+  return res.status(410).json({
+    error: "PASSWORD_LOGIN_DISABLED",
+    message: "Password login has been removed. Please use OTP or Google OAuth to sign in.",
+  });
+};
+
+// Original password login implementation (deprecated)
+export const _loginDeprecated = async (
   req: Request,
   res: Response
 ): Promise<Response | void> => {
@@ -757,6 +765,18 @@ export const googleCallback = async (
 };
 
 export const changePassword = async (
+  req: Request,
+  res: Response
+): Promise<Response | void> => {
+  // Password change disabled - use OTP or Google OAuth
+  return res.status(410).json({
+    error: "PASSWORD_FEATURE_DISABLED",
+    message: "Password login has been removed. You sign in with Google or OTP - no password needed.",
+  });
+};
+
+// Original changePassword implementation (deprecated)
+export const _changePasswordDeprecated = async (
   req: Request,
   res: Response
 ): Promise<Response | void> => {

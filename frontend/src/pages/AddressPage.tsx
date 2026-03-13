@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { MapPin, Plus, Edit, Trash2, Check } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { MapPin, Plus, Edit, Trash2, Check, ArrowLeft } from "lucide-react";
 import AddressForm from "../components/AddressForm";
 import PincodeAddressForm from "../components/PincodeAddressForm";
 import {
@@ -12,6 +13,7 @@ import {
 import { useToast } from "../components/AccessibleToast";
 
 const AddressPage: React.FC = () => {
+  const navigate = useNavigate();
   const { success, error: showError } = useToast();
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [showAddressForm, setShowAddressForm] = useState(false);
@@ -137,10 +139,21 @@ const AddressPage: React.FC = () => {
       <div className="max-w-4xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Saved Addresses
-          </h1>
-          <p className="text-gray-600">Manage your delivery addresses</p>
+          <div className="flex items-center space-x-4 mb-2">
+            <button
+              onClick={() => navigate(-1)}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              aria-label="Go back"
+            >
+              <ArrowLeft className="h-5 w-5 text-gray-600" />
+            </button>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">
+                Saved Addresses
+              </h1>
+              <p className="text-gray-600">Manage your delivery addresses</p>
+            </div>
+          </div>
         </div>
 
         {/* Addresses List */}

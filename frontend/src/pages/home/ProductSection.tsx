@@ -16,7 +16,7 @@ import { useLanguage } from "../../contexts/LanguageContext";
 // Lazy load TopSellingSlider for better code splitting
 const TopSellingSlider = lazy(() => import("../../components/TopSellingSlider"));
 
-const HOME_PRODUCTS_LIMIT = 24;
+const HOME_PRODUCTS_LIMIT = 12;
 
 const HOME_PLACEHOLDER_IMAGE: any = {
   variants: {

@@ -244,7 +244,7 @@ const AdminRouteDetailPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="min-w-[240px]">
+                <div className="min-w-[180px] sm:min-w-[240px]">
                   <div className="text-sm font-medium text-gray-900">
                     {detail.route.counts.completed} / {detail.route.counts.total} completed
                   </div>

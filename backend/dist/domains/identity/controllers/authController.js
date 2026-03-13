@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteAccount = exports.getMe = exports.completeProfile = exports.checkPhoneExists = exports.verifyAuthOTP = exports.sendAuthOTP = exports.changePassword = exports.googleCallback = exports.logout = exports.refresh = exports.oauth = exports.login = exports.completeOnboarding = exports.verifyOnboardingOtp = exports.signup = void 0;
+exports.deleteAccount = exports.getMe = exports.completeProfile = exports.checkPhoneExists = exports.verifyAuthOTP = exports.sendAuthOTP = exports._changePasswordDeprecated = exports.changePassword = exports.googleCallback = exports.logout = exports.refresh = exports.oauth = exports._loginDeprecated = exports.login = exports.completeOnboarding = exports.verifyOnboardingOtp = exports.signup = void 0;
 const logger_1 = require("../../../utils/logger");
 const jwt = __importStar(require("jsonwebtoken"));
 const bcrypt = __importStar(require("bcryptjs"));
@@ -57,12 +57,12 @@ const REFRESH_TOKEN_EXPIRY = process.env.REFRESH_TOKEN_EXPIRY || "7d";
 const signup = async (req, res) => {
     try {
         // FIX: accept both name and fullName from the frontend safely
-        const { fullName, name: rawName, email, phone, password, addresses } = req.body;
+        const { fullName, name: rawName, email, phone, addresses } = req.body;
         const name = rawName || fullName;
-        // Validate required fields for email/password registration
-        if (!name || !email || !phone || !password) {
+        // Validate required fields (password no longer required - OTP/Google OAuth only)
+        if (!name || !email || !phone) {
             res.status(400).json({
-                message: "Name, email, phone, and password are required for registration",
+                message: "Name, email, and phone are required for registration",
             });
             return;
         }
@@ -98,10 +98,7 @@ const signup = async (req, res) => {
             res.status(400).json({ message: "Phone number already exists" });
             return;
         }
-        // Hash password
-        const saltRounds = 12;
-        const passwordHash = await bcrypt.hash(password, saltRounds);
-        // Create user directly
+        // Create user directly (no password - OTP/Google OAuth only)
         logger_1.logger.info("[DB][Signup][BeforeCreate] Host:", mongoose_1.default.connection.host);
         logger_1.logger.info("[DB][Signup][BeforeCreate] Database Name:", mongoose_1.default.connection.name);
         logger_1.logger.info("[DB][Signup][BeforeCreate] User.collection.name:", User_1.User.collection?.name);
@@ -109,9 +106,9 @@ const signup = async (req, res) => {
             name,
             email,
             phone,
-            passwordHash,
             addresses: addresses || [],
             role: "customer",
+            mobileVerified: true, // Phone verified via OTP before signup
         });
         logger_1.logger.info("[DB][Signup][AfterCreate] Host:", mongoose_1.default.connection.host);
         logger_1.logger.info("[DB][Signup][AfterCreate] Database Name:", mongoose_1.default.connection.name);
@@ -295,6 +292,15 @@ const completeOnboarding = async (req, res) => {
 };
 exports.completeOnboarding = completeOnboarding;
 const login = async (req, res) => {
+    // Password login disabled - use OTP or Google OAuth
+    return res.status(410).json({
+        error: "PASSWORD_LOGIN_DISABLED",
+        message: "Password login has been removed. Please use OTP or Google OAuth to sign in.",
+    });
+};
+exports.login = login;
+// Original password login implementation (deprecated)
+const _loginDeprecated = async (req, res) => {
     try {
         const { identifier, email, phone, password } = req.body;
         const loginValue = identifier || email || phone;
@@ -404,7 +410,7 @@ const login = async (req, res) => {
         return;
     }
 };
-exports.login = login;
+exports._loginDeprecated = _loginDeprecated;
 const oauth = async (req, res) => {
     try {
         const { provider, providerId, email, name, phone } = req.body;
@@ -642,6 +648,15 @@ const googleCallback = async (req, res) => {
 };
 exports.googleCallback = googleCallback;
 const changePassword = async (req, res) => {
+    // Password change disabled - use OTP or Google OAuth
+    return res.status(410).json({
+        error: "PASSWORD_FEATURE_DISABLED",
+        message: "Password login has been removed. You sign in with Google or OTP - no password needed.",
+    });
+};
+exports.changePassword = changePassword;
+// Original changePassword implementation (deprecated)
+const _changePasswordDeprecated = async (req, res) => {
     try {
         const { currentPassword, newPassword } = req.body;
         const userId = req.userId || req.user?._id;
@@ -698,7 +713,7 @@ const changePassword = async (req, res) => {
         return;
     }
 };
-exports.changePassword = changePassword;
+exports._changePasswordDeprecated = _changePasswordDeprecated;
 // Send OTP for authentication (login/signup)
 const sendAuthOTP = async (req, res) => {
     try {
@@ -1141,6 +1156,7 @@ exports.completeProfile = completeProfile;
 const getMe = async (req, res) => {
     try {
         const userId = req.userId || req.user?._id;
+        logger_1.logger.info("[getMe] Called with userId:", userId);
         if (!userId) {
             return res.status(401).json({ message: "Authentication required" });
         }
@@ -1148,6 +1164,14 @@ const getMe = async (req, res) => {
         if (!user) {
             return res.status(404).json({ message: "User not found" });
         }
+        logger_1.logger.info("[getMe] Found user:", {
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            phone: user.phone,
+            avatar: user.avatar,
+            oauthProviders: user.oauthProviders?.length || 0,
+        });
         // Authoritative profile completion check (server-side)
         const resolvedName = String(user.name || user.fullName || "").trim();
         const resolvedPhoneRaw = String(user.phone || "");
@@ -1164,6 +1188,7 @@ const getMe = async (req, res) => {
             profileCompleted,
             authState: "ACTIVE",
         };
+        logger_1.logger.info("[getMe] Returning safeUser:", safeUser);
         res.status(200).json({ user: safeUser });
     }
     catch (error) {

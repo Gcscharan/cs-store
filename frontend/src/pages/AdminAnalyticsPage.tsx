@@ -274,7 +274,7 @@ const AdminAnalyticsPage: React.FC = () => {
                       key={item.month}
                       className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
                     >
-                      <span className="text-xs sm:text-sm text-gray-600 min-w-[60px]">{item.month}</span>
+                      <span className="text-xs sm:text-sm text-gray-600 min-w-[48px] sm:min-w-[60px]">{item.month}</span>
                       <div className="flex items-center space-x-2 flex-1">
                         <div className="flex-1 sm:w-32 bg-gray-200 rounded-full h-2">
                           <div
@@ -282,7 +282,7 @@ const AdminAnalyticsPage: React.FC = () => {
                             style={{ width: `${percentage}%` }}
                           ></div>
                         </div>
-                        <span className="text-xs sm:text-sm font-medium text-gray-900 min-w-[80px] text-right">
+                        <span className="text-xs sm:text-sm font-medium text-gray-900 min-w-[64px] sm:min-w-[80px] text-right">
                           ₹{item.revenue.toLocaleString()}
                         </span>
                       </div>
