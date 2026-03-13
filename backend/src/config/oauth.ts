@@ -84,11 +84,25 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && callbackURL) {
             (p: any) => p.provider === "google" && p.providerId === googleId
           );
 
+          // Populate name from Google profile if missing or empty
+          const googleName = profile.displayName || profile.name?.givenName 
+            ? [profile.name?.givenName, profile.name?.familyName].filter(Boolean).join(" ").trim() || profile.displayName 
+            : "";
+          
+          const currentName = String(user.name || "").trim();
+          if (!currentName && googleName) {
+            user.name = googleName;
+          }
+
           if (!alreadyLinked) {
             user.oauthProviders.push({
               provider: "google",
               providerId: googleId,
             });
+          }
+          
+          // Save if we made any changes (name populated or provider linked)
+          if (!currentName && googleName || !alreadyLinked) {
             await user.save();
           }
 
