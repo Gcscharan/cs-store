@@ -2,6 +2,7 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { Text } from 'react-native';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../store';
 
@@ -12,6 +13,7 @@ import CategoriesScreen from '../screens/products/CategoriesScreen';
 import ProductDetailScreen from '../screens/products/ProductDetailScreen';
 import CartScreen from '../screens/cart/CartScreen';
 import CheckoutScreen from '../screens/checkout/CheckoutScreen';
+import OrdersListScreen from '../screens/orders/OrdersListScreen';
 import OrderSuccessScreen from '../screens/orders/OrderSuccessScreen';
 import OrderDetailScreen from '../screens/orders/OrderDetailScreen';
 import OrderTrackingScreen from '../screens/orders/OrderTrackingScreen';
@@ -20,34 +22,58 @@ import AccountScreen from '../screens/profile/AccountScreen';
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
+function TabIcon({ emoji }: { emoji: string }) {
+  return <Text style={{ fontSize: 22 }}>{emoji}</Text>;
+}
+
 function CustomerTabs() {
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#E95C1E',
-        tabBarInactiveTintColor: '#888',
+        tabBarStyle: { paddingBottom: 6, height: 60 },
+        tabBarLabelStyle: { fontSize: 11 },
       }}
     >
-      <Tab.Screen 
-        name="HomeTab" 
+      <Tab.Screen
+        name="Home"
         component={HomeScreen}
-        options={{ tabBarLabel: 'Home' }}
+        options={{
+          tabBarIcon: () => <TabIcon emoji="🏠" />,
+          tabBarLabel: 'Home',
+        }}
       />
-      <Tab.Screen 
-        name="CategoriesTab" 
+      <Tab.Screen
+        name="Categories"
         component={CategoriesScreen}
-        options={{ tabBarLabel: 'Categories' }}
+        options={{
+          tabBarIcon: () => <TabIcon emoji="📋" />,
+          tabBarLabel: 'Categories',
+        }}
       />
-      <Tab.Screen 
-        name="CartTab" 
+      <Tab.Screen
+        name="Cart"
         component={CartScreen}
-        options={{ tabBarLabel: 'Cart' }}
+        options={{
+          tabBarIcon: () => <TabIcon emoji="🛒" />,
+          tabBarLabel: 'Cart',
+        }}
       />
-      <Tab.Screen 
-        name="AccountTab" 
+      <Tab.Screen
+        name="Orders"
+        component={OrdersListScreen}
+        options={{
+          tabBarIcon: () => <TabIcon emoji="📦" />,
+          tabBarLabel: 'Orders',
+        }}
+      />
+      <Tab.Screen
+        name="Account"
         component={AccountScreen}
-        options={{ tabBarLabel: 'Account' }}
+        options={{
+          tabBarIcon: () => <TabIcon emoji="👤" />,
+          tabBarLabel: 'Account',
+        }}
       />
     </Tab.Navigator>
   );
@@ -62,27 +88,24 @@ export function RootNavigator() {
         {status === 'ACTIVE' ? (
           <>
             <Stack.Screen name="Main" component={CustomerTabs} />
-            <Stack.Screen 
-              name="ProductDetail" 
+            <Stack.Screen
+              name="ProductDetail"
               component={ProductDetailScreen}
               options={{ headerShown: true, title: 'Product' }}
             />
-            <Stack.Screen 
-              name="Checkout" 
+            <Stack.Screen
+              name="Checkout"
               component={CheckoutScreen}
               options={{ headerShown: true, title: 'Checkout' }}
             />
-            <Stack.Screen 
-              name="OrderSuccess" 
-              component={OrderSuccessScreen}
-            />
-            <Stack.Screen 
-              name="OrderDetail" 
+            <Stack.Screen name="OrderSuccess" component={OrderSuccessScreen} />
+            <Stack.Screen
+              name="OrderDetail"
               component={OrderDetailScreen}
               options={{ headerShown: true, title: 'Order Details' }}
             />
-            <Stack.Screen 
-              name="OrderTracking" 
+            <Stack.Screen
+              name="OrderTracking"
               component={OrderTrackingScreen}
               options={{ headerShown: true, title: 'Track Order' }}
             />

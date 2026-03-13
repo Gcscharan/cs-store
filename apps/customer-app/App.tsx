@@ -6,8 +6,14 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { store } from './src/store';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { initI18n } from '@vyaparsetu/i18n';
+import { useAuthBootstrap } from './src/hooks/useAuthBootstrap';
 
 initI18n('en');
+
+function AppContent() {
+  useAuthBootstrap();
+  return <RootNavigator />;
+}
 
 export default function App() {
   return (
@@ -15,7 +21,7 @@ export default function App() {
       <Provider store={store}>
         <SafeAreaProvider>
           <StatusBar style="auto" />
-          <RootNavigator />
+          <AppContent />
         </SafeAreaProvider>
       </Provider>
     </GestureHandlerRootView>
