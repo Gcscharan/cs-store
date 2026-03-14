@@ -11,10 +11,14 @@ import type { RootState } from '../../store';
 const MENU = [
   { icon: '📦', label: 'My Orders', screen: 'Orders' },
   { icon: '📍', label: 'Saved Addresses', screen: 'Addresses' },
-  { icon: '�', label: 'Edit Profile', screen: 'EditProfile' },
+  { icon: '✏️', label: 'Edit Profile', screen: 'EditProfile' },
   { icon: '🔔', label: 'Notifications', screen: 'Notifications' },
   { icon: '⚙️', label: 'Settings', screen: 'Settings' },
-  { icon: '❓', label: 'Help & Support', screen: null },
+  { icon: '🎁', label: 'Refer & Earn', screen: 'ReferEarn' },
+  { icon: '↩️', label: 'Returns & Cancellation', screen: 'Cancellation' },
+  { icon: '❓', label: 'Help & Support', screen: 'Help' },
+  { icon: '📜', label: 'Terms & Privacy', screen: 'Terms' },
+  { icon: 'ℹ️', label: 'About Us', screen: 'About' },
 ];
 
 export default function AccountScreen({ navigation }: any) {

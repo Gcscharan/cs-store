@@ -23,7 +23,7 @@ export const api = createApi({
     sendOtp: builder.mutation<any, { phone: string; mode: string }>({
       query: (body) => ({ url: '/auth/otp/send', method: 'POST', body }),
     }),
-    verifyOtp: builder.mutation<any, { phone: string; otp: string; mode: string }>({
+    verifyOtp: builder.mutation<any, { phone: string; otp: string; mode: string; name?: string }>({
       query: (body) => ({ url: '/auth/otp/verify', method: 'POST', body }),
     }),
     getProfile: builder.query<any, void>({

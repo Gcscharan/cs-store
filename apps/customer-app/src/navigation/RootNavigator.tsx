@@ -8,6 +8,7 @@ import type { RootState } from '../store';
 
 // Auth
 import LoginScreen from '../screens/auth/LoginScreen';
+import SignupScreen from '../screens/auth/SignupScreen';
 // Main tabs
 import HomeScreen from '../screens/home/HomeScreen';
 import CategoriesScreen from '../screens/products/CategoriesScreen';
@@ -30,6 +31,14 @@ import AddAddressScreen from '../screens/address/AddAddressScreen';
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
 import NotificationsScreen from '../screens/notifications/NotificationsScreen';
 import SettingsScreen from '../screens/settings/SettingsScreen';
+// Info screens
+import AboutScreen from '../screens/info/AboutScreen';
+import HelpSupportScreen from '../screens/info/HelpSupportScreen';
+import PrivacyPolicyScreen from '../screens/info/PrivacyPolicyScreen';
+import TermsScreen from '../screens/info/TermsScreen';
+import CancellationScreen from '../screens/info/CancellationScreen';
+import ContactScreen from '../screens/info/ContactScreen';
+import ReferEarnScreen from '../screens/info/ReferEarnScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -170,9 +179,20 @@ export function RootNavigator() {
               component={SettingsScreen}
               options={{ headerShown: true, title: 'Settings' }}
             />
+            {/* Info screens */}
+            <Stack.Screen name="About" component={AboutScreen} options={{ headerShown: true, title: 'About Us' }} />
+            <Stack.Screen name="Help" component={HelpSupportScreen} options={{ headerShown: true, title: 'Help & Support' }} />
+            <Stack.Screen name="Privacy" component={PrivacyPolicyScreen} options={{ headerShown: true, title: 'Privacy Policy' }} />
+            <Stack.Screen name="Terms" component={TermsScreen} options={{ headerShown: true, title: 'Terms & Conditions' }} />
+            <Stack.Screen name="Cancellation" component={CancellationScreen} options={{ headerShown: true, title: 'Returns & Cancellation' }} />
+            <Stack.Screen name="Contact" component={ContactScreen} options={{ headerShown: true, title: 'Contact Us' }} />
+            <Stack.Screen name="ReferEarn" component={ReferEarnScreen} options={{ headerShown: true, title: 'Refer & Earn' }} />
           </>
         ) : (
-          <Stack.Screen name="Login" component={LoginScreen} />
+          <>
+            <Stack.Screen name="Login" component={LoginScreen} options={{ gestureEnabled: false }} />
+            <Stack.Screen name="Signup" component={SignupScreen} />
+          </>
         )}
       </Stack.Navigator>
     </NavigationContainer>

@@ -7,12 +7,19 @@ import { store } from './src/store';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { initI18n } from '@vyaparsetu/i18n';
 import { useAuthBootstrap } from './src/hooks/useAuthBootstrap';
+import { ErrorBoundary } from './src/components/ErrorBoundary';
+import { OfflineBanner } from './src/components/OfflineBanner';
 
 initI18n('en');
 
 function AppContent() {
   useAuthBootstrap();
-  return <RootNavigator />;
+  return (
+    <ErrorBoundary>
+      <OfflineBanner />
+      <RootNavigator />
+    </ErrorBoundary>
+  );
 }
 
 export default function App() {

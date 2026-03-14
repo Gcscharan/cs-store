@@ -105,13 +105,18 @@ export default function SettingsScreen({ navigation }: any) {
         {/* About */}
         <Text style={s.sectionTitle}>ℹ️ About</Text>
         <View style={s.card}>
-          <TouchableOpacity style={s.menuRow}>
+          <TouchableOpacity style={s.menuRow} onPress={() => navigation.navigate('Terms')}>
             <Text style={s.menuLabel}>Terms & Conditions</Text>
             <Text style={s.menuArrow}>→</Text>
           </TouchableOpacity>
           <View style={s.divider} />
-          <TouchableOpacity style={s.menuRow}>
+          <TouchableOpacity style={s.menuRow} onPress={() => navigation.navigate('Privacy')}>
             <Text style={s.menuLabel}>Privacy Policy</Text>
+            <Text style={s.menuArrow}>→</Text>
+          </TouchableOpacity>
+          <View style={s.divider} />
+          <TouchableOpacity style={s.menuRow} onPress={() => navigation.navigate('About')}>
+            <Text style={s.menuLabel}>About Us</Text>
             <Text style={s.menuArrow}>→</Text>
           </TouchableOpacity>
           <View style={s.divider} />
@@ -124,12 +129,12 @@ export default function SettingsScreen({ navigation }: any) {
         {/* Support */}
         <Text style={s.sectionTitle}>📞 Support</Text>
         <View style={s.card}>
-          <TouchableOpacity style={s.menuRow}>
+          <TouchableOpacity style={s.menuRow} onPress={() => navigation.navigate('Help')}>
             <Text style={s.menuLabel}>Help Center</Text>
             <Text style={s.menuArrow}>→</Text>
           </TouchableOpacity>
           <View style={s.divider} />
-          <TouchableOpacity style={s.menuRow}>
+          <TouchableOpacity style={s.menuRow} onPress={() => navigation.navigate('Contact')}>
             <Text style={s.menuLabel}>Contact Us</Text>
             <Text style={s.menuArrow}>→</Text>
           </TouchableOpacity>

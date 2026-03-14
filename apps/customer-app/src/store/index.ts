@@ -2,6 +2,7 @@ import { configureStore } from '@reduxjs/toolkit';
 import authReducer from './slices/authSlice';
 import cartReducer from './slices/cartSlice';
 import { api } from './api';
+import { authMiddleware } from './middleware/authMiddleware';
 
 export const store = configureStore({
   reducer: {
@@ -12,7 +13,7 @@ export const store = configureStore({
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
       serializableCheck: false,
-    }).concat(api.middleware),
+    }).concat(api.middleware).concat(authMiddleware),
 });
 
 export type RootState = ReturnType<typeof store.getState>;
