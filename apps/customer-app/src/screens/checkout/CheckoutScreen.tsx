@@ -8,9 +8,10 @@ import type { RootState } from '../../store';
 import {
   useGetAddressesQuery, useCreateOrderMutation, useGetProfileQuery,
 } from '../../store/api';
+import { RazorpayPayment } from '../../components/payment/RazorpayPayment';
 
 const PAYMENT_METHODS = [
-  { id: 'razorpay', label: 'UPI / Cards / NetBanking', icon: '💳', subtitle: 'Razorpay — Secure checkout' },
+  { id: 'razorpay', label: 'UPI / Cards / NetBanking', icon: '💳', subtitle: 'Powered by Razorpay — 100% secure' },
   { id: 'cod', label: 'Cash on Delivery', icon: '💵', subtitle: 'Pay when your order arrives' },
 ];
 
@@ -22,8 +23,11 @@ export default function CheckoutScreen({ navigation }: any) {
 
   const [selectedAddress, setSelectedAddress] = useState<any>(null);
   const [paymentMethod, setPaymentMethod] = useState('razorpay');
+  const [showRazorpay, setShowRazorpay] = useState(false);
+  const [pendingOrder, setPendingOrder] = useState<any>(null);
 
   const addresses = addrData?.addresses || [];
+  const user = profileData?.user || profileData;
   const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
   const deliveryFee = subtotal >= 500 ? 0 : 40;
   const total = subtotal + deliveryFee;
@@ -67,21 +71,35 @@ export default function CheckoutScreen({ navigation }: any) {
         return;
       }
 
-      // Razorpay flow - simulate for now
+      // Razorpay flow - create order then show payment modal
       const result = await createOrder({
         ...orderData,
         paymentStatus: 'PENDING',
         paymentMethod: 'razorpay',
       }).unwrap();
 
-      Alert.alert(
-        'Payment',
-        'Razorpay integration requires native build. Order placed with pending payment.',
-        [{ text: 'OK', onPress: () => navigation.replace('OrderSuccess', { orderId: result.order?.orderId || result.orderId }) }]
-      );
+      setPendingOrder({ ...result, orderId: result.order?.orderId || result.orderId });
+      setShowRazorpay(true);
     } catch (e: any) {
       Alert.alert('Error', e?.data?.message || 'Failed to place order');
     }
+  };
+
+  const handlePaymentSuccess = (paymentId: string) => {
+    setShowRazorpay(false);
+    navigation.replace('OrderSuccess', { orderId: pendingOrder?.orderId });
+  };
+
+  const handlePaymentFailure = (error: string) => {
+    setShowRazorpay(false);
+    Alert.alert(
+      'Payment Failed',
+      error || 'Payment could not be processed. Your order is saved.',
+      [
+        { text: 'Try Again', onPress: () => setShowRazorpay(true) },
+        { text: 'Pay Later', onPress: () => navigation.navigate('Orders') },
+      ]
+    );
   };
 
   if (items.length === 0) {
@@ -225,10 +243,27 @@ export default function CheckoutScreen({ navigation }: any) {
           {isLoading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={s.placeBtnTxt}>Place Order</Text>
+            <Text style={s.placeBtnTxt}>{paymentMethod === 'cod' ? '📦 Place Order' : '💳 Pay ₹' + total}</Text>
           )}
         </TouchableOpacity>
       </View>
+
+      {/* Razorpay WebView Modal */}
+      {pendingOrder && (
+        <RazorpayPayment
+          visible={showRazorpay}
+          amount={total * 100}
+          orderId={pendingOrder.orderId}
+          razorpayOrderId={pendingOrder.razorpayOrderId || ''}
+          keyId={process.env.EXPO_PUBLIC_RAZORPAY_KEY_ID || ''}
+          name={user?.name || ''}
+          email={user?.email || ''}
+          phone={user?.phone || ''}
+          onSuccess={handlePaymentSuccess}
+          onFailure={handlePaymentFailure}
+          onDismiss={() => setShowRazorpay(false)}
+        />
+      )}
     </SafeAreaView>
   );
 }

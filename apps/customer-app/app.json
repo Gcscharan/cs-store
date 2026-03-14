@@ -14,7 +14,13 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.vyaparsetu.customer"
+      "bundleIdentifier": "com.vyaparsetu.customer",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "VyaparSetu uses your location to show nearby stores and delivery estimates.",
+        "NSCameraUsageDescription": "VyaparSetu uses your camera for profile photos.",
+        "NSPhotoLibraryUsageDescription": "VyaparSetu accesses your photos for profile pictures."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -22,16 +28,38 @@
         "backgroundColor": "#E95C1E"
       },
       "package": "com.vyaparsetu.customer",
-      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"]
+      "versionCode": 1,
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE"
+      ]
     },
     "plugins": [
       "expo-location",
       [
         "expo-notifications",
         {
-          "color": "#E95C1E"
+          "icon": "./assets/notification-icon.png",
+          "color": "#E95C1E",
+          "defaultChannel": "default"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow VyaparSetu to access your photos."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "REPLACE_AFTER_EAS_INIT"
+      }
+    }
   }
 }
