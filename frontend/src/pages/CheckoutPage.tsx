@@ -12,7 +12,7 @@ import {
 } from "../utils/priceCalculator";
 import {
   calculateDeliveryFee,
-} from "../utils/deliveryFeeCalculator";
+} from "@vyaparsetu/shared-utils";
 import toast from "react-hot-toast";
 import { CreditCard, Landmark, MapPin, Shield, Wallet, ArrowLeft } from "lucide-react";
 import {
@@ -20,7 +20,7 @@ import {
   useGetAddressesQuery,
   useSetDefaultAddressMutation,
 } from "../store/api";
-import { createRazorpayOrder, openRazorpayCheckout } from "../utils/razorpay";
+import { createRazorpayOrder, openRazorpayCheckout, PaymentFailurePayload } from "../utils/razorpay";
 import PaymentStatusBanner from "../payments/PaymentStatusBanner";
 import { toApiUrl } from "../config/runtime";
 import { authFetch } from "../utils/authClient";
@@ -511,13 +511,14 @@ const CheckoutPage = () => {
         onSuccess: async () => {
           safeSetPaymentState(PaymentStates.PAYMENT_PROCESSING);
           toast("Waiting for payment confirmation…");
-          void startReconciliationPolling({ orderId: args.orderId, accessToken });
+          void startReconciliationPolling({ orderId: dbOrderId, accessToken });
         },
-        onDismiss: () => {
-          resetCheckoutPaymentFlow({ message: "Payment was cancelled. Please try again." });
-        },
-        onFailure: () => {
-          resetCheckoutPaymentFlow({ message: "Payment failed. Please try again." });
+        onPaymentFailure: (payload: PaymentFailurePayload) => {
+          if (payload.reason === "USER_CANCELLED") {
+            resetCheckoutPaymentFlow({ message: "Payment was cancelled. Please try again." });
+          } else {
+            resetCheckoutPaymentFlow({ message: "Payment failed. Please try again." });
+          }
         },
       });
     } catch (error: any) {
@@ -670,11 +671,12 @@ const CheckoutPage = () => {
           toast("Waiting for payment confirmation…");
           void startReconciliationPolling({ orderId: dbOrderId, accessToken });
         },
-        onDismiss: () => {
-          resetCheckoutPaymentFlow({ message: "Payment was cancelled. Please try again." });
-        },
-        onFailure: () => {
-          resetCheckoutPaymentFlow({ message: "Payment failed. Please try again." });
+        onPaymentFailure: (payload: PaymentFailurePayload) => {
+          if (payload.reason === "USER_CANCELLED") {
+            resetCheckoutPaymentFlow({ message: "Payment was cancelled. Please try again." });
+          } else {
+            resetCheckoutPaymentFlow({ message: "Payment failed. Please try again." });
+          }
         },
       };
       await openRazorpayCheckout(checkoutArgs);

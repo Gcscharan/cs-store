@@ -24,6 +24,9 @@ export interface Product {
   variants?: ProductVariant[];
   unit?: string;
   slug?: string;
+  isBestseller?: boolean;
+  isTrending?: boolean;
+  isSponsored?: boolean;
 }
 
 export interface ProductVariant {
@@ -137,11 +140,24 @@ export interface ApiResponse<T> {
 }
 
 export interface PaginatedResponse<T> {
+  data?: T[];
   products?: T[];
   orders?: T[];
   items?: T[];
   page: number;
-  totalPages: number;
+  totalPages?: number;
   total: number;
-  hasMore: boolean;
+  hasMore?: boolean;
+}
+
+export interface SearchProductsParams {
+  q: string;
+  page?: number;
+  limit?: number;
+  sortBy?: 'relevance' | 'price' | 'newest' | 'sales' | 'rating';
+  sortOrder?: 'asc' | 'desc';
+  minPrice?: number;
+  maxPrice?: number;
+  category?: string;
+  rating?: number;
 }

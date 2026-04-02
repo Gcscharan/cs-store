@@ -1,80 +1,94 @@
 import React from 'react';
-import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity, Linking } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { ScreenHeader } from '../../components/ScreenHeader';
+import { Colors } from '../../constants/colors';
 
 export default function HelpSupportScreen({ navigation }: any) {
-  const callSupport = () => Linking.openURL('tel:18001234567');
-  const emailSupport = () => Linking.openURL('mailto:support@vyaparsetu.in');
+  const openWhatsApp = () => {
+    const url = 'whatsapp://send?phone=919876543210&text=Hi, I need help with my order';
+    Linking.canOpenURL(url).then(supported => {
+      if (supported) Linking.openURL(url);
+      else Alert.alert('WhatsApp not installed');
+    }).catch(() => Alert.alert('Could not open WhatsApp'));
+  };
+
+  const callSupport = () => {
+    Linking.openURL('tel:+919876543210').catch(() => Alert.alert('Could not make call'));
+  };
+
+  const emailSupport = () => {
+    Linking.openURL('mailto:support@vyaparsetu.in').catch(() => Alert.alert('Could not open email'));
+  };
 
   return (
-    <SafeAreaView style={s.container}>
-      <View style={s.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={s.back}>←</Text>
-        </TouchableOpacity>
-        <Text style={s.title}>Help & Support</Text>
-      </View>
-      <ScrollView contentContainerStyle={s.content}>
-        <Text style={s.emoji}>❓</Text>
-        <Text style={s.heading}>Need help? We're here!</Text>
+    <View style={s.container}>
+      <ScreenHeader title="Help & Support" showBackButton />
 
-        <View style={s.card}>
-          <Text style={s.cardIcon}>📞</Text>
-          <View style={s.cardContent}>
-            <Text style={s.cardTitle}>Call Support</Text>
-            <Text style={s.cardDesc}>Available 9 AM - 9 PM, 7 days</Text>
-            <TouchableOpacity onPress={callSupport}>
-              <Text style={s.link}>1800-123-4567</Text>
-            </TouchableOpacity>
-          </View>
+      <ScrollView style={s.scroll} contentContainerStyle={s.content}>
+        <Text style={s.intro}>We're here to help! Choose how you'd like to reach us.</Text>
+
+        <View style={s.contactGrid}>
+          <TouchableOpacity style={[s.contactCard, { marginBottom: 12 }]} onPress={callSupport}>
+            <Text style={s.contactIcon}>📞</Text>
+            <Text style={s.contactTitle}>Call Us</Text>
+            <Text style={s.contactInfo}>+91 98765 43210</Text>
+            <Text style={s.contactTime}>Mon-Sat, 9am-8pm</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={[s.contactCard, { marginBottom: 12 }]} onPress={openWhatsApp}>
+            <Text style={s.contactIcon}>💬</Text>
+            <Text style={s.contactTitle}>WhatsApp</Text>
+            <Text style={s.contactInfo}>Chat with us</Text>
+            <Text style={s.contactTime}>Quick response</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={s.contactCard} onPress={emailSupport}>
+            <Text style={s.contactIcon}>📧</Text>
+            <Text style={s.contactTitle}>Email</Text>
+            <Text style={s.contactInfo}>support@vyaparsetu.in</Text>
+            <Text style={s.contactTime}>24-48hr response</Text>
+          </TouchableOpacity>
         </View>
 
-        <View style={s.card}>
-          <Text style={s.cardIcon}>📧</Text>
-          <View style={s.cardContent}>
-            <Text style={s.cardTitle}>Email Us</Text>
-            <Text style={s.cardDesc}>We'll respond within 24 hours</Text>
-            <TouchableOpacity onPress={emailSupport}>
-              <Text style={s.link}>support@vyaparsetu.in</Text>
-            </TouchableOpacity>
-          </View>
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Frequently Asked Questions</Text>
+          
+          {[
+            { q: 'How do I track my order?', a: 'Go to Orders → Select your order → Track Order' },
+            { q: 'How do I return a product?', a: 'Go to Order Details → Request Refund within 7 days' },
+            { q: 'Where is my refund?', a: 'Refunds take 5-7 business days after approval' },
+            { q: 'How do I change my address?', a: 'Account → Addresses → Edit or Add New' },
+          ].map((item, i) => (
+            <View key={i} style={s.faqItem}>
+              <Text style={s.faqQ}>Q: {item.q}</Text>
+              <Text style={s.faqA}>A: {item.a}</Text>
+            </View>
+          ))}
         </View>
-
-        <Text style={s.sectionTitle}>Frequently Asked Questions</Text>
-
-        {[
-          { q: 'How do I track my order?', a: 'Go to Orders tab and tap on your order to see live tracking.' },
-          { q: 'What is the return policy?', a: 'You can return items within 24 hours of delivery if damaged or wrong.' },
-          { q: 'How do I cancel an order?', a: 'Orders can be cancelled before dispatch from Orders tab.' },
-          { q: 'What payment methods are accepted?', a: 'We accept UPI, Cards, Net Banking, and Cash on Delivery.' },
-        ].map((item, i) => (
-          <View key={i} style={s.faqItem}>
-            <Text style={s.faqQ}>Q: {item.q}</Text>
-            <Text style={s.faqA}>A: {item.a}</Text>
-          </View>
-        ))}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  header: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12,
-    borderBottomWidth: 1, borderColor: '#f0f0f0' },
+  container: { flex: 1, backgroundColor: Colors.background },
+  header: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderColor: '#f0f0f0' },
   back: { fontSize: 24, color: '#333' },
   title: { fontSize: 18, fontWeight: '700' },
-  content: { padding: 24 },
-  emoji: { fontSize: 56, textAlign: 'center', marginBottom: 12 },
-  heading: { fontSize: 20, fontWeight: '700', textAlign: 'center', marginBottom: 24 },
-  card: { flexDirection: 'row', backgroundColor: '#f8f8f8', borderRadius: 12,
-    padding: 16, marginBottom: 12, alignItems: 'center', gap: 14 },
-  cardIcon: { fontSize: 28 },
-  cardContent: { flex: 1 },
-  cardTitle: { fontSize: 16, fontWeight: '700', color: '#333' },
-  cardDesc: { fontSize: 13, color: '#888', marginTop: 2 },
-  link: { color: '#E95C1E', fontWeight: '600', marginTop: 6, fontSize: 15 },
-  sectionTitle: { fontSize: 17, fontWeight: '700', marginTop: 20, marginBottom: 12 },
-  faqItem: { backgroundColor: '#fafafa', borderRadius: 10, padding: 14, marginBottom: 10 },
+  scroll: { flex: 1 },
+  content: { padding: 20 },
+  intro: { fontSize: 15, color: '#666', marginBottom: 20, lineHeight: 22 },
+  contactGrid: { },
+  contactCard: { backgroundColor: '#f8f8f8', borderRadius: 14, padding: 16, alignItems: 'center' },
+  contactIcon: { fontSize: 32, marginBottom: 8 },
+  contactTitle: { fontSize: 16, fontWeight: '700', color: '#222' },
+  contactInfo: { fontSize: 14, color: '#E95C1E', marginTop: 4 },
+  contactTime: { fontSize: 12, color: '#888', marginTop: 2 },
+  section: { marginTop: 24 },
+  sectionTitle: { fontSize: 18, fontWeight: '700', marginBottom: 16 },
+  faqItem: { backgroundColor: '#f8f8f8', borderRadius: 10, padding: 14, marginBottom: 10 },
   faqQ: { fontSize: 14, fontWeight: '600', color: '#333', marginBottom: 6 },
   faqA: { fontSize: 13, color: '#666', lineHeight: 20 },
 });

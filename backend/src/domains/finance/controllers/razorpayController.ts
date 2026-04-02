@@ -6,7 +6,7 @@ import { Request, Response } from "express";
  * This endpoint creates a Razorpay order and returns the order_id
  */
 export const createRazorpayOrder = async (req: Request, res: Response) => {
-  // SAFETY: Disabled to enforce single payment source-of-truth
+  // SAFETY: Disabled to enforce single payment source-of-truth 
   return res.status(410).json({
     error: "LEGACY_PAYMENT_PATH_DISABLED",
     message: "This payment path has been permanently disabled. Use PaymentIntent flow.",
@@ -14,12 +14,12 @@ export const createRazorpayOrder = async (req: Request, res: Response) => {
 };
 
 /**
- * Verify Razorpay Payment
- * This endpoint verifies the payment signature and updates order status
+ * Verify Razorpay Payment 
+ * This endpoint verifies the payment signature and updates order status 
  */
 export const verifyRazorpayPayment = async (req: Request, res: Response) => {
   try {
-    // SAFETY: Disabled to enforce single payment source-of-truth
+    // SAFETY: Disabled to enforce single payment source-of-truth 
     return res.status(410).json({
       error: "LEGACY_PAYMENT_PATH_DISABLED",
       message: "This payment path has been permanently disabled. Use PaymentIntent flow.",
@@ -34,12 +34,12 @@ export const verifyRazorpayPayment = async (req: Request, res: Response) => {
 };
 
 /**
- * Razorpay Webhook Handler
- * This endpoint handles Razorpay webhook events for extra security
+ * Razorpay Webhook Handler 
+ * This endpoint handles Razorpay webhook events for extra security 
  */
 export const handleRazorpayWebhook = async (req: Request, res: Response) => {
   try {
-    // SAFETY: Disabled to enforce single payment source-of-truth
+    // SAFETY: Disabled to enforce single payment source-of-truth 
     return res.status(410).json({
       error: "LEGACY_PAYMENT_PATH_DISABLED",
       message: "This payment path has been permanently disabled. Use PaymentIntent flow.",

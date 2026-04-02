@@ -94,11 +94,10 @@ describe('Identity Domain - Auth Integration', () => {
           password: '123456',
         });
 
-      expect(res.status).toBe(200);
-      expect(res.body?.message).toBe('Login successful');
-      expect(typeof res.body?.accessToken).toBe('string');
-      expect(typeof res.body?.refreshToken).toBe('string');
-      expect(res.body?.user).toBeTruthy();
+      // Password login is disabled - expect 401 with PASSWORD_LOGIN_DISABLED
+      expect(res.status).toBe(401);
+      expect(res.body?.error).toBe('PASSWORD_LOGIN_DISABLED');
+      expect(res.body?.message).toContain('OTP or Google OAuth');
     });
 
     it('logs in with phone', async () => {
@@ -109,11 +108,10 @@ describe('Identity Domain - Auth Integration', () => {
           password: '123456',
         });
 
-      expect(res.status).toBe(200);
-      expect(res.body?.message).toBe('Login successful');
-      expect(typeof res.body?.accessToken).toBe('string');
-      expect(typeof res.body?.refreshToken).toBe('string');
-      expect(res.body?.user).toBeTruthy();
+      // Password login is disabled - expect 401 with PASSWORD_LOGIN_DISABLED
+      expect(res.status).toBe(401);
+      expect(res.body?.error).toBe('PASSWORD_LOGIN_DISABLED');
+      expect(res.body?.message).toContain('OTP or Google OAuth');
     });
 
     it('logs in with identifier', async () => {
@@ -124,11 +122,10 @@ describe('Identity Domain - Auth Integration', () => {
           password: '123456',
         });
 
-      expect(res.status).toBe(200);
-      expect(res.body?.message).toBe('Login successful');
-      expect(typeof res.body?.accessToken).toBe('string');
-      expect(typeof res.body?.refreshToken).toBe('string');
-      expect(res.body?.user).toBeTruthy();
+      // Password login is disabled - expect 401 with PASSWORD_LOGIN_DISABLED
+      expect(res.status).toBe(401);
+      expect(res.body?.error).toBe('PASSWORD_LOGIN_DISABLED');
+      expect(res.body?.message).toContain('OTP or Google OAuth');
     });
   });
 });

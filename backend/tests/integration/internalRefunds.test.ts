@@ -47,7 +47,7 @@ describe("Internal refunds (admin-only)", () => {
     };
 
     const res1 = await request(app)
-      .post("/internal/refunds")
+      .post("/api/internal/refunds")
       .set("Authorization", `Bearer ${token}`)
       .send(body);
 
@@ -57,7 +57,7 @@ describe("Internal refunds (admin-only)", () => {
     expect(res1.body.status).toBe("REQUESTED");
 
     const res2 = await request(app)
-      .post("/internal/refunds")
+      .post("/api/internal/refunds")
       .set("Authorization", `Bearer ${token}`)
       .send(body);
 
@@ -84,7 +84,7 @@ describe("Internal refunds (admin-only)", () => {
     const token = await (global as any).getAuthToken(user);
 
     const res = await request(app)
-      .post("/internal/refunds")
+      .post("/api/internal/refunds")
       .set("Authorization", `Bearer ${token}`)
       .send({
         orderId: "507f191e810c19729de860ea",

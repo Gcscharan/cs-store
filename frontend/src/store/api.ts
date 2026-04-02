@@ -287,6 +287,22 @@ export const api = createApi({
       },
       providesTags: ["Product"],
     }),
+    getCategories: builder.query<{ categories: { name: string; count: number }[] }, void>({
+      async queryFn() {
+        try {
+          const res = await publicApi.get("/api/products/categories");
+          return { data: res.data };
+        } catch (err: any) {
+          return {
+            error: {
+              status: err?.response?.status ?? "FETCH_ERROR",
+              data: err?.response?.data ?? err?.message,
+            } as any,
+          };
+        }
+      },
+      providesTags: ["Product"],
+    }),
 
     // ---------- SEARCH ----------
     getSearchSuggestions: builder.query({
@@ -667,6 +683,7 @@ export const {
   useGetProductsQuery,
   useGetProductByIdQuery,
   useGetSimilarProductsQuery,
+  useGetCategoriesQuery,
   useGetSearchSuggestionsQuery,
   useSearchProductsQuery,
   useGetCartQuery,

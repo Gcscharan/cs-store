@@ -12,22 +12,24 @@ const PincodeSchema = new Schema<IPincode>({
     type: String,
     required: true,
     unique: true,
+    index: true, // Ensure index for fast lookups
     match: [/^\d{6}$/, "Pincode must be 6 digits"],
   },
   state: {
     type: String,
     required: true,
-    enum: ["Andhra Pradesh", "Telangana"],
+    // No enum - we now support all India states
   },
   district: {
     type: String,
+    index: true, // Index for district-based queries
   },
   taluka: {
     type: String,
   },
 });
 
-// Index for fast lookups (pincode already has unique index)
-PincodeSchema.index({ state: 1 });
+// Compound index for state + district queries (future optimization)
+PincodeSchema.index({ state: 1, district: 1 });
 
 export const Pincode = mongoose.model<IPincode>("Pincode", PincodeSchema);

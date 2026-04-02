@@ -246,6 +246,13 @@ import { initializeInventoryReservationSweeper } from "./domains/orders/services
 import { startStuckPaymentScanner } from "./domains/payments/services/stuckPaymentScanner";
 import { initializePaymentReconciliation } from "./domains/payments/services/paymentReconciliationService";
 import { calculateETA } from "./domains/tracking/services/etaCalculator";
+import { startRankingJob } from "./jobs/rankingJob";
+import { startExperimentMonitor, stopExperimentMonitor } from "./jobs/experimentMonitorJob";
+import { buildProductDictionary, startDictionaryRefresh, stopDictionaryRefresh } from "./services/voiceCorrectionService";
+import { queueManager } from "./queues/queueManager";
+import { workerManager } from "./queues/workerManager";
+import { fallbackBuffer } from "./queues/fallbackBuffer";
+import { alertMonitor } from "./queues/alerts";
 
 // Create HTTP server
 const server = createServer(app);
@@ -686,6 +693,82 @@ const startServer = async () => {
       // Initialize payment reconciliation service (reconciles captured payments missed by webhook)
       initializePaymentReconciliation();
 
+      // 🚨 NEW: Initialize queue system (BullMQ + Redis)
+      logger.info("📬 Initializing queue system...");
+      await queueManager.initialize();
+      logger.info("✅ Queue system initialized");
+
+      // 🚨 NEW: Mount Bull Board Dashboard (AFTER queue initialization)
+      logger.info("[BullBoard] Mounting dashboard...");
+      try {
+        const { getDashboardRouter } = await import('./queues/dashboard');
+        const dashboardRouter = getDashboardRouter();
+        app.use("/admin/queues", dashboardRouter);
+        logger.info("✅ Bull Board dashboard mounted at /admin/queues");
+      } catch (error: any) {
+        logger.error("[BullBoard] ❌ Failed to mount dashboard:", error.message);
+        logger.warn("⚠️ Queue dashboard will not be available");
+      }
+
+      // 🚨 NEW: Start workers to process jobs
+      logger.info("👷 Starting queue workers...");
+      await workerManager.start();
+      logger.info("✅ Queue workers started");
+
+      // 🚨 NEW: Start fallback buffer retry loop
+      logger.info("🔄 Starting fallback buffer...");
+      fallbackBuffer.start();
+      logger.info("✅ Fallback buffer started");
+
+      // Start voice AI ranking job (precomputes product popularity scores)
+      logger.info("🎤 Starting voice AI ranking job...");
+      startRankingJob();
+
+      // 🧪 NEW: Start experiment monitor (auto-stop + auto-deploy)
+      logger.info("🧪 Starting experiment monitor...");
+      startExperimentMonitor();
+      logger.info("✅ Experiment monitor started");
+
+      // 🚨 NEW: Start DLQ auto-retry job (retries failed jobs hourly)
+      logger.info("♻️ Starting DLQ auto-retry job...");
+      setInterval(async () => {
+        try {
+          await queueManager.autoRetryFailedJobs();
+        } catch (error) {
+          logger.error('[DLQ] Auto-retry failed:', error);
+        }
+      }, 60 * 60 * 1000); // Every hour
+
+      // 🚨 NEW: Start alert monitoring (checks queue health every minute)
+      logger.info("🚨 Starting alert monitoring...");
+      alertMonitor.start();
+      logger.info("✅ Alert monitoring started");
+
+      // 🎤 NEW: Build product dictionary for voice correction
+      logger.info("🎤 Building product dictionary for voice correction...");
+      await buildProductDictionary();
+      logger.info("✅ Product dictionary built");
+
+      // 🎤 NEW: Start periodic dictionary refresh (every 5 minutes)
+      logger.info("🔄 Starting periodic dictionary refresh...");
+      const dictionaryRefreshInterval = startDictionaryRefresh();
+      // Store interval ID for cleanup on shutdown
+      (global as any).dictionaryRefreshInterval = dictionaryRefreshInterval;
+      logger.info("✅ Dictionary refresh started");
+
+      // 🧠 NEW: Warm embedding cache (avoid cold start)
+      logger.info("🔥 Warming embedding cache...");
+      const { warmEmbeddingCache } = await import('./services/cacheWarmer');
+      // Run in background, don't block server startup
+      warmEmbeddingCache().catch((error) => {
+        logger.warn('[CacheWarmer] Failed to warm cache (non-blocking):', error.message);
+        logger.info('[CacheWarmer] System will work with fuzzy-only search until embedding service is available');
+      });
+      warmEmbeddingCache().catch(err => {
+        logger.error("❌ Cache warmup failed:", err);
+      });
+      logger.info("✅ Cache warmup started (background)");
+
       // Bootstrap dev admin user in development
       await bootstrapDevAdmin();
 
@@ -708,7 +791,7 @@ const startServer = async () => {
           return;
         }
 
-        const serverInstance = server.listen(port, () => {
+        const serverInstance = server.listen(port, '0.0.0.0', () => {
           logger.info(`🚀 Server running on port ${port}`);
           logger.info(`🏥 Health check: /health`);
           resolve();
@@ -770,16 +853,72 @@ const startServer = async () => {
 };
 
 // Graceful shutdown handling
-process.on("SIGTERM", () => {
+process.on("SIGTERM", async () => {
   logger.info("SIGTERM received, shutting down gracefully");
+  
+  // Stop dictionary refresh
+  if ((global as any).dictionaryRefreshInterval) {
+    logger.info("Stopping dictionary refresh...");
+    stopDictionaryRefresh((global as any).dictionaryRefreshInterval);
+  }
+  
+  // Stop experiment monitoring
+  logger.info("Stopping experiment monitor...");
+  stopExperimentMonitor();
+  
+  // Stop alert monitoring
+  logger.info("Stopping alert monitoring...");
+  alertMonitor.stop();
+  
+  // Stop fallback buffer
+  logger.info("Stopping fallback buffer...");
+  fallbackBuffer.stop();
+  
+  // Stop workers first (stop processing new jobs)
+  logger.info("Stopping queue workers...");
+  await workerManager.stop();
+  
+  // Close queue connections
+  logger.info("Closing queue connections...");
+  await queueManager.close();
+  
+  // Close HTTP server
   server.close(() => {
     logger.info("Server closed");
     process.exit(0);
   });
 });
 
-process.on("SIGINT", () => {
+process.on("SIGINT", async () => {
   logger.info("SIGINT received, shutting down gracefully");
+  
+  // Stop dictionary refresh
+  if ((global as any).dictionaryRefreshInterval) {
+    logger.info("Stopping dictionary refresh...");
+    stopDictionaryRefresh((global as any).dictionaryRefreshInterval);
+  }
+  
+  // Stop experiment monitoring
+  logger.info("Stopping experiment monitor...");
+  stopExperimentMonitor();
+  
+  // Stop alert monitoring
+  logger.info("Stopping alert monitoring...");
+  alertMonitor.stop();
+  
+  // Stop fallback buffer
+  logger.info("Stopping fallback buffer...");
+  fallbackBuffer.stop();
+  
+  // Stop workers first
+  logger.info("Stopping queue workers...");
+  await workerManager.stop();
+  
+  // Close queue connections
+  logger.info("Closing queue connections...");
+  await queueManager.close();
+  
+  // Close HTTP server
   server.close(() => {
     logger.info("Server closed");
     process.exit(0);

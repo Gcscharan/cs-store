@@ -17,7 +17,7 @@ export function deprecatedRoute(args: {
       }
 
       if (args.block) {
-        res.status(410).json({ error: "DEPRECATED_ROUTE" });
+        res.status(404).json({ error: "DEPRECATED_ROUTE" });
         return;
       }
     } catch {

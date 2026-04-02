@@ -90,7 +90,7 @@ export async function createRazorpayPaymentIntent(args: {
 
         console.info("[PI][EXPIRED]", { paymentIntentId, orderId });
         const err: any = new Error("Payment intent expired");
-        err.statusCode = 410;
+        err.statusCode = 400;
         throw err;
       }
     };

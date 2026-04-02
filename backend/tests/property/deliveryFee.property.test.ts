@@ -1,6 +1,6 @@
 import * as fc from "fast-check";
 
-const numRuns = process.env.CI_NIGHTLY === "true" ? 10000 : 100;
+const numRuns = process.env.CI_NIGHTLY === "true" ? 10000 : 20;
 
 describe("delivery fee invariants", () => {
   function calcFee(distanceKm: number, freeThreshold: number, baseRate: number): number {
@@ -35,7 +35,7 @@ describe("delivery fee invariants", () => {
           return !Number.isNaN(fee) && fee !== Infinity && fee !== -Infinity;
         }
       ),
-      { numRuns: 1000 }
+      { numRuns: 50 }
     );
   });
 

@@ -12,6 +12,9 @@ import {
   getNotificationPreferences,
   updateNotificationPreferences,
   markMobileAsVerified,
+  updatePushToken,
+  getUserReferral,
+  getUserReferralStats,
 } from "../controllers/userController";
 
 const router = express.Router();
@@ -19,6 +22,11 @@ const router = express.Router();
 // User profile routes
 router.get("/profile", authenticateToken, getUserProfile);
 router.put("/profile", authenticateToken, updateUserProfile);
+router.post("/push-token", authenticateToken, updatePushToken);
+
+// Referral routes
+router.get("/referral", authenticateToken, getUserReferral);
+router.get("/referral/stats", authenticateToken, getUserReferralStats);
 
 // Mobile verification route
 router.post("/verify-mobile", markMobileAsVerified);

@@ -15,9 +15,14 @@ export const sendSMS = async (
   const otpMatch = message.match(/(\d{6})/);
   const otp = otpMatch ? otpMatch[1] : "N/A";
   
-  logger.info(`\n🔢 OTP Generated for ${phone}: ${otp}\n`);
-  logger.info(`📱 Message: ${message}\n`);
+  logger.info(`\n${'='.repeat(60)}`);
+  logger.info(`🔢 OTP GENERATED (MOCK MODE)`);
+  logger.info(`📱 Phone: ${phone}`);
+  logger.info(`🔑 OTP: ${otp}`);
+  logger.info(`📧 Full Message: ${message}`);
+  logger.info(`${'='.repeat(60)}\n`);
   
+  // In mock mode, always succeed
   return true;
 };
 

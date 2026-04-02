@@ -7,6 +7,7 @@ import { inventoryService } from "./inventoryService";
 import { inventoryReservationService } from "./inventoryReservationService";
 import { publish } from "../../events/eventBus";
 import { stableEventId } from "../../events/eventId";
+import { PushNotificationService } from "../../../utils/PushNotificationService";
 import {
   createDeliveryAssignedEvent,
   createOrderCancelledEvent,
@@ -497,6 +498,8 @@ export const orderStateService = {
             await publish(evt, { session });
           };
 
+          const shortOrderId = orderId.slice(-6).toUpperCase();
+
           switch (toStatus) {
             case OrderStatus.CONFIRMED:
               await publishWithSession(
@@ -512,6 +515,11 @@ export const orderStateService = {
                   primaryProductName,
                 })
               );
+              await PushNotificationService.sendToUser(
+                userId,
+                "Order Confirmed ✅",
+                `Your order #${shortOrderId} for ${primaryProductName || 'items'} has been confirmed!`
+              );
               break;
             case OrderStatus.PACKED:
               await publishWithSession(
@@ -526,6 +534,11 @@ export const orderStateService = {
                   totalAmount: Number.isFinite(totalAmount) ? totalAmount : undefined,
                   primaryProductName,
                 })
+              );
+              await PushNotificationService.sendToUser(
+                userId,
+                "Order Packed 📦",
+                `Your order #${shortOrderId} is packed and ready for delivery!`
               );
               break;
             case OrderStatus.ASSIGNED:
@@ -573,6 +586,11 @@ export const orderStateService = {
                   primaryProductName,
                 })
               );
+              await PushNotificationService.sendToUser(
+                userId,
+                "Order Out for Delivery 🚚",
+                `Your order #${shortOrderId} is on its way to you!`
+              );
               break;
             case OrderStatus.DELIVERED:
               await publishWithSession(
@@ -587,6 +605,11 @@ export const orderStateService = {
                   totalAmount: Number.isFinite(totalAmount) ? totalAmount : undefined,
                   primaryProductName,
                 })
+              );
+              await PushNotificationService.sendToUser(
+                userId,
+                "Order Delivered 🎉",
+                `Your order #${shortOrderId} has been delivered. Enjoy!`
               );
               break;
             case OrderStatus.FAILED:
@@ -603,6 +626,11 @@ export const orderStateService = {
                   primaryProductName,
                 })
               );
+              await PushNotificationService.sendToUser(
+                userId,
+                "Delivery Failed ❌",
+                `We couldn't deliver your order #${shortOrderId}. Please check the app for details.`
+              );
               break;
             case OrderStatus.CANCELLED:
               await publishWithSession(
@@ -617,6 +645,11 @@ export const orderStateService = {
                   totalAmount: Number.isFinite(totalAmount) ? totalAmount : undefined,
                   primaryProductName,
                 })
+              );
+              await PushNotificationService.sendToUser(
+                userId,
+                "Order Cancelled 🛑",
+                `Your order #${shortOrderId} has been cancelled.`
               );
               break;
             default:

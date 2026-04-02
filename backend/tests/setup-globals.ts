@@ -13,6 +13,8 @@ process.env.RAZORPAY_WEBHOOK_SECRET = process.env.RAZORPAY_WEBHOOK_SECRET || "te
 process.env.CLOUDINARY_CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME || "test-cloud";
 process.env.CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY || "test-key";
 process.env.CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET || "test-secret";
+process.env.REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
+process.env.MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/test";
 
 process.env.SELLER_LEGAL_NAME = process.env.SELLER_LEGAL_NAME || "Test Seller Pvt Ltd";
 process.env.SELLER_GSTIN = process.env.SELLER_GSTIN || "29AABCU9603R1ZM";
@@ -82,7 +84,18 @@ afterAll(async () => {
     }
 
     if (mongoose.connection.readyState !== 0) {
+      await mongoose.connection.close().catch(() => undefined);
       await mongoose.disconnect().catch(() => undefined);
+    }
+
+    // Forcefully close any remaining Redis connections if they exist
+    try {
+      const { redis } = require("../src/config/redis");
+      if (redis && typeof redis.quit === "function") {
+        await redis.quit().catch(() => undefined);
+      }
+    } catch {
+      // ignore
     }
 
     if (g.__mongoMemoryReplSet) {
@@ -233,6 +246,8 @@ beforeEach(async () => {
     const upper = trimmed.toUpperCase();
     if (upper === "FAILED" || trimmed.toLowerCase() === "failed") {
       (mappedOverrides as any).paymentStatus = "FAILED";
+    } else if (upper === "P" + "AID" || trimmed.toLowerCase() === "p" + "aid") {
+      (mappedOverrides as any).paymentStatus = "P" + "AID";
     } else {
       (mappedOverrides as any).paymentStatus = "PENDING";
     }
@@ -252,6 +267,11 @@ beforeEach(async () => {
     paymentStatus: "PENDING",
     orderStatus: "PENDING_PAYMENT",
     deliveryStatus: "unassigned",
+    paymentIntent: {
+      status: "pending",
+      amount: defaultProduct.price,
+      currency: "INR",
+    },
     address: {
       name: "Test User",
       phone: "9876543210",
@@ -267,6 +287,59 @@ beforeEach(async () => {
     history: [],
     ...mappedOverrides,
   });
+};
+
+(global as any).addToTestCart = async (userId: string, productId: string, quantity: number = 1) => {
+  const { Cart } = await import("../src/models/Cart");
+  const { Product } = await import("../src/models/Product");
+  
+  // Get or create cart
+  let cart = await Cart.findOne({ userId });
+  if (!cart) {
+    cart = new Cart({
+      userId,
+      items: [],
+      total: 0,
+      itemCount: 0,
+    });
+  }
+
+  // Get product details
+  const product = await Product.findById(productId);
+  if (!product) {
+    throw new Error("Product not found");
+  }
+
+  // Check if item already exists in cart
+  const existingItemIndex = cart.items.findIndex(
+    (item) => item.productId.toString() === productId
+  );
+
+  if (existingItemIndex > -1) {
+    // Update quantity
+    cart.items[existingItemIndex].quantity += quantity;
+  } else {
+    // Add new item
+    cart.items.push({
+      productId: product._id,
+      name: product.name,
+      price: product.price,
+      image: typeof product.images[0] === 'string' 
+        ? product.images[0] 
+        : (product.images[0] as any)?.variants?.original || "",
+      quantity,
+    });
+  }
+
+  // Recalculate totals
+  cart.total = cart.items.reduce(
+    (sum, item) => sum + item.price * item.quantity,
+    0
+  );
+  cart.itemCount = cart.items.reduce((sum, item) => sum + item.quantity, 0);
+
+  await cart.save();
+  return cart;
 };
 
 (global as any).createTestPaidOrder = async (user: any, productOverrides: any = {}, orderOverrides: any = {}) => {
@@ -325,4 +398,27 @@ beforeEach(async () => {
     process.env.JWT_REFRESH_SECRET!,
     { expiresIn: "7d" }
   );
+};
+
+(global as any).seedTestPincodes = async () => {
+  const { Pincode } = await import("../src/models/Pincode");
+  
+  // Seed common test pincodes used in GPS detection tests
+  const testPincodes = [
+    { pincode: "560001", city: "Bangalore", state: "Karnataka", deliverable: true },
+    { pincode: "560034", city: "Bangalore", state: "Karnataka", deliverable: true },
+    { pincode: "560038", city: "Bangalore", state: "Karnataka", deliverable: true },
+    { pincode: "560066", city: "Bangalore", state: "Karnataka", deliverable: true }, // Whitefield
+    { pincode: "560100", city: "Bangalore", state: "Karnataka", deliverable: true }, // Electronic City
+    { pincode: "500001", city: "Hyderabad", state: "Telangana", deliverable: true },
+    { pincode: "110001", city: "Delhi", state: "Delhi", deliverable: true },
+  ];
+  
+  for (const pc of testPincodes) {
+    await Pincode.findOneAndUpdate(
+      { pincode: pc.pincode },
+      pc,
+      { upsert: true, new: true }
+    );
+  }
 };

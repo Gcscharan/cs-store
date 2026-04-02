@@ -52,7 +52,7 @@ describe("Phase 0 live tracking", () => {
     const token = await (global as any).getAuthToken(user);
 
     const res = await request(app)
-      .post("/internal/tracking/location")
+      .post("/api/internal/tracking/location")
       .set("Authorization", `Bearer ${token}`)
       .send({
         schemaVersion: 1,
@@ -77,7 +77,7 @@ describe("Phase 0 live tracking", () => {
     process.env.TRACKING_KILL_SWITCH_MODE = "INGEST_ONLY";
 
     const res = await request(app)
-      .post("/internal/tracking/location")
+      .post("/api/internal/tracking/location")
       .set("Authorization", `Bearer ${token}`)
       .send({
         schemaVersion: 1,

@@ -8,7 +8,7 @@ describe("Internal finance health (read-only)", () => {
     const token = await (global as any).getAuthToken(admin);
 
     const res = await request(app)
-      .get("/internal/finance/health")
+      .get("/api/internal/finance/health")
       .set("Authorization", `Bearer ${token}`)
       .expect(200);
 
@@ -54,7 +54,7 @@ describe("Internal finance health (read-only)", () => {
     const token = await (global as any).getAuthToken(user);
 
     const res = await request(app)
-      .get("/internal/finance/health")
+      .get("/api/internal/finance/health")
       .set("Authorization", `Bearer ${token}`);
 
     expect([401, 403]).toContain(res.status);

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "./AccessibleToast";
 import { isValidPincode, getPincodeError } from "../utils/pincodeValidator";
 import { getCurrentLocationWithAddress } from "../utils/geolocation";
-import { getPincodeInfo } from "../utils/pincodeValidation";
+import { getPincodeInfo } from "@vyaparsetu/shared-utils";
 import { MapPin, Loader2 } from "lucide-react";
 import { useLanguage } from "../contexts/LanguageContext";
 

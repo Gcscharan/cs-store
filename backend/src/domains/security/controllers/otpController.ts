@@ -100,7 +100,7 @@ export const generateVerificationOTP = async (req: Request, res: Response) => {
     await otpRecord.save();
 
     // Send OTP via SMS
-    const message = `Your CS Store verification OTP is ${otp}. Valid for 10 minutes. Do not share this OTP with anyone.`;
+    const message = `<#> Your VyaparSetu OTP is ${otp}\nFA+9qCX9VSu`;
     const smsOk = await sendSMS(cleanedPhone, message);
 
     if (!smsOk) {
@@ -202,7 +202,7 @@ export const generatePaymentOTP = async (req: Request, res: Response) => {
     await otpRecord.save();
 
     // Send OTP via SMS (fallback)
-    const message = `Your CS Store payment OTP is ${otp}. Valid for 10 minutes. Do not share this OTP with anyone.`;
+    const message = `<#> Your VyaparSetu OTP is ${otp}\nFA+9qCX9VSu`;
     const smsOk = await sendSMS(user.phone, message);
 
     const paymentResponse: any = {
@@ -329,7 +329,7 @@ export const resendPaymentOTP = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "User or phone not found" });
     }
 
-    const message = `Your CS Store payment OTP is ${newOtp}. Valid for 10 minutes. Do not share this OTP with anyone.`;
+    const message = `<#> Your VyaparSetu OTP is ${newOtp}\nFA+9qCX9VSu`;
     const smsOk = await sendSMS(user.phone, message);
     if (!smsOk) {
       return res.status(500).json({ message: "Failed to resend payment OTP" });

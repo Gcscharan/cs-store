@@ -17,6 +17,8 @@ export interface IAddress {
   isDefault: boolean;
   isGeocoded?: boolean; // Whether coordinates were obtained via geocoding
   coordsSource?: 'manual' | 'geocoded' | 'pincode' | 'unresolved'; // How coordinates were obtained
+  validationSource?: 'manual' | 'gps'; // How pincode was validated
+  gpsAccuracy?: number; // GPS accuracy in meters (if provided)
 }
 
 export interface IOAuthProvider {
@@ -187,6 +189,20 @@ export interface IUser extends Document {
   pendingEmailToken?: string;
   pendingEmailExpiresAt?: Date;
   lastEmailChangeRequestAt?: Date;
+  pushToken?: string; // Generic push token
+  expoPushToken?: string; // Specifically for Expo Push API
+  // Loyalty and Referral
+  loyaltyPoints?: number;
+  loyaltyTier?: "bronze" | "silver" | "gold" | "platinum";
+  referralCode?: string | null;
+  referredBy?: mongoose.Types.ObjectId | null;
+  // Analytics
+  lastLoginAt?: Date | null;
+  totalOrders?: number;
+  completedOrders?: number;
+  cancelledOrders?: number;
+  totalSpent?: number;
+  averageOrderValue?: number;
   createdAt: Date;
   updatedAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
@@ -211,6 +227,12 @@ const AddressSchema = new Schema<IAddress>({
     enum: ['manual', 'saved', 'geocoded', 'pincode', 'unresolved'], 
     default: 'unresolved' 
   },
+  validationSource: { 
+    type: String, 
+    enum: ['manual', 'gps'], 
+    default: 'manual' 
+  },
+  gpsAccuracy: { type: Number, required: false },
 });
 
 const OAuthProviderSchema = new Schema<IOAuthProvider>({
@@ -332,6 +354,14 @@ const UserSchema = new Schema<IUser>(
       type: Schema.Types.Mixed,
       default: {},
     },
+    pushToken: {
+      type: String,
+      required: false,
+    },
+    expoPushToken: {
+      type: String,
+      required: false,
+    },
     // Email change verification fields
     pendingEmail: {
       type: String,
@@ -348,6 +378,52 @@ const UserSchema = new Schema<IUser>(
     lastEmailChangeRequestAt: {
       type: Date,
       default: null,
+    },
+    // Loyalty and Referral
+    loyaltyPoints: {
+      type: Number,
+      default: 0,
+    },
+    loyaltyTier: {
+      type: String,
+      enum: ["bronze", "silver", "gold", "platinum"],
+      default: "bronze",
+    },
+    referralCode: {
+      type: String,
+      default: null,
+      unique: true,
+      sparse: true,
+    },
+    referredBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    // Analytics
+    lastLoginAt: {
+      type: Date,
+      default: null,
+    },
+    totalOrders: {
+      type: Number,
+      default: 0,
+    },
+    completedOrders: {
+      type: Number,
+      default: 0,
+    },
+    cancelledOrders: {
+      type: Number,
+      default: 0,
+    },
+    totalSpent: {
+      type: Number,
+      default: 0,
+    },
+    averageOrderValue: {
+      type: Number,
+      default: 0,
     },
   },
   {

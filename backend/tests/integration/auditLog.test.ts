@@ -39,7 +39,7 @@ describe("Audit logging hardening", () => {
     });
 
     await request(app)
-      .post("/internal/refunds")
+      .post("/api/internal/refunds")
       .set("Authorization", `Bearer ${token}`)
       .send({
         orderId: String(order._id),
@@ -68,7 +68,7 @@ describe("Audit logging hardening", () => {
     const spy = jest.spyOn(AuditLog, "create").mockRejectedValueOnce(new Error("audit down"));
 
     const res = await request(app)
-      .get("/internal/finance/health")
+      .get("/api/internal/finance/health")
       .set("Authorization", `Bearer ${token}`);
 
     spy.mockRestore();

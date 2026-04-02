@@ -1,9 +1,10 @@
-import { logger } from '../utils/logger';
 import { Request, Response } from "express";
 import {
   resolvePincodeDetails,
   applyDistrictOverride,
 } from "../utils/pincodeResolver";
+import { checkDeliveryAvailability } from "../services/deliveryService";
+import { logInfo, logWarn, logError } from "../utils/structuredLogger";
 
 // Comprehensive pincode validation for Andhra Pradesh and Telangana
 const validatePincode = (pincode: string): boolean => {
@@ -153,7 +154,9 @@ export const validatePincodeController = async (
       deliveryAvailable: isValid,
     });
   } catch (error) {
-    logger.error("Pincode validation error:", error);
+    logError("PINCODE_VALIDATION_ERROR", {
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -193,7 +196,9 @@ export const validateBulkPincodesController = async (
       totalInvalid: results.filter((r) => !r.valid).length,
     });
   } catch (error) {
-    logger.error("Bulk pincode validation error:", error);
+    logError("BULK_PINCODE_VALIDATION_ERROR", {
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -218,7 +223,9 @@ export const getValidPincodeRangesController = async (
       states: ["Andhra Pradesh", "Telangana"],
     });
   } catch (error) {
-    logger.error("Get pincode ranges error:", error);
+    logError("GET_PINCODE_RANGES_ERROR", {
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -231,10 +238,13 @@ export const checkPincodeController = async (
   req: Request,
   res: Response
 ): Promise<void> => {
+  const startTime = Date.now(); // Declare outside try block for catch access
+  
   try {
     const { pincode } = req.params;
 
     if (!pincode || pincode.length !== 6 || !/^\d{6}$/.test(pincode)) {
+      logWarn('INVALID_PINCODE_FORMAT', { pincode });
       res.status(200).json({
         deliverable: false,
         message: "Not deliverable to this location or pincode",
@@ -249,26 +259,46 @@ export const checkPincodeController = async (
         resolved.postal_district
       );
 
+      // Apply business logic: check if deliverable
+      const deliverable = checkDeliveryAvailability(resolved.state);
+
+      // Log delivery check with end-to-end latency
+      logInfo('PINCODE_CHECK', {
+        pincode,
+        state: resolved.state,
+        deliverable,
+        duration: Date.now() - startTime,
+        source: 'success',
+      });
+
       res.status(200).json({
-        deliverable: resolved.deliverable,
+        deliverable,
         state: resolved.state,
         postal_district: resolved.postal_district,
         admin_district,
         cities: resolved.cities,
         single_city: resolved.single_city,
-        message: resolved.deliverable
+        message: deliverable
           ? undefined
           : "Not deliverable to this location or pincode",
       });
       return;
     }
 
+    // Pincode not found
+    logWarn('PINCODE_NOT_FOUND', { 
+      pincode,
+      duration: Date.now() - startTime,
+    });
     res.status(200).json({
       deliverable: false,
       message: "Not deliverable to this location or pincode",
     });
   } catch (error) {
-    logger.error("Pincode check error:", error);
+    logError("PINCODE_CHECK_ERROR", {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      duration: Date.now() - startTime,
+    });
     res.status(500).json({
       deliverable: false,
       message: "Internal server error",

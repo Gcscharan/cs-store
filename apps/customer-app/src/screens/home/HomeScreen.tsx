@@ -1,450 +1,671 @@
-import React from 'react';
+import React, { useState, useCallback, memo, useMemo, useEffect, useRef } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
-  SafeAreaView,
-  TextInput,
-  TouchableOpacity,
-  FlatList,
   ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  TextInput,
+  FlatList,
   RefreshControl,
+  Dimensions,
+  Alert,
+  Platform,
+  Pressable,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
-import { useSelector, useDispatch } from 'react-redux';
-import { Colors } from '../../constants/colors';
-import { RootState } from '../../store';
-import { useGetCategoriesQuery, useGetProductsQuery } from '../../api/productsApi';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
+import {
+  useGetProductsQuery,
+  useGetCategoriesQuery,
+  productsApi,
+} from '../../api/productsApi';
+import { useGetUnreadCountQuery } from '../../api/notificationsApi';
+import { cartApi } from '../../api/cartApi';
+import { ordersApi } from '../../api/ordersApi';
+import { addressesApi } from '../../api/addressesApi';
 import { useAddToCartMutation } from '../../api/cartApi';
-import { useGetAddressesQuery } from '../../api/addressesApi';
-import ProductCard from '../../components/ProductCard';
-import { addItem, syncCart } from '../../store/slices/cartSlice';
-import { useNavigation } from '@react-navigation/native';
-import type { HomeNavigationProp } from '../../navigation/types';
+import { useDispatch, useSelector } from 'react-redux';
+import { addItem } from '../../store/slices/cartSlice';
+import { showToast } from '../../store/slices/uiSlice';
+import { selectUser } from '../../store/slices/authSlice';
+import { SmartImage } from '../../components/SmartImage';
+import { FreeDeliveryBanner } from '../../components/FreeDeliveryBanner';
+import { BusinessRules } from '../../constants/businessRules';
+import { Colors } from '../../constants/colors';
+import { CURATED_CATEGORIES } from '../../constants/categories';
+import { RootState, AppDispatch } from '../../store';
+import { Ionicons } from '@expo/vector-icons';
+import { ScreenHeader } from '../../components/ScreenHeader';
+import { logEvent } from '../../utils/analytics';
+import { useVoiceSearch } from '../../hooks/useVoiceSearch';
+import VoiceListeningModal from '../../components/VoiceListeningModal';
 
-const CATEGORIES = [
-  { name: 'chocolates', emoji: '🍫', label: 'Chocolates' },
-  { name: 'beverages', emoji: '🥤', label: 'Beverages' },
-  { name: 'snacks', emoji: '🍿', label: 'Snacks' },
-  { name: 'dairy', emoji: '🥛', label: 'Dairy & Eggs' },
-  { name: 'vegetables', emoji: '🥦', label: 'Fruits & Veg' },
-  { name: 'personal_care', emoji: '🧴', label: 'Personal Care' },
-];
+const { width } = Dimensions.get('window');
 
-const HomeScreen: React.FC = () => {
-  const navigation = useNavigation<HomeNavigationProp>();
-  const dispatch = useDispatch();
-  const cartItemCount = useSelector((state: RootState) => state.cart.itemCount);
-
-  const { data: addressData } = useGetAddressesQuery();
-  const addresses = addressData?.addresses || [];
-  const defaultAddressId = addressData?.defaultAddressId || null;
-  const defaultAddress = defaultAddressId
-    ? addresses.find(
-        (a: any) =>
-          String(a?._id || a?.id || '').trim() ===
-          String(defaultAddressId).trim()
-      )
-    : addresses.find((a: any) => a?.isDefault);
-
-  const [selectedCategory, setSelectedCategory] = React.useState<string>('All');
-  const [searchText, setSearchText] = React.useState('');
-
-  const {
-    data: categoriesData,
-    isLoading: categoriesLoading,
-    isError: categoriesError,
-    error: categoriesErrorDetail,
-    refetch: refetchCategories,
-  } = useGetCategoriesQuery(undefined);
-
-  const categoryParam = selectedCategory === 'All' ? undefined : selectedCategory;
-  const {
-    data: productsData,
-    isLoading: productsLoading,
-    isError: productsError,
-    isFetching: isProductsFetching,
-    error: productsErrorDetail,
-    refetch: refetchProducts,
-  } = useGetProductsQuery({ page: 1, limit: 12, category: categoryParam });
-
-  const [addToCartMutation] = useAddToCartMutation();
-
-  const products = (productsData as any)?.products || [];
-  const categories = (categoriesData as any)?.categories || [];
-
-  React.useEffect(() => {
-    console.log('[HomeScreen] Products state:', {
-      isLoading: productsLoading,
-      isError: productsError,
-      error: productsErrorDetail,
-      dataExists: !!productsData,
-      data: productsData,
-    });
-  }, [productsLoading, productsError, productsErrorDetail, productsData]);
-
-  React.useEffect(() => {
-    console.log('[HomeScreen] Categories state:', {
-      isLoading: categoriesLoading,
-      isError: categoriesError,
-      error: categoriesErrorDetail,
-      data: categoriesData,
-    });
-  }, [categoriesLoading, categoriesError, categoriesErrorDetail, categoriesData]);
-
-  const onRefresh = async () => {
-    await Promise.allSettled([refetchProducts(), refetchCategories()]);
-  };
-
-  const renderCategory = ({ item }: { item: any }) => {
-    const name = String(item?.name || item);
-    const isSelected = selectedCategory === name;
-    return (
-      <TouchableOpacity
-        onPress={() => setSelectedCategory(name)}
-        style={[styles.categoryPill, isSelected ? styles.categoryPillSelected : styles.categoryPillUnselected]}
-        activeOpacity={0.9}
-      >
-        <Text style={[styles.categoryText, isSelected ? styles.categoryTextSelected : styles.categoryTextUnselected]}>
-          {name}
-        </Text>
-      </TouchableOpacity>
-    );
-  };
-
-  const renderSkeleton = (_: any, index: number) => <View key={index} style={styles.skeletonCard} />;
-
-  return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.container}>
-        <View style={styles.headerRow}>
-          <Text style={styles.logo}>VyaparSetu</Text>
-          <View style={styles.headerIcons}>
-            <TouchableOpacity onPress={() => {}} style={styles.iconButton}>
-              <Text style={styles.iconText}>🔔</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => {}} style={styles.iconButton}>
-              <Text style={styles.iconText}>🛒</Text>
-              {cartItemCount > 0 ? (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>{cartItemCount}</Text>
-                </View>
-              ) : null}
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <TouchableOpacity
-          style={styles.addressBar}
-          activeOpacity={0.9}
-          onPress={() => (navigation as any).navigate('ProfileTab', { screen: 'Addresses' })}
-        >
-          <Text style={styles.addressIcon}>📍</Text>
-          <View style={styles.addressTextWrap}>
-            <Text style={styles.addressTitle} numberOfLines={1}>
-              {defaultAddress ? String(defaultAddress?.name || 'Delivery Address') : 'Add Address'}
-            </Text>
-            <Text style={styles.addressSubtitle} numberOfLines={1}>
-              {defaultAddress
-                ? `${String(defaultAddress?.city || '')}${defaultAddress?.pincode ? ` - ${String(defaultAddress?.pincode)}` : ''}`
-                : 'Choose your delivery location'}
-            </Text>
-          </View>
-          <Text style={styles.addressChevron}>›</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.searchBar}
-          activeOpacity={0.9}
-          onPress={() => navigation.navigate('Search')}
-        >
-          <TextInput
-            value={searchText}
-            onChangeText={setSearchText}
-            placeholder="Search products..."
-            placeholderTextColor={Colors.textMuted}
-            style={styles.searchInput}
-            editable={false}
-          />
-        </TouchableOpacity>
-
-        {/* Quick Categories Shortcuts */}
-        <View style={styles.quickCatsWrap}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Shop by Category</Text>
-            <TouchableOpacity onPress={() => (navigation as any).navigate('CategoriesTab', { screen: 'Categories' })}>
-              <Text style={styles.seeAllText}>See All</Text>
-            </TouchableOpacity>
-          </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickCatsList}>
-            {CATEGORIES.map((cat) => (
-              <TouchableOpacity
-                key={cat.name}
-                style={styles.quickCatItem}
-                onPress={() => (navigation as any).navigate('CategoriesTab', { 
-                  screen: 'Categories', 
-                  params: { preselect: cat.name } 
-                })}
-              >
-                <View style={styles.quickCatEmojiWrap}>
-                  <Text style={styles.quickCatEmoji}>{cat.emoji}</Text>
-                </View>
-                <Text style={styles.quickCatLabel}>{cat.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-
-        <View style={styles.categoriesWrap}>
-          <FlatList
-            horizontal
-            data={[{ name: 'All' }, ...categories]}
-            keyExtractor={(item: any, idx: number) => String(item?.name || item) + idx}
-            renderItem={renderCategory}
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.categoriesList}
-          />
-        </View>
-
-        {productsError ? (
-          <View style={styles.centerBlock}>
-            <Text style={styles.errorText}>Failed to load products</Text>
-            <TouchableOpacity onPress={() => refetchProducts()} style={styles.retryBtn} activeOpacity={0.9}>
-              <Text style={styles.retryText}>Retry</Text>
-            </TouchableOpacity>
-          </View>
-        ) : productsLoading ? (
-          <View style={styles.gridWrap}>{Array.from({ length: 6 }).map(renderSkeleton)}</View>
-        ) : (
-          <FlatList
-            data={products}
-            keyExtractor={(item: any) => String(item?._id || item?.id)}
-            numColumns={2}
-            refreshControl={<RefreshControl refreshing={isProductsFetching} onRefresh={onRefresh} />}
-            contentContainerStyle={styles.productsList}
-            ListEmptyComponent={
-              <View style={styles.centerBlock}>
-                <Text style={styles.emptyText}>No products found</Text>
-              </View>
-            }
-            renderItem={({ item }: { item: any }) => (
-              <ProductCard
-                product={item}
-                onPress={() => {
-                  navigation.navigate('ProductDetail', { productId: String(item?._id || item?.id) });
-                }}
-                onAddToCart={async () => {
-                  try {
-                    dispatch(
-                      addItem({
-                        id: String(item?._id || item?.id),
-                        productId: String(item?._id || item?.id),
-                        name: String(item?.name || ''),
-                        price: Number(item?.price || 0),
-                        quantity: 1,
-                        image: undefined,
-                      })
-                    );
-
-                    const result: any = await addToCartMutation({
-                      productId: String(item?._id || item?.id),
-                      quantity: 1,
-                    }).unwrap();
-
-                    if (result?.cart) {
-                      dispatch(
-                        syncCart({
-                          items: result.cart.items || [],
-                          total: result.cart.totalAmount || 0,
-                          itemCount: result.cart.itemCount || 0,
-                        })
-                      );
-                    }
-                  } catch (e) {
-                    console.log('[HomeScreen] add-to-cart failed:', e);
-                  }
-                }}
-              />
-            )}
-          />
-        )}
-      </View>
-    </SafeAreaView>
-  );
-};
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.background },
+const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  headerRow: {
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: Colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 8,
+    paddingVertical: 12,
+    backgroundColor: Colors.primary
+  },
+  brandName: { fontSize: 20, fontWeight: '900', color: Colors.white, fontFamily: 'Inter-Bold', letterSpacing: -0.5 },
+  notifBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  notifIcon: { fontSize: 20, color: Colors.white },
+  notifBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: Colors.white,
+    borderRadius: 10,
+    minWidth: 16,
+    height: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.primary,
+  },
+  notifBadgeTxt: { color: Colors.primary, fontSize: 9, fontWeight: '900' },
+  searchBarRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 16,
+    backgroundColor: Colors.inputBackground,
+    borderRadius: 12,
+    height: 48,
   },
-  logo: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: Colors.primary,
+  searchBar: {
+    flex: 1,
+    height: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
   },
-  headerIcons: { flexDirection: 'row', alignItems: 'center' },
-  iconButton: { marginLeft: 10, padding: 6 },
-  iconText: { fontSize: 18, color: Colors.textPrimary },
-  badge: {
-    position: 'absolute',
-    right: 0,
-    top: 0,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: Colors.primary,
+  micBtn: {
+    width: 48,
+    height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 4,
   },
-  badgeText: { color: Colors.white, fontSize: 10, fontWeight: '800' },
-  addressBar: {
-    marginHorizontal: 16,
-    marginBottom: 10,
-    borderRadius: 14,
-    backgroundColor: Colors.white,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  addressIcon: {
-    fontSize: 16,
-    marginRight: 10,
-  },
-  addressTextWrap: {
-    flex: 1,
-  },
-  addressTitle: {
-    color: Colors.textPrimary,
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  addressSubtitle: {
-    color: Colors.textSecondary,
-    fontSize: 12,
-    marginTop: 2,
-    fontWeight: '600',
-  },
-  addressChevron: {
-    color: Colors.textMuted,
-    fontSize: 22,
-    marginLeft: 8,
-    lineHeight: 22,
-    fontWeight: '900',
-  },
-  quickCatsWrap: {
-    marginVertical: 10,
-  },
+  searchPlaceholder: { color: Colors.textMuted, fontSize: 14, flex: 1, fontWeight: '500' },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    marginBottom: 12,
+    paddingTop: 16,
+    paddingBottom: 12
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: Colors.textPrimary,
+  sectionTitle: { fontSize: 18, fontWeight: '800', color: Colors.textPrimary },
+  seeAll: { fontSize: 14, color: Colors.primary, fontWeight: '600' },
+  categoryRow: { paddingHorizontal: 16, paddingBottom: 12 },
+  catItem: {
+    alignItems: 'center',
+    marginRight: 12,
   },
-  seeAllText: {
-    fontSize: 14,
+  catImageWrap: {
+    width: 72,
+    height: 72,
+    backgroundColor: '#FFF7F2',
+    borderRadius: 20,
+    borderWidth: 0.8,
+    borderColor: '#F0EAE5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    padding: 8,
+    marginBottom: 8,
+  },
+  catImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'contain',
+  },
+  catTileText: {
+    fontSize: 16,
     fontWeight: '700',
     color: Colors.primary,
+    letterSpacing: -0.3,
   },
-  quickCatsList: {
-    paddingHorizontal: 12,
-  },
-  quickCatItem: {
-    alignItems: 'center',
-    width: 80,
-    marginHorizontal: 4,
-  },
-  quickCatEmojiWrap: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: Colors.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
+  catName: { fontSize: 12, color: '#2A2A2A', fontWeight: '600', textAlign: 'center', lineHeight: 15, letterSpacing: 0.2, maxWidth: 72 },
+  catCount: { fontSize: 10, color: Colors.textMuted, marginTop: 4, fontWeight: '500' },
+  dealCard: {
+    width: 140,
+    backgroundColor: Colors.card,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: Colors.border,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 4
   },
-  quickCatEmoji: {
-    fontSize: 28,
-  },
-  quickCatLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-    textAlign: 'center',
-  },
-  searchBar: {
-    marginHorizontal: 16,
-    marginBottom: 12,
-    borderRadius: 14,
-    backgroundColor: Colors.surfaceDark,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  searchInput: {
-    color: Colors.textPrimary,
-    fontSize: 14,
-  },
-  categoriesWrap: { paddingLeft: 16, paddingBottom: 10 },
-  categoriesList: { paddingRight: 16 },
-  categoryPill: {
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    marginRight: 10,
-  },
-  categoryPillSelected: { backgroundColor: Colors.primary },
-  categoryPillUnselected: { backgroundColor: Colors.surfaceDark },
-  categoryText: { fontSize: 13, fontWeight: '700' },
-  categoryTextSelected: { color: Colors.white },
-  categoryTextUnselected: { color: Colors.textSecondary },
-  productsList: { paddingHorizontal: 8, paddingBottom: 16 },
-  gridWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 8,
-  },
-  skeletonCard: {
-    width: '46%',
-    margin: '2%',
-    aspectRatio: 0.82,
-    borderRadius: 12,
-    backgroundColor: Colors.surfaceDark,
-  },
-  centerBlock: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  errorText: { color: Colors.error, fontWeight: '800', marginBottom: 10 },
-  retryBtn: {
+  dealImg: { width: '100%', height: 120, backgroundColor: Colors.white },
+  dealBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
     backgroundColor: Colors.primary,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    zIndex: 1
   },
-  retryText: { color: Colors.white, fontWeight: '800' },
-  emptyText: { color: Colors.textSecondary, fontWeight: '700' },
+  dealBadgeTxt: { color: Colors.white, fontSize: 10, fontWeight: '800' },
+  dealName: { fontSize: 13, color: Colors.textPrimary, padding: 8, paddingBottom: 4, lineHeight: 18, fontWeight: '600' },
+  dealPrice: { fontSize: 16, fontWeight: '800', color: Colors.textPrimary, paddingHorizontal: 8 },
+  dealMrp: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    textDecorationLine: 'line-through',
+    paddingHorizontal: 8,
+    paddingBottom: 8,
+    marginLeft: 0,
+    marginTop: 2
+  },
+  productGrid: { padding: 16 },
+  productCard: {
+    flex: 1,
+    backgroundColor: Colors.card,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginBottom: 16,
+    overflow: 'hidden',
+  },
+  productImg: { width: '100%', aspectRatio: 1, backgroundColor: Colors.white },
+  discountBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    borderRadius: 6,
+    zIndex: 1
+  },
+  discountTxt: { color: Colors.white, fontSize: 10, fontWeight: '800' },
+  ratingBadge: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    borderRadius: 6,
+    flexDirection: 'row',
+    alignItems: 'center'
+  },
+  ratingTxt: { color: Colors.textPrimary, fontSize: 11, fontWeight: '700' },
+  productInfo: { padding: 12, borderTopWidth: 1, borderColor: Colors.border, backgroundColor: Colors.card },
+  productName: { fontSize: 13, color: Colors.textPrimary, lineHeight: 18, marginBottom: 8, fontWeight: '600', minHeight: 36 },
+  priceRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' },
+  price: { fontSize: 16, fontWeight: '800', color: Colors.textPrimary },
+  mrp: { fontSize: 12, color: Colors.textMuted, textDecorationLine: 'line-through' },
+  freeDelivery: { fontSize: 11, color: Colors.success, marginBottom: 8, fontWeight: '600' },
+  addBtn: {
+    backgroundColor: '#FFF5F0',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    paddingVertical: 8,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  addBtnTxt: { color: Colors.primary, fontWeight: '800', fontSize: 13 },
+  skeletonContainer: { flex: 1, backgroundColor: Colors.background },
+  skeletonItem: { backgroundColor: Colors.border },
+  skeletonRow: { flexDirection: 'row', paddingHorizontal: 16, marginBottom: 20 },
+  skeletonGrid: { flexDirection: 'row', flexWrap: 'wrap', padding: 16, justifyContent: 'space-between' },
+  skeletonCard: { width: '48%', height: 280, backgroundColor: Colors.border, borderRadius: 12, marginBottom: 16 },
 });
 
-export default HomeScreen;
+const getImageUrl = (images?: any[]): string | undefined => {
+  const first = images?.[0];
+  if (!first) return undefined;
+  if (typeof first === 'string') return first;
+  return (
+    first?.url ||
+    first?.variants?.medium ||
+    first?.variants?.small ||
+    first?.thumb ||
+    first?.original ||
+    null
+  ) || undefined;
+};
+
+// Optimized Skeleton Component
+const SkeletonHome = memo(() => (
+  <View style={s.skeletonContainer}>
+    <View style={[s.skeletonItem, { height: 180, margin: 10, borderRadius: 12 }]} />
+    <View style={s.sectionHeader}>
+      <View style={[s.skeletonItem, { width: 120, height: 20 }]} />
+    </View>
+    <View style={s.skeletonRow}>
+      {[1, 2, 3, 4].map(i => (
+        <View key={i} style={[s.skeletonItem, { width: 80, height: 100, marginRight: 10, borderRadius: 14 }]} />
+      ))}
+    </View>
+    <View style={s.sectionHeader}>
+      <View style={[s.skeletonItem, { width: 120, height: 20 }]} />
+    </View>
+    <View style={s.skeletonGrid}>
+      {[1, 2, 3, 4].map(i => (
+        <View key={i} style={[s.skeletonItem, { width: '47%', height: 250, borderRadius: 14 }]} />
+      ))}
+    </View>
+  </View>
+));
+
+// Optimized Product Card Component
+const HomeProductCard = memo(({ 
+  item, 
+  navigation, 
+  t, 
+  onAdd,
+  onPrefetch
+}: { 
+  item: any, 
+  navigation: any, 
+  t: any, 
+  onAdd: (item: any) => void,
+  onPrefetch: (id: string) => void
+}) => {
+  const discount = item.mrp > item.price ? Math.round(((item.mrp - item.price) / item.mrp) * 100) : 0;
+  const imageUrl = getImageUrl(item.images);
+  const rating = useMemo(() => {
+    const v = Number(item?.averageRating ?? item?.rating);
+    if (!Number.isFinite(v) || v <= 0) return null;
+    return Math.min(5, Math.max(0, v));
+  }, [item?.averageRating, item?.rating]);
+
+  const handlePress = useCallback(() => {
+    navigation.navigate('ProductDetail', { productId: item._id });
+  }, [navigation, item._id]);
+
+  const handlePressIn = useCallback(() => {
+    onPrefetch(item._id);
+  }, [onPrefetch, item._id]);
+
+  const handleAdd = useCallback(() => {
+    onAdd(item);
+  }, [onAdd, item]);
+
+  return (
+    <Pressable
+      style={({ pressed }) => [
+        s.productCard,
+        { 
+          opacity: pressed ? 0.8 : 1,
+          transform: [{ scale: pressed ? 0.98 : 1 }]
+        }
+      ]}
+      onPress={handlePress}
+      onPressIn={handlePressIn}
+    >
+      <View style={{ padding: 12, backgroundColor: Colors.white }}>
+        <SmartImage uri={imageUrl} style={s.productImg} resizeMode="contain" />
+        {discount > 0 && (
+          <View style={s.discountBadge}>
+            <Text style={s.discountTxt}>{discount}% {t('off') || 'OFF'}</Text>
+          </View>
+        )}
+        {rating !== null && (
+          <View style={s.ratingBadge}>
+            <Text style={s.ratingTxt}>⭐ {rating.toFixed(1)}</Text>
+          </View>
+        )}
+      </View>
+      <View style={s.productInfo}>
+        <Text style={s.productName} numberOfLines={2}>{item.name}</Text>
+        <View style={s.priceRow}>
+          <Text style={[s.price, { marginRight: 6 }]}>₹{item.price}</Text>
+          {item.mrp > item.price && (
+            <Text style={s.mrp}>₹{item.mrp}</Text>
+          )}
+        </View>
+        {item.price >= BusinessRules.FREE_DELIVERY_THRESHOLD && (
+          <Text style={s.freeDelivery}>🚚 {t('free_delivery') || 'Free Delivery'}</Text>
+        )}
+        <TouchableOpacity
+          style={s.addBtn}
+          onPress={handleAdd}
+          activeOpacity={0.7}
+        >
+          <Text style={s.addBtnTxt}>{t('home.add') || 'Add to Cart'}</Text>
+        </TouchableOpacity>
+      </View>
+    </Pressable>
+  );
+});
+
+
+export default function HomeScreen({ navigation }: any) {
+  const { t } = useTranslation();
+  const dispatch = useDispatch<AppDispatch>();
+  const [refreshing, setRefreshing] = useState(false);
+  const [addToCart] = useAddToCartMutation();
+  const [voiceModalVisible, setVoiceModalVisible] = useState(false);
+
+  // Get user from Redux state
+  const user = useSelector(selectUser);
+
+  // Add minimal logging
+  console.log("🎯 UI RENDER", {userId: user?.id, time: Date.now()});
+
+  // Block UI until user is ready
+  if (!user) {
+    return (
+      <View style={s.loadingContainer}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </View>
+    );
+  }
+
+  // Fix 1: guard against double-navigation if mic tapped rapidly
+  const hasNavigatedRef = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      hasNavigatedRef.current = false;
+    }, []),
+  );
+
+  const handleVoiceResult = useCallback((text: string) => {
+    if (hasNavigatedRef.current) return;
+    hasNavigatedRef.current = true;
+    // Fix 2: 300ms close for snappy feel
+    setTimeout(() => {
+      setVoiceModalVisible(false);
+      setTimeout(() => {
+        navigation.navigate('Search', { initialQuery: text });
+      }, 160);
+    }, 300);
+  }, [navigation]);
+
+  const voice = useVoiceSearch(handleVoiceResult);
+
+  const handleMicPress = useCallback(async () => {
+    setVoiceModalVisible(true);
+    await voice.start('HomeScreen mic press / retry');
+  }, [voice]);
+
+  const handleVoiceCancel = useCallback(() => {
+    voice.cancel();
+    setVoiceModalVisible(false);
+  }, [voice]);
+
+  const handlePrefetch = useCallback((id: string) => {
+    dispatch(productsApi.util.prefetch('getProductById', id, { force: true }));
+  }, [dispatch]);
+
+  // Analytics on mount
+  useEffect(() => {
+    logEvent('view_home');
+  }, []);
+
+  // Global Prefetching on Mount
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      dispatch(cartApi.util.prefetch('getCart', undefined, { force: true }));
+      dispatch(ordersApi.util.prefetch('getOrders', undefined, { force: true }));
+      dispatch(addressesApi.util.prefetch('getAddresses', undefined, { force: true }));
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [dispatch]);
+
+  const { data: productsData, isLoading, refetch } = useGetProductsQuery({ limit: 20 });
+  const products = productsData?.products || [];
+
+  const { deals } = useGetProductsQuery({ sort: 'discount', limit: 10 }, {
+    selectFromResult: (result) => ({
+      deals: result.data?.products?.filter((p: any) => p.mrp > p.price) || [],
+    }),
+  });
+
+  // Use curated categories instead of API data
+  const categories = CURATED_CATEGORIES;
+
+  const { unreadCount } = useGetUnreadCountQuery(undefined, {
+    selectFromResult: (result) => ({
+      unreadCount: result.data?.count || 0,
+    }),
+  });
+
+  const cartTotal = useSelector((state: RootState) => state.cart.total);
+  const cartItems = useSelector((state: RootState) => state.cart.items) || [];
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  }, [refetch]);
+
+  const handleAddToCart = useCallback(async (item: any) => {
+    const imageUrl = getImageUrl(item.images);
+    try {
+      // Optimistic Update: Add to local cart first for instant feedback
+      dispatch(addItem({
+        productId: item._id,
+        name: item.name,
+        price: item.price,
+        quantity: 1,
+        image: imageUrl,
+      }));
+      dispatch(showToast(`${item.name} added to cart`));
+      
+      // Perform background API call
+      await addToCart({ productId: item._id, quantity: 1 }).unwrap();
+    } catch (error: any) {
+    }
+  }, [addToCart, dispatch]);
+
+  const renderProductItem = useCallback(({ item }: { item: any }) => (
+    <HomeProductCard 
+      item={item} 
+      navigation={navigation} 
+      t={t} 
+      onAdd={handleAddToCart} 
+      onPrefetch={handlePrefetch}
+    />
+  ), [navigation, t, handleAddToCart, handlePrefetch]);
+
+  if (isLoading) {
+    return (
+      <View style={s.container}>
+        <ScreenHeader title="Vyapara Setu" />
+        <SkeletonHome />
+      </View>
+    );
+  }
+
+  return (
+    <View style={s.container}>
+      {/* Voice Search Modal */}
+      <VoiceListeningModal
+        visible={voiceModalVisible}
+        state={voice.state}
+        voicePhase={voice.voicePhase}
+        partialText={voice.partialText}
+        finalText={voice.finalText}
+        errorMessage={voice.errorMessage}
+        onCancel={handleVoiceCancel}
+        onRetry={handleMicPress}
+      />
+      {/* Header */}
+      <ScreenHeader 
+        title="Vyapara Setu" 
+        rightComponent={
+          <TouchableOpacity
+            style={s.notifBtn}
+            onPress={() => navigation.navigate('Notifications')}
+          >
+            <Text style={s.notifIcon}>🔔</Text>
+            {unreadCount > 0 && (
+              <View style={s.notifBadge}>
+                <Text style={s.notifBadgeTxt}>
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        }
+      />
+
+      {/* Search bar + Mic */}
+      <View style={s.searchBarRow}>
+        <TouchableOpacity
+          style={s.searchBar}
+          onPress={() => navigation.navigate('Search', {})}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="search" size={20} color={Colors.textMuted} style={{ marginRight: 8 }} />
+          <Text style={s.searchPlaceholder}>
+            {t('home.search_placeholder') || 'Search for products…'}
+          </Text>
+        </TouchableOpacity>
+        {/* Mic: separate touchable so tap is independent */}
+        <TouchableOpacity
+          style={s.micBtn}
+          onPress={handleMicPress}
+          activeOpacity={0.75}
+          hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+        >
+          <Ionicons
+            name={voice.state === 'listening' ? 'mic' : 'mic-outline'}
+            size={22}
+            color={voice.state === 'listening' ? Colors.primary : Colors.textMuted}
+          />
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#E95C1E" />
+        }
+      >
+        {/* Free delivery banner */}
+        <FreeDeliveryBanner cartTotal={cartTotal} threshold={BusinessRules.FREE_DELIVERY_THRESHOLD} style={{ marginHorizontal: 16 }} />
+
+        {/* Categories */}
+        {categories.length > 0 && (
+          <>
+            <View style={s.sectionHeader}>
+              <Text style={s.sectionTitle}>{t('home.shop_by_category') || 'Shop by Category'}</Text>
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={s.categoryRow}
+            >
+              {categories.map((cat: any) => (
+                <TouchableOpacity
+                  key={cat.name}
+                  style={s.catItem}
+                  activeOpacity={0.8}
+                  onPress={() => navigation.navigate('Categories', {
+                     preselect: cat.name
+                   })}
+                >
+                  <View style={[
+                    s.catImageWrap,
+                    cat.isTextTile && { backgroundColor: cat.tileBg || '#F0F9FF' },
+                  ]}>
+                    {cat.isTextTile ? (
+                      <>
+                        <Text style={[s.catTileText, cat.tileColor ? { color: cat.tileColor } : null]}>
+                          {cat.tileText}
+                        </Text>
+                      </>
+                    ) : (
+                      <Image 
+                        source={cat.image} 
+                        style={s.catImage} 
+                        resizeMode="contain"
+                      />
+                    )}
+                  </View>
+                  <Text style={s.catName} numberOfLines={2}>{cat.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </>
+        )}
+
+        {/* Top Deals */}
+        {deals.length > 0 && (
+          <>
+            <View style={s.sectionHeader}>
+              <Text style={s.sectionTitle}>{t('home.top_deals') || 'Top Deals'}</Text>
+            </View>
+            <ScrollView
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: 16 }}
+            >
+              {deals.slice(0, 8).map((item: any) => (
+                <TouchableOpacity
+                  key={item._id}
+                  style={[s.dealCard, { marginRight: 12 }]}
+                  onPress={() => navigation.navigate('ProductDetail', { productId: item._id })}
+                  activeOpacity={0.8}
+                >
+                  <View style={{ padding: 12, backgroundColor: Colors.white }}>
+                    <SmartImage uri={getImageUrl(item.images)} style={s.dealImg} resizeMode="contain" />
+                  </View>
+                  <View style={s.dealBadge}>
+                    <Text style={s.dealBadgeTxt}>
+                      {Math.round(((item.mrp - item.price) / item.mrp) * 100)}% {t('off') || 'OFF'}
+                    </Text>
+                  </View>
+                  <Text style={s.dealName} numberOfLines={2}>{item.name}</Text>
+                  <View style={s.priceRow}>
+                    <Text style={[s.dealPrice, { marginRight: 6 }]}>₹{item.price}</Text>
+                    <Text style={s.dealMrp}>₹{item.mrp}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </>
+        )}
+
+        {/* Top Selling */}
+        <View style={s.sectionHeader}>
+          <Text style={s.sectionTitle}>{t('home.topSelling') || 'Top Selling'}</Text>
+        </View>
+
+        <View style={[s.productGrid, { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }]}>
+          {products.map((item: any) => (
+            <View key={item._id} style={{ width: '48%', marginBottom: 16 }}>
+              {renderProductItem({ item })}
+            </View>
+          ))}
+        </View>
+
+        <View style={{ height: 20 }} />
+      </ScrollView>
+    </View>
+  );
+}

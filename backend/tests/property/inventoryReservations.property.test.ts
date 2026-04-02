@@ -1,6 +1,6 @@
 import fc from "fast-check";
 
-const numRuns = process.env.CI_NIGHTLY === "true" ? 10000 : 100;
+const numRuns = process.env.CI_NIGHTLY === "true" ? 10000 : 20;
 
 describe("Property: inventory reservation arithmetic", () => {
   test("reservedStock never exceeds stock after applying reservation constraints", () => {

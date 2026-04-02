@@ -1,0 +1,442 @@
+name: Test Suite
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  NODE_VERSION: '18'
+  CACHE_VERSION: v1
+
+jobs:
+  # Job 1: Unit Tests (Backend)
+  unit-tests-backend:
+    name: Unit Tests - Backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: backend
+        run: npm ci
+      
+      - name: Run unit tests
+        working-directory: backend
+        run: npm run test:unit -- --coverage --maxWorkers=2
+      
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: backend/coverage/coverage-final.json
+          flags: backend-unit
+      
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: backend-unit-test-results
+          path: backend/test-results/
+
+  # Job 2: Integration Tests (Backend API)
+  integration-tests-backend:
+    name: Integration Tests - Backend API
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: test_db
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: backend
+        run: npm ci
+      
+      - name: Run database migrations
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+        run: npm run migrate:test
+      
+      - name: Run integration tests
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379
+          NODE_ENV: test
+        run: npm run test:integration -- --maxWorkers=2
+      
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: backend-integration-test-results
+          path: backend/test-results/
+
+  # Job 3: Address Tests - GPS Flow
+  address-tests-gps:
+    name: Address Tests - GPS Detection
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [unit-tests-backend]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: backend
+        run: npm ci
+      
+      - name: Run GPS detection tests
+        working-directory: backend
+        run: npm run test -- --testPathPattern=address.*gps --maxWorkers=2
+      
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: address-gps-test-results
+          path: backend/test-results/
+
+  # Job 4: Address Tests - Manual Entry
+  address-tests-manual:
+    name: Address Tests - Manual Entry
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [unit-tests-backend]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: backend
+        run: npm ci
+      
+      - name: Run manual entry tests
+        working-directory: backend
+        run: npm run test -- --testPathPattern=address.*manual --maxWorkers=2
+      
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: address-manual-test-results
+          path: backend/test-results/
+
+  # Job 5: Payment Tests - Web (Razorpay)
+  payment-tests-web:
+    name: Payment Tests - Web Razorpay
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [integration-tests-backend]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+      
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      
+      - name: Run web payment tests
+        working-directory: frontend
+        env:
+          RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_TEST_KEY_ID }}
+          RAZORPAY_KEY_SECRET: ${{ secrets.RAZORPAY_TEST_KEY_SECRET }}
+        run: npm run test:e2e -- --grep "payment.*razorpay"
+      
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: payment-web-test-results
+          path: frontend/test-results/
+      
+      - name: Upload Playwright traces
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: playwright-traces
+          path: frontend/test-results/traces/
+
+  # Job 6: Payment Tests - Mobile (UPI)
+  payment-tests-mobile:
+    name: Payment Tests - Mobile UPI
+    runs-on: macos-latest
+    timeout-minutes: 30
+    needs: [integration-tests-backend]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        working-directory: apps/customer-app
+        run: npm ci
+      
+      - name: Setup Detox
+        working-directory: apps/customer-app
+        run: |
+          brew tap wix/brew
+          brew install applesimutils
+      
+      - name: Build iOS app for testing
+        working-directory: apps/customer-app
+        run: npx detox build --configuration ios.sim.debug
+      
+      - name: Run mobile payment tests
+        working-directory: apps/customer-app
+        run: npx detox test --configuration ios.sim.debug --grep "payment.*upi" --maxWorkers=1
+      
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: payment-mobile-test-results
+          path: apps/customer-app/test-results/
+
+  # Job 7: E2E Tests - Critical Flows
+  e2e-tests:
+    name: E2E Tests - Critical Flows
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [address-tests-gps, address-tests-manual, payment-tests-web]
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        flow: [gps-upi, manual-razorpay, cod]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+      
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      
+      - name: Run E2E flow - ${{ matrix.flow }}
+        working-directory: frontend
+        run: npm run test:e2e -- --grep "e2e.*${{ matrix.flow }}"
+      
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: e2e-${{ matrix.flow }}-test-results
+          path: frontend/test-results/
+
+  # Job 8: Load Tests (Only on main branch)
+  load-tests:
+    name: Load Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.ref == 'refs/heads/main'
+    needs: [e2e-tests]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      
+      - name: Install Artillery
+        run: npm install -g artillery@latest
+      
+      - name: Run address validation load test
+        run: artillery run tests/load/address-validation.yml
+      
+      - name: Run payment processing load test
+        run: artillery run tests/load/payment-processing.yml
+      
+      - name: Run full E2E load test
+        run: artillery run tests/load/e2e-flow.yml
+      
+      - name: Upload load test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: load-test-results
+          path: load-test-results/
+
+  # Job 9: Property-Based Tests (Nightly)
+  property-based-tests:
+    name: Property-Based Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: backend
+        run: npm ci
+      
+      - name: Run property-based tests (10000 iterations)
+        working-directory: backend
+        env:
+          FAST_CHECK_ITERATIONS: 10000
+        run: npm run test:property
+      
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: property-based-test-results
+          path: backend/test-results/
+
+  # Job 10: Test Summary
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [
+      unit-tests-backend,
+      integration-tests-backend,
+      address-tests-gps,
+      address-tests-manual,
+      payment-tests-web,
+      payment-tests-mobile,
+      e2e-tests
+    ]
+    
+    steps:
+      - name: Download all test results
+        uses: actions/download-artifact@v3
+        with:
+          path: test-results
+      
+      - name: Generate test summary
+        run: |
+          echo "# Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Results by Module" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Module | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend Unit | ${{ needs.unit-tests-backend.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend Integration | ${{ needs.integration-tests-backend.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Address GPS | ${{ needs.address-tests-gps.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Address Manual | ${{ needs.address-tests-manual.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Payment Web | ${{ needs.payment-tests-web.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Payment Mobile | ${{ needs.payment-tests-mobile.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| E2E Tests | ${{ needs.e2e-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+      
+      - name: Check for failures
+        if: |
+          needs.unit-tests-backend.result == 'failure' ||
+          needs.integration-tests-backend.result == 'failure' ||
+          needs.address-tests-gps.result == 'failure' ||
+          needs.address-tests-manual.result == 'failure' ||
+          needs.payment-tests-web.result == 'failure' ||
+          needs.payment-tests-mobile.result == 'failure' ||
+          needs.e2e-tests.result == 'failure'
+        run: |
+          echo "❌ One or more test suites failed"
+          exit 1
+
+# Nightly schedule for property-based tests
+on:
+  schedule:
+    - cron: '0 2 * * *'  # Run at 2 AM UTC daily

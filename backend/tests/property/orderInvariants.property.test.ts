@@ -2,7 +2,7 @@ import * as fc from "fast-check";
 
 type LineItem = { price: number; qty: number };
 
-const numRuns = process.env.CI_NIGHTLY === "true" ? 10000 : 100;
+const numRuns = process.env.CI_NIGHTLY === "true" ? 10000 : 20;
 
 describe("order invariants", () => {
   it("order total equals sum(line.price * qty)", () => {

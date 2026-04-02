@@ -149,7 +149,7 @@ describe("POST /internal/payments/recovery-execute/:paymentIntentId (STEP 4)", (
     const token = await (global as any).getAuthToken(user);
 
     const res = await request(app)
-      .post("/internal/payments/recovery-execute/507f191e810c19729de860ea")
+      .post("/api/internal/payments/recovery-execute/507f191e810c19729de860ea")
       .set("Authorization", `Bearer ${token}`)
       .send({ action: "MARK_RECOVERABLE", reason: "some sufficiently long reason", confirm: CONFIRM });
 

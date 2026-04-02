@@ -82,4 +82,26 @@ export class UserProfileService {
       throw error;
     }
   }
+
+  async updatePushToken(userId: string, pushToken: string): Promise<void> {
+    try {
+      // For Expo, we store it in expoPushToken. 
+      // If it's a generic token, we store it in pushToken.
+      // Expo tokens usually look like ExponentPushToken[xxx]
+      const isExpoToken = pushToken.includes('ExponentPushToken') || pushToken.includes('ExpoPushToken');
+      
+      const updateObj: any = {};
+      if (isExpoToken) {
+        updateObj.expoPushToken = pushToken;
+      } else {
+        updateObj.pushToken = pushToken;
+      }
+
+      await this.userRepository.findByIdAndUpdate(userId, updateObj, { new: true });
+       logger.info(`Push token updated for user ${userId}`);
+    } catch (error) {
+      logger.error(`Error updating push token for user ${userId}:`, error);
+      throw error;
+    }
+  }
 }

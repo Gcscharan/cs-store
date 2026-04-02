@@ -1,0 +1,16 @@
+{
+  "expo": {
+    "name": "VyaparSetu",
+    "slug": "vyaparsetu-monorepo",
+    "scheme": "vyaparsetu-customer",
+    "extra": {
+      "eas": {
+        "projectId": "4fdb021f-e1f7-420f-a095-dd646ee20186"
+      }
+    },
+    "owner": "gcscharann",
+    "android": {
+      "package": "com.gcscharann.vyaparsetumonorepo"
+    }
+  }
+}

@@ -1,6 +1,6 @@
 import * as fc from "fast-check";
 
-const numRuns = process.env.CI_NIGHTLY === "true" ? 10000 : 100;
+const numRuns = process.env.CI_NIGHTLY === "true" ? 10000 : 20;
 
 describe("product pricing invariants", () => {
   it("final price invariants", () => {

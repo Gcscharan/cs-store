@@ -1,202 +1,281 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity,
-  StyleSheet, SafeAreaView, ActivityIndicator,
-  Alert, ScrollView, KeyboardAvoidingView, Platform,
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Alert,
 } from 'react-native';
-import { useDispatch } from 'react-redux';
-import { useSendOtpMutation, useVerifyOtpMutation } from '../../store/api';
-import * as SecureStore from 'expo-secure-store';
-import { setUser, setTokens, setStatus } from '../../store/slices/authSlice';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import type { AuthNavigationProp } from '../../navigation/types';
+import { ScreenHeader } from '../../components/ScreenHeader';
+import { Colors } from '../../constants/colors';
+import { useSendOtpMutation } from '../../api/authApi';
 
-type Step = 'details' | 'otp';
+const SignupScreen: React.FC = () => {
+  const navigation = useNavigation<AuthNavigationProp>();
+  const route = useRoute<any>();
 
-export default function SignupScreen({ navigation }: any) {
-  const dispatch = useDispatch();
-  const [step, setStep] = useState<Step>('details');
+  const initialPhoneParam: string | undefined = route?.params?.phone;
+  const initialDigits = useMemo(() => {
+    const digits = String(initialPhoneParam || '').replace(/\D/g, '');
+    return digits.length >= 10 ? digits.slice(-10) : digits;
+  }, [initialPhoneParam]);
+
   const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
-  const [timer, setTimer] = useState(0);
+  const [email, setEmail] = useState('');
+  const [phoneDigits, setPhoneDigits] = useState(initialDigits);
+  const [sendOtp, { isLoading }] = useSendOtpMutation();
+  const [error, setError] = useState<string | null>(null);
 
-  const [sendOtp, { isLoading: sending }] = useSendOtpMutation();
-  const [verifyOtp, { isLoading: verifying }] = useVerifyOtpMutation();
+  const phoneLocked = !!initialDigits;
 
-  const startTimer = () => {
-    setTimer(30);
-    const interval = setInterval(() => {
-      setTimer(t => {
-        if (t <= 1) { clearInterval(interval); return 0; }
-        return t - 1;
+  const isValidEmail = useMemo(
+    () => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()),
+    [email]
+  );
+  const isValidPhone = useMemo(() => /^[0-9]{10}$/.test(phoneDigits), [phoneDigits]);
+  const isValidName = useMemo(() => name.trim().length > 0, [name]);
+
+  const canSubmit = isValidName && isValidEmail && isValidPhone && !isLoading;
+
+  const onChangePhone = (value: string) => {
+    setError(null);
+    const digitsOnly = value.replace(/\D/g, '').slice(0, 10);
+    setPhoneDigits(digitsOnly);
+  };
+
+  const onSubmit = async () => {
+    if (!canSubmit) return;
+
+    setError(null);
+
+    try {
+      await sendOtp({
+        phone: phoneDigits,
+        mode: 'signup',
+        name: name.trim(),
+      }).unwrap();
+
+      navigation.navigate('OTP', {
+        phone: `+91${phoneDigits}`,
+        isSignup: true,
+        name: name.trim(),
+        signupEmail: email.trim(),
       });
-    }, 1000);
-  };
-
-  const handleSendOtp = async () => {
-    if (!name.trim()) { Alert.alert('Name required', 'Please enter your full name'); return; }
-    if (phone.length !== 10) { Alert.alert('Invalid phone', 'Enter a valid 10-digit number'); return; }
-    try {
-      await sendOtp({ phone, mode: 'signup' }).unwrap();
-      setStep('otp');
-      startTimer();
-    } catch (err: any) {
-      Alert.alert('Error', err?.data?.message || 'Failed to send OTP');
-    }
-  };
-
-  const handleVerify = async () => {
-    try {
-      const result = await verifyOtp({ phone, otp, mode: 'signup', name }).unwrap();
-      await SecureStore.setItemAsync('accessToken', result.accessToken);
-      if (result.refreshToken) {
-        await SecureStore.setItemAsync('refreshToken', result.refreshToken);
-      }
-      dispatch(setTokens({ accessToken: result.accessToken, refreshToken: result.refreshToken }));
-      dispatch(setUser(result.user));
-      dispatch(setStatus('ACTIVE'));
-    } catch (err: any) {
-      Alert.alert('Invalid OTP', err?.data?.message || 'Please check and try again');
-    }
-  };
-
-  const handleResend = async () => {
-    if (timer > 0) return;
-    try {
-      await sendOtp({ phone, mode: 'signup' }).unwrap();
-      startTimer();
-    } catch (err: any) {
-      Alert.alert('Error', err?.data?.message || 'Failed to resend OTP');
+    } catch (e: any) {
+      setError(e?.data?.message || 'Failed to send OTP. Please try again.');
     }
   };
 
   return (
-    <SafeAreaView style={s.container}>
+    <View style={styles.container}>
+      <ScreenHeader title="Sign Up" showBackButton />
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1 }}
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <ScrollView contentContainerStyle={s.scroll}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
-            <Text style={s.backTxt}>←</Text>
-          </TouchableOpacity>
+        <View style={styles.inner}>
+          <View style={styles.header}>
+            <Text style={styles.title}>Create Account</Text>
+            <Text style={styles.subtitle}>Join VyaparSetu today</Text>
+          </View>
 
-          <Text style={s.logo}>VyaparSetu</Text>
-          <Text style={s.tagline}>Create your account</Text>
+          <View style={styles.form}>
+            <Text style={styles.label}>Full Name</Text>
+            <TextInput
+              style={styles.input}
+              value={name}
+              onChangeText={(v) => {
+                setError(null);
+                setName(v);
+              }}
+              placeholder="Enter your full name"
+              editable={!isLoading}
+            />
 
-          {step === 'details' ? (
-            <View style={s.form}>
-              <Text style={s.label}>Full Name</Text>
+            <Text style={styles.label}>Email</Text>
+            <TextInput
+              style={styles.input}
+              value={email}
+              onChangeText={(v) => {
+                setError(null);
+                setEmail(v);
+              }}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              placeholder="Enter your email"
+              editable={!isLoading}
+            />
+
+            <Text style={styles.label}>Phone Number</Text>
+            <View style={styles.phoneRow}>
+              <View style={styles.prefixBox}>
+                <Text style={styles.prefixText}>+91</Text>
+              </View>
               <TextInput
-                style={s.input}
-                placeholder="Enter your full name"
-                placeholderTextColor="#aaa"
-                value={name}
-                onChangeText={setName}
-                autoCapitalize="words"
+                style={[styles.phoneInput, phoneLocked && styles.phoneInputLocked]}
+                value={phoneDigits}
+                onChangeText={onChangePhone}
+                keyboardType="phone-pad"
+                maxLength={10}
+                placeholder="10-digit mobile number"
+                editable={!phoneLocked && !isLoading}
               />
-              <Text style={[s.label, { marginTop: 16 }]}>Phone Number</Text>
-              <View style={s.phoneRow}>
-                <Text style={s.countryCode}>+91</Text>
-                <TextInput
-                  style={s.phoneInput}
-                  placeholder="10-digit mobile number"
-                  placeholderTextColor="#aaa"
-                  keyboardType="phone-pad"
-                  maxLength={10}
-                  value={phone}
-                  onChangeText={setPhone}
-                />
-              </View>
-              <TouchableOpacity
-                style={[s.btn, (sending || !name.trim() || phone.length !== 10) && s.btnDisabled]}
-                onPress={handleSendOtp}
-                disabled={sending || !name.trim() || phone.length !== 10}
-              >
-                {sending
-                  ? <ActivityIndicator color="#fff" />
-                  : <Text style={s.btnTxt}>Continue</Text>}
-              </TouchableOpacity>
-              <View style={s.loginRow}>
-                <Text style={s.loginTxt}>Already have an account? </Text>
-                <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-                  <Text style={s.loginLink}>Log in</Text>
-                </TouchableOpacity>
-              </View>
             </View>
-          ) : (
-            <View style={s.form}>
-              <Text style={s.otpInfo}>
-                Enter the 6-digit OTP sent to{'\n'}+91 {phone}
-              </Text>
-              <TextInput
-                style={s.otpInput}
-                placeholder="• • • • • •"
-                placeholderTextColor="#ccc"
-                keyboardType="numeric"
-                maxLength={6}
-                value={otp}
-                onChangeText={setOtp}
-                autoFocus
-              />
-              <TouchableOpacity
-                style={[s.btn, (verifying || otp.length !== 6) && s.btnDisabled]}
-                onPress={handleVerify}
-                disabled={verifying || otp.length !== 6}
-              >
-                {verifying
-                  ? <ActivityIndicator color="#fff" />
-                  : <Text style={s.btnTxt}>Create Account</Text>}
-              </TouchableOpacity>
-              <View style={s.resendRow}>
-                {timer > 0 ? (
-                  <Text style={s.timerTxt}>Resend OTP in {timer}s</Text>
-                ) : (
-                  <TouchableOpacity onPress={handleResend}>
-                    <Text style={s.resendLink}>Resend OTP</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-              <TouchableOpacity onPress={() => setStep('details')}>
-                <Text style={s.changePhone}>Change phone number</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </ScrollView>
+
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+            <TouchableOpacity
+              style={[styles.primaryButton, !canSubmit && styles.primaryButtonDisabled]}
+              onPress={onSubmit}
+              disabled={!canSubmit}
+              activeOpacity={0.9}
+            >
+              {isLoading ? (
+                <ActivityIndicator color={Colors.white} />
+              ) : (
+                <Text style={styles.primaryButtonText}>Create Account</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.bottomRow}>
+            <Text style={styles.bottomText}>Already have an account? </Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+              <Text style={styles.bottomLink}>Login</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
-}
+};
 
-const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  scroll: { flexGrow: 1, padding: 24 },
-  backBtn: { marginBottom: 8 },
-  backTxt: { fontSize: 26, color: '#333' },
-  logo: { fontSize: 30, fontWeight: '800', color: '#E95C1E', marginTop: 16 },
-  tagline: { fontSize: 16, color: '#888', marginBottom: 36, marginTop: 4 },
-  form: { gap: 8 },
-  label: { fontSize: 14, fontWeight: '600', color: '#444' },
-  input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 12,
-    padding: 14, fontSize: 16, backgroundColor: '#fafafa' },
-  phoneRow: { flexDirection: 'row', borderWidth: 1, borderColor: '#ddd',
-    borderRadius: 12, overflow: 'hidden', backgroundColor: '#fafafa' },
-  countryCode: { padding: 14, backgroundColor: '#f0f0f0',
-    fontSize: 16, color: '#333', borderRightWidth: 1, borderColor: '#ddd' },
-  phoneInput: { flex: 1, padding: 14, fontSize: 16 },
-  btn: { backgroundColor: '#E95C1E', padding: 17,
-    borderRadius: 14, alignItems: 'center', marginTop: 12 },
-  btnDisabled: { backgroundColor: '#ccc' },
-  btnTxt: { color: '#fff', fontSize: 17, fontWeight: '700' },
-  loginRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 20 },
-  loginTxt: { color: '#888', fontSize: 15 },
-  loginLink: { color: '#E95C1E', fontWeight: '700', fontSize: 15 },
-  otpInfo: { fontSize: 16, color: '#444', textAlign: 'center',
-    lineHeight: 24, marginBottom: 20 },
-  otpInput: { borderWidth: 1, borderColor: '#ddd', borderRadius: 14,
-    padding: 18, fontSize: 28, letterSpacing: 12,
-    textAlign: 'center', backgroundColor: '#fafafa' },
-  resendRow: { alignItems: 'center', marginTop: 12 },
-  timerTxt: { color: '#888', fontSize: 14 },
-  resendLink: { color: '#E95C1E', fontWeight: '600', fontSize: 15 },
-  changePhone: { color: '#666', textAlign: 'center', marginTop: 12, fontSize: 14 },
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  inner: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 64,
+    paddingBottom: 24,
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: Colors.primary,
+  },
+  subtitle: {
+    marginTop: 6,
+    fontSize: 14,
+    color: Colors.textSecondary,
+  },
+  form: {
+    flex: 1,
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.textPrimary,
+    marginBottom: 8,
+    marginTop: 12,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 12,
+    backgroundColor: Colors.white,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: Colors.textPrimary,
+  },
+  phoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderColor: Colors.border,
+    borderWidth: 1,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: Colors.white,
+  },
+  prefixBox: {
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderRightWidth: 1,
+    borderRightColor: Colors.border,
+    backgroundColor: Colors.white,
+  },
+  prefixText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+  },
+  phoneInput: {
+    flex: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: Colors.textPrimary,
+  },
+  phoneInputLocked: {
+    color: Colors.textMuted,
+  },
+  errorText: {
+    marginTop: 12,
+    fontSize: 13,
+    color: Colors.error,
+  },
+  primaryButton: {
+    marginTop: 24,
+    height: 54,
+    borderRadius: 14,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  primaryButtonDisabled: {
+    backgroundColor: Colors.border,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  primaryButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.white,
+  },
+  bottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 24,
+  },
+  bottomText: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+  },
+  bottomLink: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
 });
+
+export default SignupScreen;

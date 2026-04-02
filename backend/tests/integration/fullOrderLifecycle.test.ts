@@ -81,32 +81,20 @@ describe("Full Order Lifecycle - Integration", () => {
   it("should complete entire order lifecycle safely", async () => {
     const runId = new mongoose.Types.ObjectId().toString();
 
-    // 1) Customer signup
+    // 1) Create customer user directly (password login is disabled, use JWT helper)
     const customerEmail = `cust_${runId}@example.com`;
-    const customerSignup = await request(app)
-      .post("/api/auth/signup")
-      .send({
-        name: "Lifecycle Customer",
-        email: customerEmail,
-        phone: `98${String(Date.now()).slice(-8)}`,
-        password: "password123",
-      })
-      .expect(201);
+    const customer = await createTestUser({
+      name: "Lifecycle Customer",
+      email: customerEmail,
+      phone: `98${String(Date.now()).slice(-8)}`,
+      role: "customer",
+      status: "active",
+    });
 
-    expect(customerSignup.body).toHaveProperty("user");
-
-    // 2) Customer login (JWT)
-    const customerLogin = await request(app)
-      .post("/api/auth/login")
-      .send({ email: customerEmail, password: "password123" })
-      .expect(200);
-
-    const customerToken = String(customerLogin.body.accessToken || customerLogin.body.token || "");
-    expect(customerToken).toBeTruthy();
-    const customerHeaders = { Authorization: `Bearer ${customerToken}`, "Content-Type": "application/json" };
-
-    const customer = await User.findOne({ email: customerEmail }).lean();
     expect(customer).toBeTruthy();
+
+    // 2) Generate JWT token for customer (password login is disabled)
+    const customerHeaders = getAuthHeaders(customer);
 
     // 3) Admin login (create admin user in DB and sign JWT)
     const admin = await createTestAdmin({ email: `admin_${runId}@example.com` });

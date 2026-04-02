@@ -1,68 +1,91 @@
 import React from 'react';
-import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { ScreenHeader } from '../../components/ScreenHeader';
+import { Colors } from '../../constants/colors';
 
 export default function CancellationScreen({ navigation }: any) {
   return (
-    <SafeAreaView style={s.container}>
-      <View style={s.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={s.back}>←</Text>
-        </TouchableOpacity>
-        <Text style={s.title}>Returns & Cancellation</Text>
-      </View>
-      <ScrollView contentContainerStyle={s.content}>
-        <Text style={s.emoji}>↩️</Text>
+    <View style={s.container}>
+      <ScreenHeader title="Returns & Cancellation" showBackButton />
 
-        <Text style={s.section}>Cancellation Policy</Text>
+      <ScrollView style={s.scroll} contentContainerStyle={s.content}>
         <View style={s.card}>
-          <Text style={s.cardTitle}>Before Dispatch</Text>
-          <Text style={s.cardBody}>Full refund if cancelled before the order is dispatched from the store.</Text>
-        </View>
-        <View style={s.card}>
-          <Text style={s.cardTitle}>After Dispatch</Text>
-          <Text style={s.cardBody}>Orders cannot be cancelled once dispatched. Please refuse delivery if needed.</Text>
+          <Text style={s.cardIcon}>↩️</Text>
+          <Text style={s.cardTitle}>Easy Returns</Text>
+          <Text style={s.cardText}>
+            We want you to be completely satisfied with your purchase. If you're not happy, we'll make it right.
+          </Text>
         </View>
 
-        <Text style={s.section}>Return Policy</Text>
-        <View style={s.card}>
-          <Text style={s.cardTitle}>Damaged Items</Text>
-          <Text style={s.cardBody}>Full refund or replacement. Report within 24 hours of delivery.</Text>
-        </View>
-        <View style={s.card}>
-          <Text style={s.cardTitle}>Wrong Items</Text>
-          <Text style={s.cardBody}>Full refund or correct item delivery. Report within 24 hours.</Text>
-        </View>
-        <View style={s.card}>
-          <Text style={s.cardTitle}>Fresh Produce</Text>
-          <Text style={s.cardBody}>Non-returnable due to perishable nature. Quality issues can be reported.</Text>
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Return Policy</Text>
+          <Text style={s.text}>
+            • Returns accepted within 7 days of delivery{'\n'}
+            • Items must be unused, unwashed, and in original packaging{'\n'}
+            • Original tags must be attached{'\n'}
+            • Refund will be credited to original payment method
+          </Text>
         </View>
 
-        <Text style={s.section}>Refund Timeline</Text>
-        <Text style={s.body}>
-          • UPI: 3-5 business days{'\n'}
-          • Cards: 5-7 business days{'\n'}
-          • COD: Not applicable
-        </Text>
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Non-Returnable Items</Text>
+          <Text style={s.text}>
+            • Perishable goods (food items, flowers){'\n'}
+            • Personal care products{'\n'}
+            • Innerwear and lingerie{'\n'}
+            • Customized or personalized items{'\n'}
+            • Items marked as "Non-returnable"
+          </Text>
+        </View>
 
-        <Text style={s.note}>
-          For any return requests, please contact our support team within 24 hours of delivery with photos of the issue.
-        </Text>
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>How to Return</Text>
+          <Text style={s.text}>
+            1. Go to My Orders{'\n'}
+            2. Select the order{'\n'}
+            3. Click "Request Refund"{'\n'}
+            4. Choose reason and submit{'\n'}
+            5. We'll arrange pickup within 2-3 days
+          </Text>
+        </View>
+
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Order Cancellation</Text>
+          <Text style={s.text}>
+            • Cancel before dispatch for full refund{'\n'}
+            • Once dispatched, return process applies{'\n'}
+            • COD orders can be cancelled before delivery
+          </Text>
+        </View>
+
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Refund Timeline</Text>
+          <Text style={s.text}>
+            • UPI: 1-2 business days{'\n'}
+            • Bank Account: 5-7 business days{'\n'}
+            • Wallet: Instant{'\n'}
+            • COD: Refund to bank account in 7-10 days
+          </Text>
+        </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  header: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderColor: '#f0f0f0' },
+  container: { flex: 1, backgroundColor: Colors.background },
+  header: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderColor: '#f0f0f0' },
   back: { fontSize: 24, color: '#333' },
   title: { fontSize: 18, fontWeight: '700' },
-  content: { padding: 24 },
-  emoji: { fontSize: 56, textAlign: 'center', marginBottom: 16 },
-  section: { fontSize: 18, fontWeight: '700', color: '#333', marginTop: 16, marginBottom: 12 },
-  card: { backgroundColor: '#f8f8f8', borderRadius: 12, padding: 16, marginBottom: 10 },
-  cardTitle: { fontSize: 15, fontWeight: '700', color: '#333', marginBottom: 6 },
-  cardBody: { fontSize: 14, color: '#666', lineHeight: 20 },
-  body: { fontSize: 14, color: '#555', lineHeight: 22 },
-  note: { fontSize: 13, color: '#888', marginTop: 20, padding: 14, backgroundColor: '#fff8f5', borderRadius: 10, lineHeight: 20 },
+  scroll: { flex: 1 },
+  content: { padding: 20 },
+  card: { backgroundColor: '#fff8f5', borderRadius: 14, padding: 20, alignItems: 'center', marginBottom: 20 },
+  cardIcon: { fontSize: 40, marginBottom: 8 },
+  cardTitle: { fontSize: 18, fontWeight: '700', color: '#222' },
+  cardText: { fontSize: 14, color: '#666', textAlign: 'center', marginTop: 8, lineHeight: 20 },
+  section: { marginBottom: 20 },
+  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#222', marginBottom: 8 },
+  text: { fontSize: 14, color: '#555', lineHeight: 22 },
 });

@@ -1457,7 +1457,7 @@ export const deliverAttempt = async (req: AuthRequest, res: Response): Promise<v
     let emailSent = false;
 
     if (customer?.phone) {
-      const smsMessage = `Your CS Store delivery OTP is ${otpToSend}. Valid for 5 minutes.`;
+      const smsMessage = `<#> Your VyaparSetu OTP is ${otpToSend}\nFA+9qCX9VSu`;
       try {
         await sendSMS(String(customer.phone), smsMessage);
         smsSent = true;
@@ -1631,7 +1631,7 @@ export const completeDelivery = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    res.status(410).json({
+    res.status(404).json({
       error: "This endpoint is disabled. Use /verify-otp to complete delivery.",
     });
   } catch (error) {

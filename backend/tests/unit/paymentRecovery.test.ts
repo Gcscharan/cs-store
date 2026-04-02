@@ -10,7 +10,7 @@ describe("Internal payments manual recovery hooks", () => {
     const token = await (global as any).getAuthToken(user);
 
     const res = await request(app)
-      .post("/internal/payments/recovery/507f191e810c19729de860ea/action")
+      .post("/api/internal/payments/recovery/507f191e810c19729de860ea/action")
       .set("Authorization", `Bearer ${token}`)
       .send({ action: "LOCK_PERMANENTLY", reason: "some long enough reason" });
 
@@ -22,7 +22,7 @@ describe("Internal payments manual recovery hooks", () => {
     const token = await (global as any).getAuthToken(admin);
 
     const res = await request(app)
-      .post("/internal/payments/recovery/not-an-objectid/action")
+      .post("/api/internal/payments/recovery/not-an-objectid/action")
       .set("Authorization", `Bearer ${token}`)
       .send({ action: "LOCK_PERMANENTLY", reason: "some long enough reason" });
 

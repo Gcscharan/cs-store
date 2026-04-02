@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCustomerOrderTimeline } from "@/utils/customerOrderTimeline";
+import { buildCustomerOrderTimeline } from "@vyaparsetu/shared-utils";
 
 const ALLOWED_LABELS = new Set([
   "Order placed",

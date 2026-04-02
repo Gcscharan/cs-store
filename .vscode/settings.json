@@ -4,5 +4,8 @@
   "Codegeex.Chat.LanguagePreference": "English",
   "Codegeex.Comment.LanguagePreference": "English",
   "Codegeex.CommitMessage.LanguagePreference": "English",
-  "Codegeex.GenerationPreference": "line by line"
+  "Codegeex.GenerationPreference": "line by line",
+  "kiroAgent.configureMCP": "Disabled",
+  "kiroAgent.notifications.agent.success": true,
+  "kiroAgent.notifications.agent.failure": true
 }

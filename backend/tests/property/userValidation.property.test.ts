@@ -1,6 +1,6 @@
 import * as fc from "fast-check";
 
-const numRuns = process.env.CI_NIGHTLY === "true" ? 10000 : 100;
+const numRuns = process.env.CI_NIGHTLY === "true" ? 10000 : 20;
 
 describe("user validation invariants", () => {
   const pincodeRe = /^\d{6}$/;

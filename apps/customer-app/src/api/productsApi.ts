@@ -1,24 +1,21 @@
 import { baseApi } from './baseApi';
-import type { Product } from '../types';
+import type { Product, PaginatedResponse, SearchProductsParams } from '../types';
 
 export type { Product };
 
-export interface SearchProductsResponse {
-  products: Product[];
-  total: number;
-}
-
-export interface SearchProductsParams {
-  q: string;
-  page?: number;
-  limit?: number;
-  sortBy?: 'relevance' | 'price' | 'newest' | 'sales';
-  sortOrder?: 'asc' | 'desc';
-}
-
 export const productsApi = baseApi.injectEndpoints({
+  overrideExisting: true,
   endpoints: (builder) => ({
-    getProducts: builder.query<{ products: Product[]; total: number }, { page?: number; limit?: number; category?: string; search?: string } | undefined>({
+    getProducts: builder.query<PaginatedResponse<Product>, { 
+      page?: number; 
+      limit?: number; 
+      category?: string; 
+      search?: string;
+      sort?: string;
+      minPrice?: number;
+      maxPrice?: number;
+      featured?: boolean;
+    } | undefined>({
       query: (params) => ({
         url: '/products',
         method: 'GET',
@@ -27,6 +24,10 @@ export const productsApi = baseApi.injectEndpoints({
           limit: params?.limit ?? 12,
           category: params?.category,
           search: params?.search,
+          sort: params?.sort,
+          minPrice: params?.minPrice,
+          maxPrice: params?.maxPrice,
+          featured: params?.featured,
         },
       }),
       providesTags: ['Products'],
@@ -36,7 +37,6 @@ export const productsApi = baseApi.injectEndpoints({
         url: '/products/categories',
         method: 'GET',
       }),
-      providesTags: ['Categories'],
     }),
     getProductById: builder.query<Product, string>({
       query: (id) => ({
@@ -45,7 +45,7 @@ export const productsApi = baseApi.injectEndpoints({
       }),
       providesTags: ['Product'],
     }),
-    getSimilarProducts: builder.query<Product[], { id: string; limit?: number }>({
+    getSimilarProducts: builder.query<{ products: Product[] }, { id: string; limit?: number }>({
       query: ({ id, limit = 6 }) => ({
         url: `/products/${id}/similar`,
         method: 'GET',
@@ -53,11 +53,11 @@ export const productsApi = baseApi.injectEndpoints({
       }),
       providesTags: ['Products'],
     }),
-    searchProducts: builder.query<SearchProductsResponse, SearchProductsParams>({
-      query: ({ q, page = 1, limit = 12, sortBy = 'relevance', sortOrder = 'desc' }) => ({
-        url: '/search/products',
+    searchProducts: builder.query<PaginatedResponse<Product>, SearchProductsParams>({
+      query: ({ q, page = 1, limit = 12, sortBy = 'relevance', sortOrder = 'desc', minPrice, maxPrice, category, rating }) => ({
+        url: '/products/search',
         method: 'GET',
-        params: { q, page, limit, sortBy, sortOrder },
+        params: { q, page, limit, sortBy, sortOrder, minPrice, maxPrice, category, rating },
       }),
       providesTags: ['Products'],
     }),

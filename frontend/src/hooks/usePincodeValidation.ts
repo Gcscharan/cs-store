@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { validatePincode as validatePincodeApi, PincodeData } from "../utils/pincodeValidation";
+import { validatePincode as validatePincodeApi, type PincodeData } from "@vyaparsetu/shared-utils";
 
 interface PincodeValidationState {
   isValid: boolean;

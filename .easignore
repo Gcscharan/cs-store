@@ -1,0 +1,98 @@
+# Node modules (EAS installs these fresh) 
+node_modules/ 
+**/node_modules/ 
+ 
+# Android build outputs 
+**/android/build/ 
+**/android/.gradle/ 
+**/android/app/build/ 
+**/android/app/.cxx/
+**/android/app/src/main/assets/
+ 
+# iOS build outputs 
+**/ios/build/ 
+**/ios/Pods/ 
+**/ios/DerivedData/ 
+ 
+# Expo cache 
+.expo/ 
+**/.expo/
+ 
+# Test files 
+**/__tests__/ 
+**/*.test.ts 
+**/*.test.tsx 
+**/*.spec.ts 
+ 
+# Git 
+.git/ 
+**/.git/
+ 
+# Logs 
+*.log 
+**/*.log
+npm-debug.log* 
+ 
+# OS files 
+.DS_Store 
+**/ .DS_Store
+Thumbs.db 
+ 
+# Large project directories not needed for mobile app build
+android-sdk/
+backups/
+backend/
+frontend/
+packages/
+data/
+.idea/
+.vscode/
+.cursor/
+.windsurf/
+docs/
+scripts/
+ops/
+nginx/
+reports/
+
+# Specific large files
+*.txt
+*.gz
+*.zip
+*.tar
+*.tgz
+*.log
+*.patch
+*.html
+*.json
+!app.json
+!eas.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!metro.config.js
+!*.ts
+!*.tsx
+!*.js
+!*.jsx
+!*.png
+!*.jpg
+!*.jpeg
+!*.svg
+!*.xml
+!*.plist
+!*.gradle
+!*.pro
+!*.properties
+!*.java
+!*.kt
+!*.c
+!*.cpp
+!*.h
+!*.m
+!*.mm
+!*.swift
+!*.env
+!*.env.*
+!**/.env
+!**/.env.*

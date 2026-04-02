@@ -1,0 +1,102 @@
+# Implementation Plan
+
+- [x] 1. Write bug condition exploration test
+  - **Property 1: Bug Condition** - HTTP Status Code Verification
+  - **CRITICAL**: This test MUST FAIL on unfixed code - failure confirms the bug exists
+  - **DO NOT attempt to fix the test or the code when it fails**
+  - **NOTE**: This test encodes the expected behavior - it will validate the fix when it passes after implementation
+  - **GOAL**: Surface counterexamples that demonstrate incorrect HTTP status codes (410 instead of 401/400)
+  - **Scoped PBT Approach**: Scope the property to concrete failing cases: password login attempts and health check requests
+  - Test that POST /api/auth/login returns HTTP 401 (not 410) with "PASSWORD_LOGIN_DISABLED" message
+  - Test that POST /api/auth/change-password returns HTTP 401 (not 410) with password feature disabled message
+  - Test that GET /health returns `{status: "ok"}` (not "healthy")
+  - Test that invalid credentials return HTTP 400 (not 410) with "Invalid email or password"
+  - Test that NoSQL injection payloads return 400/401/403/404 (not 410)
+  - Run test on UNFIXED code
+  - **EXPECTED OUTCOME**: Test FAILS (this is correct - it proves the bug exists)
+  - Document counterexamples found: HTTP 410 returned instead of 401/400, "healthy" returned instead of "ok"
+  - Mark task complete when test is written, run, and failure is documented
+  - _Requirements: 1.1, 1.2, 1.3, 1.4_
+
+- [x] 2. Write preservation property tests (BEFORE implementing fix)
+  - **Property 2: Preservation** - Non-Password Authentication and Other Endpoints
+  - **IMPORTANT**: Follow observation-first methodology
+  - Observe behavior on UNFIXED code for non-buggy inputs (OTP, OAuth, other endpoints)
+  - Write property-based tests capturing observed behavior patterns:
+    - OTP authentication returns HTTP 200 on success
+    - Google OAuth authentication returns HTTP 200 on success
+    - Protected endpoints without auth return HTTP 401
+    - Forbidden resources return HTTP 403
+    - Non-existent routes return HTTP 404
+    - Malformed requests return HTTP 400
+    - Internal errors return HTTP 500
+    - GET /api/health endpoint returns its current response format
+  - Property-based testing generates many test cases for stronger guarantees
+  - Run tests on UNFIXED code
+  - **EXPECTED OUTCOME**: Tests PASS (this confirms baseline behavior to preserve)
+  - Mark task complete when tests are written, run, and passing on unfixed code
+  - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7_
+
+- [x] 3. Fix HTTP status codes in authentication and health check
+
+  - [x] 3.1 Update authController.ts login function
+    - Navigate to backend/src/domains/identity/controllers/authController.ts
+    - Locate the login function (around line 329)
+    - Replace `res.status(410)` with `res.status(401)` for password login disabled response
+    - Verify error message clearly indicates password login is disabled and directs to OTP/OAuth
+    - _Bug_Condition: isBugCondition(input) where input.method == 'POST' AND input.path == '/api/auth/login'_
+    - _Expected_Behavior: response.status == 401 AND response.body.error == 'PASSWORD_LOGIN_DISABLED'_
+    - _Preservation: OTP and OAuth authentication flows must return HTTP 200 on success_
+    - _Requirements: 2.1, 2.2, 2.3, 3.1_
+
+  - [x] 3.2 Update authController.ts changePassword function
+    - Navigate to backend/src/domains/identity/controllers/authController.ts
+    - Locate the changePassword function (around line 906)
+    - Replace `res.status(410)` with `res.status(401)` for password feature disabled response
+    - Verify error message clearly indicates password feature is disabled
+    - _Bug_Condition: isBugCondition(input) where input.method == 'POST' AND input.path == '/api/auth/change-password'_
+    - _Expected_Behavior: response.status == 401 AND response.body contains password feature disabled message_
+    - _Preservation: Other authentication methods must remain unchanged_
+    - _Requirements: 2.1, 3.1_
+
+  - [x] 3.3 Update createApp.ts health check endpoint
+    - Navigate to backend/src/createApp.ts
+    - Locate the GET /health endpoint handler (around line 95)
+    - Change `status: "healthy"` to `status: "ok"` in the basic health check response
+    - Verify the conditional health check with queue information remains unchanged
+    - Verify GET /api/health endpoint remains unchanged
+    - _Bug_Condition: isBugCondition(input) where input.method == 'GET' AND input.path == '/health'_
+    - _Expected_Behavior: response.body.status == 'ok'_
+    - _Preservation: GET /api/health endpoint must continue to return its current format_
+    - _Requirements: 2.4, 3.7_
+
+  - [x] 3.4 Verify bug condition exploration test now passes
+    - **Property 1: Expected Behavior** - HTTP Status Code Verification
+    - **IMPORTANT**: Re-run the SAME test from task 1 - do NOT write a new test
+    - The test from task 1 encodes the expected behavior
+    - When this test passes, it confirms the expected behavior is satisfied
+    - Run bug condition exploration test from step 1
+    - **EXPECTED OUTCOME**: Test PASSES (confirms bug is fixed)
+    - Verify POST /api/auth/login returns HTTP 401
+    - Verify POST /api/auth/change-password returns HTTP 401
+    - Verify GET /health returns `{status: "ok"}`
+    - Verify invalid credentials return HTTP 400
+    - Verify NoSQL injection payloads return 400/401/403/404
+    - _Requirements: 2.1, 2.2, 2.3, 2.4_
+
+  - [x] 3.5 Verify preservation tests still pass
+    - **Property 2: Preservation** - Non-Password Authentication and Other Endpoints
+    - **IMPORTANT**: Re-run the SAME tests from task 2 - do NOT write new tests
+    - Run preservation property tests from step 2
+    - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions)
+    - Confirm all tests still pass after fix (no regressions)
+    - Verify OTP authentication still returns HTTP 200
+    - Verify OAuth authentication still returns HTTP 200
+    - Verify all other HTTP status codes remain unchanged
+    - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7_
+
+- [ ] 4. Checkpoint - Ensure all tests pass
+  - Run the full test suite to verify all 90 previously failing tests now pass
+  - Verify the overall pass rate improves from ~89.8% to 100%
+  - Confirm no new test failures were introduced
+  - Ask the user if questions arise or if additional verification is needed

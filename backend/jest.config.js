@@ -43,5 +43,6 @@ module.exports = {
   restoreMocks: true,
   testEnvironmentOptions: {
     NODE_ENV: "test",
-  }
+  },
+  watchman: false,
 };

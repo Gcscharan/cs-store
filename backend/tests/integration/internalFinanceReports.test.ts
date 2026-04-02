@@ -8,7 +8,7 @@ describe("Internal finance reports (read-only)", () => {
     const token = await (global as any).getAuthToken(user);
 
     const res = await request(app)
-      .get("/internal/finance/net-revenue")
+      .get("/api/internal/finance/net-revenue")
       .query({
         from: "2026-01-01T00:00:00.000Z",
         to: "2026-01-02T00:00:00.000Z",
@@ -24,7 +24,7 @@ describe("Internal finance reports (read-only)", () => {
     const token = await (global as any).getAuthToken(admin);
 
     const res = await request(app)
-      .get("/internal/finance/net-revenue")
+      .get("/api/internal/finance/net-revenue")
       .set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(400);
@@ -35,7 +35,7 @@ describe("Internal finance reports (read-only)", () => {
     const token = await (global as any).getAuthToken(admin);
 
     const res = await request(app)
-      .get("/internal/finance/net-revenue.csv")
+      .get("/api/internal/finance/net-revenue.csv")
       .query({
         from: "2026-01-01T00:00:00.000Z",
         to: "2026-01-02T00:00:00.000Z",

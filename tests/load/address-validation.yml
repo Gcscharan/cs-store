@@ -1,0 +1,107 @@
+config:
+  target: "{{ $processEnvironment.API_URL || 'http://localhost:3000' }}"
+  phases:
+    - duration: 60
+      arrivalRate: 10
+      name: "Warm up"
+    - duration: 300
+      arrivalRate: 50
+      name: "Sustained load"
+    - duration: 120
+      arrivalRate: 100
+      name: "Peak load"
+    - duration: 60
+      arrivalRate: 10
+      name: "Cool down"
+  processor: "./processors/auth.js"
+  plugins:
+    metrics-by-endpoint:
+      stripQueryString: true
+  ensure:
+    p95: 500  # 95th percentile response time < 500ms
+    p99: 1000 # 99th percentile response time < 1s
+    maxErrorRate: 1  # Error rate < 1%
+
+scenarios:
+  - name: "Address Validation - GPS Flow"
+    weight: 40
+    flow:
+      - function: "generateAuthToken"
+      - post:
+          url: "/api/addresses"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+            Content-Type: "application/json"
+          json:
+            name: "{{ $randomString() }}"
+            phone: "{{ $randomPhoneNumber() }}"
+            house: "{{ $randomNumber(1, 999) }}"
+            area: "{{ $randomArea() }}"
+            pincode: "{{ $randomDeliverablePincode() }}"
+            city: "Bangalore"
+            state: "Karnataka"
+            label: "HOME"
+            validationSource: "gps"
+          capture:
+            - json: "$.address._id"
+              as: "addressId"
+          expect:
+            - statusCode: 201
+            - contentType: json
+            - hasProperty: "address._id"
+      - think: 2
+      - get:
+          url: "/api/addresses/{{ addressId }}"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+
+  - name: "Address Validation - Manual Entry"
+    weight: 40
+    flow:
+      - function: "generateAuthToken"
+      - get:
+          url: "/api/pincode/check/{{ $randomDeliverablePincode() }}"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          capture:
+            - json: "$.deliverable"
+              as: "isDeliverable"
+            - json: "$.state"
+              as: "state"
+            - json: "$.cities[0]"
+              as: "city"
+          expect:
+            - statusCode: 200
+            - hasProperty: "deliverable"
+      - think: 1
+      - post:
+          url: "/api/addresses"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+            Content-Type: "application/json"
+          json:
+            name: "{{ $randomString() }}"
+            phone: "{{ $randomPhoneNumber() }}"
+            house: "{{ $randomNumber(1, 999) }}"
+            area: "{{ $randomArea() }}"
+            pincode: "{{ $randomDeliverablePincode() }}"
+            city: "{{ city }}"
+            state: "{{ state }}"
+            label: "HOME"
+            validationSource: "manual"
+          expect:
+            - statusCode: 201
+
+  - name: "Pincode Validation Only"
+    weight: 20
+    flow:
+      - function: "generateAuthToken"
+      - get:
+          url: "/api/pincode/check/{{ $randomPincode() }}"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+            - hasProperty: "deliverable"

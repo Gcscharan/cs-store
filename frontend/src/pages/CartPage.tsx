@@ -15,7 +15,7 @@ import {
 import { Link, useNavigate } from "react-router-dom";
 import {
   calculateDeliveryFee,
-} from "../utils/deliveryFeeCalculator";
+} from "@vyaparsetu/shared-utils";
 import { calculatePriceBreakdown, formatPrice } from "../utils/priceCalculator";
 import { getImageUrl, handleImageError } from "../utils/image";
 import ConfirmationDialog from "../components/ConfirmationDialog";

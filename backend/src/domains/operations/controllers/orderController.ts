@@ -88,6 +88,24 @@ export const getOrderById = async (
       return res.status(404).json({ message: "Order not found" });
     }
 
+    // Check if payment intent should be expired (120 seconds timeout)
+    const orderAge = Date.now() - new Date(order.createdAt).getTime();
+    const timeoutMs = 120 * 1000; // 120 seconds
+    
+    if (order.paymentStatus === 'PENDING' && orderAge > timeoutMs && order.paymentIntent) {
+      // Update payment intent status to expired
+      await Order.findByIdAndUpdate(order._id, {
+        'paymentIntent.status': 'expired',
+        'paymentIntent.updatedAt': new Date(),
+      });
+      
+      // Update the local order object
+      if (order.paymentIntent) {
+        order.paymentIntent.status = 'expired';
+        order.paymentIntent.updatedAt = new Date();
+      }
+    }
+
     const orderObj: any = {
       ...safeDoc(order),
       status: (order as any).orderStatus, // Map orderStatus to status for test compatibility
@@ -220,33 +238,36 @@ export const createOrder = async (req: Request, res: Response) => {
     const idempotencyKeyBody = String(req.body?.idempotencyKey || "").trim();
     const idempotencyKey = idempotencyKeyHeader || idempotencyKeyBody || undefined;
 
-    const result = await createOrderFromCart({
+    const { order, created } = await createOrderFromCart({
       userId,
       paymentMethod: paymentMethod as any,
       upiVpa,
       idempotencyKey,
     });
 
+    // Return appropriate status code based on whether order was created or returned from idempotency
+    const statusCode = created ? 201 : 200;
+
     if (paymentMethod === "cod") {
-      return res.status(201).json({
-        message: "Order placed with Cash on Delivery",
-        order: result.order,
-        created: result.created,
+      return res.status(statusCode).json({
+        message: created ? "Order placed with Cash on Delivery" : "Order already exists",
+        order: order,
+        created: created,
       });
     }
 
     if (paymentMethod === "razorpay") {
-      return res.status(201).json({
-        message: "Order created. Awaiting payment",
-        order: result.order,
-        created: result.created,
+      return res.status(statusCode).json({
+        message: created ? "Order created. Awaiting payment" : "Order already exists",
+        order: order,
+        created: created,
       });
     }
 
-    return res.status(201).json({
-      message: "Order created. Awaiting UPI payment",
-      order: result.order,
-      created: result.created,
+    return res.status(statusCode).json({
+      message: created ? "Order created. Awaiting UPI payment" : "Order already exists",
+      order: order,
+      created: created,
     });
   } catch (error: any) {
     logger.error("Create order error:", {
@@ -354,7 +375,7 @@ export const getPaymentStatus = async (req: Request, res: Response) => {
 export const updatePaymentStatus = async (req: Request, res: Response) => {
   try {
     // SAFETY: Disabled to enforce single payment source-of-truth
-    return res.status(410).json({
+    return res.status(404).json({
       error: "LEGACY_PAYMENT_PATH_DISABLED",
       message: "This payment path has been permanently disabled. Use PaymentIntent flow.",
     });

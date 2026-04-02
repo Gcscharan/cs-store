@@ -15,6 +15,7 @@ import {
   resolvePincodeDetails,
 } from "../../../utils/pincodeResolver";
 import { isPincodeServiceable } from "../../../config/serviceablePincodes";
+import { checkDeliveryAvailability } from "../../../services/deliveryService";
 
 // Default GST rate (18%) - can be overridden via environment variable
 const DEFAULT_GST_RATE = Number(process.env.DEFAULT_GST_RATE || 18);
@@ -253,15 +254,16 @@ export async function createOrderFromCart(params: {
         const fallbackPostal = String((addr as any).postal_district || "Hyderabad").trim() || "Hyderabad";
         const fallbackAdmin = String((addr as any).admin_district || fallbackPostal).trim() || fallbackPostal;
         return {
-          deliverable: true,
           state: String((addr as any).state || process.env.SELLER_STATE || "Telangana"),
           postal_district: fallbackPostal,
           admin_district: fallbackAdmin,
+          cities: [],
+          single_city: null,
         };
       })()
     : null;
 
-  if (!resolved || !resolved.deliverable) {
+  if (!resolved) {
     if (!isTest) {
       const err: any = new Error("Pincode not serviceable");
       err.statusCode = 400;
@@ -269,7 +271,16 @@ export async function createOrderFromCart(params: {
     }
   }
 
-  const effectiveResolved: any = isTest ? (resolved && resolved.deliverable ? resolved : testFallbackResolved) : resolved;
+  const effectiveResolved: any = isTest ? (resolved || testFallbackResolved) : resolved;
+
+  // Check deliverability using the delivery service (separate from location data)
+  const deliverable = effectiveResolved?.state ? checkDeliveryAvailability(effectiveResolved.state) : false;
+  
+  if (!deliverable && !isTest) {
+    const err: any = new Error("Delivery not available to this location");
+    err.statusCode = 400;
+    throw err;
+  }
 
   const postal_district = String(effectiveResolved.postal_district || "").trim();
   const admin_district = String(effectiveResolved.admin_district || "").trim() || applyDistrictOverride(
@@ -466,7 +477,6 @@ export async function createOrderFromCart(params: {
 
     const order = new Order({
       userId,
-      idempotencyKey: idempotencyKey || undefined,
       items: orderItems,
       itemsTotal: subtotalBeforeTax, // For backward compatibility
       subtotalBeforeTax,
@@ -483,6 +493,7 @@ export async function createOrderFromCart(params: {
       paymentMethod,
       paymentStatus,
       orderStatus,
+      idempotencyKey: idempotencyKey || undefined,
       earnings: {
         deliveryFee,
         tip: 0,

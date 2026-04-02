@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { MapPin, Loader2 } from "lucide-react";
 import { useToast } from "./AccessibleToast";
-import { isPincodeDeliverable } from "../utils/pincodeValidation";
+import { isPincodeDeliverable } from "@vyaparsetu/shared-utils";
 import { toApiUrl } from "../config/runtime";
 import { useGeolocation } from "../hooks/useGeolocation";
 import { useLanguage } from "../contexts/LanguageContext";

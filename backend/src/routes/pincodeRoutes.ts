@@ -5,6 +5,7 @@ import {
   getValidPincodeRangesController,
   checkPincodeController,
 } from "../controllers/pincodeController";
+import { pincodeRateLimiter } from "../middleware/rateLimiter";
 
 const router = express.Router();
 
@@ -17,7 +18,7 @@ router.post("/validate-bulk", validateBulkPincodesController);
 // Get valid pincode ranges
 router.get("/ranges", getValidPincodeRangesController);
 
-// Check pincode deliverability
-router.get("/check/:pincode", checkPincodeController);
+// Check pincode deliverability (rate limited)
+router.get("/check/:pincode", pincodeRateLimiter, checkPincodeController);
 
 export default router;

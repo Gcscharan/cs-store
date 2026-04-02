@@ -9,7 +9,7 @@ export const razorpayWebhook = async (
   res: Response
 ): Promise<Response | void> => {
   try {
-    // SAFETY: Disabled to enforce single payment source-of-truth
+    // SAFETY: Disabled to enforce single payment source-of-truth 
     return res.status(410).json({
       error: "LEGACY_PAYMENT_PATH_DISABLED",
       message: "This payment path has been permanently disabled. Use PaymentIntent flow.",

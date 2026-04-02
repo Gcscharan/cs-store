@@ -5,7 +5,7 @@ import {
   isValidPincode,
   getCityAndStateFromPincode,
 } from "../utils/pincodeValidator";
-import { getPincodeInfo } from "../utils/pincodeValidation";
+import { getPincodeInfo } from "@vyaparsetu/shared-utils";
 import { useToast } from "./AccessibleToast";
 
 interface CheckDeliveryAvailabilityProps {

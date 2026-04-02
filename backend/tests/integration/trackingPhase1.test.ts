@@ -42,7 +42,7 @@ describe("Phase 1 tracking (stream + projection)", () => {
     const worker = await startTrackingProjectionWorker();
 
     const ingestRes = await request(app)
-      .post("/internal/tracking/location")
+      .post("/api/internal/tracking/location")
       .set("Authorization", `Bearer ${riderToken}`)
       .send({
         schemaVersion: 1,
@@ -92,7 +92,7 @@ describe("Phase 1 tracking (stream + projection)", () => {
     const worker = await startTrackingProjectionWorker();
 
     const ingestRes = await request(app)
-      .post("/internal/tracking/location")
+      .post("/api/internal/tracking/location")
       .set("Authorization", `Bearer ${riderToken}`)
       .send({
         schemaVersion: 1,

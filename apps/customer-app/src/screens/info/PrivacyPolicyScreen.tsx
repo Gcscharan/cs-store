@@ -1,71 +1,77 @@
 import React from 'react';
-import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { ScreenHeader } from '../../components/ScreenHeader';
+import { Colors } from '../../constants/colors';
 
 export default function PrivacyPolicyScreen({ navigation }: any) {
   return (
-    <SafeAreaView style={s.container}>
-      <View style={s.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={s.back}>←</Text>
-        </TouchableOpacity>
-        <Text style={s.title}>Privacy Policy</Text>
-      </View>
-      <ScrollView contentContainerStyle={s.content}>
-        <Text style={s.emoji}>🔒</Text>
-        <Text style={s.lastUpdated}>Last updated: {new Date().toISOString().slice(0, 10)}</Text>
+    <View style={s.container}>
+      <ScreenHeader title="Privacy Policy" showBackButton />
 
-        <Text style={s.section}>Introduction</Text>
-        <Text style={s.body}>
-          VyaparSetu respects your privacy. We collect minimal data necessary to provide our services. Your personal information is never sold to third parties.
-        </Text>
+      <ScrollView style={s.scroll} contentContainerStyle={s.content}>
+        <Text style={s.lastUpdated}>Last updated: March 2024</Text>
 
-        <Text style={s.section}>Data Collection</Text>
-        <Text style={s.body}>
-          We collect the following information when you use our services:{'\n'}
-          • Name and phone number{'\n'}
-          • Delivery address{'\n'}
-          • Order history{'\n'}
-          • Payment information (processed securely by payment partners)
-        </Text>
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>1. Information We Collect</Text>
+          <Text style={s.text}>
+            We collect information you provide directly, including name, phone number, email, delivery address, and payment information when you place orders.
+          </Text>
+        </View>
 
-        <Text style={s.section}>How We Use Your Data</Text>
-        <Text style={s.body}>
-          Your data is used to:{'\n'}
-          • Process and deliver your orders{'\n'}
-          • Send order updates and offers{'\n'}
-          • Improve our services{'\n'}
-          • Provide customer support
-        </Text>
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>2. How We Use Your Information</Text>
+          <Text style={s.text}>
+            • Process and deliver your orders{'\n'}
+            • Send order updates and notifications{'\n'}
+            • Improve our services and user experience{'\n'}
+            • Provide customer support{'\n'}
+            • Send promotional offers (with your consent)
+          </Text>
+        </View>
 
-        <Text style={s.section}>Data Security</Text>
-        <Text style={s.body}>
-          We use industry-standard encryption to protect your data. All payments are processed through secure payment gateways.
-        </Text>
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>3. Data Security</Text>
+          <Text style={s.text}>
+            We implement industry-standard security measures to protect your personal information. All payment transactions are encrypted using SSL technology.
+          </Text>
+        </View>
 
-        <Text style={s.section}>Your Rights</Text>
-        <Text style={s.body}>
-          You may request deletion of your account and associated data at any time by contacting our support team.
-        </Text>
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>4. Third-Party Sharing</Text>
+          <Text style={s.text}>
+            We do not sell your personal data. We may share information with delivery partners and payment processors solely to complete your orders.
+          </Text>
+        </View>
 
-        <Text style={s.section}>Contact</Text>
-        <Text style={s.body}>
-          For privacy-related queries, contact us at:{'\n'}
-          📧 privacy@vyaparsetu.in
-        </Text>
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>5. Your Rights</Text>
+          <Text style={s.text}>
+            You have the right to access, correct, or delete your personal data. Contact us at privacy@vyaparsetu.in for any privacy-related requests.
+          </Text>
+        </View>
+
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>6. Cookies</Text>
+          <Text style={s.text}>
+            We use cookies and similar technologies to improve your browsing experience and analyze site traffic.
+          </Text>
+        </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  header: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12,
-    borderBottomWidth: 1, borderColor: '#f0f0f0' },
+  container: { flex: 1, backgroundColor: Colors.background },
+  header: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderColor: '#f0f0f0' },
   back: { fontSize: 24, color: '#333' },
   title: { fontSize: 18, fontWeight: '700' },
-  content: { padding: 24 },
-  emoji: { fontSize: 48, textAlign: 'center', marginBottom: 8 },
-  lastUpdated: { fontSize: 12, color: '#888', textAlign: 'center', marginBottom: 20 },
-  section: { fontSize: 17, fontWeight: '700', color: '#333', marginTop: 16, marginBottom: 8 },
-  body: { fontSize: 14, color: '#555', lineHeight: 22 },
+  scroll: { flex: 1 },
+  content: { padding: 20 },
+  lastUpdated: { fontSize: 12, color: '#888', marginBottom: 16 },
+  section: { marginBottom: 20 },
+  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#222', marginBottom: 8 },
+  text: { fontSize: 14, color: '#555', lineHeight: 22 },
 });

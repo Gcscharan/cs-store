@@ -140,6 +140,39 @@ class SocketService {
   getConnectedUsers(): string[] {
     return Array.from(this.connectedUsers.keys());
   }
+
+  // Send order status update to specific user
+  sendOrderStatusUpdate(userId: string, data: { orderId: string; status: string; updatedAt?: string }): boolean {
+    const socketId = this.connectedUsers.get(userId);
+    if (socketId) {
+      this.io.to(socketId).emit("order_status_updated", data);
+      logger.info(`📦 Order status update sent to user ${userId}: ${data.status}`);
+      return true;
+    }
+    return false;
+  }
+
+  // Send delivery location update to specific user
+  sendDeliveryLocationUpdate(userId: string, data: {
+    orderId: string;
+    latitude: number;
+    longitude: number;
+    heading?: number;
+    speed?: number;
+    timestamp: string;
+  }): boolean {
+    const socketId = this.connectedUsers.get(userId);
+    if (socketId) {
+      this.io.to(socketId).emit("delivery_location_updated", data);
+      return true;
+    }
+    return false;
+  }
+
+  // Broadcast delivery location to user room (for multiple devices)
+  broadcastDeliveryLocation(userId: string, data: any): void {
+    this.io.to(`user_${userId}`).emit("delivery_location_updated", data);
+  }
 }
 
 export default SocketService;

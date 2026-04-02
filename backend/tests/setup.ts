@@ -1,8 +1,12 @@
 import { MongoMemoryServer } from "mongodb-memory-server";
 import mongoose from "mongoose";
 import { jest } from "@jest/globals";
+import { initializeTestMocks } from "./helpers/mocks";
 
 process.env.NODE_ENV = "test";
+
+// Initialize all test mocks before any imports
+initializeTestMocks();
 
 const g = globalThis as any;
 if (!g.__redisKv) g.__redisKv = new Map<string, string>();

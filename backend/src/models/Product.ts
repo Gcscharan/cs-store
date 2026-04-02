@@ -48,6 +48,7 @@ export interface IProduct extends Document {
   }[];
   sku?: string;
   tags: string[];
+  embedding?: number[]; // Semantic vector for Phase 4 AI search
   createdAt: Date;
   updatedAt: Date;
 }
@@ -182,6 +183,10 @@ const ProductSchema = new Schema<IProduct>(
         trim: true,
       },
     ],
+    embedding: {
+      type: [Number],
+      select: false, // Don't include in queries by default (large array)
+    },
   },
   {
     timestamps: true,
@@ -189,7 +194,12 @@ const ProductSchema = new Schema<IProduct>(
 );
 
 // Index for better search performance
-ProductSchema.index({ name: "text", description: "text", tags: "text" });
+ProductSchema.index({ 
+  name: "text", 
+  description: "text", 
+  category: "text", 
+  tags: "text" 
+});
 ProductSchema.index({ category: 1 });
 ProductSchema.index({ price: 1 });
 ProductSchema.index({ isSellable: 1, category: 1, price: 1 });

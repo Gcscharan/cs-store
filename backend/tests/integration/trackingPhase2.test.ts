@@ -42,7 +42,7 @@ describe("Phase 2 tracking enrichment (internal-only)", () => {
     const worker = await startTrackingProjectionWorker();
 
     const ingestRes = await request(app)
-      .post("/internal/tracking/location")
+      .post("/api/internal/tracking/location")
       .set("Authorization", `Bearer ${riderToken}`)
       .send({
         schemaVersion: 1,

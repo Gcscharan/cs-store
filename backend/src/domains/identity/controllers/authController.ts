@@ -14,6 +14,7 @@ import { createAccountNewLoginEvent, createAccountPasswordChangedEvent } from ".
 import mongoose from "mongoose";
 import { safeDoc } from "../../../utils/safeDoc";
 import { sanitizeUser, toSafeUserResponse } from "../../../utils/sanitizeUser";
+import { OAuth2Client } from "google-auth-library";
 
 const JWT_SECRET = process.env.JWT_SECRET as string;
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET as string;
@@ -325,7 +326,7 @@ export const login = async (
   res: Response
 ): Promise<Response | void> => {
   // Password login disabled - use OTP or Google OAuth
-  return res.status(410).json({
+  return res.status(401).json({
     error: "PASSWORD_LOGIN_DISABLED",
     message: "Password login has been removed. Please use OTP or Google OAuth to sign in.",
   });
@@ -764,12 +765,145 @@ export const googleCallback = async (
   }
 };
 
+/**
+ * Google Mobile Auth - Token-based authentication for React Native
+ * Accepts Google ID token from mobile client, verifies it, and returns app tokens
+ */
+export const googleMobileAuth = async (
+  req: Request,
+  res: Response
+): Promise<Response | void> => {
+  try {
+    const { idToken } = req.body;
+
+    if (!idToken) {
+      return res.status(400).json({ error: "ID token is required" });
+    }
+
+    const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+    if (!GOOGLE_CLIENT_ID) {
+      logger.error("GOOGLE_CLIENT_ID not configured");
+      return res.status(503).json({ error: "Google OAuth not configured" });
+    }
+
+    // Verify Google ID token
+    const client = new OAuth2Client(GOOGLE_CLIENT_ID);
+    const ticket = await client.verifyIdToken({
+      idToken,
+      audience: GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+    if (!payload) {
+      return res.status(401).json({ error: "Invalid ID token" });
+    }
+
+    const googleId = payload.sub;
+    const email = payload.email;
+    const name = payload.name || "";
+    const avatar = payload.picture;
+
+    if (!email) {
+      return res.status(400).json({ error: "Google account has no email" });
+    }
+
+    logger.info("[GoogleMobileAuth] Verified token for email:", email);
+
+    // Find or create user (same logic as Google OAuth callback)
+    let user = await User.findOne({ email });
+
+    if (!user) {
+      // New user - need phone number for signup
+      // Return onboarding required response
+      const onboardingToken = jwt.sign(
+        {
+          authState: "GOOGLE_AUTH_ONLY",
+          email,
+          name,
+          avatar,
+          provider: "google",
+          providerId: googleId,
+        },
+        JWT_SECRET,
+        { expiresIn: "30m" }
+      );
+
+      return res.status(200).json({
+        onboardingRequired: true,
+        onboardingToken,
+        user: {
+          email,
+          name,
+          avatar,
+        },
+      });
+    }
+
+    // Existing user - link Google provider if not already linked
+    if (!user.oauthProviders) {
+      user.oauthProviders = [];
+    }
+
+    const alreadyLinked = user.oauthProviders.some(
+      (p: IOAuthProvider) => p.provider === "google" && p.providerId === googleId
+    );
+
+    // Populate name from Google if missing
+    const currentName = String(user.name || "").trim();
+    if (!currentName && name) {
+      user.name = name;
+    }
+
+    // Populate avatar from Google if missing
+    if (avatar && !user.avatar) {
+      user.avatar = avatar;
+    }
+
+    if (!alreadyLinked) {
+      user.oauthProviders.push({
+        provider: "google",
+        providerId: googleId,
+      });
+    }
+
+    // Save if changes were made
+    if ((!currentName && name) || (avatar && !user.avatar) || !alreadyLinked) {
+      await user.save();
+    }
+
+    // Generate tokens
+    const accessToken = jwt.sign(
+      { userId: user._id, email: user.email, role: user.role },
+      JWT_SECRET,
+      { expiresIn: ACCESS_TOKEN_EXPIRY } as jwt.SignOptions
+    );
+
+    const refreshToken = jwt.sign(
+      { userId: user._id },
+      JWT_REFRESH_SECRET,
+      { expiresIn: REFRESH_TOKEN_EXPIRY } as jwt.SignOptions
+    );
+
+    logger.info("[GoogleMobileAuth] Login successful for user:", user._id);
+
+    return res.json({
+      message: "Login successful",
+      accessToken,
+      refreshToken,
+      user: toSafeUserResponse(user),
+    });
+  } catch (error: any) {
+    logger.error("Google mobile auth error:", error);
+    return res.status(500).json({ error: "Google authentication failed" });
+  }
+};
+
 export const changePassword = async (
   req: Request,
   res: Response
 ): Promise<Response | void> => {
   // Password change disabled - use OTP or Google OAuth
-  return res.status(410).json({
+  return res.status(401).json({
     error: "PASSWORD_FEATURE_DISABLED",
     message: "Password login has been removed. You sign in with Google or OTP - no password needed.",
   });
@@ -853,6 +987,12 @@ export const sendAuthOTP = async (
   res: Response
 ): Promise<Response | void> => {
   try {
+    console.log("🔥 OTP API HIT");
+    console.log("📱 Request body:", req.body);
+    console.log("⚙️ MOCK_OTP (raw):", process.env.MOCK_OTP);
+    console.log("⚙️ MOCK_OTP === 'true':", process.env.MOCK_OTP === "true");
+    console.log("🔍 Mode:", req.query.mode);
+
     const { phone, email } = req.body;
 
     // Get the user input (either phone or email)
@@ -876,66 +1016,55 @@ export const sendAuthOTP = async (
 
     logger.info("[OTP LOGIN] Input type detected:", { isEmail, isPhone, userInput });
 
-    // Check mode: signup or login (default login)
-    const isSignup = String(req.query.mode || "") === "signup";
-
     // ============================================================
     // USER LOOKUP (Case-insensitive for email)
     // ============================================================
     let user: any = null;
 
-    if (!isSignup) {
-      // In LOGIN mode, look up user
-      if (isPhone) {
-        const cleanedPhone = String(userInput).replace(/\D/g, "");
-        logger.info("[OTP LOGIN] Looking up by phone:", cleanedPhone);
-        user = await User.findOne({ phone: cleanedPhone });
-      } else if (isEmail) {
-        // Use case-insensitive email search from the start
-        const normalizedEmail = String(userInput).toLowerCase().trim();
-        logger.info("[OTP LOGIN] Looking up by email (case-insensitive):", normalizedEmail);
-        
-        // First try exact match (faster with index)
-        user = await User.findOne({ email: normalizedEmail });
-        
-        // If not found, try case-insensitive regex
-        if (!user) {
-          logger.info("[OTP LOGIN] Exact match failed, trying case-insensitive...");
-          user = await User.findOne({ 
-            email: { $regex: new RegExp(`^${normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } 
-          });
-        }
-      }
-
-      // DEBUG: Log what we found
-      logger.info("[OTP LOGIN] User found:", !!user);
-      if (user) {
-        logger.info("[OTP LOGIN] User details:", {
-          _id: user._id?.toString(),
-          email: user.email,
-          phone: user.phone,
-          hasPasswordHash: !!user.passwordHash,
-          oauthProviders: user.oauthProviders?.length || 0,
-          isDeleted: user.isDeleted,
-          status: user.status,
-        });
-      }
-
-      // ============================================================
-      // ERROR HANDLING - 404 ONLY FOR TRULY NON-EXISTENT USERS
-      // ============================================================
+    // Always look up user - no signup mode
+    if (isPhone) {
+      const cleanedPhone = String(userInput).replace(/\D/g, "");
+      logger.info("[OTP LOGIN] Looking up by phone:", cleanedPhone);
+      user = await User.findOne({ phone: cleanedPhone });
+    } else if (isEmail) {
+      // Use case-insensitive email search from the start
+      const normalizedEmail = String(userInput).toLowerCase().trim();
+      logger.info("[OTP LOGIN] Looking up by email (case-insensitive):", normalizedEmail);
       
-      // TRUE non-existent user → 404
+      // First try exact match (faster with index)
+      user = await User.findOne({ email: normalizedEmail });
+      
+      // If not found, try case-insensitive regex
       if (!user) {
-        logger.info("[OTP LOGIN] User does not exist:", userInput);
-        return res.status(404).json({
-          error: "Account not found. Please sign up first.",
-          action: "signup_required",
-          email: isEmail ? userInput : undefined,
+        logger.info("[OTP LOGIN] Exact match failed, trying case-insensitive...");
+        user = await User.findOne({ 
+          email: { $regex: new RegExp(`^${normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } 
         });
       }
+    }
 
-      // User EXISTS below this line - DO NOT return 404
+    // DEBUG: Log what we found
+    logger.info("[OTP LOGIN] User found:", !!user);
+    if (user) {
+      logger.info("[OTP LOGIN] User details:", {
+        _id: user._id?.toString(),
+        email: user.email,
+        phone: user.phone,
+        hasPasswordHash: !!user.passwordHash,
+        oauthProviders: user.oauthProviders?.length || 0,
+        isDeleted: user.isDeleted,
+        status: user.status,
+      });
+    }
+
+    // ============================================================
+    // NEW USER FLOW - Send OTP for onboarding
+    // ============================================================
+    if (!user) {
+      logger.info("[OTP LOGIN] New user - will redirect to onboarding after OTP verification");
+      // Continue to send OTP - verification will handle onboarding redirect
+    } else {
+      // User EXISTS - validate status
 
       // Soft-deleted user → 400
       if (user.isDeleted || user.deletedAt) {
@@ -964,15 +1093,15 @@ export const sendAuthOTP = async (
     }
 
     // Determine where to send OTP:
-    // - signup: use the raw input (new number/email)
-    // - login: use the user's stored contact (prefer DB value)
+    // - new user: use the raw input
+    // - existing user: use the user's stored contact (prefer DB value)
     let targetPhone: string | undefined;
     let targetEmail: string | undefined;
 
     if (isPhone) {
-      targetPhone = isSignup ? userInput : (user?.phone || userInput);
+      targetPhone = user ? (user?.phone || userInput) : userInput;
     } else if (isEmail) {
-      targetEmail = isSignup ? userInput : (user?.email || userInput);
+      targetEmail = user ? (user?.email || userInput) : userInput;
     }
 
     const normalizedTargetEmail = targetEmail
@@ -981,13 +1110,14 @@ export const sendAuthOTP = async (
 
     // Generate 6-digit OTP
     const otp = generateOTP();
+    console.log("🔐 GENERATED OTP:", otp);
 
     // Create OTP record. The model requires phone, but email OTP flows may not have a phone.
     // Use a stable placeholder phone for email-based OTPs so verify can query reliably.
     const otpPayload: any = {
       phone: targetPhone ? String(targetPhone).replace(/\D/g, "") : "EMAIL",
       otp,
-      type: isSignup ? "signup" : "login",
+      type: user ? "login" : "signup", // New users get signup type for onboarding
       expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
       isUsed: false,
       attempts: 0,
@@ -997,11 +1127,28 @@ export const sendAuthOTP = async (
 
     const otpRecord = new Otp(otpPayload);
     await otpRecord.save();
+    console.log("💾 OTP saved to DB:", { phone: otpPayload.phone, type: otpPayload.type });
+
+    // MOCK MODE: Skip SMS sending in development
+    if (process.env.MOCK_OTP === "true") {
+      console.log("🧪 MOCK MODE ACTIVE - NOT SENDING SMS");
+      console.log("🔑 USE THIS OTP:", otp);
+      console.log("⚠️  OTP is logged in console for development only");
+      
+      return res.json({
+        message: "OTP sent successfully (mock mode)",
+        expiresIn: 600,
+        sentTo: targetPhone ? "phone" : "email",
+        isNewUser: !user, // Indicate if this is a new user
+        // DO NOT expose OTP in response - security risk
+        // Check server console logs for OTP in development
+      });
+    }
 
     // Send OTP based on input type
     if (targetPhone) {
       // Send OTP via SMS
-      const message = `Your CS Store ${isSignup ? "signup" : "login"} OTP is ${otp}. Valid for 10 minutes. Do not share this OTP with anyone.`;
+      const message = `<#> Your VyaparSetu OTP is ${otp}\nFA+9qCX9VSu`;
       await sendSMS(targetPhone, message);
     } else if (normalizedTargetEmail) {
       // Send OTP via Email using Gmail SMTP or fallback
@@ -1012,8 +1159,10 @@ export const sendAuthOTP = async (
       message: "OTP sent successfully",
       expiresIn: 600, // 10 minutes in seconds
       sentTo: targetPhone ? "phone" : "email",
+      isNewUser: !user, // Indicate if this is a new user for frontend routing
     });
   } catch (error: any) {
+    console.error("❌ OTP ERROR:", error);
     logger.error("sendAuthOTP error:", error);
     res.status(500).json({ 
       message: "Failed to send OTP",
@@ -1031,8 +1180,16 @@ export const verifyAuthOTP = async (
   try {
     const { phone, email, otp } = req.body;
 
-    if (!otp) {
+    // CRITICAL: OTP is ALWAYS required - no bypass
+    if (!otp || String(otp).trim().length === 0) {
+      logger.warn("[OTP VERIFY] Attempt to verify without OTP");
       return res.status(400).json({ error: "OTP is required" });
+    }
+
+    // Validate OTP format (must be 6 digits)
+    if (!/^\d{6}$/.test(String(otp))) {
+      logger.warn("[OTP VERIFY] Invalid OTP format:", otp);
+      return res.status(400).json({ error: "OTP must be 6 digits" });
     }
 
     if (!phone && !email) {
@@ -1042,82 +1199,87 @@ export const verifyAuthOTP = async (
     const normalizedPhone = phone ? String(phone).replace(/\D/g, "") : undefined;
     const normalizedEmail = email ? String(email).toLowerCase().trim() : undefined;
 
-    // Determine mode
-    const isSignup = String(req.query.mode || "") === "signup";
-
-    // In signup mode we verify OTP against the contact (phone/email) regardless of existing user.
-    if (isSignup) {
-      // Find OTP record by phone or email
-      const otpRecord = await Otp.findOne({
-        ...(normalizedPhone ? { phone: normalizedPhone } : {}),
-        ...(normalizedEmail ? { email: normalizedEmail } : {}),
-        type: "signup",
-        isUsed: false,
-        expiresAt: { $gt: new Date() },
-      }).sort({ createdAt: -1 });
-
-      if (!otpRecord) {
-        return res.status(400).json({ error: "Invalid or expired OTP" });
-      }
-
-      // Check attempts
-      if (otpRecord.attempts >= 3) {
-        return res.status(400).json({
-          error: "Maximum OTP attempts exceeded. Please request a new OTP.",
-        });
-      }
-
-      // Verify OTP
-      if (otpRecord.otp !== otp) {
-        otpRecord.attempts += 1;
-        await otpRecord.save();
-        return res.status(400).json({
-          error: `Invalid OTP. ${3 - otpRecord.attempts} attempts remaining.`,
-        });
-      }
-
-      // Mark OTP as used
-      otpRecord.isUsed = true;
-      await otpRecord.save();
-
-      // For signup, we simply confirm verification (frontend will continue signup)
-      return res.json({
-        message: "OTP verified",
-        verified: true,
-      });
-    }
-
-    // LOGIN MODE: strict identifier-based lookup
+    // Check if user exists
     let user: any | null = null;
 
-    if (phone && !email) {
-      const cleanedPhone = String(phone).replace(/\D/g, "");
-      user = await User.findOne({ phone: cleanedPhone });
-    } else if (email && !phone) {
-      // Use case-insensitive email search
-      const normalizedEmail = String(email).toLowerCase().trim();
+    if (normalizedPhone) {
+      user = await User.findOne({ phone: normalizedPhone });
+    } else if (normalizedEmail) {
       user = await User.findOne({ email: normalizedEmail });
-      
-      // If not found, try case-insensitive regex
-      if (!user) {
-        user = await User.findOne({ 
-          email: { $regex: new RegExp(`^${normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } 
-        });
-      }
-    } else {
-      // Ambiguous input (both or neither) is not allowed in login mode
-      return res
-        .status(400)
-        .json({ error: "Provide exactly one of phone or email" });
     }
 
-    if (!user) {
-      return res.status(404).json({
-        error: "Account not found. Please sign up first.",
-        action: "signup_required",
-        email: email ? String(email) : undefined,
+    // Determine OTP type based on user existence
+    const otpType = user ? "login" : "signup";
+
+    // Find OTP record by phone or email
+    const otpRecord = await Otp.findOne({
+      ...(normalizedPhone ? { phone: normalizedPhone } : {}),
+      ...(normalizedEmail ? { email: normalizedEmail } : {}),
+      type: otpType,
+      isUsed: false,
+      expiresAt: { $gt: new Date() },
+    }).sort({ createdAt: -1 });
+
+    if (!otpRecord) {
+      logger.warn("[OTP VERIFY] No valid OTP found for:", { phone: normalizedPhone, email: normalizedEmail, type: otpType });
+      return res.status(400).json({ error: "Invalid or expired OTP" });
+    }
+
+    // Check attempts BEFORE verification
+    if (otpRecord.attempts >= 3) {
+      logger.warn("[OTP VERIFY] Max attempts exceeded for:", normalizedPhone || normalizedEmail);
+      return res.status(400).json({
+        error: "Maximum OTP attempts exceeded. Please request a new OTP.",
       });
     }
+
+    // CRITICAL: Verify OTP matches exactly
+    const otpMatches = String(otpRecord.otp).trim() === String(otp).trim();
+    
+    if (!otpMatches) {
+      otpRecord.attempts += 1;
+      await otpRecord.save();
+      
+      logger.warn("[OTP VERIFY] Invalid OTP attempt:", {
+        phone: normalizedPhone,
+        email: normalizedEmail,
+        attempts: otpRecord.attempts,
+        providedOtp: otp,
+        expectedOtp: otpRecord.otp
+      });
+      
+      return res.status(400).json({
+        error: `Invalid OTP. ${3 - otpRecord.attempts} attempts remaining.`,
+      });
+    }
+
+    // OTP is valid - mark as used
+    logger.info("[OTP VERIFY] OTP verified successfully for:", normalizedPhone || normalizedEmail);
+    otpRecord.isUsed = true;
+    await otpRecord.save();
+
+    // ============================================================
+    // NEW USER FLOW - Redirect to onboarding
+    // ============================================================
+    if (!user) {
+      logger.info("[OTP VERIFY] New user - redirecting to onboarding");
+      
+      return res.json({
+        message: "OTP verified successfully",
+        requiresOnboarding: true,
+        phone: normalizedPhone,
+        email: normalizedEmail,
+      });
+    }
+
+    // ============================================================
+    // EXISTING USER FLOW - Login
+    // ============================================================
+
+    // ============================================================
+    // EXISTING USER FLOW - Login
+    // ============================================================
+    logger.info("[OTP VERIFY] Existing user - logging in:", user._id);
 
     // Check for deleted/suspended accounts
     if (user.isDeleted || user.deletedAt) {
@@ -1131,42 +1293,6 @@ export const verifyAuthOTP = async (
         error: "This account has been suspended. Please contact support.",
       });
     }
-
-    // Find OTP record matching user's phone or email
-    // For email-based OTP, search by email field; for phone-based, search by phone
-    const otpRecord = await Otp.findOne({
-      ...(email ? { email: email.toLowerCase().trim() } : { phone: user.phone }),
-      type: "login",
-      isUsed: false,
-      expiresAt: { $gt: new Date() },
-    }).sort({ createdAt: -1 });
-
-    if (!otpRecord) {
-      return res.status(400).json({
-        error: "Invalid or expired OTP",
-      });
-    }
-
-    // Check attempts
-    if (otpRecord.attempts >= 3) {
-      return res.status(400).json({
-        error: "Maximum OTP attempts exceeded. Please request a new OTP.",
-      });
-    }
-
-    // Verify OTP
-    if (otpRecord.otp !== otp) {
-      otpRecord.attempts += 1;
-      await otpRecord.save();
-
-      return res.status(400).json({
-        error: `Invalid OTP. ${3 - otpRecord.attempts} attempts remaining.`,
-      });
-    }
-
-    // Mark OTP as used
-    otpRecord.isUsed = true;
-    await otpRecord.save();
 
     // Successful OTP login means the phone is verified for this account
     // Use updateOne to avoid triggering validation on other fields (e.g., old addresses missing required fields)
@@ -1261,10 +1387,20 @@ export const completeProfile = async (
   res: Response
 ): Promise<Response | void> => {
   try {
-    const userId = (req as any).user?._id; // from auth middleware
+    // Log request for debugging
+    logger.info("completeProfile called", {
+      body: req.body,
+      userId: (req as any).userId || (req as any).user?._id || (req as any).user?.id,
+    });
+
+    const userId = (req as any).userId || (req as any).user?._id || (req as any).user?.id;
 
     if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
+      return res.status(401).json({ message: "Authentication required" });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(401).json({ message: "Invalid user session" });
     }
 
     const user = await User.findById(userId);
@@ -1288,11 +1424,11 @@ export const completeProfile = async (
       user.name = req.body.fullName.trim();
     }
 
-    // Email: validate format before update
+    // Email: validate format and uniqueness before update
     if (req.body.email !== undefined) {
-      const emailValue = String(req.body.email);
+      const emailValue = String(req.body.email).trim().toLowerCase();
       // Check for empty string first
-      if (emailValue.trim() === "") {
+      if (emailValue === "") {
         return res.status(400).json({ message: "Email cannot be empty" });
       }
       // Then validate format
@@ -1300,24 +1436,47 @@ export const completeProfile = async (
       if (!emailRegex.test(emailValue)) {
         return res.status(400).json({ message: "Invalid email format" });
       }
-      user.email = emailValue.trim().toLowerCase();
+
+      // Check for uniqueness if email is changing
+      if (emailValue !== user.email) {
+        const existingEmail = await User.findOne({ email: emailValue, _id: { $ne: userId } });
+        if (existingEmail) {
+          return res.status(400).json({ message: "Email already in use by another account" });
+        }
+        user.email = emailValue;
+      }
     }
 
-    // Phone: validate before update
+    // Phone: validate and uniqueness before update
     if (req.body.phone !== undefined) {
-      const phoneValue = String(req.body.phone);
+      const phoneValue = String(req.body.phone).trim();
       // Check for empty string
-      if (phoneValue.trim() === "") {
-        return res.status(400).json({ message: "Phone cannot be empty" });
-      }
+      if (phoneValue === "") {
+        // Only allow empty phone if it's not already set or if it's not required
+        // But the schema allows undefined, so we'll treat empty as an empty string
+        // which is excluded from the unique index
+        user.phone = "";
+      } else {
+        const digits = phoneValue.replace(/\D/g, "");
+        const phone10 = digits.length >= 10 ? digits.slice(-10) : digits;
+        if (!/^[6-9]\d{9}$/.test(phone10)) {
+          return res.status(400).json({ message: "Invalid phone number format" });
+        }
 
-      const digits = phoneValue.replace(/\D/g, "");
-      const phone10 = digits.length >= 10 ? digits.slice(-10) : digits;
-      if (!/^[6-9]\d{9}$/.test(phone10)) {
-        return res.status(400).json({ message: "Invalid phone number format" });
+        // Check for uniqueness if phone is changing
+        if (phone10 !== user.phone) {
+          const existingPhone = await User.findOne({ phone: phone10, _id: { $ne: userId } });
+          if (existingPhone) {
+            return res.status(400).json({ message: "Phone number already in use by another account" });
+          }
+          user.phone = phone10;
+        }
       }
+    }
 
-      user.phone = phone10;
+    // Avatar: only update if provided
+    if (req.body.avatar !== undefined) {
+      user.avatar = req.body.avatar;
     }
 
     // PreferredLanguage: only update if provided
@@ -1330,42 +1489,65 @@ export const completeProfile = async (
       user.appLanguage = req.body.appLanguage;
     }
 
-    // Mark profile complete
-    user.isProfileComplete = true;
-    user.mobileVerified = true;
-
-    await user.save();
-
-    // Recalculate profile completion
+    // Recalculate profile completion safely
     const resolvedName = String(user.name || "").trim();
     const resolvedPhoneRaw = String(user.phone || "");
     const resolvedPhoneDigits = resolvedPhoneRaw.replace(/\D/g, "");
     const resolvedPhone10 = resolvedPhoneDigits.length >= 10 ? resolvedPhoneDigits.slice(-10) : resolvedPhoneDigits;
 
+    // Use a more robust check for profile completion
     const hasName = resolvedName.length > 0;
+    const hasEmail = !!user.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(user.email);
     const hasPhone = /^[6-9]\d{9}$/.test(resolvedPhone10);
-    const profileCompleted = hasName && hasPhone;
+    
+    const profileCompleted = hasName && hasEmail && hasPhone;
 
-    // Construct safe user object with only allowed fields
+    // Persist completion status
+    user.isProfileComplete = profileCompleted;
+    if (hasPhone) user.mobileVerified = true;
+    await user.save();
+
+    // Construct safe user object
+    const sanitizedUser = toSafeUserResponse(user);
+    if (!sanitizedUser) {
+      throw new Error("Failed to sanitize user object");
+    }
+
     const safeUser = {
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      phone: user.phone,
-      role: user.role,
-      status: user.status,
-      addresses: user.addresses,
-      preferredLanguage: user.preferredLanguage,
-      appLanguage: user.appLanguage,
+      ...sanitizedUser,
       isProfileComplete: profileCompleted,
       profileCompleted,
       authState: "ACTIVE",
     };
 
     return res.status(200).json({ success: true, user: safeUser });
-  } catch (err) {
+  } catch (err: any) {
     logger.error("completeProfile error:", err);
-    res.status(500).json({ message: "Server error" });
+    
+    // Log the full error stack for debugging
+    if (err.stack) {
+      logger.error("Error stack:", err.stack);
+    }
+    
+    // Handle validation errors specifically
+    if (err.name === 'ValidationError') {
+      const messages = Object.values(err.errors).map((e: any) => e.message);
+      return res.status(400).json({ message: messages.join(', ') });
+    }
+
+    // Handle MongoDB duplicate key errors (code 11000)
+    if (err.code === 11000) {
+      const field = Object.keys(err.keyPattern || {})[0] || 'field';
+      return res.status(400).json({ 
+        message: `${field.charAt(0).toUpperCase() + field.slice(1)} already in use by another account` 
+      });
+    }
+
+    // Return more details in non-production environments to help debug
+    const isDev = process.env.NODE_ENV !== 'production';
+    res.status(500).json({ 
+      message: isDev ? `Server error: ${err.message}` : "Server error" 
+    });
   }
 };
 

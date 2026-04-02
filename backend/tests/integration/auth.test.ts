@@ -1,8 +1,12 @@
 import request from "supertest";
 import app from "../../src/app";
 import { createTestUser, createTestAdmin, getAuthHeaders, getAuthHeadersForAdmin } from "../helpers/auth";
+import mongoose from "mongoose";
 
 describe("Authentication Endpoints", () => {
+  afterAll(async () => {
+    await mongoose.connection.close();
+  });
   describe("POST /api/auth/signup", () => {
     it("should signup a new user successfully", async () => {
       const userData = {
@@ -89,15 +93,9 @@ describe("Authentication Endpoints", () => {
       const response = await request(app)
         .post("/api/auth/login")
         .send(loginData)
-        .expect(200);
+        .expect(401);
 
-      expect(response.body).toHaveProperty("message", "Login successful");
-      expect(response.body).toHaveProperty("user");
-      expect(response.body).toHaveProperty("token");
-      expect(response.body).toHaveProperty("accessToken");
-      expect(response.body).toHaveProperty("refreshToken");
-      expect(response.body.user.email).toBe(loginData.email);
-      expect(response.body.user).not.toHaveProperty("password");
+      expect(response.body).toHaveProperty("error", "PASSWORD_LOGIN_DISABLED");
     });
 
     it("should not login with invalid email", async () => {
@@ -109,9 +107,9 @@ describe("Authentication Endpoints", () => {
       const response = await request(app)
         .post("/api/auth/login")
         .send(loginData)
-        .expect(400);
+        .expect(401);
 
-      expect(response.body).toHaveProperty("message", "Invalid email or password");
+      expect(response.body).toHaveProperty("error", "PASSWORD_LOGIN_DISABLED");
     });
 
     it("should not login with invalid password", async () => {
@@ -123,9 +121,9 @@ describe("Authentication Endpoints", () => {
       const response = await request(app)
         .post("/api/auth/login")
         .send(loginData)
-        .expect(400);
+        .expect(401);
 
-      expect(response.body).toHaveProperty("message", "Invalid email or password");
+      expect(response.body).toHaveProperty("error", "PASSWORD_LOGIN_DISABLED");
     });
   });
 
@@ -278,9 +276,9 @@ describe("Authentication Endpoints", () => {
         .post("/api/auth/change-password")
         .set(authHeaders)
         .send(passwordData)
-        .expect(400);
+        .expect(401);
 
-      expect(response.body).toHaveProperty("message");
+      expect(response.body).toHaveProperty("error", "PASSWORD_FEATURE_DISABLED");
     });
 
     it("should not change password with incorrect current password", async () => {
@@ -293,9 +291,9 @@ describe("Authentication Endpoints", () => {
         .post("/api/auth/change-password")
         .set(authHeaders)
         .send(passwordData)
-        .expect(400);
+        .expect(401);
 
-      expect(response.body).toHaveProperty("message", "Current password is incorrect");
+      expect(response.body).toHaveProperty("error", "PASSWORD_FEATURE_DISABLED");
     });
 
     it("should not change password without authentication", async () => {

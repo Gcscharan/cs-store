@@ -140,27 +140,39 @@ export const apiRateLimit = createRateLimit(
 export const paymentRateLimit = paymentVerificationRateLimit;
 
 // Security headers middleware
-export const securityHeaders = helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      imgSrc: ["'self'", "data:", "https:", "http:"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "https://checkout.razorpay.com"],
-      connectSrc: ["'self'", "https://api.razorpay.com", "wss:"],
-      frameSrc: ["https://checkout.razorpay.com"],
-      objectSrc: ["'none'"],
-      upgradeInsecureRequests: [],
+export const securityHeaders = (req: Request, res: Response, next: NextFunction) => {
+  // In development, we need to be more permissive for mobile app testing
+  if (process.env.NODE_ENV !== 'production') {
+    return helmet({
+      contentSecurityPolicy: false, // Disable CSP in dev to allow local IPs
+      crossOriginEmbedderPolicy: false,
+      crossOriginResourcePolicy: false,
+      hsts: false,
+    })(req, res, next);
+  }
+
+  return helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        imgSrc: ["'self'", "data:", "https:", "http:"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "https://checkout.razorpay.com"],
+        connectSrc: ["'self'", "https://api.razorpay.com", "wss:", "http:", "https:"], // Allow http/https for connect in dev
+        frameSrc: ["https://checkout.razorpay.com"],
+        objectSrc: ["'none'"],
+        upgradeInsecureRequests: [],
+      },
     },
-  },
-  crossOriginEmbedderPolicy: false,
-  hsts: {
-    maxAge: 31536000,
-    includeSubDomains: true,
-    preload: true,
-  },
-});
+    crossOriginEmbedderPolicy: false,
+    hsts: {
+      maxAge: 31536000,
+      includeSubDomains: true,
+      preload: true,
+    },
+  })(req, res, next);
+};
 
 // Input sanitization middleware
 export const sanitizeInput = (

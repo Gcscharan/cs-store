@@ -1,135 +1,96 @@
-import { createSlice, PayloadAction, AnyAction } from '@reduxjs/toolkit';
-import { ThunkDispatch } from '@reduxjs/toolkit';
-import type { CartItem } from '@vyaparsetu/types';
-import { api } from '../api';
+import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { CartItem } from '../../types';
 
 interface CartState {
   items: CartItem[];
   total: number;
-  syncing: boolean;
+  itemCount: number;
 }
 
-const initialState: CartState = { items: [], total: 0, syncing: false };
+const initialState: CartState = {
+  items: [],
+  total: 0,
+  itemCount: 0,
+};
 
-const recalcTotal = (items: CartItem[]) =>
-  items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+const calculateTotals = (items: CartItem[]) => {
+  const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
+  return { total, itemCount };
+};
 
 const cartSlice = createSlice({
   name: 'cart',
   initialState,
   reducers: {
-    addToCartLocal: (state, action: PayloadAction<CartItem>) => {
-      const existing = state.items.find(i => i.productId === action.payload.productId);
-      if (existing) { existing.quantity += action.payload.quantity; }
-      else { state.items.push(action.payload); }
-      state.total = recalcTotal(state.items);
+    addItem: (state, action: PayloadAction<CartItem>) => {
+      const existingIndex = state.items.findIndex(
+        (item) => item.productId === action.payload.productId
+      );
+
+      if (existingIndex >= 0) {
+        state.items[existingIndex].quantity += action.payload.quantity;
+      } else {
+        state.items.push(action.payload);
+      }
+
+      const totals = calculateTotals(state.items);
+      state.total = totals.total;
+      state.itemCount = totals.itemCount;
     },
-    removeFromCartLocal: (state, action: PayloadAction<string>) => {
-      state.items = state.items.filter(i => i.productId !== action.payload);
-      state.total = recalcTotal(state.items);
+    removeItem: (state, action: PayloadAction<string>) => {
+      state.items = state.items.filter((item) => item.productId !== action.payload);
+      const totals = calculateTotals(state.items);
+      state.total = totals.total;
+      state.itemCount = totals.itemCount;
     },
-    updateQuantityLocal: (state, action: PayloadAction<{ productId: string; quantity: number }>) => {
-      const item = state.items.find(i => i.productId === action.payload.productId);
-      if (item) {
+    updateQuantity: (
+      state,
+      action: PayloadAction<{ productId: string; quantity: number }>
+    ) => {
+      const index = state.items.findIndex(
+        (item) => item.productId === action.payload.productId
+      );
+
+      if (index >= 0) {
         if (action.payload.quantity <= 0) {
-          state.items = state.items.filter(i => i.productId !== action.payload.productId);
+          state.items.splice(index, 1);
         } else {
-          item.quantity = action.payload.quantity;
+          state.items[index].quantity = action.payload.quantity;
         }
       }
-      state.total = recalcTotal(state.items);
+
+      const totals = calculateTotals(state.items);
+      state.total = totals.total;
+      state.itemCount = totals.itemCount;
     },
-    clearCartLocal: (state) => { state.items = []; state.total = 0; },
-    setCartFromServer: (state, action: PayloadAction<CartItem[]>) => {
-      state.items = action.payload;
-      state.total = recalcTotal(action.payload);
+    clearCart: (state) => {
+      state.items = [];
+      state.total = 0;
+      state.itemCount = 0;
     },
-    setSyncing: (state, action: PayloadAction<boolean>) => { state.syncing = action.payload; },
-  },
-  extraReducers: (builder) => {
-    builder.addMatcher(
-      (action): action is AnyAction => action.type === 'api/executeQuery/fulfilled' &&
-        action.meta?.arg?.endpointName === 'getCart',
-      (state, action: any) => {
-        if (action.payload?.items) {
-          state.items = action.payload.items.map((i: any) => ({
-            productId: i.productId || i.product?._id,
-            name: i.name || i.product?.name,
-            price: i.price || i.product?.price,
-            quantity: i.quantity,
-            image: i.image || i.product?.images?.[0],
-          }));
-          state.total = recalcTotal(state.items);
-        }
-      }
-    );
+    syncCart: (
+      state,
+      action: PayloadAction<{ items: CartItem[]; total: number; itemCount: number }>
+    ) => {
+      state.items = action.payload.items;
+      state.total = action.payload.total;
+      state.itemCount = action.payload.itemCount;
+    },
   },
 });
 
 export const {
-  addToCartLocal, removeFromCartLocal, updateQuantityLocal,
-  clearCartLocal, setCartFromServer, setSyncing,
+  addItem,
+  removeItem,
+  updateQuantity,
+  clearCart,
+  syncCart,
 } = cartSlice.actions;
 
-// Thunk: add to cart and sync to server
-export const addToCartWithSync = (item: CartItem) => async (dispatch: ThunkDispatch<any, any, AnyAction>) => {
-  dispatch(addToCartLocal(item));
-  dispatch(setSyncing(true));
-  try {
-    await dispatch(api.endpoints.addToCart.initiate({
-      productId: item.productId, quantity: item.quantity,
-    }));
-  } catch (e) {
-    console.warn('Cart sync failed, kept local copy');
-  } finally {
-    dispatch(setSyncing(false));
-  }
-};
-
-export const removeFromCartWithSync = (productId: string) => async (dispatch: ThunkDispatch<any, any, AnyAction>) => {
-  dispatch(removeFromCartLocal(productId));
-  dispatch(setSyncing(true));
-  try {
-    await dispatch(api.endpoints.removeFromCart.initiate(productId));
-  } catch (e) {
-    console.warn('Cart remove sync failed');
-  } finally {
-    dispatch(setSyncing(false));
-  }
-};
-
-export const updateQuantityWithSync = (productId: string, quantity: number) => async (dispatch: ThunkDispatch<any, any, AnyAction>) => {
-  dispatch(updateQuantityLocal({ productId, quantity }));
-  dispatch(setSyncing(true));
-  try {
-    if (quantity <= 0) {
-      await dispatch(api.endpoints.removeFromCart.initiate(productId));
-    } else {
-      await dispatch(api.endpoints.updateCartItem.initiate({ productId, quantity }));
-    }
-  } catch (e) {
-    console.warn('Cart update sync failed');
-  } finally {
-    dispatch(setSyncing(false));
-  }
-};
-
-export const clearCartWithSync = () => async (dispatch: ThunkDispatch<any, any, AnyAction>) => {
-  dispatch(clearCartLocal());
-  dispatch(setSyncing(true));
-  try {
-    await dispatch(api.endpoints.clearCart.initiate());
-  } catch (e) {
-    console.warn('Cart clear sync failed');
-  } finally {
-    dispatch(setSyncing(false));
-  }
-};
-
-// Legacy exports for backward compatibility
-export const addToCart = addToCartLocal;
-export const removeFromCart = removeFromCartLocal;
-export const updateQuantity = updateQuantityLocal;
-export const clearCart = clearCartLocal;
+// Selectors
+export const selectCartItems = (state: { cart: CartState }) => state.cart.items;
+export const selectCartTotal = (state: { cart: CartState }) => state.cart.total;
+export const selectCartItemCount = (state: { cart: CartState }) => state.cart.itemCount;
 
 export default cartSlice.reducer;

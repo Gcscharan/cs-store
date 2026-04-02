@@ -10,8 +10,9 @@ export interface SearchOptions {
   category?: string;
   minPrice?: number;
   maxPrice?: number;
-  sortBy?: 'relevance' | 'price' | 'newest' | 'sales';
+  sortBy?: 'relevance' | 'price' | 'newest' | 'sales' | 'rating';
   sortOrder?: 'asc' | 'desc';
+  rating?: number;
   suggest?: boolean;
 }
 
@@ -301,6 +302,7 @@ export class SearchFallbackService {
     const skip = (page - 1) * limit;
 
     const products = await Product.find({
+      ...this.SELLABLE_PRODUCT_MATCH,
       name: { $regex: escapedQuery, $options: "i" }
     })
       .select("_id name slug price category images description sales views createdAt stock")

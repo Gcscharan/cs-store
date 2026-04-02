@@ -32,7 +32,7 @@ describe("GET /internal/payments/recovery-suggestion (STEP 3B.3)", () => {
     const token = await (global as any).getAuthToken(user);
 
     const res = await request(app)
-      .get("/internal/payments/recovery-suggestion")
+      .get("/api/internal/payments/recovery-suggestion")
       .set("Authorization", `Bearer ${token}`)
       .query({ paymentIntentId: "507f191e810c19729de860ea" });
 
@@ -43,12 +43,12 @@ describe("GET /internal/payments/recovery-suggestion (STEP 3B.3)", () => {
     const token = await adminToken("admin-rs-1@example.com");
 
     const a = await request(app)
-      .get("/internal/payments/recovery-suggestion")
+      .get("/api/internal/payments/recovery-suggestion")
       .set("Authorization", `Bearer ${token}`);
     expect(a.status).toBe(400);
 
     const b = await request(app)
-      .get("/internal/payments/recovery-suggestion")
+      .get("/api/internal/payments/recovery-suggestion")
       .set("Authorization", `Bearer ${token}`)
       .query({ orderId: "507f191e810c19729de860ea", paymentIntentId: "507f191e810c19729de860ea" });
     expect(b.status).toBe(400);
@@ -84,7 +84,7 @@ describe("GET /internal/payments/recovery-suggestion (STEP 3B.3)", () => {
     const before = await PaymentIntent.findById(pi._id).lean();
 
     const res = await request(app)
-      .get("/internal/payments/recovery-suggestion")
+      .get("/api/internal/payments/recovery-suggestion")
       .set("Authorization", `Bearer ${token}`)
       .query({ paymentIntentId: String(pi._id) });
 
@@ -129,7 +129,7 @@ describe("GET /internal/payments/recovery-suggestion (STEP 3B.3)", () => {
     });
 
     const res = await request(app)
-      .get("/internal/payments/recovery-suggestion")
+      .get("/api/internal/payments/recovery-suggestion")
       .set("Authorization", `Bearer ${token}`)
       .query({ paymentIntentId: String(pi._id) });
 
@@ -160,7 +160,7 @@ describe("GET /internal/payments/recovery-suggestion (STEP 3B.3)", () => {
     const before = await PaymentIntent.findById(pi._id).lean();
 
     const res = await request(app)
-      .get("/internal/payments/recovery-suggestion")
+      .get("/api/internal/payments/recovery-suggestion")
       .set("Authorization", `Bearer ${token}`)
       .query({ paymentIntentId: String(pi._id) });
 
@@ -203,7 +203,7 @@ describe("GET /internal/payments/recovery-suggestion (STEP 3B.3)", () => {
     });
 
     const res = await request(app)
-      .get("/internal/payments/recovery-suggestion")
+      .get("/api/internal/payments/recovery-suggestion")
       .set("Authorization", `Bearer ${token}`)
       .query({ paymentIntentId: String(pi._id) });
 

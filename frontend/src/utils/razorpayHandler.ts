@@ -30,6 +30,17 @@ export const loadRazorpayScript = async (): Promise<boolean> => {
   });
 };
 
+export type PaymentFailureReason =
+  | "USER_CANCELLED"
+  | "GATEWAY_ERROR"
+  | "TIMEOUT"
+  | "UNKNOWN";
+
+export interface PaymentFailurePayload {
+  reason: PaymentFailureReason;
+  gatewayResponse?: any;
+}
+
 export const openRazorpayCheckout = async (args: {
   orderId: string;
   key: string;
@@ -38,8 +49,7 @@ export const openRazorpayCheckout = async (args: {
   prefill?: { name?: string; email?: string; contact?: string; vpa?: string };
   upiId?: string;
   onSuccess: (response: any) => void | Promise<void>;
-  onDismiss: () => void;
-  onFailure?: (response: any) => void;
+  onPaymentFailure: (payload: PaymentFailurePayload) => void;
 }): Promise<void> => {
   const token = await ensureAccessTokenFresh(2 * 60_000);
   if (!token) {
@@ -84,7 +94,7 @@ export const openRazorpayCheckout = async (args: {
     },
     modal: {
       ondismiss: () => {
-        args.onDismiss();
+        args.onPaymentFailure({ reason: "USER_CANCELLED" });
       },
     },
   };
@@ -116,7 +126,7 @@ export const openRazorpayCheckout = async (args: {
   console.log("[CHECK-3] new Razorpay(options) executed", { hasRzp: !!rzp });
   if (typeof rzp?.on === "function") {
     rzp.on("payment.failed", (resp: any) => {
-      if (args.onFailure) args.onFailure(resp);
+      args.onPaymentFailure({ reason: "GATEWAY_ERROR", gatewayResponse: resp });
     });
   }
 

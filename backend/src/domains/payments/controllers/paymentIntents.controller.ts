@@ -136,7 +136,7 @@ export async function createPaymentIntent(req: Request, res: Response) {
  * (Webhook-only authority)
  */
 export async function verifyPaymentIntent(req: Request, res: Response) {
-  return res.status(410).json({
+  return res.status(404).json({
     message: "Payment verification is webhook-only",
   });
 }

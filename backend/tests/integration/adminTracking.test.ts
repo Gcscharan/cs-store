@@ -13,19 +13,19 @@ describe("Phase 4 admin tracking routes", () => {
     const customer = await createTestUser({ role: "customer", email: "cust-ops@example.com" });
     const customerHeaders = getAuthHeaders(customer);
 
-    await request(app).get("/admin/tracking/overview").set(customerHeaders).expect(403);
+    await request(app).get("/api/admin/tracking/overview").set(customerHeaders).expect(403);
   });
 
   it("supports ETag polling with 304 when unchanged", async () => {
     const admin = await createTestAdmin({ email: "ops-viewer@example.com" });
     const headers = getAuthHeadersForAdmin(admin);
 
-    const first = await request(app).get("/admin/tracking/overview").set(headers).expect(200);
+    const first = await request(app).get("/api/admin/tracking/overview").set(headers).expect(200);
     const etag = String(first.headers["etag"] || "");
     expect(etag).toContain('W/"');
 
     const second = await request(app)
-      .get("/admin/tracking/overview")
+      .get("/api/admin/tracking/overview")
       .set(headers)
       .set("If-None-Match", etag)
       .expect(304);
@@ -41,12 +41,12 @@ describe("Phase 4 admin tracking routes", () => {
     await redisClient.set(`ops:role:${String(admin._id)}`, "OPS_ADMIN");
 
     await request(app)
-      .post("/admin/tracking/killswitch")
+      .post("/api/admin/tracking/killswitch")
       .set(headers)
       .send({ mode: "CUSTOMER_READ_ENABLED", reason: "test" })
       .expect(200);
 
-    const modeRes = await request(app).get("/admin/tracking/killswitch").set(headers).expect(200);
+    const modeRes = await request(app).get("/api/admin/tracking/killswitch").set(headers).expect(200);
     expect(modeRes.body.mode).toBe("CUSTOMER_READ_ENABLED");
 
     const metrics = await request(app).get("/api/admin/ops/metrics").set(headers).expect(200);
@@ -60,7 +60,7 @@ describe("Phase 4 admin tracking routes", () => {
     await redisClient.set(`ops:role:${String(admin._id)}`, "OPS_VIEWER");
 
     await request(app)
-      .post("/admin/tracking/killswitch")
+      .post("/api/admin/tracking/killswitch")
       .set(headers)
       .send({ mode: "OFF", reason: "test" })
       .expect(403);

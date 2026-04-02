@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { MapPin, Check, X, Navigation, Loader2, AlertCircle, MapPinOff } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { isPincodeDeliverable } from "../utils/pincodeValidation";
+import { isPincodeDeliverable } from "@vyaparsetu/shared-utils";
 import { useGeolocation } from "../hooks/useGeolocation";
 import { useLanguage } from "../contexts/LanguageContext";
 

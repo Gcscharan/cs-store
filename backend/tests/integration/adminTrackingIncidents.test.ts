@@ -40,14 +40,14 @@ describe("Phase 5 admin incident APIs", () => {
     });
 
     const run = await request(app)
-      .post("/admin/tracking/incidents/run-detection")
+      .post("/api/admin/tracking/incidents/run-detection")
       .set(headers)
       .send({ limit: 10 })
       .expect(200);
 
     expect(run.body.scannedOrders).toBeGreaterThanOrEqual(1);
 
-    const list = await request(app).get("/admin/tracking/incidents").set(headers).expect(200);
+    const list = await request(app).get("/api/admin/tracking/incidents").set(headers).expect(200);
     expect(list.body.count).toBeGreaterThan(0);
 
     const anyIncidentId = String(list.body.items[0].id);

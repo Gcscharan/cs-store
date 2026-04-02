@@ -99,6 +99,7 @@ export const getProducts = async (
       sortOrder,
       search,
       tags,
+      rating,
     } = req.query;
 
     logger.info('🔍 [GetProducts] Request received:', {
@@ -110,7 +111,8 @@ export const getProducts = async (
       sortBy,
       sortOrder,
       search,
-      tags
+      tags,
+      rating,
     });
 
     // Parse and validate pagination
@@ -134,6 +136,9 @@ export const getProducts = async (
     if (tags && typeof tags === "string") {
       const tagArray = tags.split(",").map((tag) => tag.trim());
       filter.tags = { $in: tagArray };
+    }
+    if (rating) {
+      filter.rating = { $gte: Number(rating) };
     }
 
     // Build sort
@@ -159,6 +164,7 @@ export const getProducts = async (
           sortBy,
           sortOrder,
           tags,
+          rating,
         })
       : "";
 

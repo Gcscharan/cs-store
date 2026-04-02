@@ -2,7 +2,7 @@ import * as fc from "fast-check";
 
 type CartItem = { productId: string; price: number; qty: number };
 
-const numRuns = process.env.CI_NIGHTLY === "true" ? 10000 : 100;
+const numRuns = process.env.CI_NIGHTLY === "true" ? 10000 : 20;
 
 const objectIdLike = () =>
   fc

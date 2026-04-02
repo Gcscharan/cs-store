@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useState, type MouseEvent, lazy, Suspense } from "react";
 import { Star } from "lucide-react";
 import { useNavigate, Link } from "react-router-dom";
-import { useGetProductsQuery, useAddToCartMutation } from "../../store/api";
+import { useGetProductsQuery, useAddToCartMutation, useGetCategoriesQuery } from "../../store/api";
 import { useDispatch, useSelector, useStore, shallowEqual } from "react-redux";
 import { RootState } from "../../store";
 import { addToCart, setCart } from "../../store/slices/cartSlice";
@@ -17,6 +17,118 @@ import { useLanguage } from "../../contexts/LanguageContext";
 const TopSellingSlider = lazy(() => import("../../components/TopSellingSlider"));
 
 const HOME_PRODUCTS_LIMIT = 12;
+
+// Category display mapping
+const CATEGORY_DISPLAY_MAP: Record<string, { emoji: string; subtitle: string; title: string; minPrice: string }> = {
+  chocolates: {
+    emoji: "🍫",
+    subtitle: "home.premiumChocolates",
+    title: "home.chocolates",
+    minPrice: "99",
+  },
+  biscuits: {
+    emoji: "🍪",
+    subtitle: "home.crunchyCrispy",
+    title: "home.biscuits",
+    minPrice: "49",
+  },
+  ladoos: {
+    emoji: "🥮",
+    subtitle: "home.traditionalSweets",
+    title: "home.festiveLadoos",
+    minPrice: "199",
+  },
+  cakes: {
+    emoji: "🎂",
+    subtitle: "home.freshBakedDaily",
+    title: "home.birthdayCakes",
+    minPrice: "299",
+  },
+  hot_snacks: {
+    emoji: "🌶️",
+    subtitle: "home.spicyTangy",
+    title: "home.hotSnacks",
+    minPrice: "99",
+  },
+  beverages: {
+    emoji: "🥤",
+    subtitle: "home.refreshingDrinks",
+    title: "home.beverages",
+    minPrice: "29",
+  },
+  groceries: {
+    emoji: "🛒",
+    subtitle: "home.dailyEssentials",
+    title: "home.groceries",
+    minPrice: "19",
+  },
+  vegetables: {
+    emoji: "🥬",
+    subtitle: "home.freshFarm",
+    title: "home.vegetables",
+    minPrice: "15",
+  },
+  fruits: {
+    emoji: "🍎",
+    subtitle: "home.naturalFresh",
+    title: "home.fruits",
+    minPrice: "39",
+  },
+  dairy: {
+    emoji: "🥛",
+    subtitle: "home.freshDairy",
+    title: "home.dairy",
+    minPrice: "25",
+  },
+  meat: {
+    emoji: "🥩",
+    subtitle: "home.qualityMeat",
+    title: "home.meat",
+    minPrice: "149",
+  },
+  snacks: {
+    emoji: "🍿",
+    subtitle: "home.tastySnacks",
+    title: "home.snacks",
+    minPrice: "35",
+  },
+  household: {
+    emoji: "🏠",
+    subtitle: "home.homeNeeds",
+    title: "home.household",
+    minPrice: "29",
+  },
+  personal_care: {
+    emoji: "🧴",
+    subtitle: "home.personalCare",
+    title: "home.personalCare",
+    minPrice: "49",
+  },
+  medicines: {
+    emoji: "💊",
+    subtitle: "home.healthCare",
+    title: "home.medicines",
+    minPrice: "19",
+  },
+  electronics: {
+    emoji: "📱",
+    subtitle: "home.latestTech",
+    title: "home.electronics",
+    minPrice: "999",
+  },
+  clothing: {
+    emoji: "👕",
+    subtitle: "home.fashionWear",
+    title: "home.clothing",
+    minPrice: "199",
+  },
+  other: {
+    emoji: "📦",
+    subtitle: "home.miscellaneous",
+    title: "home.other",
+    minPrice: "49",
+  },
+};
 
 const HOME_PLACEHOLDER_IMAGE: any = {
   variants: {
@@ -35,7 +147,13 @@ const HomeGuestOnly = function HomeGuestOnly({ children }: { children: React.Rea
   return <>{children}</>;
 };
 
-const HomeHeader = memo(function HomeHeader() {
+const HomeHeader = memo(function HomeHeader({ 
+  selectedGuestCategory, 
+  setSelectedGuestCategory 
+}: { 
+  selectedGuestCategory: string; 
+  setSelectedGuestCategory: (category: string) => void; 
+}) {
   const { showOtpModal } = useOtpModal();
   const { refreshToken } = useTokenRefresh();
   const { t } = useLanguage();
@@ -48,8 +166,10 @@ const HomeHeader = memo(function HomeHeader() {
     }),
     shallowEqual
   );
-
-  const [selectedGuestCategory, setSelectedGuestCategory] = useState("all");
+  
+  // Fetch categories from backend
+  const { data: categoriesData, isLoading: categoriesLoading } = useGetCategoriesQuery();
+  const categories = categoriesData?.categories || [];
 
   useEffect(() => {
     const validateAuth = async () => {
@@ -92,10 +212,7 @@ const HomeHeader = memo(function HomeHeader() {
     }
   }, [showOtpModal, auth.isAuthenticated, auth.loading]);
 
-  const handleGuestCategoryClick = useCallback((category: string) => {
-    setSelectedGuestCategory(category);
-  }, []);
-
+  
   return (
     <HomeGuestOnly>
       <motion.div
@@ -109,119 +226,78 @@ const HomeHeader = memo(function HomeHeader() {
             {t("home.browseCategories")}
           </h2>
           <div className="grid grid-cols-3 gap-8 max-w-7xl mx-auto">
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => handleGuestCategoryClick("chocolates")}
-              className={`relative bg-gradient-to-br from-orange-500 to-red-600 rounded-lg p-8 text-white overflow-hidden group min-h-[200px] ${
-                selectedGuestCategory === "chocolates" ? "ring-4 ring-orange-300" : ""
-              }`}
-            >
-              <div className="absolute inset-0 bg-gradient-to-br from-orange-400/20 to-red-500/20"></div>
-              <div className="relative z-10">
-                <div className="text-base opacity-90 mb-3">{t("home.premiumChocolates")}</div>
-                <div className="text-2xl font-bold mb-3">{t("home.chocolates")}</div>
-                <div className="text-lg opacity-90">{t("home.fromPrice", { price: "99" })}</div>
-              </div>
-              <div className="absolute -bottom-4 -right-4 text-8xl opacity-20 group-hover:opacity-30 transition-opacity">
-                🍫
-              </div>
-            </motion.button>
-
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => handleGuestCategoryClick("biscuits")}
-              className={`relative bg-gradient-to-br from-orange-500 to-red-600 rounded-lg p-8 text-white overflow-hidden group min-h-[200px] ${
-                selectedGuestCategory === "biscuits" ? "ring-4 ring-orange-300" : ""
-              }`}
-            >
-              <div className="absolute inset-0 bg-gradient-to-br from-orange-400/20 to-red-500/20"></div>
-              <div className="relative z-10">
-                <div className="text-base opacity-90 mb-3">{t("home.crunchyCrispy")}</div>
-                <div className="text-2xl font-bold mb-3">{t("home.biscuits")}</div>
-                <div className="text-lg opacity-90">{t("home.fromPrice", { price: "49" })}</div>
-              </div>
-              <div className="absolute -bottom-4 -right-4 text-8xl opacity-20 group-hover:opacity-30 transition-opacity">
-                🍪
-              </div>
-            </motion.button>
-
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => handleGuestCategoryClick("ladoos")}
-              className={`relative bg-gradient-to-br from-orange-500 to-red-600 rounded-lg p-8 text-white overflow-hidden group min-h-[200px] ${
-                selectedGuestCategory === "ladoos" ? "ring-4 ring-orange-300" : ""
-              }`}
-            >
-              <div className="absolute inset-0 bg-gradient-to-br from-orange-400/20 to-red-500/20"></div>
-              <div className="relative z-10">
-                <div className="text-base opacity-90 mb-3">{t("home.traditionalSweets")}</div>
-                <div className="text-2xl font-bold mb-3">{t("home.festiveLadoos")}</div>
-                <div className="text-lg opacity-90">{t("home.fromPrice", { price: "199" })}</div>
-              </div>
-              <div className="absolute -bottom-4 -right-4 text-8xl opacity-20 group-hover:opacity-30 transition-opacity">
-                🥮
-              </div>
-            </motion.button>
-
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => handleGuestCategoryClick("cakes")}
-              className={`relative bg-gradient-to-br from-orange-500 to-red-600 rounded-lg p-8 text-white overflow-hidden group min-h-[200px] ${
-                selectedGuestCategory === "cakes" ? "ring-4 ring-orange-300" : ""
-              }`}
-            >
-              <div className="absolute inset-0 bg-gradient-to-br from-orange-400/20 to-red-500/20"></div>
-              <div className="relative z-10">
-                <div className="text-base opacity-90 mb-3">{t("home.freshBakedDaily")}</div>
-                <div className="text-2xl font-bold mb-3">{t("home.birthdayCakes")}</div>
-                <div className="text-lg opacity-90">{t("home.fromPrice", { price: "299" })}</div>
-              </div>
-              <div className="absolute -bottom-4 -right-4 text-8xl opacity-20 group-hover:opacity-30 transition-opacity">
-                🎂
-              </div>
-            </motion.button>
-
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => handleGuestCategoryClick("hot_snacks")}
-              className={`relative bg-gradient-to-br from-orange-500 to-red-600 rounded-lg p-8 text-white overflow-hidden group min-h-[200px] ${
-                selectedGuestCategory === "hot_snacks" ? "ring-4 ring-orange-300" : ""
-              }`}
-            >
-              <div className="absolute inset-0 bg-gradient-to-br from-orange-400/20 to-red-500/20"></div>
-              <div className="relative z-10">
-                <div className="text-base opacity-90 mb-3">{t("home.spicyTangy")}</div>
-                <div className="text-2xl font-bold mb-3">{t("home.hotSnacks")}</div>
-                <div className="text-lg opacity-90">{t("home.fromPrice", { price: "99" })}</div>
-              </div>
-              <div className="absolute -bottom-4 -right-4 text-8xl opacity-20 group-hover:opacity-30 transition-opacity">
-                🌶️
-              </div>
-            </motion.button>
-
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => handleGuestCategoryClick("beverages")}
-              className={`relative bg-gradient-to-br from-orange-500 to-red-600 rounded-lg p-8 text-white overflow-hidden group min-h-[200px] ${
-                selectedGuestCategory === "beverages" ? "ring-4 ring-orange-300" : ""
-              }`}
-            >
-              <div className="absolute inset-0 bg-gradient-to-br from-orange-400/20 to-red-500/20"></div>
-              <div className="relative z-10">
-                <div className="text-base opacity-90 mb-3">{t("home.refreshingDrinks")}</div>
-                <div className="text-2xl font-bold mb-3">{t("home.beverages")}</div>
-                <div className="text-lg opacity-90">{t("home.fromPrice", { price: "29" })}</div>
-              </div>
-              <div className="absolute -bottom-4 -right-4 text-8xl opacity-20 group-hover:opacity-30 transition-opacity">
-                🥤
-              </div>
-            </motion.button>
+            {categoriesLoading ? (
+              // Loading skeleton
+              Array.from({ length: 6 }).map((_, index) => (
+                <div
+                  key={`skeleton-${index}`}
+                  className="bg-gray-200 rounded-lg p-8 min-h-[200px] animate-pulse"
+                />
+              ))
+            ) : categories.length > 0 ? (
+              // Show first 6 categories from backend
+              categories.slice(0, 6).map((category) => {
+                const displayInfo = CATEGORY_DISPLAY_MAP[category.name] || {
+                  emoji: "📦",
+                  subtitle: "home.miscellaneous",
+                  title: "home.other",
+                  minPrice: "49",
+                };
+                
+                return (
+                  <motion.button
+                    key={category.name}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setSelectedGuestCategory(category.name)}
+                    className={`relative bg-gradient-to-br from-orange-500 to-red-600 rounded-lg p-8 text-white overflow-hidden group min-h-[200px] ${
+                      selectedGuestCategory === category.name ? "ring-4 ring-orange-300" : ""
+                    }`}
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-br from-orange-400/20 to-red-500/20"></div>
+                    <div className="relative z-10">
+                      <div className="text-base opacity-90 mb-3">{t(displayInfo.subtitle)}</div>
+                      <div className="text-2xl font-bold mb-3">{t(displayInfo.title)}</div>
+                      <div className="text-lg opacity-90">{t("home.fromPrice", { price: displayInfo.minPrice })}</div>
+                      {category.count > 0 && (
+                        <div className="text-sm opacity-75 mt-2">
+                          {category.count} {category.count === 1 ? "item" : "items"}
+                        </div>
+                      )}
+                    </div>
+                    <div className="absolute -bottom-4 -right-4 text-8xl opacity-20 group-hover:opacity-30 transition-opacity">
+                      {displayInfo.emoji}
+                    </div>
+                  </motion.button>
+                );
+              })
+            ) : (
+              // Fallback to hardcoded categories if backend fails
+              ["chocolates", "biscuits", "ladoos", "cakes", "hot_snacks", "beverages"].map((categoryName) => {
+                const displayInfo = CATEGORY_DISPLAY_MAP[categoryName];
+                return (
+                  <motion.button
+                    key={categoryName}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setSelectedGuestCategory(categoryName)}
+                    className={`relative bg-gradient-to-br from-orange-500 to-red-600 rounded-lg p-8 text-white overflow-hidden group min-h-[200px] ${
+                      selectedGuestCategory === categoryName ? "ring-4 ring-orange-300" : ""
+                    }`}
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-br from-orange-400/20 to-red-500/20"></div>
+                    <div className="relative z-10">
+                      <div className="text-base opacity-90 mb-3">{t(displayInfo.subtitle)}</div>
+                      <div className="text-2xl font-bold mb-3">{t(displayInfo.title)}</div>
+                      <div className="text-lg opacity-90">{t("home.fromPrice", { price: displayInfo.minPrice })}</div>
+                    </div>
+                    <div className="absolute -bottom-4 -right-4 text-8xl opacity-20 group-hover:opacity-30 transition-opacity">
+                      {displayInfo.emoji}
+                    </div>
+                  </motion.button>
+                );
+              })
+            )}
           </div>
         </div>
       </motion.div>
@@ -740,6 +816,7 @@ const ProductSection = memo(function ProductSection() {
   const dispatch = useDispatch();
   const store = useStore<RootState>();
   const { t } = useLanguage();
+  const [selectedGuestCategory, setSelectedGuestCategory] = useState("all");
 
   const handleNavigateToProduct = useCallback(
     (id: string) => {
@@ -748,13 +825,14 @@ const ProductSection = memo(function ProductSection() {
     [navigate]
   );
 
-  // Fetch products from API
+  // Fetch products from API with category filter
   const {
     data: productsData,
     isLoading,
     error,
   } = useGetProductsQuery({
     limit: HOME_PRODUCTS_LIMIT,
+    ...(selectedGuestCategory !== "all" && { category: selectedGuestCategory }),
   });
 
   const products = productsData?.products ?? [];
@@ -861,7 +939,10 @@ const ProductSection = memo(function ProductSection() {
       </div>
 
       <HomeTopSelling products={products} />
-      <HomeHeader />
+      <HomeHeader 
+        selectedGuestCategory={selectedGuestCategory}
+        setSelectedGuestCategory={setSelectedGuestCategory}
+      />
       <HomeGuestOnly>
         <HomeGuestProductSections
           products={products}

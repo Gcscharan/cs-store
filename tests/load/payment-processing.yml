@@ -1,0 +1,126 @@
+config:
+  target: "{{ $processEnvironment.API_URL || 'http://localhost:3000' }}"
+  phases:
+    - duration: 60
+      arrivalRate: 5
+      name: "Warm up"
+    - duration: 300
+      arrivalRate: 25
+      name: "Sustained load"
+    - duration: 120
+      arrivalRate: 50
+      name: "Peak load"
+    - duration: 60
+      arrivalRate: 5
+      name: "Cool down"
+  processor: "./processors/payment.js"
+  plugins:
+    metrics-by-endpoint:
+      stripQueryString: true
+  ensure:
+    p95: 1000  # Payment operations can be slower
+    p99: 2000
+    maxErrorRate: 5  # Allow 5% error rate for payment (gateway issues)
+
+scenarios:
+  - name: "Payment - Razorpay Flow"
+    weight: 40
+    flow:
+      - function: "generateAuthToken"
+      - function: "createTestCart"
+      - post:
+          url: "/api/orders"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+            Content-Type: "application/json"
+            Idempotency-Key: "order_{{ $randomString() }}"
+          json:
+            paymentMethod: "razorpay"
+          capture:
+            - json: "$.order._id"
+              as: "orderId"
+          expect:
+            - statusCode: 201
+            - hasProperty: "order._id"
+      - think: 1
+      - post:
+          url: "/api/orders/{{ orderId }}/payment-intent"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+            Content-Type: "application/json"
+            Idempotency-Key: "intent_{{ orderId }}_1"
+          capture:
+            - json: "$.checkoutPayload.orderId"
+              as: "razorpayOrderId"
+          expect:
+            - statusCode: 200
+            - hasProperty: "checkoutPayload"
+      - think: 5  # Simulate user completing payment
+      - function: "simulateRazorpayWebhook"
+      - loop:
+          - get:
+              url: "/api/orders/{{ orderId }}"
+              headers:
+                Authorization: "Bearer {{ authToken }}"
+              capture:
+                - json: "$.order.paymentStatus"
+                  as: "paymentStatus"
+          - think: 3
+        count: 10
+        whileTrue: "paymentStatus !== 'PAID'"
+
+  - name: "Payment - UPI Flow"
+    weight: 40
+    flow:
+      - function: "generateAuthToken"
+      - function: "createTestCart"
+      - post:
+          url: "/api/orders"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+            Content-Type: "application/json"
+            Idempotency-Key: "order_{{ $randomString() }}"
+          json:
+            paymentMethod: "upi"
+          capture:
+            - json: "$.order._id"
+              as: "orderId"
+          expect:
+            - statusCode: 201
+      - think: 5  # Simulate UPI app interaction
+      - function: "simulateUPICallback"
+      - get:
+          url: "/api/orders/{{ orderId }}/payment-status"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+            - hasProperty: "paymentStatus"
+
+  - name: "Payment - COD Flow"
+    weight: 20
+    flow:
+      - function: "generateAuthToken"
+      - function: "createTestCart"
+      - post:
+          url: "/api/orders"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+            Content-Type: "application/json"
+            Idempotency-Key: "order_{{ $randomString() }}"
+          json:
+            paymentMethod: "cod"
+          capture:
+            - json: "$.order._id"
+              as: "orderId"
+          expect:
+            - statusCode: 201
+            - hasProperty: "order._id"
+      - get:
+          url: "/api/orders/{{ orderId }}"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+            - jsonpath: "$.order.paymentMethod"
+              value: "cod"

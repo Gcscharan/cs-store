@@ -5,7 +5,7 @@ import { RootState } from "../store";
 import { setUser } from "../store/slices/authSlice";
 import { useToast } from "../components/AccessibleToast";
 import { Plus, MapPin, Phone, User, ArrowLeft } from "lucide-react";
-import { isPincodeDeliverable } from "../utils/pincodeValidation";
+import { isPincodeDeliverable } from "@vyaparsetu/shared-utils";
 import { toApiUrl } from "../config/runtime";
 import {
   useGetAddressesQuery,

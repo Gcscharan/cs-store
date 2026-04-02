@@ -5,8 +5,8 @@ import {
   calculateDeliveryFeeForPincode,
   formatDeliveryFee,
   isValidPincode,
-  DeliveryFeeResult,
-} from "../utils/deliveryFeeCalculator";
+  type DeliveryFeeResult,
+} from "@vyaparsetu/shared-utils";
 
 interface DeliveryFeeDisplayProps {
   pincode: string;
@@ -45,7 +45,7 @@ const DeliveryFeeDisplay: React.FC<DeliveryFeeDisplayProps> = ({
         onFeeChange?.(
           result.totalFee,
           result.isFreeDelivery,
-          result.isDeliveryAvailable
+          result.isDeliveryAvailable ?? true
         );
       } catch (err) {
         console.error("Error calculating delivery fee:", err);

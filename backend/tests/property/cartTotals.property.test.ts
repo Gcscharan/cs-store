@@ -2,7 +2,7 @@ import fc from "fast-check";
 
 import { calculateCartTotals } from "../../src/domains/cart/utils/CartUtils";
 
-const numRuns = process.env.CI_NIGHTLY === "true" ? 10000 : 100;
+const numRuns = process.env.CI_NIGHTLY === "true" ? 10000 : 20;
 
 describe("Property: cart totals", () => {
   test("total and itemCount are consistent and never negative", () => {

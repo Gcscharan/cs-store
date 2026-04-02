@@ -5,7 +5,7 @@ import { RootState } from "../store";
 import { motion } from "framer-motion";
 import { CheckCircle, MapPin, User, ArrowLeft } from "lucide-react";
 import OrderTimeline from "../components/OrderTimeline";
-import { buildCustomerOrderTimeline } from "../utils/customerOrderTimeline";
+import { buildCustomerOrderTimeline } from "@vyaparsetu/shared-utils";
 import { shouldShowDeliveryPartner } from "../utils/deliveryPartnerVisibility";
 import { isRefundsUiEnabled } from "../config/featureFlags";
 import { useLanguage } from "../contexts/LanguageContext";

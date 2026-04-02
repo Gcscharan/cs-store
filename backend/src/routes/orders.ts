@@ -76,6 +76,79 @@ router.get("/:id/tracking", authenticateToken, async (req, res) => {
 router.get("/:orderId/payment-status", authenticateToken, getPaymentStatus);
 router.put("/:orderId/payment-status", authenticateToken, updatePaymentStatus);
 
+// UPI payment callback route (no auth required for external callbacks)
+router.post("/:orderId/payment-callback", async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { status, transactionId } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return res.status(400).json({ error: "Invalid order ID" });
+    }
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({ error: "Order not found" });
+    }
+
+    // Update payment status for UPI payments
+    if (status === 'SUCCESS') {
+      await Order.findByIdAndUpdate(
+        orderId,
+        {
+          paymentStatus: 'PAID',
+          'paymentIntent.status': 'completed',
+          'paymentIntent.updatedAt': new Date(),
+        },
+        { 
+          context: { paymentStatusSource: "WEBHOOK_PAYMENT_CAPTURED" } 
+        } as any
+      );
+    }
+
+    res.json({ success: true, message: "Payment callback processed" });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to process payment callback" });
+  }
+});
+
+// Payment intent routes
+router.post("/:orderId/payment-intent", authenticateToken, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return res.status(400).json({ error: "Invalid order ID" });
+    }
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({ error: "Order not found" });
+    }
+
+    // Check if order is already paid
+    if (order.paymentStatus === 'PAID') {
+      return res.status(400).json({ error: "Order is already paid" });
+    }
+
+    // Create or update payment intent
+    const paymentIntent = {
+      id: `pi_${Date.now()}`,
+      status: 'pending' as const,
+      amount: order.totalAmount,
+      currency: 'INR',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    await Order.findByIdAndUpdate(orderId, { paymentIntent });
+
+    res.json({ paymentIntent });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to create payment intent" });
+  }
+});
+
 // Order assignment routes
 router.post(
   "/:orderId/assign",

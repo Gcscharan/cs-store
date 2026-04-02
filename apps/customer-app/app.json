@@ -1,64 +1,61 @@
 {
   "expo": {
     "name": "VyaparSetu",
-    "slug": "vyaparsetu-customer",
+    "slug": "vyaparsetu-monorepo",
+    "scheme": "vyaparsetu-customer",
     "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
-    "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#E95C1E"
-    },
-    "ios": {
-      "supportsTablet": false,
-      "bundleIdentifier": "com.vyaparsetu.customer",
-      "buildNumber": "1",
-      "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "VyaparSetu uses your location to show nearby stores and delivery estimates.",
-        "NSCameraUsageDescription": "VyaparSetu uses your camera for profile photos.",
-        "NSPhotoLibraryUsageDescription": "VyaparSetu accesses your photos for profile pictures."
-      }
-    },
+    "platforms": [
+      "android",
+      "ios"
+    ],
     "android": {
+      "package": "com.vyaparsetu.customer",
+      "googleServicesFile": "./google-services.json",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyBNKtlvo5xWWO-S02fm1GCIr6eVLJmFP_k"
+        }
+      },
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#E95C1E"
+        "backgroundColor": "#f97316"
       },
-      "package": "com.vyaparsetu.customer",
-      "versionCode": 1,
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
-        "CAMERA",
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE",
-        "RECEIVE_BOOT_COMPLETED",
-        "VIBRATE"
+        "ACCESS_BACKGROUND_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
       ]
     },
+    "ios": {
+      "bundleIdentifier": "com.vyaparsetu.customer",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "We need your location to track deliveries and navigate to customer addresses.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "We need your location to track deliveries and navigate to customer addresses.",
+        "NSLocationAlwaysUsageDescription": "We need your location to track deliveries while in the background.",
+        "UIBackgroundModes": [
+          "location"
+        ]
+      }
+    },
     "plugins": [
-      "expo-location",
+      "expo-secure-store",
       [
-        "expo-notifications",
+        "expo-location",
         {
-          "icon": "./assets/notification-icon.png",
-          "color": "#E95C1E",
-          "defaultChannel": "default"
+          "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location for delivery tracking.",
+          "isAndroidBackgroundLocationEnabled": true
         }
       ],
-      [
-        "expo-image-picker",
-        {
-          "photosPermission": "Allow VyaparSetu to access your photos."
-        }
-      ]
+      "expo-web-browser",
+      "@react-native-google-signin/google-signin",
+      "expo-image",
+      "expo-speech-recognition"
     ],
     "extra": {
       "eas": {
-        "projectId": "REPLACE_AFTER_EAS_INIT"
+        "projectId": "4fdb021f-e1f7-420f-a095-dd646ee20186"
       }
     }
   }

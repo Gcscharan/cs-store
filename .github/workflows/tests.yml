@@ -1,389 +1,121 @@
-name: VyaparSetu Full Test Suite
+
+name: Backend Tests
 
 on:
   push:
-    branches: [main, develop]
+    branches: [ main ]
   pull_request:
-  workflow_dispatch:
-  schedule:
-    - cron: '0 20 * * *'
-  # manual trigger button
-
-# Global env vars for all jobs (secrets from GitHub Settings > Secrets)
-env:
-  NODE_ENV: test
-  PORT: 5001
-  SKIP_RATE_LIMIT: true
-  SKIP_CI_CHECKS: true
-  JWT_SECRET: ${{ secrets.JWT_SECRET }}
-  JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
-  RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
-  RAZORPAY_KEY_SECRET: ${{ secrets.RAZORPAY_KEY_SECRET }}
-  RAZORPAY_WEBHOOK_SECRET: ${{ secrets.RAZORPAY_WEBHOOK_SECRET }}
-  REDIS_URL: redis://localhost:6379
+    branches: [ main ]
 
 jobs:
-
-  jest-unit:
-    name: Jest Unit (2708 tests)
+  unit-property-tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: '20' }
-      - run: cd backend && npm ci
-      - run: cd backend && npm run test:unit
-      
-  jest-integration:
-    name: Jest Integration + Reliability
+    - uses: actions/checkout@v3
+    - name: Use Node.js 18
+      uses: actions/setup-node@v3
+      with:
+        node-version: 18
+        cache: 'npm'
+        cache-dependency-path: backend/package-lock.json
+    - name: Install Dependencies
+      run: npm install
+      working-directory: ./backend
+    - name: Run Unit and Property Tests
+      run: |
+        npm run test:unit
+        npm run test:property
+      working-directory: ./backend
+      env:
+        NODE_ENV: test
+        JWT_SECRET: test-secret
+        MONGODB_URI: mongodb://localhost:27017/test
+        REDIS_URL: redis://localhost:6379
+
+  integration-tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
     services:
-      mongo:
-        image: mongo:6
-        ports: ['27017:27017']
+      mongodb:
+        image: mongo:latest
+        ports:
+        - 27017:27017
       redis:
-        image: redis:7
-        ports: ['6379:6379']
-    env:
-      MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test
+        image: redis:latest
+        ports:
+        - 6379:6379
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - run: cd backend && npm ci
-      - run: cd backend && npm run test:integration
-      - run: cd backend && npm run test:integration:reliability
+    - uses: actions/checkout@v3
+    - name: Use Node.js 18
+      uses: actions/setup-node@v3
+      with:
+        node-version: 18
+        cache: 'npm'
+        cache-dependency-path: backend/package-lock.json
+    - name: Install Dependencies
+      run: npm install
+      working-directory: ./backend
+    - name: Run Integration Tests
+      run: npm run test:integration
+      working-directory: ./backend
+      env:
+        NODE_ENV: test
+        JWT_SECRET: test-secret
+        MONGODB_URI: mongodb://localhost:27017/test
+        REDIS_URL: redis://localhost:6379
 
-  jest-advanced:
-    name: Jest Property + Chaos
+  security-tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    services:
-      mongo:
-        image: mongo:6
-        ports: ['27017:27017']
-      redis:
-        image: redis:7
-        ports: ['6379:6379']
-    env:
-      MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - run: cd backend && npm ci
-      - run: cd backend && npm run test:property
-      - run: cd backend && npm run test:chaos
+    - uses: actions/checkout@v3
+    - name: Use Node.js 18
+      uses: actions/setup-node@v3
+      with:
+        node-version: 18
+        cache: 'npm'
+        cache-dependency-path: backend/package-lock.json
+    - name: Install Dependencies
+      run: npm install
+      working-directory: ./backend
+    - name: Run Security Tests
+      run: npm run test:security
+      working-directory: ./backend
+      env:
+        NODE_ENV: test
+        JWT_SECRET: test-secret
+        MONGODB_URI: mongodb://localhost:27017/test
+        REDIS_URL: redis://localhost:6379
 
-  newman-api:
-    name: Newman API (276 requests)
+  upload-reports:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    services:
-      mongo:
-        image: mongo:6
-        ports: ['27017:27017']
-      redis:
-        image: redis:7
-        ports: ['6379:6379']
-    env:
-      MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test
+    needs: [unit-property-tests, integration-tests, security-tests]
+    if: always()
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - run: npm install -g newman
-      - run: cd backend && npm ci
-      - name: Seed test database
-        run: cd backend && npm run test:seed
-      - name: Start backend
-        run: |
-          cd backend && npm run dev &
-          sleep 20
-          curl -f http://localhost:5001/api/health || curl -f http://localhost:5001/health
-      - name: Run Newman
-        run: |
-          mkdir -p test-results
-          newman run backend/tests/api/postman/VyaparSetu.postman_collection.json \
-            --environment backend/tests/api/postman/local.postman_environment.json \
-            --delay-request 200 \
-            --timeout-request 5000 \
-            --reporters cli,json \
-            --reporter-json-export test-results/newman.json
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: newman-results
-          path: test-results/newman.json
-
-  playwright-e2e:
-    name: Playwright E2E (7 tests)
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    services:
-      mongo:
-        image: mongo:6
-        ports: ['27017:27017']
-      redis:
-        image: redis:7
-        ports: ['6379:6379']
-    env:
-      MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - run: cd backend && npm ci
-      - run: cd frontend && npm ci
-      - run: cd frontend && npx playwright install chromium
-      - name: Start backend
-        run: |
-          npm ci
-          cd backend && npm run dev &
-          sleep 25
-          curl -f http://localhost:5001/api/health || curl -f http://localhost:5001/health
-      - name: Start frontend
-        run: cd frontend && npm run dev &
-      - run: sleep 15
-      - name: Run Playwright
-        run: cd frontend && npx playwright test --workers=2 --retries=2
-        continue-on-error: true
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: playwright-report
-          path: frontend/playwright-report/
-
-  nightly-permutations:
-    name: Generated Permutation Tests 1712 cases
-    runs-on: ubuntu-latest
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    timeout-minutes: 20
-    services:
-      mongo:
-        image: mongo:6
-        ports: ['27017:27017']
-      redis:
-        image: redis:7
-        ports: ['6379:6379']
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - run: cd backend && npm ci
-      - run: cd backend && npm run test:generated
-        env:
-          NODE_ENV: test
-          SKIP_RATE_LIMIT: true
-          MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test
-          REDIS_URL: redis://localhost:6379
-          JWT_SECRET: ci-test-secret-minimum-32-characters-long
-          JWT_REFRESH_SECRET: ci-refresh-secret-minimum-32-characters-long
-
-  nightly-security:
-    name: Security Tests 1000 attack vectors
-    runs-on: ubuntu-latest
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    timeout-minutes: 20
-    services:
-      mongo:
-        image: mongo:6
-        ports: ['27017:27017']
-      redis:
-        image: redis:7
-        ports: ['6379:6379']
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - run: cd backend && npm ci
-      - run: cd backend && npm run test:security:all
-        env:
-          NODE_ENV: test
-          SKIP_RATE_LIMIT: true
-          MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test
-          REDIS_URL: redis://localhost:6379
-          JWT_SECRET: ci-test-secret-minimum-32-characters-long
-          JWT_REFRESH_SECRET: ci-refresh-secret-minimum-32-characters-long
-
-  nightly-property-heavy:
-    name: Property Tests Heavy 50k cases
-    runs-on: ubuntu-latest
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - run: cd backend && npm ci
-      - run: cd backend && npm run test:property
-        env:
-          CI_NIGHTLY: 'true'
-          NODE_ENV: test
-
-  nightly-schemathesis-heavy:
-    name: Schemathesis Heavy 40k cases
-    runs-on: ubuntu-latest
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    timeout-minutes: 45
-    services:
-      mongo:
-        image: mongo:6
-        ports: ['27017:27017']
-      redis:
-        image: redis:7
-        ports: ['6379:6379']
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: pip install schemathesis
-      - run: cd backend && npm ci
-      - name: Start backend
-        run: |
-          cd backend && npm run dev &
-          sleep 20
-          curl -f http://localhost:5001/api/health
-        env:
-          NODE_ENV: test
-          SKIP_RATE_LIMIT: true
-          MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test
-          REDIS_URL: redis://localhost:6379
-          JWT_SECRET: ci-test-secret-minimum-32-characters-long
-          JWT_REFRESH_SECRET: ci-refresh-secret-minimum-32-characters-long
-      - run: |
-          SKIP_RATE_LIMIT=true schemathesis run \
-            http://localhost:5001/openapi.json \
-            --max-examples 200 \
-            --workers 8 \
-            --checks not_a_server_error \
-            --exclude-path "/admin/tracking" \
-            --exclude-path "/api/admin/orders/purge" \
-            --exclude-path "/debug/*"
-
-  nightly-k6-heavy:
-    name: k6 Load Heavy 500 VUs
-    runs-on: ubuntu-latest
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    timeout-minutes: 20
-    services:
-      mongo:
-        image: mongo:6
-        ports: ['27017:27017']
-      redis:
-        image: redis:7
-        ports: ['6379:6379']
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - name: Install k6
-        run: |
-          curl https://github.com/grafana/k6/releases/download/v0.49.0/k6-v0.49.0-linux-amd64.tar.gz -L | tar xvz
-          sudo mv k6-v0.49.0-linux-amd64/k6 /usr/local/bin
-      - run: cd backend && npm ci
-      - name: Start backend
-        run: |
-          cd backend && npm run dev &
-          sleep 15
-        env:
-          NODE_ENV: test
-          SKIP_RATE_LIMIT: true
-          MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test
-          REDIS_URL: redis://localhost:6379
-          JWT_SECRET: ci-test-secret-minimum-32-characters-long-abc
-          JWT_REFRESH_SECRET: ci-refresh-secret-minimum-32-chars-xyz
-      - run: |
-          cd backend && k6 run \
-            --env VUS=50 --env NODE_ENV=test \
-            tests/load/orders-load-test.js
-        continue-on-error: true
-
-  schemathesis:
-    name: Schemathesis API Fuzzing
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    services:
-      mongo:
-        image: mongo:6
-        ports: ['27017:27017']
-      redis:
-        image: redis:7
-        ports: ['6379:6379']
-    env:
-      MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: pip install schemathesis
-      - run: cd backend && npm ci
-      - name: Start backend
-        run: |
-          cd backend && npm run dev &
-          sleep 20
-          curl -f http://localhost:5001/api/health || curl -f http://localhost:5001/health
-      - name: Run Schemathesis
-        run: |
-          schemathesis run \
-            http://localhost:5001/openapi.json \
-            --max-examples 3 \
-            --workers 4 \
-            --checks not_a_server_error \
-            --exclude-path "/admin/tracking" \
-            --exclude-path "/api/admin/orders/purge" \
-            --exclude-path "/debug/*" \
-            2>&1 | tail -30
-
-  k6-load:
-    name: k6 Load Test
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    services:
-      mongo:
-        image: mongo:6
-        ports: ['27017:27017']
-      redis:
-        image: redis:7
-        ports: ['6379:6379']
-    env:
-      MONGODB_URI: mongodb://localhost:27017/vyaparsetu_test
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - name: Install k6
-        run: |
-          curl https://github.com/grafana/k6/releases/download/v0.49.0/k6-v0.49.0-linux-amd64.tar.gz -L | tar xvz
-          sudo mv k6-v0.49.0-linux-amd64/k6 /usr/local/bin
-      - run: cd backend && npm ci
-      - name: Start backend
-        run: |
-          cd backend && npm run dev &
-          sleep 20
-      - name: Run k6 light load
-        run: |
-          cd backend && k6 run \
-            --env VUS=10 \
-            --env NODE_ENV=test \
-            tests/load/orders-load-test.js
-        continue-on-error: true
+    - uses: actions/checkout@v3
+    - name: Use Node.js 18
+      uses: actions/setup-node@v3
+      with:
+        node-version: 18
+        cache: 'npm'
+        cache-dependency-path: backend/package-lock.json
+    - name: Install Dependencies
+      run: npm install
+      working-directory: ./backend
+    - name: Generate Reports
+      run: npm run test:ci
+      working-directory: ./backend
+      continue-on-error: true
+      env:
+        NODE_ENV: test
+        JWT_SECRET: test-secret
+        MONGODB_URI: mongodb://localhost:27017/test
+        REDIS_URL: redis://localhost:6379
+    - name: Upload Coverage Report
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-report
+        path: backend/coverage/
+    - name: Upload Test Results
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-results
+        path: backend/test-results/

@@ -28,7 +28,7 @@ describe("Internal payments reconciliation (read-only)", () => {
     const token = await (global as any).getAuthToken(user);
 
     const res = await request(app)
-      .get("/internal/payments/reconciliation")
+      .get("/api/internal/payments/reconciliation")
       .set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(403);
@@ -80,7 +80,7 @@ describe("Internal payments reconciliation (read-only)", () => {
     await setUpdatedAt(i3._id, new Date(fixedNow.getTime() - 40 * 60_000));
 
     const res = await request(app)
-      .get("/internal/payments/reconciliation")
+      .get("/api/internal/payments/reconciliation")
       .set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(200);
@@ -129,7 +129,7 @@ describe("Internal payments reconciliation (read-only)", () => {
     await setUpdatedAt(newer._id, new Date(fixedNow.getTime() - 20 * 60_000));
 
     const res = await request(app)
-      .get("/internal/payments/reconciliation")
+      .get("/api/internal/payments/reconciliation")
       .set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(200);
@@ -190,7 +190,7 @@ describe("Internal payments reconciliation (read-only)", () => {
 
     // Filter to locked recoverable only and paginate
     const res1 = await request(app)
-      .get("/internal/payments/reconciliation")
+      .get("/api/internal/payments/reconciliation")
       .query({ status: "PAYMENT_RECOVERABLE", isLocked: "true", limit: 1 })
       .set("Authorization", `Bearer ${token}`);
 
@@ -203,7 +203,7 @@ describe("Internal payments reconciliation (read-only)", () => {
     expect(typeof cursor).toBe("string");
 
     const res2 = await request(app)
-      .get("/internal/payments/reconciliation")
+      .get("/api/internal/payments/reconciliation")
       .query({ status: "PAYMENT_RECOVERABLE", isLocked: "true", limit: 2, cursor })
       .set("Authorization", `Bearer ${token}`);
 
@@ -228,7 +228,7 @@ describe("Internal payments reconciliation (read-only)", () => {
     const token = await (global as any).getAuthToken(admin);
 
     const res = await request(app)
-      .get("/internal/payments/reconciliation")
+      .get("/api/internal/payments/reconciliation")
       .query({ status: "CAPTURED" })
       .set("Authorization", `Bearer ${token}`);
 

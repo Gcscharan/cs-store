@@ -2,8 +2,15 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { Pincode } from "../models/Pincode";
+import { withCircuitBreaker } from "./dbHelpers";
+import { createCacheService } from "../services/cacheService";
+import { logInfo, logWarn, logError } from "./structuredLogger";
 
 const csvParser = require("csv-parser");
+
+// Initialize cache service
+const cacheService = createCacheService();
+const CACHE_TTL_SECONDS = 600; // 10 minutes
 
 export const districtOverrides: Record<string, Record<string, string>> = {
   "Andhra Pradesh": {
@@ -23,7 +30,6 @@ export const applyDistrictOverride = (
 };
 
 export type ResolvedPincodeDetails = {
-  deliverable: boolean;
   state: string;
   postal_district: string;
   cities: string[];
@@ -44,11 +50,6 @@ type CsvMeta = {
 };
 
 let csvMetaIndexPromise: Promise<Map<string, CsvMeta>> | null = null;
-
-const isDeliverableState = (state: string | undefined): boolean => {
-  if (!state) return false;
-  return state === "Andhra Pradesh" || state === "Telangana";
-};
 
 const resolveDatasetPath = (): string | null => {
   const fromEnv = (process.env.PINCODE_DATASET_PATH || "").trim();
@@ -117,34 +118,99 @@ export const resolvePincodeDetails = async (
 ): Promise<ResolvedPincodeDetails | null> => {
   if (!pincode || pincode.length !== 6 || !/^\d{6}$/.test(pincode)) return null;
 
+  const startTime = Date.now();
+
+  // 1. Check cache first (CacheService with 10-minute TTL)
+  const cacheKey = `pincode:${pincode}`;
+  const cached = await cacheService.get(cacheKey);
+  if (cached) {
+    logInfo('PINCODE_CACHE_HIT', {
+      pincode,
+      source: 'cache',
+      duration: Date.now() - startTime,
+    });
+    return cached;
+  }
+
+  // 2. Try MongoDB (PRIMARY source) with circuit breaker + timeout
+  try {
+    const pincodeData = await withCircuitBreaker(() => 
+      Pincode.findOne({ pincode })
+    );
+    
+    if (pincodeData && pincodeData.state) {
+      const state = String(pincodeData.state).trim();
+      const postal_district = String(pincodeData.district || "").trim();
+      
+      if (state) {
+        const cities = [pincodeData.taluka].filter(Boolean) as string[];
+        
+        // Return location data only (no business logic - architectural compliance)
+        const result = {
+          state,
+          postal_district,
+          cities,
+          single_city: cities.length === 1 ? cities[0] : null,
+        };
+        
+        // Cache the result (fire-and-forget, don't block response)
+        cacheService.set(cacheKey, result, CACHE_TTL_SECONDS).catch(() => {});
+        
+        logInfo('PINCODE_LOOKUP', {
+          pincode,
+          source: 'mongo',
+          cacheHit: false,
+          found: true,
+          duration: Date.now() - startTime,
+        });
+        
+        return result;
+      }
+    }
+  } catch (error) {
+    // Log DB error (should not reach here with circuit breaker, but keep for safety)
+    logError('PINCODE_LOOKUP_ERROR', {
+      pincode,
+      source: 'mongo',
+      error: error instanceof Error ? error.message : 'Unknown error',
+      duration: Date.now() - startTime,
+    });
+    // Fall through to CSV fallback
+  }
+
+  // 3. Fallback to CSV (ONLY when MongoDB fails or returns nothing)
   const csvIndex = await getCsvMetaIndex();
   const meta = csvIndex.get(pincode);
   if (meta) {
     const cities = Array.from(meta.cities);
-    return {
-      deliverable: isDeliverableState(meta.state),
+    const result = {
       state: meta.state,
       postal_district: meta.postal_district || "",
       cities,
       single_city: cities.length === 1 ? cities[0] : null,
     };
+    
+    // Cache the result (fire-and-forget, don't block response)
+    cacheService.set(cacheKey, result, CACHE_TTL_SECONDS).catch(() => {});
+    
+    logInfo('PINCODE_LOOKUP', {
+      pincode,
+      source: 'csv_fallback',
+      cacheHit: false,
+      found: true,
+      duration: Date.now() - startTime,
+    });
+    
+    return result;
   }
 
-  const pincodeData = await Pincode.findOne({ pincode });
-  if (!pincodeData || !pincodeData.state) return null;
-
-  const state = String(pincodeData.state).trim();
-  const postal_district = String(pincodeData.district || "").trim();
-  if (!state) return null;
-
-  const cities = [pincodeData.taluka].filter(Boolean) as string[];
-  return {
-    deliverable: process.env.NODE_ENV === "test" ? true : isDeliverableState(state),
-    state,
-    postal_district,
-    cities,
-    single_city: cities.length === 1 ? cities[0] : null,
-  };
+  // 4. Not found anywhere
+  logWarn('PINCODE_NOT_FOUND', {
+    pincode,
+    source: 'all',
+    duration: Date.now() - startTime,
+  });
+  return null;
 };
 
 export const resolvePincodeForAddressSave = async (

@@ -9,6 +9,7 @@ import {
   refresh,
   logout,
   googleCallback,
+  googleMobileAuth,
   changePassword,
   sendAuthOTP,
   verifyAuthOTP,
@@ -99,5 +100,8 @@ router.get(
   passport.authenticate("google", { session: false }),
   googleCallback
 );
+
+// Google Mobile Auth - Token-based for React Native
+router.post("/google-mobile", googleMobileAuth);
 
 export default router;

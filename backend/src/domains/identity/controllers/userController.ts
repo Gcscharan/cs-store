@@ -10,10 +10,8 @@ import { Order } from "../../../models/Order";
 import { Payment } from "../../../models/Payment";
 import Otp from "../../../models/Otp";
 import Notification from "../../../models/Notification";
-import { geocodeByPincode, smartGeocode } from "../../../utils/geocoding";
-import { resolvePincodeAuthoritatively } from "../../../utils/authoritativePincodeResolver";
+import { getServices } from "../../../services/serviceRegistry";
 import { resolvePincodeForAddressSave } from "../../../utils/pincodeResolver";
-import { validatePincode } from "../../../services/pincodeValidator";
 import { publish } from "../../events/eventBus";
 import { stableEventId } from "../../events/eventId";
 import { createAccountProfileUpdatedEvent } from "../../events/account.events";
@@ -154,6 +152,7 @@ export const addUserAddress = async (
     logger.error("🔥 addUserAddress controller HIT");
 
     const userId = (req as any).userId || (req as any).user?._id;
+    const services = getServices(); // Declare once at the top
 
     console.info("[addUserAddress] Incoming payload:", {
       userId,
@@ -178,12 +177,29 @@ export const addUserAddress = async (
       address_line: addressLineSnake,
       phone,
       isDefault,
+      validationSource,
+      gpsAccuracy,
     } = req.body;
 
     const addressLine = addressLineFromBody || addressLineSnake;
 
-    if (typeof resolvePincodeAuthoritatively !== "function") {
-      throw new Error("resolvePincodeAuthoritatively is undefined");
+    // Validate GPS accuracy if provided
+    if (gpsAccuracy !== undefined) {
+      const accuracy = Number(gpsAccuracy);
+      if (isNaN(accuracy) || accuracy < 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid GPS accuracy value",
+        });
+      }
+      
+      // Reject very low accuracy (>100m)
+      if (accuracy > 100) {
+        return res.status(400).json({
+          success: false,
+          message: "GPS accuracy too low. Please try again with better signal.",
+        });
+      }
     }
 
     if (!pincode || typeof pincode !== "string" || pincode.length !== 6 || !/^\d{6}$/.test(pincode)) {
@@ -242,7 +258,7 @@ export const addUserAddress = async (
     }
 
     // Validate pincode with India Post API
-    const pincodeResult = await validatePincode(pincode);
+    const pincodeResult = await services.pincode.validatePincode(pincode);
     if (!pincodeResult.valid) {
       logger.warn(`[addUserAddress] Invalid pincode: ${pincode}`);
       res.status(400).json({
@@ -305,7 +321,7 @@ export const addUserAddress = async (
         return;
       }
 
-      const backfill = await resolvePincodeAuthoritatively(addrPincode);
+      const backfill = await services.pincode.resolvePincodeAuthoritatively(addrPincode);
       if (!backfill) {
         logger.error("[addUserAddress] Failed to backfill existing address districts", {
           addressId: addr._id?.toString?.(),
@@ -332,13 +348,13 @@ export const addUserAddress = async (
     logger.info(`\n🌍 Auto-geocoding address for user ${userId}...`);
     
     // Try full address geocoding first
-    let geocodeResult = await smartGeocode(addressLine, city, state, pincode);
+    let geocodeResult = await services.geocoding.smartGeocode(addressLine, city, state, pincode);
     let coordsSource: 'geocoded' | 'pincode' = 'geocoded';
     
     if (!geocodeResult) {
       // Full geocoding failed, try pincode fallback
       logger.warn(`⚠️ Full address geocoding failed, trying pincode fallback for ${pincode}...`);
-      geocodeResult = await geocodeByPincode(pincode);
+      geocodeResult = await services.geocoding.geocodeByPincode(pincode);
       
       if (geocodeResult) {
         logger.info(`✅ Pincode geocoding successful: lat=${geocodeResult.lat}, lng=${geocodeResult.lng}`);
@@ -364,7 +380,7 @@ export const addUserAddress = async (
       });
     }
 
-    const resolved = await resolvePincodeAuthoritatively(pincode);
+    const resolved = await services.pincode.resolvePincodeAuthoritatively(pincode);
     logger.error("🔥 Resolver output:", resolved);
 
     if (!resolved) {
@@ -396,6 +412,8 @@ export const addUserAddress = async (
       isDefault: isDefault || false,
       isGeocoded: true,  // Coordinates obtained via geocoding
       coordsSource: coordsSource,  // 'geocoded' or 'pincode' based on which method worked
+      validationSource: validationSource || 'manual',  // Track how pincode was validated
+      ...(gpsAccuracy !== undefined && { gpsAccuracy: Number(gpsAccuracy) }), // Store GPS accuracy if provided
     };
 
     user.addresses.push(newAddress);
@@ -413,10 +431,20 @@ export const addUserAddress = async (
     const cleanAddress = safeDoc(savedAddress);
     (cleanAddress as any).id = savedAddress._id.toString();
 
+    // Check for GPS accuracy warnings
+    const warnings: string[] = [];
+    if (gpsAccuracy !== undefined) {
+      const accuracy = Number(gpsAccuracy);
+      if (accuracy >= 50 && accuracy <= 100) {
+        warnings.push('low_gps_accuracy');
+      }
+    }
+
     res.status(201).json({
       success: true,
       message: "Address added successfully",
       address: cleanAddress,
+      ...(warnings.length > 0 && { warnings }),
       // Include city/state hints if there was a mismatch
       ...(cityHint && {
         suggestions: {
@@ -454,6 +482,7 @@ export const updateUserAddress = async (
   try {
     const userId = (req as any).userId || (req as any).user?._id;
     const { addressId } = req.params;
+    const services = getServices(); // Declare once at the top
 
     if (!userId) {
       res.status(401).json({
@@ -485,7 +514,7 @@ export const updateUserAddress = async (
       return;
     }
 
-    const { name, label, pincode, city, state, addressLine, phone, isDefault } =
+    const { name, label, pincode, city, state, addressLine, phone, isDefault, validationSource } =
       req.body;
 
     if (pincode !== undefined) {
@@ -514,13 +543,13 @@ export const updateUserAddress = async (
       const finalPincode = pincode || address.pincode;
       
       logger.info(`\n🌍 Re-geocoding updated address for user ${userId}...`);
-      let geocodeResult = await smartGeocode(finalAddressLine, finalCity, finalState, finalPincode);
+      let geocodeResult = await services.geocoding.smartGeocode(finalAddressLine, finalCity, finalState, finalPincode);
       let coordsSource: 'geocoded' | 'pincode' = 'geocoded';
       
       if (!geocodeResult) {
         // Full geocoding failed, try pincode fallback
         logger.warn(`⚠️ Full address geocoding failed, trying pincode fallback for ${finalPincode}...`);
-        geocodeResult = await geocodeByPincode(finalPincode);
+        geocodeResult = await services.geocoding.geocodeByPincode(finalPincode);
         
         if (geocodeResult) {
           logger.info(`✅ Pincode geocoding successful: lat=${geocodeResult.lat}, lng=${geocodeResult.lng}`);
@@ -553,6 +582,7 @@ export const updateUserAddress = async (
     if (state) address.state = state;
     if (addressLine) address.addressLine = addressLine;
     if (phone !== undefined) address.phone = phone || "";
+    if (validationSource !== undefined) address.validationSource = validationSource;
     if (isDefault !== undefined) {
       // If this is set as default, remove default from all other addresses
       if (isDefault) {
@@ -753,6 +783,104 @@ export const setDefaultAddress = async (
       success: false,
       message: "Internal server error",
     });
+  }
+};
+
+// Update user push token
+export const updatePushToken = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const userId = (req as any).userId || (req as any).user?._id;
+
+    if (!userId) {
+      res.status(401).json({ error: "User not authenticated" });
+      return;
+    }
+
+    const { pushToken } = req.body;
+
+    if (!pushToken) {
+      res.status(400).json({ error: "Push token is required" });
+      return;
+    }
+
+    const userProfileService = new UserProfileService();
+    await userProfileService.updatePushToken(userId, pushToken);
+
+    res.status(200).json({ success: true, message: "Push token updated successfully" });
+  } catch (error) {
+    logger.error("Error updating push token:", error);
+    res.status(500).json({ error: "Failed to update push token" });
+  }
+};
+
+// Get user referral code
+export const getUserReferral = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const userId = (req as any).userId || (req as any).user?._id;
+
+    if (!userId) {
+      res.status(401).json({ error: "User not authenticated" });
+      return;
+    }
+
+    const user = await User.findById(userId).select("referralCode");
+
+    if (!user) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+
+    // If no referral code, generate one (fallback)
+    let code = user.referralCode;
+    if (!code) {
+      code = `VS${userId.toString().slice(-6).toUpperCase()}`;
+      user.referralCode = code;
+      await user.save();
+    }
+
+    res.json({
+      code,
+      link: `https://vyaparsetu.com/refer/${code}`,
+    });
+  } catch (error) {
+    logger.error("Error fetching user referral code:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// Get user referral stats
+export const getUserReferralStats = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const userId = (req as any).userId || (req as any).user?._id;
+
+    if (!userId) {
+      res.status(401).json({ error: "User not authenticated" });
+      return;
+    }
+
+    // Count users referred by this user
+    const totalReferrals = await User.countDocuments({ referredBy: userId });
+    
+    // In a real system, we would calculate earnings from a separate Rewards or Transactions collection.
+    // For now, we'll return mock stats based on the count.
+    res.json({
+      totalReferrals,
+      totalEarned: totalReferrals * 50, // Mock: 50 points per referral
+      pending: 0,
+      completed: totalReferrals,
+    });
+  } catch (error) {
+    logger.error("Error fetching user referral stats:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 };
 

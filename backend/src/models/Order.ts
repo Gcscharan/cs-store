@@ -33,6 +33,17 @@ export interface IUpiDetails {
   amount: number;
 }
 
+export interface IPaymentIntent {
+  id?: string;
+  status: "pending" | "processing" | "completed" | "failed" | "expired";
+  amount?: number;
+  currency?: string;
+  razorpayOrderId?: string;
+  razorpayPaymentId?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
 export interface IAssignmentHistory {
   riderId: mongoose.Types.ObjectId;
   offeredAt: Date;
@@ -171,6 +182,7 @@ export interface IOrder extends Document {
   assignmentHistory: IAssignmentHistory[];
   address: IOrderAddress;
   upi?: IUpiDetails;
+  paymentIntent?: IPaymentIntent;
   razorpayOrderId?: string;
   razorpayPaymentId?: string;
   razorpaySignature?: string;
@@ -271,6 +283,21 @@ const OrderAddressSchema = new Schema<IOrderAddress>({
 const UpiDetailsSchema = new Schema<IUpiDetails>({
   vpa: { type: String, required: true },
   amount: { type: Number, required: true, min: 0 },
+});
+
+const PaymentIntentSchema = new Schema<IPaymentIntent>({
+  id: { type: String },
+  status: { 
+    type: String, 
+    enum: ["pending", "processing", "completed", "failed", "expired"],
+    default: "pending"
+  },
+  amount: { type: Number, min: 0 },
+  currency: { type: String, default: "INR" },
+  razorpayOrderId: { type: String },
+  razorpayPaymentId: { type: String },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
 });
 
 const AssignmentHistorySchema = new Schema<IAssignmentHistory>({
@@ -459,6 +486,9 @@ const OrderSchema = new Schema<IOrder>(
     },
     upi: {
       type: UpiDetailsSchema,
+    },
+    paymentIntent: {
+      type: PaymentIntentSchema,
     },
     razorpayOrderId: { type: String },
     razorpayPaymentId: { type: String },

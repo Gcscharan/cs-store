@@ -46,7 +46,7 @@ describe("Refund execution kill switch (REFUND_EXECUTION_ENABLED)", () => {
     });
 
     const res = await request(app)
-      .post("/internal/refunds")
+      .post("/api/internal/refunds")
       .set("Authorization", `Bearer ${token}`)
       .send({
         orderId: String(order._id),

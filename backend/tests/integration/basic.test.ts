@@ -41,8 +41,9 @@ describe("Basic API Tests", () => {
         email: "invalid@example.com",
         password: "wrongpassword"
       })
-      .expect(400);
+      .expect(401);
 
+    expect(response.body).toHaveProperty("error", "PASSWORD_LOGIN_DISABLED");
     expect(response.body).toHaveProperty("message");
   });
 

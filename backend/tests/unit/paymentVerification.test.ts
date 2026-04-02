@@ -25,7 +25,7 @@ describe("GET /internal/payments/verify (STEP 3B.2)", () => {
     const token = await (global as any).getAuthToken(user);
 
     const res = await request(app)
-      .get("/internal/payments/verify")
+      .get("/api/internal/payments/verify")
       .set("Authorization", `Bearer ${token}`)
       .query({ razorpayPaymentId: "pay_x" });
 
@@ -36,7 +36,7 @@ describe("GET /internal/payments/verify (STEP 3B.2)", () => {
     const token = await makeAdminToken("admin-pv-1@example.com");
 
     const res = await request(app)
-      .get("/internal/payments/verify")
+      .get("/api/internal/payments/verify")
       .set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(400);
@@ -79,7 +79,7 @@ describe("GET /internal/payments/verify (STEP 3B.2)", () => {
     const before = await PaymentIntent.findById(pi._id).lean();
 
     const res = await request(app)
-      .get("/internal/payments/verify")
+      .get("/api/internal/payments/verify")
       .set("Authorization", `Bearer ${token}`)
       .query({ paymentIntentId: String(pi._id) });
 
@@ -107,7 +107,7 @@ describe("GET /internal/payments/verify (STEP 3B.2)", () => {
     });
 
     const a = await request(app)
-      .get("/internal/payments/verify")
+      .get("/api/internal/payments/verify")
       .set("Authorization", `Bearer ${token}`)
       .query({ razorpayPaymentId: "pay_auth" });
 
@@ -122,7 +122,7 @@ describe("GET /internal/payments/verify (STEP 3B.2)", () => {
     });
 
     const b = await request(app)
-      .get("/internal/payments/verify")
+      .get("/api/internal/payments/verify")
       .set("Authorization", `Bearer ${token}`)
       .query({ razorpayPaymentId: "pay_fail" });
 
@@ -137,7 +137,7 @@ describe("GET /internal/payments/verify (STEP 3B.2)", () => {
     });
 
     const c = await request(app)
-      .get("/internal/payments/verify")
+      .get("/api/internal/payments/verify")
       .set("Authorization", `Bearer ${token}`)
       .query({ razorpayOrderId: "order_only" });
 
@@ -169,7 +169,7 @@ describe("GET /internal/payments/verify (STEP 3B.2)", () => {
     });
 
     const d = await request(app)
-      .get("/internal/payments/verify")
+      .get("/api/internal/payments/verify")
       .set("Authorization", `Bearer ${token}`)
       .query({ paymentIntentId: String(pi._id) });
 

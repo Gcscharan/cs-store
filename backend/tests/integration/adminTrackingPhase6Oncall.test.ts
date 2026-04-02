@@ -12,7 +12,7 @@ describe("Phase 6 on-call & escalation admin APIs", () => {
 
     // Policy
     await request(app)
-      .post("/admin/tracking/oncall/policies")
+      .post("/api/admin/tracking/oncall/policies")
       .set(headers)
       .send({
         id: "p6-policy-1",
@@ -25,7 +25,7 @@ describe("Phase 6 on-call & escalation admin APIs", () => {
 
     // Schedule
     await request(app)
-      .post("/admin/tracking/oncall/schedules")
+      .post("/api/admin/tracking/oncall/schedules")
       .set(headers)
       .send({
         id: "p6-schedule-1",
@@ -61,9 +61,9 @@ describe("Phase 6 on-call & escalation admin APIs", () => {
       ttlSeconds: 3600,
     });
 
-    await request(app).post("/admin/tracking/incidents/run-detection").set(headers).send({ limit: 10 }).expect(200);
+    await request(app).post("/api/admin/tracking/incidents/run-detection").set(headers).send({ limit: 10 }).expect(200);
 
-    const incidents = await request(app).get("/admin/tracking/incidents").set(headers).expect(200);
+    const incidents = await request(app).get("/api/admin/tracking/incidents").set(headers).expect(200);
     expect(incidents.body.count).toBeGreaterThan(0);
     const incidentId = String(incidents.body.items[0].id);
 
@@ -82,13 +82,13 @@ describe("Phase 6 on-call & escalation admin APIs", () => {
     expect(timeline.body.count).toBeGreaterThan(0);
 
     // Run escalation tick
-    const run = await request(app).post("/admin/tracking/escalations/run").set(headers).send({ limitIncidents: 50 }).expect(200);
+    const run = await request(app).post("/api/admin/tracking/escalations/run").set(headers).send({ limitIncidents: 50 }).expect(200);
     expect(run.body.scannedIncidents).toBeGreaterThanOrEqual(0);
 
     // Viewer cannot mutate
     await redisClient.set(`ops:role:${String(admin._id)}`, "OPS_VIEWER");
     await request(app)
-      .post("/admin/tracking/oncall/policies")
+      .post("/api/admin/tracking/oncall/policies")
       .set(headers)
       .send({ id: "blocked", appliesTo: ["TRACKING_STALE"], severity: "WARN", steps: [{ afterMinutes: 0, target: "ONCALL_PRIMARY" }], suppressionWindowMinutes: 1 })
       .expect(403);
@@ -100,8 +100,8 @@ describe("Phase 6 on-call & escalation admin APIs", () => {
       .expect(403);
 
     // Viewer can read
-    await request(app).get("/admin/tracking/oncall/policies").set(headers).expect(200);
-    await request(app).get("/admin/tracking/escalations/status").set(headers).expect(200);
+    await request(app).get("/api/admin/tracking/oncall/policies").set(headers).expect(200);
+    await request(app).get("/api/admin/tracking/escalations/status").set(headers).expect(200);
 
     const metrics = await request(app).get("/api/admin/ops/metrics").set(headers).expect(200);
     expect(String(metrics.text)).toContain("tracking_escalations_total");

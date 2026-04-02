@@ -7,7 +7,7 @@ import { useOrderUpdates } from "../hooks/useSocket";
 import { useCustomerLiveTracking } from "../hooks/useCustomerLiveTracking";
 import toast from "react-hot-toast";
 import OrderTimeline from "../components/OrderTimeline";
-import { buildCustomerOrderTimeline } from "../utils/customerOrderTimeline";
+import { buildCustomerOrderTimeline } from "@vyaparsetu/shared-utils";
 import { shouldShowDeliveryPartner } from "../utils/deliveryPartnerVisibility";
 
 const OrderTrackingPage = () => {

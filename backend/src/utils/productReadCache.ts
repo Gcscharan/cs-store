@@ -56,6 +56,7 @@ export function buildProductsListCacheKey(params: {
   sortBy?: unknown;
   sortOrder?: unknown;
   tags?: unknown;
+  rating?: unknown;
 }): string {
   const normalized = {
     page: Number(params.page || 1),
@@ -66,6 +67,7 @@ export function buildProductsListCacheKey(params: {
     sortBy: typeof params.sortBy === "string" && String(params.sortBy).trim() ? String(params.sortBy).trim() : null,
     sortOrder: typeof params.sortOrder === "string" && String(params.sortOrder).trim() ? String(params.sortOrder).trim() : null,
     tags: normalizeTags(params.tags),
+    rating: params.rating === undefined || params.rating === null || params.rating === "" ? null : Number(params.rating),
   };
 
   const json = stableJsonStringify(normalized);
