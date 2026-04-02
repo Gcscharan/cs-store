@@ -74,7 +74,7 @@ This implementation plan transforms the Add Address screen from a traditional fo
     - Enable horizontal scroll if suggestions overflow
     - _Requirements: 7.1, 7.2, 7.3, 7.5_
 
-  - [ ]* 3.2 Write unit tests for suggestion chip rendering
+  - [-] 3.2 Write unit tests for suggestion chip rendering
     - Test that maximum 3 suggestions are displayed
     - Test horizontal scroll behavior
     - Test chip tap updates city field
@@ -93,7 +93,7 @@ This implementation plan transforms the Add Address screen from a traditional fo
     - Disable button during pincodeStatus.isChecking
     - _Requirements: 6.5, 12.4_
 
-  - [ ]* 4.3 Write property test for minimal required fields
+  - [~] 4.3 Write property test for minimal required fields
     - **Property 11: Minimal Required Fields After GPS**
     - **Validates: Requirements 10.1**
     - Test that form validation requires only house number after GPS detection
@@ -117,7 +117,7 @@ This implementation plan transforms the Add Address screen from a traditional fo
     - Keep existing 300ms debounce timeout
     - _Requirements: 10.2, 12.5_
 
-  - [ ]* 5.4 Write property test for background validation
+  - [~] 5.4 Write property test for background validation
     - **Property 12: Background Pincode Validation**
     - **Validates: Requirements 10.2**
     - Test that pincode validation doesn't block user interaction
@@ -163,7 +163,7 @@ This implementation plan transforms the Add Address screen from a traditional fo
     - Apply to: Name, House_Field, Phone
     - _Requirements: 11.4_
 
-  - [ ]* 7.5 Write property test for visual hierarchy
+  - [~] 7.5 Write property test for visual hierarchy
     - **Property 15: Required Indicators on Editable Fields Only**
     - **Validates: Requirements 11.4**
     - Test that read-only fields don't show required indicators

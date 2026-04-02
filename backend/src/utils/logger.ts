@@ -24,6 +24,9 @@ class Logger {
   }
 
   private formatMessage(level: string, message: string, data?: any): string {
+    if (process.env.NODE_ENV === "test" && process.env.SILENT_TESTS === "true") {
+      return "";
+    }
     const timestamp = new Date().toISOString();
     const contextStr =
       Object.keys(this.context).length > 0
@@ -39,6 +42,7 @@ class Logger {
 
   info(message: string, data?: any) {
     const formattedMessage = this.formatMessage("INFO", message, data);
+    if (!formattedMessage) return;
     console.log(formattedMessage);
 
     // Send to Sentry with info level
@@ -51,6 +55,7 @@ class Logger {
 
   warn(message: string, data?: any) {
     const formattedMessage = this.formatMessage("WARN", message, data);
+    if (!formattedMessage) return;
     console.warn(formattedMessage);
 
     // Send to Sentry with warning level
@@ -63,12 +68,14 @@ class Logger {
 
   error(message: string, error?: unknown, data?: any) {
     const formattedMessage = this.formatMessage("ERROR", message, data);
-    console.error(formattedMessage);
-    if (error) {
-      if (error instanceof Error) {
-        console.error("Error stack:", error.stack);
-      } else {
-        console.error("Error:", error);
+    if (formattedMessage) {
+      console.error(formattedMessage);
+      if (error) {
+        if (error instanceof Error) {
+          console.error("Error stack:", error.stack);
+        } else {
+          console.error("Error:", error);
+        }
       }
     }
 
@@ -87,6 +94,7 @@ class Logger {
   debug(message: string, data?: any) {
     if (process.env.NODE_ENV === "development") {
       const formattedMessage = this.formatMessage("DEBUG", message, data);
+      if (!formattedMessage) return;
       console.debug(formattedMessage);
     }
   }
