@@ -1,7 +1,10 @@
-import { createApi } from '@reduxjs/toolkit/query/react';
+import { createApi, BaseQueryFn } from '@reduxjs/toolkit/query/react';
 import { Platform } from 'react-native';
-import { axiosBaseQuery } from './axiosBaseQuery';
+import { axiosBaseQuery, AxiosBaseQueryError } from './axiosBaseQuery';
 import Constants from 'expo-constants';
+import { storage } from '../utils/storage';
+import { logout, setTokens } from '../store/slices/authSlice';
+import axios from 'axios';
 
 const getRawUrl = (): string => {
   const envUrl = process.env.EXPO_PUBLIC_API_URL;
@@ -42,13 +45,68 @@ const getRawUrl = (): string => {
 
 export const BASE_URL = getRawUrl();
 
+const baseQuery = axiosBaseQuery({ baseUrl: BASE_URL });
+
+const baseQueryWithReauth: BaseQueryFn<
+  any,
+  unknown,
+  AxiosBaseQueryError
+> = async (args, api, extraOptions) => {
+  let result = await baseQuery(args, api, extraOptions);
+
+  if (result.error && result.error.status === 401) {
+    // Try to get a new token
+    console.log('🔐 [Auth] 401 detected, attempting token refresh...');
+    
+    try {
+      const refreshToken = await storage.getItem('refreshToken');
+      
+      if (refreshToken) {
+        // We use a clean axios instance for the refresh call to avoid circular 401s
+        const refreshResult = await axios.post(`${BASE_URL}/auth/refresh`, {
+          refreshToken,
+        });
+
+        if (refreshResult.data && refreshResult.data.accessToken) {
+          console.log('✅ [Auth] Token refreshed successfully');
+          
+          const { accessToken, refreshToken: newRefreshToken } = refreshResult.data;
+          
+          // Store new tokens
+          await storage.setItem('accessToken', accessToken);
+          if (newRefreshToken) {
+            await storage.setItem('refreshToken', newRefreshToken);
+          }
+
+          // Update Redux state
+          api.dispatch(setTokens({ accessToken, refreshToken: newRefreshToken || refreshToken }));
+
+          // Retry the initial query
+          result = await baseQuery(args, api, extraOptions);
+        } else {
+          console.warn('❌ [Auth] Refresh failed: No token in response');
+          api.dispatch(logout());
+        }
+      } else {
+        console.log('🔐 [Auth] No refresh token available, logging out');
+        api.dispatch(logout());
+      }
+    } catch (refreshError) {
+      console.error('❌ [Auth] Token refresh failed with error:', refreshError);
+      api.dispatch(logout());
+    }
+  }
+
+  return result;
+};
+
 /**
  * RTK Query base API configuration
  * All API endpoints will be injected here
  */
 export const baseApi = createApi({
   reducerPath: 'api',
-  baseQuery: axiosBaseQuery({ baseUrl: BASE_URL }),
+  baseQuery: baseQueryWithReauth,
   // Performance Optimization: Cache rules
   keepUnusedDataFor: 60,
   refetchOnFocus: false,

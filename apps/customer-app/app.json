@@ -10,7 +10,6 @@
     ],
     "android": {
       "package": "com.vyaparsetu.customer",
-      "googleServicesFile": "./google-services.json",
       "config": {
         "googleMaps": {
           "apiKey": "AIzaSyBNKtlvo5xWWO-S02fm1GCIr6eVLJmFP_k"

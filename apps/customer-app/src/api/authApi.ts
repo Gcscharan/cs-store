@@ -8,17 +8,17 @@ export interface AuthResponse extends AuthTokens {
 export const authApi = baseApi.injectEndpoints({
   overrideExisting: true,
   endpoints: (builder) => ({
-    sendOtp: builder.mutation<{ success: boolean; message?: string }, { phone: string; mode: 'login' | 'signup'; name?: string }>({
-      query: ({ mode, ...body }) => ({
-        url: `/auth/send-otp?mode=${mode}`,
+    sendOtp: builder.mutation<{ success: boolean; message?: string; isNewUser?: boolean }, { phone: string; name?: string }>({
+      query: (body) => ({
+        url: `/auth/send-otp`,
         method: 'POST',
         data: body,
       }),
     }),
 
-    verifyOtp: builder.mutation<AuthResponse, { phone: string; otp: string; mode: 'login' | 'signup'; name?: string }>({
-      query: ({ mode, ...body }) => ({
-        url: `/auth/verify-otp?mode=${mode}`,
+    verifyOtp: builder.mutation<AuthResponse | { requiresOnboarding: true; phone: string; email?: string }, { phone: string; otp: string; name?: string }>({
+      query: (body) => ({
+        url: `/auth/verify-otp`,
         method: 'POST',
         data: body,
       }),

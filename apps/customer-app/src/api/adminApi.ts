@@ -98,6 +98,41 @@ export const adminApi = baseApi.injectEndpoints({
       query: () => ({ url: '/admin/analytics', method: 'GET' }),
     }),
 
+    // Admin Ops
+    getOutboxFailures: builder.query({
+      query: (limit = 50) => ({ url: '/admin/ops/outbox/failures', method: 'GET', params: { limit } }),
+    }),
+    getInventoryDrift: builder.query({
+      query: () => ({ url: '/admin/ops/inventory/drift', method: 'GET' }),
+    }),
+    getTrackingKillswitch: builder.query({
+      query: () => ({ url: '/admin/ops/tracking/killswitch', method: 'GET' }),
+    }),
+
+    // Finance Health
+    getFinanceHealth: builder.query({
+      query: () => ({ url: '/internal/finance/health', method: 'GET' }),
+    }),
+
+    // Payments
+    getPaymentLogs: builder.query({
+      query: () => ({ url: '/internal/payments/reconciliation', method: 'GET' }),
+    }),
+    getPaymentRecoverySuggestion: builder.query({
+      query: ({ orderId, paymentIntentId }) => ({
+        url: '/internal/payments/recovery-suggestion',
+        method: 'GET',
+        params: { orderId, paymentIntentId },
+      }),
+    }),
+    executePaymentRecovery: builder.mutation({
+      query: ({ paymentIntentId, action, reason }) => ({
+        url: `/internal/payments/recovery/${paymentIntentId}/action`,
+        method: 'POST',
+        body: { action, reason },
+      }),
+    }),
+
     // Finance
     getFinanceData: builder.query({
       query: ({ from, to }) => ({
@@ -146,6 +181,13 @@ export const {
   useApproveDeliveryBoyMutation,
   useSuspendDeliveryBoyMutation,
   useGetAnalyticsQuery,
+  useGetOutboxFailuresQuery,
+  useGetInventoryDriftQuery,
+  useGetTrackingKillswitchQuery,
+  useGetFinanceHealthQuery,
+  useGetPaymentLogsQuery,
+  useGetPaymentRecoverySuggestionQuery,
+  useExecutePaymentRecoveryMutation,
   useGetFinanceDataQuery,
   useGetFinanceRevenueLedgerQuery,
   useGetFinanceRefundLedgerQuery,

@@ -14,7 +14,7 @@ import { Colors } from '../../constants/colors';
 import { setUser, setTokens, setStatus } from '../../store/slices/authSlice'; 
 import RNOtpVerify from 'react-native-otp-verify';
  
-export default function LoginScreen({ navigation }: any) { 
+export default function LoginScreen({ navigation }: any) {
   const dispatch = useDispatch();
   const insets = useSafeAreaInsets(); 
   const [phone, setPhone] = useState(''); 
@@ -46,7 +46,7 @@ export default function LoginScreen({ navigation }: any) {
     } 
     try {
       console.log('🔥 Sending OTP for phone:', phone);
-      const result = await sendOtp({ phone, mode: 'signup' }).unwrap();
+      const result = await sendOtp({ phone }).unwrap(); // Removed mode parameter
       console.log('✅ OTP sent successfully:', result);
       setStep('otp'); 
       startTimer(); 
@@ -82,7 +82,17 @@ export default function LoginScreen({ navigation }: any) {
  
   const handleVerify = async () => { 
     try { 
-      const result = await verifyOtp({ phone, otp, mode: 'signup' }).unwrap(); 
+      const result = await verifyOtp({ phone, otp }).unwrap(); // Removed mode parameter
+      
+      // Check if user needs onboarding
+      if (result.requiresOnboarding) {
+        logEvent('new_user_onboarding_required');
+        // Navigate to onboarding screen
+        navigation.navigate('Onboarding', { phone });
+        return;
+      }
+
+      // Existing user - complete login
       await SecureStore.setItemAsync('accessToken', result.accessToken); 
       if (result.refreshToken) { 
         await SecureStore.setItemAsync('refreshToken', result.refreshToken); 
@@ -131,8 +141,8 @@ export default function LoginScreen({ navigation }: any) {
             <> 
               {/* Hero */} 
               <View style={s.hero}> 
-                <Text style={s.title}>Start your business in minutes</Text> 
-                <Text style={s.subtitle}>Trusted by 50,000+ sellers across India</Text> 
+                <Text style={s.title}>Welcome to Vyapara Setu</Text> 
+                <Text style={s.subtitle}>Enter your phone number to continue</Text> 
               </View> 
  
               {/* Input */} 
@@ -218,7 +228,7 @@ export default function LoginScreen({ navigation }: any) {
                   onPress={handleVerify} 
                   disabled={otp.length !== 6} 
                 > 
-                  <Text style={s.primaryText}>Verify & Login</Text> 
+                  <Text style={s.primaryText}>Verify & Continue</Text> 
                 </TouchableOpacity> 
               )}
             </>

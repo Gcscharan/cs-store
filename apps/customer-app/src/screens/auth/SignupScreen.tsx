@@ -75,7 +75,7 @@ const SignupScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <ScreenHeader title="Sign Up" showBackButton />
+      <ScreenHeader title="Signup or Login" showBackButton />
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}

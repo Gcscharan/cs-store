@@ -7,12 +7,14 @@ import {
   FlatList,
   TouchableOpacity,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Colors } from '../../constants/colors';
 import AdminHeader from '../../components/admin/AdminHeader';
 import StatusBadge from '../../components/admin/StatusBadge';
+import { storage } from '../../utils/storage';
 import { useGetAdminOrdersQuery, useCancelOrderMutation, useConfirmOrderMutation, usePackOrderMutation } from '../../api/adminApi';
 
 type OrderLike = {
@@ -99,12 +101,62 @@ const AdminOrdersScreen: React.FC = () => {
   };
 
   const onCancel = async (id: string) => {
-    await cancelOrder(id).unwrap();
+    Alert.alert('Cancel Order', 'Are you sure you want to cancel this order?', [
+      { text: 'No', style: 'cancel' },
+      {
+        text: 'Yes, Cancel',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await cancelOrder(id).unwrap();
+            Alert.alert('Success', 'Order cancelled');
+          } catch (err: any) {
+            Alert.alert('Error', err.data?.message || 'Failed to cancel order');
+          }
+        },
+      },
+    ]);
+  };
+
+  const onPurge = () => {
+    Alert.alert(
+      '⚠️ Purge Orders',
+      'This will permanently delete all CANCELLED and DELIVERED orders older than 30 days. Continue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Purge', style: 'destructive', onPress: async () => {
+          try {
+            const token = await storage.getItem('accessToken');
+            const res = await fetch(`${process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5001/api'}/admin/orders/purge`, {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.ok) {
+              const data = await res.json();
+              Alert.alert('Success', `Purged ${data.deletedCount || 0} orders`);
+              refetch();
+            } else {
+              Alert.alert('Error', 'Failed to purge orders');
+            }
+          } catch {
+            Alert.alert('Error', 'Network error');
+          }
+        }},
+      ]
+    );
   };
 
   return (
     <SafeAreaView style={styles.safe}>
-      <AdminHeader title="Orders Management" onBack={() => navigation.goBack()} />
+      <AdminHeader 
+        title="Orders Management" 
+        onBack={() => navigation.goBack()} 
+        rightAction={
+          <TouchableOpacity onPress={onPurge} style={styles.purgeBtn}>
+            <Text style={styles.purgeBtnText}>🧹 Purge</Text>
+          </TouchableOpacity>
+        }
+      />
 
       <View style={styles.container}>
         <FlatList
@@ -298,6 +350,17 @@ const styles = StyleSheet.create({
   muted: { marginTop: 2, fontSize: 12, color: Colors.textMuted, fontWeight: '600' },
   row: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
   label: { fontSize: 12, color: Colors.textSecondary, fontWeight: '700' },
+  purgeBtn: {
+    backgroundColor: '#fee2e2',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  purgeBtnText: {
+    color: '#dc2626',
+    fontSize: 12,
+    fontWeight: '800',
+  },
   value: { flex: 1, textAlign: 'right', fontSize: 12, color: Colors.textPrimary, fontWeight: '800' },
   amount: { fontSize: 14, color: Colors.primary, fontWeight: '900' },
   actionsRow: { flexDirection: 'row', marginTop: 12 },

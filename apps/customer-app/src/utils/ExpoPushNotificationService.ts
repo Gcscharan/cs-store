@@ -45,14 +45,19 @@ export class ExpoPushNotificationService {
       try {
         const tokenData = await Notifications.getExpoPushTokenAsync();
         token = tokenData.data;
-        console.log('Expo Push Token (FCM Verified):', token);
+        console.log('✅ [Push] Expo Push Token (FCM Verified):', token);
         
         // Update token on backend if authenticated
         if (token) {
           await this.saveTokenToBackend(token);
         }
       } catch (error: any) {
-        console.warn('⚠️ Push notifications disabled internally. Needs FCM google-services.json compile. Ignoring error safely.', error?.message);
+        // This is a common warning in development when google-services.json is missing or Firebase is not fully configured
+        console.warn(
+          '⚠️ [Push] Push notifications disabled: Missing FCM configuration (google-services.json). ' +
+          'Complete the setup guide at: https://docs.expo.dev/push-notifications/fcm-credentials/',
+          __DEV__ ? '' : error?.message
+        );
       }
     } else {
       console.log('Must use physical device for Push Notifications');

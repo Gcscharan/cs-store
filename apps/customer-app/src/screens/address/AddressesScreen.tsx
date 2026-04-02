@@ -25,7 +25,24 @@ import type { ProfileNavigationProp } from '../../navigation/types';
 const AddressesScreen: React.FC = () => {
   const navigation = useNavigation<ProfileNavigationProp>();
   const { data: addressData, isLoading, refetch } = useGetAddressesQuery();
-  const addresses = addressData?.addresses || [];
+  
+  const addresses = React.useMemo(() => {
+    const raw = addressData?.addresses || [];
+    const defaultId = addressData?.defaultAddressId;
+    
+    return [...raw].sort((a, b) => {
+      const aId = String((a as any)?._id || (a as any).id || '').trim();
+      const bId = String((b as any)?._id || (b as any).id || '').trim();
+      const defId = String(defaultId || '').trim();
+      
+      if (aId === defId) return -1;
+      if (bId === defId) return 1;
+      if (a.isDefault) return -1;
+      if (b.isDefault) return 1;
+      return 0;
+    });
+  }, [addressData]);
+
   const defaultAddressId = addressData?.defaultAddressId || null;
   const [deleteAddress, { isLoading: isDeleting }] = useDeleteAddressMutation();
   const [setDefaultAddress, { isLoading: isSettingDefault }] = useSetDefaultAddressMutation();

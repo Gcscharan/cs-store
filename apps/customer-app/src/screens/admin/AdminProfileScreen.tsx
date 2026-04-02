@@ -181,6 +181,8 @@ export default function AdminProfileScreen({ navigation }: any) {
               { label: 'Analytics', icon: '📊', color: '#e0e7ff', screen: 'AdminAnalytics' },
               { label: 'Delivery', icon: '🚚', color: '#fae8ff', screen: 'AdminDeliveryBoys' },
               { label: 'Finance', icon: '💰', color: '#d1fae5', screen: 'AdminFinance' },
+              { label: 'Payments', icon: '💳', color: '#fef3c7', screen: 'AdminPayments' },
+              { label: 'Ops', icon: '⚙️', color: '#e0e7ff', screen: 'AdminOps' },
             ].map((action) => (
               <TouchableOpacity key={action.label} style={[s.actionCard, { backgroundColor: action.color, marginRight: 10, marginBottom: 10 }]}
                 onPress={() => navigation.navigate(action.screen)}>

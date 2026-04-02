@@ -119,7 +119,23 @@ const CheckoutScreen: React.FC = () => {
   const { data: addressesData, isFetching: isFetchingAddresses, refetch } =
     useGetAddressesQuery(undefined);
 
-  const addresses = addressesData?.addresses || [];
+  const addresses = React.useMemo(() => {
+    const raw = addressesData?.addresses || [];
+    const defaultId = addressesData?.defaultAddressId;
+    
+    return [...raw].sort((a, b) => {
+      const aId = String((a as any)?._id || (a as any).id || '').trim();
+      const bId = String((b as any)?._id || (b as any).id || '').trim();
+      const defId = String(defaultId || '').trim();
+      
+      if (aId === defId) return -1;
+      if (bId === defId) return 1;
+      if (a.isDefault) return -1;
+      if (b.isDefault) return 1;
+      return 0;
+    });
+  }, [addressesData]);
+
   const defaultAddressId = addressesData?.defaultAddressId || null;
 
   const defaultAddress = React.useMemo(() => {
@@ -228,7 +244,12 @@ const CheckoutScreen: React.FC = () => {
 
   const isLoading = isCreatingOrder || isClearingCart;
 
-  const isPlaceDisabled = !selectedAddressId || isPlacingOrder || isLoading;
+  const isPlaceDisabled =
+    isPlacingOrder ||
+    isLoading ||
+    !selectedOptionId ||
+    !selectedAddressId ||
+    (selectedOptionId === 'other' && (!upiVpa.trim() || !upiVerified));
 
   const showApiError = (err: any, fallback: string) => {
     const message =
@@ -293,8 +314,6 @@ const CheckoutScreen: React.FC = () => {
         await clearCartEverywhere();
         navigation.replace('OrderSuccess', { 
           orderId,
-          address: selectedAddress,
-          totalAmount: breakdown.total,
         });
         return;
       }
@@ -354,7 +373,7 @@ const CheckoutScreen: React.FC = () => {
         idempotencyKey, 
         addressId: selectedAddressId,
         couponCode: couponDiscount > 0 ? couponCode : undefined,
-      }).unwrap(); 
+      } as any).unwrap(); 
       const orderId = String(res?.order?._id || '').trim(); 
       if (!orderId) throw new Error('Failed to place order');
       logEvent('payment_success', { method: 'cod', orderId });
@@ -362,8 +381,6 @@ const CheckoutScreen: React.FC = () => {
       await clearCartEverywhere(); 
       navigation.replace('OrderSuccess', { 
         orderId,
-        address: selectedAddress,
-        totalAmount: breakdown.total,
       }); 
     } catch (error: any) { 
       showApiError(error, 'Failed to place order.');
@@ -429,7 +446,7 @@ const CheckoutScreen: React.FC = () => {
         addressId: selectedAddressId,
         upiVpa: upiVpa.trim() || undefined, 
         couponCode: couponDiscount > 0 ? couponCode : undefined,
-      }).unwrap(); 
+      } as any).unwrap(); 
   
       const orderId = String(res?.order?._id || '').trim(); 
       if (!orderId) throw new Error('Order creation failed'); 

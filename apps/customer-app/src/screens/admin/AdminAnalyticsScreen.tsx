@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
   muted: { fontSize: 12, color: Colors.textMuted, fontWeight: '700' },
   monthRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   monthLabel: { width: 52, fontSize: 12, fontWeight: '900', color: Colors.textSecondary },
-  barWrap: { flex: 1, height: 8, borderRadius: 999, backgroundColor: Colors.backgroundDark, overflow: 'hidden' },
+  barWrap: { flex: 1, height: 8, borderRadius: 999, backgroundColor: Colors.background, overflow: 'hidden' },
   bar: { height: '100%', borderRadius: 999, backgroundColor: Colors.secondary },
   monthValue: { width: 86, textAlign: 'right', fontSize: 12, fontWeight: '900', color: Colors.textPrimary },
   topProductRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },

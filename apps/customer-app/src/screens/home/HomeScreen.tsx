@@ -43,6 +43,9 @@ import { ScreenHeader } from '../../components/ScreenHeader';
 import { logEvent } from '../../utils/analytics';
 import { useVoiceSearch } from '../../hooks/useVoiceSearch';
 import VoiceListeningModal from '../../components/VoiceListeningModal';
+import { LoadingState } from '../../components/common/LoadingState';
+import { ErrorState } from '../../components/common/ErrorState';
+import { EmptyState } from '../../components/common/EmptyState';
 
 const { width } = Dimensions.get('window');
 
@@ -434,12 +437,13 @@ export default function HomeScreen({ navigation }: any) {
     return () => clearTimeout(timer);
   }, [dispatch]);
 
-  const { data: productsData, isLoading, refetch } = useGetProductsQuery({ limit: 20 });
+  const { data: productsData, isLoading, error, refetch } = useGetProductsQuery({ limit: 20 });
   const products = productsData?.products || [];
 
-  const { deals } = useGetProductsQuery({ sort: 'discount', limit: 10 }, {
+  const { deals, dealsError } = useGetProductsQuery({ sort: 'discount', limit: 10 }, {
     selectFromResult: (result) => ({
       deals: result.data?.products?.filter((p: any) => p.mrp > p.price) || [],
+      dealsError: result.error,
     }),
   });
 
@@ -495,6 +499,33 @@ export default function HomeScreen({ navigation }: any) {
       <View style={s.container}>
         <ScreenHeader title="Vyapara Setu" />
         <SkeletonHome />
+      </View>
+    );
+  }
+
+  if (error || (dealsError && products.length === 0 && deals.length === 0)) {
+    return (
+      <View style={s.container}>
+        <ScreenHeader title="Vyapara Setu" />
+        <ErrorState 
+          message={t('home.error_loading') || 'Failed to load products. Please check your connection.'} 
+          onRetry={refetch} 
+          screenName="Home"
+        />
+      </View>
+    );
+  }
+
+  if (products.length === 0 && deals.length === 0 && !refreshing) {
+    return (
+      <View style={s.container}>
+        <ScreenHeader title="Vyapara Setu" />
+        <EmptyState 
+          title={t('home.no_products_title') || 'No products available'} 
+          description={t('home.no_products_desc') || 'Check back later for exciting new items!'} 
+          onAction={onRefresh}
+          actionLabel={t('refresh') || 'Refresh'}
+        />
       </View>
     );
   }

@@ -37,7 +37,11 @@ export const PendingPaymentTracker: React.FC = () => {
           }
         }
       } catch (e) {
-        console.warn('Failed to fetch orders for background verification', e);
+        // If it's a 401, baseApi's reauth logic will handle it, 
+        // but we still want to log other errors for debugging.
+        if ((e as any).status !== 401) {
+          console.warn('⚠️ [PaymentTracker] Failed to fetch orders for verification:', e);
+        }
       }
     };
 

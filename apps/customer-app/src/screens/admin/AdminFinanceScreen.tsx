@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -17,9 +18,11 @@ import {
   useGetFinanceGatewayPerformanceQuery,
   useGetFinanceRefundLedgerQuery,
   useGetFinanceRevenueLedgerQuery,
+  useGetFinanceHealthQuery,
 } from '../../api/adminApi';
+import { Linking } from 'react-native';
 
-type Tab = 'overview' | 'revenue' | 'refunds';
+type Tab = 'overview' | 'revenue' | 'refunds' | 'health';
 
 const todayIso = () => new Date().toISOString().split('T')[0];
 const daysAgoIso = (days: number) => {
@@ -27,6 +30,8 @@ const daysAgoIso = (days: number) => {
   d.setDate(d.getDate() - days);
   return d.toISOString().split('T')[0];
 };
+
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5001/api';
 
 const formatCurrency = (amount: number, currency: string = 'INR') => {
   try {
@@ -56,14 +61,27 @@ const AdminFinanceScreen: React.FC = () => {
   const revenueQ = useGetFinanceRevenueLedgerQuery(queryArgs);
   const refundQ = useGetFinanceRefundLedgerQuery(queryArgs);
   const gatewayQ = useGetFinanceGatewayPerformanceQuery(queryArgs);
+  const healthQ = useGetFinanceHealthQuery(undefined);
 
   const totals = (totalsQ.data as any)?.totals;
   const revenueRows: any[] = (revenueQ.data as any)?.rows || [];
   const refundRows: any[] = (refundQ.data as any)?.rows || [];
   const gatewayRows: any[] = (gatewayQ.data as any)?.rows || [];
+  const health = healthQ.data as any;
 
-  const isLoading = totalsQ.isFetching || revenueQ.isFetching || refundQ.isFetching || gatewayQ.isFetching;
+  const isLoading = totalsQ.isFetching || revenueQ.isFetching || refundQ.isFetching || gatewayQ.isFetching || healthQ.isFetching;
   const hasError = totalsQ.error || revenueQ.error || refundQ.error || gatewayQ.error;
+
+  const handleExport = (type: 'revenue' | 'refund' | 'net' | 'gateway') => {
+    let endpoint = '';
+    if (type === 'revenue') endpoint = '/internal/finance/revenue-ledger.csv';
+    else if (type === 'refund') endpoint = '/internal/finance/refund-ledger.csv';
+    else if (type === 'net') endpoint = '/internal/finance/net-revenue.csv';
+    else if (type === 'gateway') endpoint = '/internal/finance/gateway-performance.csv';
+
+    const url = `${API_URL}${endpoint}?from=${from}&to=${to}&currency=INR`;
+    Linking.openURL(url).catch(() => Alert.alert('Error', 'Could not open export URL'));
+  };
 
   const codOnline = useMemo(() => {
     let codTotal = 0;
@@ -126,12 +144,14 @@ const AdminFinanceScreen: React.FC = () => {
         <View style={styles.tabsRow}>
           <TabButton id="overview" label="Overview" />
           <View style={{ width: 10 }} />
-          <TabButton id="revenue" label="Revenue Ledger" />
+          <TabButton id="revenue" label="Revenue" />
           <View style={{ width: 10 }} />
-          <TabButton id="refunds" label="Refund Ledger" />
+          <TabButton id="refunds" label="Refunds" />
+          <View style={{ width: 10 }} />
+          <TabButton id="health" label="Health" />
         </View>
 
-        {isLoading && !totals ? (
+        {isLoading && !totals && !health ? (
           <View style={styles.center}>
             <ActivityIndicator size="large" color={Colors.primary} />
           </View>
@@ -145,6 +165,7 @@ const AdminFinanceScreen: React.FC = () => {
                 revenueQ.refetch();
                 refundQ.refetch();
                 gatewayQ.refetch();
+                healthQ.refetch();
               }}
               activeOpacity={0.9}
             >
@@ -154,7 +175,12 @@ const AdminFinanceScreen: React.FC = () => {
         ) : tab === 'overview' ? (
           <>
             <View style={styles.card}>
-              <Text style={styles.sectionTitle}>Key Metrics</Text>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Key Metrics</Text>
+                <TouchableOpacity onPress={() => handleExport('net')}>
+                  <Text style={styles.exportBtnText}>📥 Export</Text>
+                </TouchableOpacity>
+              </View>
 
               <View style={styles.kvRow}>
                 <Text style={[styles.k, { marginRight: 10 }]}>Gross Revenue</Text>
@@ -189,7 +215,12 @@ const AdminFinanceScreen: React.FC = () => {
             </View>
 
             <View style={styles.card}>
-              <Text style={styles.sectionTitle}>Gateway Performance</Text>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Gateway Performance</Text>
+                <TouchableOpacity onPress={() => handleExport('gateway')}>
+                  <Text style={styles.exportBtnText}>📥 Export</Text>
+                </TouchableOpacity>
+              </View>
               {gatewayRows.length === 0 ? (
                 <Text style={styles.muted}>No gateway data available</Text>
               ) : (
@@ -206,7 +237,12 @@ const AdminFinanceScreen: React.FC = () => {
           </>
         ) : tab === 'revenue' ? (
           <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Revenue Ledger</Text>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Revenue Ledger</Text>
+              <TouchableOpacity onPress={() => handleExport('revenue')}>
+                <Text style={styles.exportBtnText}>📥 Export</Text>
+              </TouchableOpacity>
+            </View>
             {revenueRows.length === 0 ? (
               <Text style={styles.muted}>No revenue ledger entries found for this date range</Text>
             ) : (
@@ -229,9 +265,14 @@ const AdminFinanceScreen: React.FC = () => {
               <Text style={[styles.muted, { marginTop: 10 }]}>Showing first 100 of {revenueRows.length} entries.</Text>
             ) : null}
           </View>
-        ) : (
+        ) : tab === 'refunds' ? (
           <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Refund Ledger</Text>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Refund Ledger</Text>
+              <TouchableOpacity onPress={() => handleExport('refund')}>
+                <Text style={styles.exportBtnText}>📥 Export</Text>
+              </TouchableOpacity>
+            </View>
             {refundRows.length === 0 ? (
               <Text style={styles.muted}>No refund ledger entries found for this date range</Text>
             ) : (
@@ -253,7 +294,33 @@ const AdminFinanceScreen: React.FC = () => {
               <Text style={[styles.muted, { marginTop: 10 }]}>Showing first 100 of {refundRows.length} entries.</Text>
             ) : null}
           </View>
-        )}
+        ) : (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Finance Health Integrity</Text>
+            <View style={styles.healthStatusRow}>
+              <Text style={styles.label}>Global Status:</Text>
+              <Text style={[styles.healthStatusBadge, { color: health?.status === 'OK' ? '#16a34a' : health?.status === 'WARN' ? '#ca8a04' : '#dc2626' }]}>
+                {health?.status || 'UNKNOWN'}
+              </Text>
+            </View>
+            <View style={styles.divider} />
+            {health?.checks?.map((check: any, idx: number) => (
+              <View key={idx} style={styles.checkItem}>
+                <View style={styles.checkHeader}>
+                  <Text style={styles.checkName}>{check.name}</Text>
+                  <Text style={[styles.checkStatus, { color: check.status === 'OK' ? '#16a34a' : check.status === 'WARN' ? '#ca8a04' : '#dc2626' }]}>
+                    {check.status}
+                  </Text>
+                </View>
+                {check.status !== 'OK' && check.details && (
+                  <View style={styles.checkDetails}>
+                    <Text style={styles.detailsText}>{JSON.stringify(check.details, null, 2)}</Text>
+                  </View>
+                )}
+              </View>
+            ))}
+          </View>
+        )}}
       </ScrollView>
     </SafeAreaView>
   );
@@ -299,6 +366,16 @@ const styles = StyleSheet.create({
   ledgerRefund: { backgroundColor: '#fff1f2' },
   ledgerTop: { fontSize: 12, fontWeight: '900', color: Colors.textPrimary },
   ledgerAmount: { fontSize: 12, fontWeight: '900' },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  exportBtnText: { fontSize: 12, fontWeight: '800', color: Colors.primary },
+  healthStatusRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+  healthStatusBadge: { marginLeft: 8, fontWeight: '900', fontSize: 14 },
+  checkItem: { marginBottom: 16 },
+  checkHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  checkName: { fontSize: 13, fontWeight: '800', color: Colors.textPrimary, flex: 1 },
+  checkStatus: { fontSize: 12, fontWeight: '900' },
+  checkDetails: { marginTop: 6, padding: 8, backgroundColor: Colors.background, borderRadius: 8, borderWidth: 1, borderColor: Colors.border },
+  detailsText: { fontSize: 10, fontFamily: 'monospace', color: Colors.textSecondary },
   center: { alignItems: 'center', justifyContent: 'center', padding: 24 },
   errorText: { fontSize: 14, fontWeight: '900', color: Colors.error },
   retryBtn: { marginTop: 12, height: 44, paddingHorizontal: 16, borderRadius: 12, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },

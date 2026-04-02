@@ -1,4 +1,4 @@
-import { getApiOrigin } from "../../../../config/runtime";
+import { getApiBaseUrl } from "../../../../config/runtime";
 
 type QueryParamValue = string | number | boolean | undefined | null;
 
@@ -17,9 +17,8 @@ function buildQuery(params?: Record<string, QueryParamValue>): string {
 
 function internalUrl(pathname: string): string {
   const p = String(pathname || "");
-  const origin = getApiOrigin();
-  if (!origin) return p;
-  return `${origin}${p}`;
+  const baseUrl = getApiBaseUrl();
+  return `${baseUrl}${p}`;
 }
 
 export async function internalGetJson<T>(args: {

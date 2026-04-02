@@ -44,6 +44,8 @@ const AdminDashboardScreen: React.FC = () => {
       { title: '🚴 Delivery Partners', screen: 'AdminDeliveryBoys' },
       { title: '📊 Sales Analytics', screen: 'AdminAnalytics' },
       { title: '💰 Finance Reports', screen: 'AdminFinance' },
+      { title: '💳 Payment Logs', screen: 'AdminPayments' },
+      { title: '⚙️ Operations', screen: 'AdminOps' },
       { title: '🚪 Logout', screen: 'Logout' as const },
     ],
     []
