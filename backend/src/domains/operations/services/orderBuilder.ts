@@ -342,7 +342,7 @@ export async function createOrderFromCart(params: {
       throw err;
     }
 
-    const priceAtOrderTime = Number(product.price) || 0;
+    const priceAtOrderTime = Number(product.pricePerUnit || product.price) || 0;
     const gstRate = Number((product as any).gstRate) || DEFAULT_GST_RATE;
     const subtotal = round2(priceAtOrderTime * quantity);
 

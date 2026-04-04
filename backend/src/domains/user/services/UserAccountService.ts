@@ -25,7 +25,7 @@ export interface MobileVerificationResult {
   user: {
     id: string;
     name: string;
-    email: string;
+    email?: string;
     phone: string;
     role: string;
     isAdmin: boolean;

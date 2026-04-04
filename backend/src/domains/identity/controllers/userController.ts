@@ -21,7 +21,7 @@ import { safeDoc } from "../../../utils/safeDoc";
 export const getUserProfile = async (
   req: Request,
   res: Response
-): Promise<void> => {
+): Promise<Response | void> => {
   try {
     const userId = (req as any).userId || (req as any).user?._id;
 
@@ -49,7 +49,7 @@ export const getUserProfile = async (
 export const markMobileAsVerified = async (
   req: Request,
   res: Response
-): Promise<void> => {
+): Promise<Response | void> => {
   try {
     const userId = (req as any).userId || (req as any).user?._id;
     const { otp, phone, pendingUserId } = req.body;
@@ -73,7 +73,7 @@ export const markMobileAsVerified = async (
 export const updateUserProfile = async (
   req: Request,
   res: Response
-): Promise<void> => {
+): Promise<Response | void> => {
   try {
     const userId = (req as any).userId || (req as any).user?._id;
 
@@ -118,7 +118,7 @@ export const updateUserProfile = async (
 export const getUserAddresses = async (
   req: Request,
   res: Response
-): Promise<void> => {
+): Promise<Response | void> => {
   try {
     const userId = (req as any).userId || (req as any).user?._id;
 
@@ -147,7 +147,7 @@ export const getUserAddresses = async (
 export const addUserAddress = async (
   req: Request,
   res: Response
-): Promise<void> => {
+): Promise<Response | void> => {
   try {
     logger.error("🔥 addUserAddress controller HIT");
 
@@ -478,7 +478,7 @@ export const addUserAddress = async (
 export const updateUserAddress = async (
   req: Request,
   res: Response
-): Promise<void> => {
+): Promise<Response | void> => {
   try {
     const userId = (req as any).userId || (req as any).user?._id;
     const { addressId } = req.params;
@@ -663,7 +663,7 @@ export const updateUserAddress = async (
 export const deleteUserAddress = async (
   req: Request,
   res: Response
-): Promise<void> => {
+): Promise<Response | void> => {
   try {
     const userId = (req as any).userId || (req as any).user?._id;
     const { addressId } = req.params;

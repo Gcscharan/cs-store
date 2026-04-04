@@ -29,13 +29,13 @@ export const signup = async (
 ): Promise<Response | void> => {
   try {
     // FIX: accept both name and fullName from the frontend safely
-    const { fullName, name: rawName, email, phone, addresses } = req.body;
+    const { fullName, name: rawName, phone, email, addresses } = req.body;
     const name = rawName || fullName;
 
     // Validate required fields (password no longer required - OTP/Google OAuth only)
-    if (!name || !email || !phone) {
+    if (!name || !phone) {
       res.status(400).json({
-        message: "Name, email, and phone are required for registration",
+        message: "Name and phone are required for registration",
       });
       return;
     }
@@ -63,13 +63,6 @@ export const signup = async (
       }
     }
 
-    // Check if user already exists with this email
-    const existingUserByEmail = await User.findOne({ email });
-    if (existingUserByEmail) {
-      res.status(400).json({ message: "Email already exists" });
-      return;
-    }
-
     // Check if user already exists with this phone number
     const existingUserByPhone = await User.findOne({ phone });
     if (existingUserByPhone) {
@@ -77,14 +70,24 @@ export const signup = async (
       return;
     }
 
+    // Check if user already exists with this email (if email provided)
+    if (email) {
+      const existingUserByEmail = await User.findOne({ email });
+      if (existingUserByEmail) {
+        res.status(400).json({ message: "Email already exists" });
+        return;
+      }
+    }
+
     // Create user directly (no password - OTP/Google OAuth only)
+    // Email is optional - only required for delivery partners/admins
     logger.info("[DB][Signup][BeforeCreate] Host:", mongoose.connection.host);
     logger.info("[DB][Signup][BeforeCreate] Database Name:", mongoose.connection.name);
     logger.info("[DB][Signup][BeforeCreate] User.collection.name:", (User as any).collection?.name);
     const user = await User.create({
       name,
-      email,
       phone,
+      email: email || undefined, // Optional email field
       addresses: addresses || [],
       role: "customer",
       mobileVerified: true, // Phone verified via OTP before signup
@@ -92,11 +95,11 @@ export const signup = async (
     logger.info("[DB][Signup][AfterCreate] Host:", mongoose.connection.host);
     logger.info("[DB][Signup][AfterCreate] Database Name:", mongoose.connection.name);
     logger.info("[DB][Signup][AfterCreate] User.collection.name:", (User as any).collection?.name);
-    logger.info("[DB][Signup][AfterCreate] Created user:", { id: user?._id?.toString?.(), email: user?.email });
+    logger.info("[DB][Signup][AfterCreate] Created user:", { id: user?._id?.toString?.(), phone: user?.phone });
 
     // Generate JWT tokens (same as login flow)
     const accessToken = jwt.sign(
-      { userId: user._id, email: user.email, role: user.role },
+      { userId: user._id, phone: user.phone, role: user.role },
       JWT_SECRET,
       { expiresIn: ACCESS_TOKEN_EXPIRY } as jwt.SignOptions
     );
@@ -170,18 +173,13 @@ export const completeOnboarding = async (
 ): Promise<Response | void> => {
   try {
     const googleClaims = (req as any).googleAuthOnly as
-      | { email: string; name?: string; avatar?: string; providerId?: string }
+      | { name?: string; avatar?: string; providerId?: string }
       | undefined;
-
-    if (!googleClaims?.email) {
-      return res.status(401).json({ message: "Invalid onboarding session" });
-    }
 
     const { fullName, name, phone, otp } = req.body;
     const nextName = String(name || fullName || "").trim();
     const nextPhone = String(phone || "").replace(/\D/g, "");
     const nextOtp = String(otp || "").trim();
-    const email = String(googleClaims.email).toLowerCase();
 
     if (!nextName || nextName.length < 2) {
       return res.status(400).json({ message: "Full name is required" });
@@ -195,19 +193,19 @@ export const completeOnboarding = async (
       return res.status(400).json({ message: "Invalid OTP format" });
     }
 
-    const existingUserByEmail = await User.findOne({ email });
-    if (existingUserByEmail) {
+    const existingUserByPhone = await User.findOne({ phone: nextPhone });
+    if (existingUserByPhone) {
       const accessToken = jwt.sign(
-        { userId: existingUserByEmail._id, email: existingUserByEmail.email, role: existingUserByEmail.role },
+        { userId: existingUserByPhone._id, phone: existingUserByPhone.phone, role: existingUserByPhone.role },
         JWT_SECRET,
         { expiresIn: ACCESS_TOKEN_EXPIRY } as jwt.SignOptions
       );
-      const refreshToken = jwt.sign({ userId: existingUserByEmail._id }, JWT_REFRESH_SECRET, {
+      const refreshToken = jwt.sign({ userId: existingUserByPhone._id }, JWT_REFRESH_SECRET, {
         expiresIn: REFRESH_TOKEN_EXPIRY,
       } as jwt.SignOptions);
 
-      const resolvedName = String((existingUserByEmail as any).name || (existingUserByEmail as any).fullName || "").trim();
-      const resolvedPhoneRaw = String((existingUserByEmail as any).phone || "");
+      const resolvedName = String((existingUserByPhone as any).name || (existingUserByPhone as any).fullName || "").trim();
+      const resolvedPhoneRaw = String((existingUserByPhone as any).phone || "");
       const resolvedPhoneDigits = resolvedPhoneRaw.replace(/\D/g, "");
       const resolvedPhone10 =
         resolvedPhoneDigits.length >= 10
@@ -220,7 +218,7 @@ export const completeOnboarding = async (
         authState: "ACTIVE",
         profileCompleted,
         user: {
-          ...toSafeUserResponse(existingUserByEmail),
+          ...toSafeUserResponse(existingUserByPhone),
           profileCompleted,
           isProfileComplete: profileCompleted,
         },
@@ -228,13 +226,6 @@ export const completeOnboarding = async (
         refreshToken,
         token: accessToken,
       });
-    }
-
-    const existingUserByPhone = await User.findOne({ phone: nextPhone });
-    if (existingUserByPhone) {
-      return res
-        .status(409)
-        .json({ message: "Phone number already exists" });
     }
 
     const otpRecord = await Otp.findOne({
@@ -265,13 +256,12 @@ export const completeOnboarding = async (
     otpRecord.isUsed = true;
     await otpRecord.save();
 
-    logger.info("[AUTH] Creating user after OTP verification:", { email, phone: nextPhone });
+    logger.info("[AUTH] Creating user after OTP verification:", { phone: nextPhone });
     const newUser = new User({
       name: nextName,
-      email,
       phone: nextPhone,
-      avatar: googleClaims.avatar || undefined,
-      oauthProviders: googleClaims.providerId
+      avatar: googleClaims?.avatar || undefined,
+      oauthProviders: googleClaims?.providerId
         ? [{ provider: "google", providerId: String(googleClaims.providerId) }]
         : [],
       isProfileComplete: true,
@@ -281,7 +271,7 @@ export const completeOnboarding = async (
     await newUser.save();
 
     const accessToken = jwt.sign(
-      { userId: newUser._id, email: newUser.email, role: newUser.role },
+      { userId: newUser._id, phone: newUser.phone, role: newUser.role },
       JWT_SECRET,
       { expiresIn: ACCESS_TOKEN_EXPIRY } as jwt.SignOptions
     );
@@ -420,7 +410,7 @@ export const _loginDeprecated = async (
 
     // Generate tokens
     const accessToken = jwt.sign(
-      { userId: user._id, email: user.email, role: user.role },
+      { userId: user._id, phone: user.phone, role: user.role },
       JWT_SECRET,
       { expiresIn: ACCESS_TOKEN_EXPIRY } as jwt.SignOptions
     );
@@ -521,7 +511,7 @@ export const oauth = async (
 
     // Generate tokens
     const accessToken = jwt.sign(
-      { userId: user._id, email: user.email, role: user.role },
+      { userId: user._id, phone: user.phone, role: user.role },
       JWT_SECRET,
       { expiresIn: ACCESS_TOKEN_EXPIRY } as jwt.SignOptions
     );
@@ -589,7 +579,7 @@ export const refresh = async (
     }
 
     const accessToken = jwt.sign(
-      { userId: user._id, email: user.email, role: user.role },
+      { userId: user._id, phone: user.phone, role: user.role },
       JWT_SECRET,
       { expiresIn: ACCESS_TOKEN_EXPIRY } as jwt.SignOptions
     );
@@ -732,7 +722,7 @@ export const googleCallback = async (
 
     // Generate tokens
     const accessToken = jwt.sign(
-      { userId: user._id, email: user.email, role: user.role },
+      { userId: user._id, phone: user.phone, role: user.role },
       JWT_SECRET,
       { expiresIn: ACCESS_TOKEN_EXPIRY } as jwt.SignOptions
     );
@@ -873,7 +863,7 @@ export const googleMobileAuth = async (
 
     // Generate tokens
     const accessToken = jwt.sign(
-      { userId: user._id, email: user.email, role: user.role },
+      { userId: user._id, phone: user.phone, role: user.role },
       JWT_SECRET,
       { expiresIn: ACCESS_TOKEN_EXPIRY } as jwt.SignOptions
     );
@@ -981,7 +971,7 @@ export const _changePasswordDeprecated = async (
   }
 };
 
-// Send OTP for authentication (login/signup)
+// Send OTP for authentication (login/signup) - CUSTOMER PHONE-ONLY
 export const sendAuthOTP = async (
   req: Request,
   res: Response
@@ -991,64 +981,36 @@ export const sendAuthOTP = async (
     console.log("📱 Request body:", req.body);
     console.log("⚙️ MOCK_OTP (raw):", process.env.MOCK_OTP);
     console.log("⚙️ MOCK_OTP === 'true':", process.env.MOCK_OTP === "true");
-    console.log("🔍 Mode:", req.query.mode);
 
-    const { phone, email } = req.body;
+    const { phone } = req.body;
 
-    // Get the user input (either phone or email)
-    const userInput = phone || email;
-
-    if (!userInput) {
-      return res.status(400).json({ message: "Phone or email is required" });
+    if (!phone) {
+      return res.status(400).json({ message: "Phone is required" });
     }
 
-    // Detect input type: email or phone
-    // IMPORTANT: Check email FIRST because numeric prefixes (e.g., 203031240398@domain.com)
-    // can be mistaken for phone numbers by digit extraction
-    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userInput);
-    const isPhone = !isEmail && validatePhoneNumber(userInput);
+    // Validate phone number format
+    const isPhone = validatePhoneNumber(phone);
 
-    if (!isPhone && !isEmail) {
+    if (!isPhone) {
       return res.status(400).json({
-        message: "Invalid phone or email format",
+        message: "Invalid phone format",
       });
     }
 
-    logger.info("[OTP LOGIN] Input type detected:", { isEmail, isPhone, userInput });
+    const cleanedPhone = String(phone).replace(/\D/g, "");
+    logger.info("[OTP LOGIN] Looking up by phone:", cleanedPhone);
 
     // ============================================================
-    // USER LOOKUP (Case-insensitive for email)
+    // USER LOOKUP (Phone only)
     // ============================================================
     let user: any = null;
-
-    // Always look up user - no signup mode
-    if (isPhone) {
-      const cleanedPhone = String(userInput).replace(/\D/g, "");
-      logger.info("[OTP LOGIN] Looking up by phone:", cleanedPhone);
-      user = await User.findOne({ phone: cleanedPhone });
-    } else if (isEmail) {
-      // Use case-insensitive email search from the start
-      const normalizedEmail = String(userInput).toLowerCase().trim();
-      logger.info("[OTP LOGIN] Looking up by email (case-insensitive):", normalizedEmail);
-      
-      // First try exact match (faster with index)
-      user = await User.findOne({ email: normalizedEmail });
-      
-      // If not found, try case-insensitive regex
-      if (!user) {
-        logger.info("[OTP LOGIN] Exact match failed, trying case-insensitive...");
-        user = await User.findOne({ 
-          email: { $regex: new RegExp(`^${normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } 
-        });
-      }
-    }
+    user = await User.findOne({ phone: cleanedPhone });
 
     // DEBUG: Log what we found
     logger.info("[OTP LOGIN] User found:", !!user);
     if (user) {
       logger.info("[OTP LOGIN] User details:", {
         _id: user._id?.toString(),
-        email: user.email,
         phone: user.phone,
         hasPasswordHash: !!user.passwordHash,
         oauthProviders: user.oauthProviders?.length || 0,
@@ -1092,38 +1054,27 @@ export const sendAuthOTP = async (
       logger.info("[OTP LOGIN] ✓ User validated, proceeding with OTP");
     }
 
-    // Determine where to send OTP:
-    // - new user: use the raw input
-    // - existing user: use the user's stored contact (prefer DB value)
-    let targetPhone: string | undefined;
-    let targetEmail: string | undefined;
-
-    if (isPhone) {
-      targetPhone = user ? (user?.phone || userInput) : userInput;
-    } else if (isEmail) {
-      targetEmail = user ? (user?.email || userInput) : userInput;
-    }
-
-    const normalizedTargetEmail = targetEmail
-      ? String(targetEmail).toLowerCase().trim()
-      : undefined;
+    // Use phone for OTP
+    const targetPhone = user ? (user?.phone || phone) : phone;
 
     // Generate 6-digit OTP
     const otp = generateOTP();
-    console.log("🔐 GENERATED OTP:", otp);
+    
+    // CRITICAL: LOG OTP PROMINENTLY FOR DEVELOPER
+    console.log("\n" + "=".repeat(50));
+    console.log("🔐 [AUTH] GENERATED OTP FOR:", targetPhone);
+    console.log("👉 OTP CODE:", otp);
+    console.log("=".repeat(50) + "\n");
 
-    // Create OTP record. The model requires phone, but email OTP flows may not have a phone.
-    // Use a stable placeholder phone for email-based OTPs so verify can query reliably.
+    // Create OTP record (phone-based only)
     const otpPayload: any = {
-      phone: targetPhone ? String(targetPhone).replace(/\D/g, "") : "EMAIL",
+      phone: String(targetPhone).replace(/\D/g, ""),
       otp,
       type: user ? "login" : "signup", // New users get signup type for onboarding
       expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
       isUsed: false,
       attempts: 0,
     };
-    // Include normalized email field if it's an email-based OTP
-    if (normalizedTargetEmail) otpPayload.email = normalizedTargetEmail;
 
     const otpRecord = new Otp(otpPayload);
     await otpRecord.save();
@@ -1131,34 +1082,30 @@ export const sendAuthOTP = async (
 
     // MOCK MODE: Skip SMS sending in development
     if (process.env.MOCK_OTP === "true") {
+      console.log("\n" + "🧪".repeat(15));
       console.log("🧪 MOCK MODE ACTIVE - NOT SENDING SMS");
+      console.log("👉 TARGET PHONE:", targetPhone);
       console.log("🔑 USE THIS OTP:", otp);
-      console.log("⚠️  OTP is logged in console for development only");
+      console.log("🧪".repeat(15) + "\n");
       
       return res.json({
         message: "OTP sent successfully (mock mode)",
         expiresIn: 600,
-        sentTo: targetPhone ? "phone" : "email",
+        sentTo: "phone",
         isNewUser: !user, // Indicate if this is a new user
         // DO NOT expose OTP in response - security risk
         // Check server console logs for OTP in development
       });
     }
 
-    // Send OTP based on input type
-    if (targetPhone) {
-      // Send OTP via SMS
-      const message = `<#> Your VyaparSetu OTP is ${otp}\nFA+9qCX9VSu`;
-      await sendSMS(targetPhone, message);
-    } else if (normalizedTargetEmail) {
-      // Send OTP via Email using Gmail SMTP or fallback
-      await sendEmailOTP(normalizedTargetEmail, otp);
-    }
+    // Send OTP via SMS
+    const message = `<#> Your VyaparSetu OTP is ${otp}\nFA+9qCX9VSu`;
+    await sendSMS(targetPhone, message);
 
     res.json({
       message: "OTP sent successfully",
       expiresIn: 600, // 10 minutes in seconds
-      sentTo: targetPhone ? "phone" : "email",
+      sentTo: "phone",
       isNewUser: !user, // Indicate if this is a new user for frontend routing
     });
   } catch (error: any) {
@@ -1172,13 +1119,13 @@ export const sendAuthOTP = async (
   }
 };
 
-// Verify OTP for authentication
+// Verify OTP for authentication - CUSTOMER PHONE-ONLY
 export const verifyAuthOTP = async (
   req: Request,
   res: Response
 ): Promise<Response | void> => {
   try {
-    const { phone, email, otp } = req.body;
+    const { phone, otp } = req.body;
 
     // CRITICAL: OTP is ALWAYS required - no bypass
     if (!otp || String(otp).trim().length === 0) {
@@ -1192,42 +1139,35 @@ export const verifyAuthOTP = async (
       return res.status(400).json({ error: "OTP must be 6 digits" });
     }
 
-    if (!phone && !email) {
-      return res.status(400).json({ error: "Phone or email is required" });
+    if (!phone) {
+      return res.status(400).json({ error: "Phone is required" });
     }
 
-    const normalizedPhone = phone ? String(phone).replace(/\D/g, "") : undefined;
-    const normalizedEmail = email ? String(email).toLowerCase().trim() : undefined;
+    const normalizedPhone = String(phone).replace(/\D/g, "");
 
     // Check if user exists
     let user: any | null = null;
-
-    if (normalizedPhone) {
-      user = await User.findOne({ phone: normalizedPhone });
-    } else if (normalizedEmail) {
-      user = await User.findOne({ email: normalizedEmail });
-    }
+    user = await User.findOne({ phone: normalizedPhone });
 
     // Determine OTP type based on user existence
     const otpType = user ? "login" : "signup";
 
-    // Find OTP record by phone or email
+    // Find OTP record by phone
     const otpRecord = await Otp.findOne({
-      ...(normalizedPhone ? { phone: normalizedPhone } : {}),
-      ...(normalizedEmail ? { email: normalizedEmail } : {}),
+      phone: normalizedPhone,
       type: otpType,
       isUsed: false,
       expiresAt: { $gt: new Date() },
     }).sort({ createdAt: -1 });
 
     if (!otpRecord) {
-      logger.warn("[OTP VERIFY] No valid OTP found for:", { phone: normalizedPhone, email: normalizedEmail, type: otpType });
+      logger.warn("[OTP VERIFY] No valid OTP found for:", { phone: normalizedPhone, type: otpType });
       return res.status(400).json({ error: "Invalid or expired OTP" });
     }
 
     // Check attempts BEFORE verification
     if (otpRecord.attempts >= 3) {
-      logger.warn("[OTP VERIFY] Max attempts exceeded for:", normalizedPhone || normalizedEmail);
+      logger.warn("[OTP VERIFY] Max attempts exceeded for:", normalizedPhone);
       return res.status(400).json({
         error: "Maximum OTP attempts exceeded. Please request a new OTP.",
       });
@@ -1242,7 +1182,6 @@ export const verifyAuthOTP = async (
       
       logger.warn("[OTP VERIFY] Invalid OTP attempt:", {
         phone: normalizedPhone,
-        email: normalizedEmail,
         attempts: otpRecord.attempts,
         providedOtp: otp,
         expectedOtp: otpRecord.otp
@@ -1254,7 +1193,7 @@ export const verifyAuthOTP = async (
     }
 
     // OTP is valid - mark as used
-    logger.info("[OTP VERIFY] OTP verified successfully for:", normalizedPhone || normalizedEmail);
+    logger.info("[OTP VERIFY] OTP verified successfully for:", normalizedPhone);
     otpRecord.isUsed = true;
     await otpRecord.save();
 
@@ -1268,13 +1207,8 @@ export const verifyAuthOTP = async (
         message: "OTP verified successfully",
         requiresOnboarding: true,
         phone: normalizedPhone,
-        email: normalizedEmail,
       });
     }
-
-    // ============================================================
-    // EXISTING USER FLOW - Login
-    // ============================================================
 
     // ============================================================
     // EXISTING USER FLOW - Login
@@ -1306,7 +1240,7 @@ export const verifyAuthOTP = async (
 
     // Generate tokens
     const accessToken = jwt.sign(
-      { userId: user._id, email: user.email, role: user.role },
+      { userId: user._id, phone: user.phone, role: user.role },
       JWT_SECRET,
       { expiresIn: ACCESS_TOKEN_EXPIRY } as jwt.SignOptions
     );
@@ -1424,26 +1358,25 @@ export const completeProfile = async (
       user.name = req.body.fullName.trim();
     }
 
-    // Email: validate format and uniqueness before update
+    // Email: optional/deprecated - validate format if provided but don't require
     if (req.body.email !== undefined) {
       const emailValue = String(req.body.email).trim().toLowerCase();
-      // Check for empty string first
-      if (emailValue === "") {
-        return res.status(400).json({ message: "Email cannot be empty" });
-      }
-      // Then validate format
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(emailValue)) {
-        return res.status(400).json({ message: "Invalid email format" });
-      }
-
-      // Check for uniqueness if email is changing
-      if (emailValue !== user.email) {
-        const existingEmail = await User.findOne({ email: emailValue, _id: { $ne: userId } });
-        if (existingEmail) {
-          return res.status(400).json({ message: "Email already in use by another account" });
+      // Allow empty string (deprecated field)
+      if (emailValue !== "") {
+        // Validate format only if non-empty
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(emailValue)) {
+          return res.status(400).json({ message: "Invalid email format" });
         }
-        user.email = emailValue;
+
+        // Check for uniqueness if email is changing
+        if (emailValue !== user.email) {
+          const existingEmail = await User.findOne({ email: emailValue, _id: { $ne: userId } });
+          if (existingEmail) {
+            return res.status(400).json({ message: "Email already in use by another account" });
+          }
+          user.email = emailValue;
+        }
       }
     }
 
@@ -1489,18 +1422,17 @@ export const completeProfile = async (
       user.appLanguage = req.body.appLanguage;
     }
 
-    // Recalculate profile completion safely
+    // Recalculate profile completion safely - PHONE-ONLY for customers
     const resolvedName = String(user.name || "").trim();
     const resolvedPhoneRaw = String(user.phone || "");
     const resolvedPhoneDigits = resolvedPhoneRaw.replace(/\D/g, "");
     const resolvedPhone10 = resolvedPhoneDigits.length >= 10 ? resolvedPhoneDigits.slice(-10) : resolvedPhoneDigits;
 
-    // Use a more robust check for profile completion
+    // Customer profile completion: name + phone only (email deprecated)
     const hasName = resolvedName.length > 0;
-    const hasEmail = !!user.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(user.email);
     const hasPhone = /^[6-9]\d{9}$/.test(resolvedPhone10);
     
-    const profileCompleted = hasName && hasEmail && hasPhone;
+    const profileCompleted = hasName && hasPhone;
 
     // Persist completion status
     user.isProfileComplete = profileCompleted;

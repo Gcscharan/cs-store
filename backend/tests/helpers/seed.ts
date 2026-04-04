@@ -22,7 +22,6 @@ async function seedDatabase() {
     
     const regularUser = await User.create({
       name: "Test User",
-      email: "test.user@example.com",
       phone: "9876543210",
       passwordHash: hashedPassword,
       role: "customer",
@@ -30,7 +29,6 @@ async function seedDatabase() {
 
     const adminUser = await User.create({
       name: "Admin User",
-      email: "admin@example.com",
       phone: "9999999999",
       passwordHash: hashedPassword,
       role: "admin",
@@ -39,7 +37,6 @@ async function seedDatabase() {
 
     const deliveryUser = await User.create({
       name: "Delivery Partner",
-      email: "delivery@example.com",
       phone: "8888888888",
       passwordHash: hashedPassword,
       role: "delivery",

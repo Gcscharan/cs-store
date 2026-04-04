@@ -63,26 +63,6 @@ export interface INotificationPreferences {
       newProductAlerts?: boolean;
     };
   };
-  email?: {
-    enabled?: boolean;
-    categories?: {
-      myOrders?: boolean;
-      reminders?: {
-        enabled?: boolean;
-        subcategories?: {
-          reminders_cart?: boolean;
-          reminders_payment?: boolean;
-          reminders_restock?: boolean;
-        };
-      };
-      silentPay?: boolean;
-      recommendations?: boolean;
-      newOffers?: boolean;
-      community?: boolean;
-      feedback?: boolean;
-      newProductAlerts?: boolean;
-    };
-  };
   sms?: {
     enabled?: boolean;
     categories?: {
@@ -168,8 +148,8 @@ export interface INotificationPreferences {
 export interface IUser extends Document {
   _id: mongoose.Types.ObjectId;
   name: string;
-  email: string;
   phone: string;
+  email?: string;
   avatar?: string; // Profile picture from OAuth or upload
   isDeleted?: boolean;
   deletedAt?: Date | null;
@@ -184,11 +164,6 @@ export interface IUser extends Document {
   preferredLanguage?: string;
   isProfileComplete?: boolean;
   mobileVerified?: boolean;
-  // Email change verification fields
-  pendingEmail?: string;
-  pendingEmailToken?: string;
-  pendingEmailExpiresAt?: Date;
-  lastEmailChangeRequestAt?: Date;
   pushToken?: string; // Generic push token
   expoPushToken?: string; // Specifically for Expo Push API
   // Loyalty and Referral
@@ -269,34 +244,21 @@ const UserSchema = new Schema<IUser>(
       trim: true,
       maxlength: [100, "Name cannot exceed 100 characters"],
     },
-    email: {
-      type: String,
-      required: [true, "Email is required"],
-      unique: true,
-      lowercase: true,
-      trim: true,
-      // Email validation - supports plus signs, multiple dots, long TLDs
-      match: [
-        /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i,
-        "Please enter a valid email",
-      ],
-      // Additional validation to prevent empty strings
-      validate: {
-        validator: function(v: string): boolean {
-          return Boolean(v && v.trim().length > 0);
-        },
-        message: "Email cannot be empty",
-      },
-    },
     phone: {
       type: String,
-      required: false, // Make phone optional by default
-      default: undefined, // Use undefined instead of "" to prevent empty string issues
+      required: true, // Phone becomes primary and required
+      unique: true, // Ensure phone is unique
       trim: true,
       match: [
         /^[6-9]\d{9}$/,
         "Please enter a valid Indian phone number (10 digits starting with 6-9)",
       ],
+    },
+    email: {
+      type: String,
+      lowercase: true,
+      trim: true,
+      index: true,
     },
     avatar: {
       type: String,
@@ -361,23 +323,6 @@ const UserSchema = new Schema<IUser>(
     expoPushToken: {
       type: String,
       required: false,
-    },
-    // Email change verification fields
-    pendingEmail: {
-      type: String,
-      default: null,
-    },
-    pendingEmailToken: {
-      type: String,
-      default: null,
-    },
-    pendingEmailExpiresAt: {
-      type: Date,
-      default: null,
-    },
-    lastEmailChangeRequestAt: {
-      type: Date,
-      default: null,
     },
     // Loyalty and Referral
     loyaltyPoints: {

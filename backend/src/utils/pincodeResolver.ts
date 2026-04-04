@@ -122,14 +122,16 @@ export const resolvePincodeDetails = async (
 
   // 1. Check cache first (CacheService with 10-minute TTL)
   const cacheKey = `pincode:${pincode}`;
-  const cached = await cacheService.get(cacheKey);
-  if (cached) {
-    logInfo('PINCODE_CACHE_HIT', {
-      pincode,
-      source: 'cache',
-      duration: Date.now() - startTime,
-    });
-    return cached;
+  if (cacheService) {
+    const cached = await cacheService.get(cacheKey);
+    if (cached) {
+      logInfo('PINCODE_CACHE_HIT', {
+        pincode,
+        source: 'cache',
+        duration: Date.now() - startTime,
+      });
+      return cached;
+    }
   }
 
   // 2. Try MongoDB (PRIMARY source) with circuit breaker + timeout
@@ -154,7 +156,9 @@ export const resolvePincodeDetails = async (
         };
         
         // Cache the result (fire-and-forget, don't block response)
-        cacheService.set(cacheKey, result, CACHE_TTL_SECONDS).catch(() => {});
+        if (cacheService) {
+          cacheService.set(cacheKey, result, CACHE_TTL_SECONDS).catch(() => {});
+        }
         
         logInfo('PINCODE_LOOKUP', {
           pincode,
@@ -191,7 +195,9 @@ export const resolvePincodeDetails = async (
     };
     
     // Cache the result (fire-and-forget, don't block response)
-    cacheService.set(cacheKey, result, CACHE_TTL_SECONDS).catch(() => {});
+    if (cacheService) {
+      cacheService.set(cacheKey, result, CACHE_TTL_SECONDS).catch(() => {});
+    }
     
     logInfo('PINCODE_LOOKUP', {
       pincode,

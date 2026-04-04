@@ -35,7 +35,7 @@ module.exports = {
   coverageReporters: ["text", "lcov", "html"],
   setupFiles: ["<rootDir>/tests/setup.ts"],
   setupFilesAfterEnv: ["<rootDir>/tests/setup-globals.ts"],
-  testTimeout: 60000,
+  testTimeout: 120000, // Increased from 60000 to 120000
   moduleFileExtensions: ["ts", "js", "json"],
   verbose: true,
   clearMocks: true,

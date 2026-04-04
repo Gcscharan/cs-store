@@ -48,7 +48,7 @@ describe("Internal payments manual recovery hooks", () => {
     });
 
     const res = await request(app)
-      .post(`/internal/payments/recovery/${String(pi._id)}/action`)
+      .post(`/api/internal/payments/recovery/${String(pi._id)}/action`)
       .set("Authorization", `Bearer ${token}`)
       .send({ action: "LOCK_PERMANENTLY", reason: "too short" });
 
@@ -75,7 +75,7 @@ describe("Internal payments manual recovery hooks", () => {
     });
 
     const res = await request(app)
-      .post(`/internal/payments/recovery/${String(pi._id)}/action`)
+      .post(`/api/internal/payments/recovery/${String(pi._id)}/action`)
       .set("Authorization", `Bearer ${token}`)
       .send({ action: "LOCK_PERMANENTLY", reason: "admin lock on captured should fail" });
 
@@ -106,7 +106,7 @@ describe("Internal payments manual recovery hooks", () => {
     });
 
     const res = await request(app)
-      .post(`/internal/payments/recovery/${String(pi._id)}/action`)
+      .post(`/api/internal/payments/recovery/${String(pi._id)}/action`)
       .set("Authorization", `Bearer ${token}`)
       .send({ action: "MARK_VERIFYING", reason: "admin verifying on paid order should fail" });
 
@@ -136,7 +136,7 @@ describe("Internal payments manual recovery hooks", () => {
     });
 
     const bad = await request(app)
-      .post(`/internal/payments/recovery/${String(pi._id)}/action`)
+      .post(`/api/internal/payments/recovery/${String(pi._id)}/action`)
       .set("Authorization", `Bearer ${token}`)
       .send({ action: "MARK_VERIFYING", reason: "not allowed from created status" });
 
@@ -146,7 +146,7 @@ describe("Internal payments manual recovery hooks", () => {
     await PaymentIntent.updateOne({ _id: pi._id }, { $set: { status: "PAYMENT_PROCESSING" } });
 
     const ok = await request(app)
-      .post(`/internal/payments/recovery/${String(pi._id)}/action`)
+      .post(`/api/internal/payments/recovery/${String(pi._id)}/action`)
       .set("Authorization", `Bearer ${token}`)
       .send({ action: "MARK_VERIFYING", reason: "admin believes webhook may arrive" });
 
@@ -181,7 +181,7 @@ describe("Internal payments manual recovery hooks", () => {
     });
 
     const bad = await request(app)
-      .post(`/internal/payments/recovery/${String(pi._id)}/action`)
+      .post(`/api/internal/payments/recovery/${String(pi._id)}/action`)
       .set("Authorization", `Bearer ${token}`)
       .send({ action: "MARK_RECOVERABLE", reason: "not allowed from verifying status" });
 
@@ -191,7 +191,7 @@ describe("Internal payments manual recovery hooks", () => {
     await PaymentIntent.updateOne({ _id: pi._id }, { $set: { status: "GATEWAY_ORDER_CREATED" } });
 
     const ok = await request(app)
-      .post(`/internal/payments/recovery/${String(pi._id)}/action`)
+      .post(`/api/internal/payments/recovery/${String(pi._id)}/action`)
       .set("Authorization", `Bearer ${token}`)
       .send({ action: "MARK_RECOVERABLE", reason: "surface to frontend resume flow" });
 
@@ -226,7 +226,7 @@ describe("Internal payments manual recovery hooks", () => {
     });
 
     const blocked = await request(app)
-      .post(`/internal/payments/recovery/${String(pi._id)}/action`)
+      .post(`/api/internal/payments/recovery/${String(pi._id)}/action`)
       .set("Authorization", `Bearer ${token}`)
       .send({ action: "MARK_VERIFYING", reason: "should be blocked because locked" });
 
@@ -234,7 +234,7 @@ describe("Internal payments manual recovery hooks", () => {
     expect(await PaymentRecoveryAudit.countDocuments({ paymentIntentId: pi._id })).toBe(0);
 
     const ok = await request(app)
-      .post(`/internal/payments/recovery/${String(pi._id)}/action`)
+      .post(`/api/internal/payments/recovery/${String(pi._id)}/action`)
       .set("Authorization", `Bearer ${token}`)
       .send({ action: "LOCK_PERMANENTLY", reason: "admin lock with explicit reason" });
 

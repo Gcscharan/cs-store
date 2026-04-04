@@ -23,6 +23,8 @@
     "import-pincodes": "ts-node src/scripts/importPincodes.ts",
     "seed-pincodes": "ts-node scripts/seedPincodes.ts",
     "seed-products": "ts-node src/scripts/seedProducts.ts",
+    "seed-products:enhanced": "ts-node src/scripts/seedBulkProductsEnhanced.ts",
+    "seed-products:test": "ts-node src/scripts/testMediaPipeline.ts",
     "seed-all": "npm run seed-pincodes && npm run seed-products",
     "migrate:addresses": "ts-node src/scripts/regeocode_missing_addresses.ts",
     "migrate:products": "ts-node scripts/fixProductSchema.ts",

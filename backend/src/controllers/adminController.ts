@@ -701,7 +701,7 @@ export const getAdminProducts = async (req: Request, res: Response) => {
     const [products, total] = await Promise.all([
       Product.find(query)
         .select(
-          "name price stock category weight images description createdAt updatedAt"
+          "name price pricePerUnit stock category weight images description createdAt updatedAt"
         )
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -1189,7 +1189,7 @@ export const updateProduct = async (
 ): Promise<Response | void> => {
   try {
     const { id } = req.params;
-    const { name, description, price, category, stock, weight, image, images } =
+    const { name, description, price, pricePerUnit, category, stock, weight, image, images } =
       req.body;
 
     // Get admin user from authenticated request
@@ -1212,11 +1212,19 @@ export const updateProduct = async (
       });
     }
 
+    const parsedPrice = Number(price);
+    const parsedPricePerUnit = pricePerUnit ? Number(pricePerUnit) : parsedPrice;
+
+    if (parsedPricePerUnit > parsedPrice) {
+      return res.status(400).json({ error: "Price per unit cannot exceed base price" });
+    }
+
     // Prepare update data
     const updateData: any = {
       name,
       description,
-      price: Number(price),
+      price: parsedPrice,
+      pricePerUnit: parsedPricePerUnit,
       category,
       stock: Number(stock),
       weight: weight ? Number(weight) : undefined,

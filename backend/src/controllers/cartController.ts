@@ -42,7 +42,7 @@ const formatCartItem = (item: any) => {
     return {
       productId: populatedProduct._id.toString(),
       name: populatedProduct.name,
-      price: populatedProduct.price,
+      price: (populatedProduct as any).pricePerUnit || populatedProduct.price,
       image: typeof populatedProduct.images?.[0] === 'string' 
         ? populatedProduct.images[0] 
         : (populatedProduct.images?.[0] as any)?.variants?.thumb 
@@ -155,7 +155,7 @@ export const addToCart = async (
       cart.items.push({
         productId: product._id,
         name: product.name,
-        price: product.price,
+        price: product.pricePerUnit || product.price,
         image: typeof product.images[0] === 'string' 
           ? product.images[0] 
           : (product.images[0] as any)?.variants?.thumb 
@@ -251,6 +251,12 @@ export const updateCartItem = async (
     } else {
       // Update quantity if greater than 0
       cart.items[itemIndex].quantity = quantity;
+      
+      // Update price at time of update
+      const product = await Product.findOne({ _id: productId, ...SELLABLE_PRODUCT_FILTER });
+      if (product) {
+        cart.items[itemIndex].price = product.pricePerUnit || product.price;
+      }
     }
 
     // Recalculate totals

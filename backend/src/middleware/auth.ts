@@ -155,32 +155,37 @@ export const requireRole = (roles: string[]) => {
     next: NextFunction
   ): Response | void => {
     const debug = process.env.NODE_ENV !== "production";
-    if (debug) logger.info('[Auth] requireRole - checking roles:', roles);
-    if (debug) logger.info('[Auth] requireRole - req.user exists:', !!req.user);
-    if (debug && req.user) {
-      logger.info('[Auth] requireRole - user role:', req.user.role);
-      logger.info('[Auth] requireRole - role check:', roles.includes(req.user.role));
-    }
+    
+    // Normalize target roles
+    const normalizedTargetRoles = (roles || [])
+      .map((r) => String(r || "").trim().toLowerCase())
+      .filter(Boolean);
+
+    if (debug) logger.info('[Auth] requireRole - checking roles:', normalizedTargetRoles);
     
     if (!req.user) {
       if (debug) logger.info('[Auth] requireRole - no req.user, returning 401');
       return res.status(401).json({ message: "Authentication required" });
     }
 
-    if (!roles.includes(req.user.role)) {
-      if (debug) logger.info('[Auth] requireRole - role not allowed, returning 403');
+    const userRole = String(req.user.role || "").trim().toLowerCase();
+    const isAllowed = normalizedTargetRoles.includes(userRole);
 
-      const normalizedRoles = (roles || [])
-        .map((r) => String(r || "").trim())
-        .filter(Boolean);
+    if (debug) {
+      logger.info('[Auth] requireRole - user role:', userRole);
+      logger.info('[Auth] requireRole - role check:', isAllowed);
+    }
+
+    if (!isAllowed) {
+      if (debug) logger.info('[Auth] requireRole - role not allowed, returning 403');
 
       const roleLabel = (r: string): string =>
         r.length > 0 ? r.charAt(0).toUpperCase() + r.slice(1) : r;
 
       const message =
-        normalizedRoles.length === 1
-          ? `${roleLabel(normalizedRoles[0])} role required`
-          : `One of the following roles required: ${normalizedRoles.join(", ")}`;
+        normalizedTargetRoles.length === 1
+          ? `${roleLabel(normalizedTargetRoles[0])} role required`
+          : `One of the following roles required: ${normalizedTargetRoles.map(roleLabel).join(", ")}`;
 
       return res.status(403).json({ message });
     }

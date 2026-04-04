@@ -190,19 +190,28 @@ async function cacheDistance(
   result: DistanceResult,
   ttlSeconds: number = CACHE_TTL_SECONDS
 ): Promise<void> {
-  await redisClient.set(key, JSON.stringify(result), { EX: ttlSeconds });
+  if (!redisClient) return;
+  try {
+    await redisClient.set(key, JSON.stringify(result), { EX: ttlSeconds });
+  } catch (error) {
+    // Silently fail - caching is not critical
+    logger.warn("[DistanceCalculator] Failed to cache distance:", error);
+  }
 }
 
 /**
  * Get cached distance from Redis
  */
 async function getCachedDistance(key: string): Promise<DistanceResult | null> {
-  const raw = await redisClient.get(key);
-  if (!raw) return null;
-
+  if (!redisClient) return null;
   try {
+    const raw = await redisClient.get(key);
+    if (!raw) return null;
+
     return JSON.parse(raw) as DistanceResult;
-  } catch {
+  } catch (error) {
+    // Silently fail - caching is not critical
+    logger.warn("[DistanceCalculator] Failed to get cached distance:", error);
     return null;
   }
 }

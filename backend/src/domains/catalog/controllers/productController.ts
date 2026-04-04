@@ -288,6 +288,26 @@ export const createProduct = async (
     logger.info('🔥 Incoming body:', req.body);
     logger.info('🔥 Incoming files count:', files.length);
 
+    const {
+      name,
+      description,
+      category,
+      price,
+      pricePerUnit,
+      mrp,
+      stock,
+      weight,
+      tags,
+    } = req.body;
+
+    // Validate required fields FIRST (before file processing)
+    if (!name || !price || !category || stock === undefined) {
+      return res.status(400).json({ 
+        message: 'Missing required fields',
+        required: ['name', 'price', 'category', 'stock']
+      });
+    }
+
     const parseNumberField = (value: any): number | undefined => {
       if (value === undefined || value === null) return undefined;
       if (typeof value === "string" && value.trim() === "") return undefined;
@@ -303,23 +323,22 @@ export const createProduct = async (
       return res.status(400).json({ message: 'No valid images uploaded (empty or invalid mimetype)' });
     }
 
-    const {
-      name,
-      description,
-      category,
-      price,
-      mrp,
-      stock,
-      weight,
-      tags,
-    } = req.body;
-
     const parsedPrice = parseNumberField(price);
     if (parsedPrice === undefined) {
       return res.status(400).json({ message: "Price is required" });
     }
     if (Number.isNaN(parsedPrice)) {
       return res.status(400).json({ message: "Invalid price" });
+    }
+
+    const parsedPricePerUnit = parseNumberField(pricePerUnit);
+    if (parsedPricePerUnit !== undefined) {
+      if (Number.isNaN(parsedPricePerUnit)) {
+        return res.status(400).json({ message: "Invalid price per unit" });
+      }
+      if (parsedPricePerUnit > parsedPrice) {
+        return res.status(400).json({ message: "Price per unit cannot exceed base price" });
+      }
     }
 
     const parsedStock = parseNumberField(stock);
@@ -336,10 +355,7 @@ export const createProduct = async (
     }
 
     const parsedWeight = parseNumberField(weight);
-    if (parsedWeight === undefined) {
-      return res.status(400).json({ message: "Weight is required" });
-    }
-    if (Number.isNaN(parsedWeight)) {
+    if (parsedWeight !== undefined && Number.isNaN(parsedWeight)) {
       return res.status(400).json({ message: "Invalid weight" });
     }
 
@@ -384,6 +400,7 @@ export const createProduct = async (
       description,
       category,
       price: parsedPrice,
+      pricePerUnit: parsedPricePerUnit !== undefined ? parsedPricePerUnit : parsedPrice,
       mrp: parsedMrp,
       stock: parsedStock,
       weight: parsedWeight,
@@ -468,6 +485,7 @@ export const updateProduct = async (
 
     // Convert numeric fields
     if (updateFields.price) updateFields.price = Number(updateFields.price);
+    if (updateFields.pricePerUnit) updateFields.pricePerUnit = Number(updateFields.pricePerUnit);
     if (updateFields.stock) updateFields.stock = Number(updateFields.stock);
     if (updateFields.mrp) updateFields.mrp = Number(updateFields.mrp);
     if (updateFields.weight) updateFields.weight = Number(updateFields.weight);

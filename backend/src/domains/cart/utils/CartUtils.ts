@@ -11,7 +11,8 @@ export const formatCartItem = (item: any): CartItem => {
       productId: populatedProduct._id.toString(),
       name: populatedProduct.name,
       // If product is out of stock, treat price as 0 so totals exclude it
-      price: isOutOfStock ? 0 : populatedProduct.price,
+      // Use pricePerUnit if available, fallback to price
+      price: isOutOfStock ? 0 : (populatedProduct.pricePerUnit || populatedProduct.price),
       image: typeof populatedProduct.images?.[0] === 'string' 
         ? populatedProduct.images[0] 
         : (populatedProduct.images?.[0] as any)?.variants?.thumb 

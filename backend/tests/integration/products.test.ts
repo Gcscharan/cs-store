@@ -1,5 +1,5 @@
 import request from "supertest";
-import app from "../../src/app";
+import app from "../helpers/testApp";
 import { createTestUser, createTestAdmin, getAuthHeaders, getAuthHeadersForAdmin } from "../helpers/auth";
 import "../types/global.d.ts";
 
@@ -212,6 +212,91 @@ describe("Products Endpoints", () => {
       expect(response.body).toHaveProperty("product");
       expect(response.body.product.name).toBe("New Laptop");
       expect(response.body.product.price).toBe(55000);
+    });
+
+    it("should support pricePerUnit field", async () => {
+      const png1x1 = Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAOq1p8kAAAAASUVORK5CYII=",
+        "base64"
+      );
+
+      const response = await request(app)
+        .post("/api/products")
+        .set(adminHeaders)
+        .field("name", "Milk")
+        .field("description", "Fresh milk")
+        .field("price", "50")
+        .field("pricePerUnit", "5")
+        .field("category", "dairy")
+        .field("stock", "100")
+        .field("weight", "1000")
+        .attach("images", png1x1, { filename: "test.png", contentType: "image/png" })
+        .expect(201);
+
+      expect(response.body.product.price).toBe(50);
+      expect(response.body.product.pricePerUnit).toBe(5);
+    });
+
+    it("should default pricePerUnit to price if not provided", async () => {
+      const png1x1 = Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAOq1p8kAAAAASUVORK5CYII=",
+        "base64"
+      );
+
+      const response = await request(app)
+        .post("/api/products")
+        .set(adminHeaders)
+        .field("name", "Bread")
+        .field("description", "Fresh bread")
+        .field("price", "40")
+        .field("category", "groceries")
+        .field("stock", "50")
+        .field("weight", "400")
+        .attach("images", png1x1, { filename: "test.png", contentType: "image/png" })
+        .expect(201);
+
+      expect(response.body.product.price).toBe(40);
+      expect(response.body.product.pricePerUnit).toBe(40);
+    });
+
+    it("should reject pricePerUnit > price", async () => {
+      const png1x1 = Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAOq1p8kAAAAASUVORK5CYII=",
+        "base64"
+      );
+
+      await request(app)
+        .post("/api/products")
+        .set(adminHeaders)
+        .field("name", "Expensive Milk")
+        .field("description", "Milk with wrong pricing")
+        .field("price", "50")
+        .field("pricePerUnit", "100") // 100 > 50
+        .field("category", "dairy")
+        .field("stock", "10")
+        .attach("images", png1x1, { filename: "test.png", contentType: "image/png" })
+        .expect(400);
+    });
+
+    it("should support decimal pricing (e.g. ₹1.5)", async () => {
+      const png1x1 = Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQACAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAOq1p8kAAAAASUVORK5CYII=",
+        "base64"
+      );
+
+      const response = await request(app)
+        .post("/api/products")
+        .set(adminHeaders)
+        .field("name", "Cheap Candy")
+        .field("description", "Small candy")
+        .field("price", "5")
+        .field("pricePerUnit", "1.5")
+        .field("category", "snacks")
+        .field("stock", "1000")
+        .attach("images", png1x1, { filename: "test.png", contentType: "image/png" })
+        .expect(201);
+
+      expect(response.body.product.pricePerUnit).toBe(1.5);
     });
 
     it("should not create product as regular user", async () => {

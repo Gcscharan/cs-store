@@ -78,10 +78,13 @@ function projectionLastSeqKey(riderId: string, orderId: string): string {
 }
 
 export async function getTrackingProjection(orderId: string): Promise<TrackingProjectionV1 | null> {
-  const key = projectionKey(orderId);
-  const raw = await redisClient.get(key);
-  if (!raw) return null;
+  if (!redisClient) return null;
+  
   try {
+    const key = projectionKey(orderId);
+    const raw = await redisClient.get(key);
+    if (!raw) return null;
+    
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object") return null;
     const base = parsed as TrackingProjectionV1;
@@ -97,10 +100,16 @@ export async function getTrackingProjection(orderId: string): Promise<TrackingPr
 }
 
 export async function getProjectionLastSeq(params: { riderId: string; orderId: string }): Promise<number | null> {
-  const raw = await redisClient.get(projectionLastSeqKey(params.riderId, params.orderId));
-  if (!raw) return null;
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : null;
+  if (!redisClient) return null;
+  
+  try {
+    const raw = await redisClient.get(projectionLastSeqKey(params.riderId, params.orderId));
+    if (!raw) return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function setProjectionLastSeq(params: {
@@ -109,8 +118,14 @@ export async function setProjectionLastSeq(params: {
   seq: number;
   ttlSeconds?: number;
 }): Promise<void> {
-  const ttl = Math.max(60, Math.min(24 * 60 * 60, Number(params.ttlSeconds || DEFAULT_TTL_SECONDS)));
-  await redisClient.set(projectionLastSeqKey(params.riderId, params.orderId), String(params.seq), { EX: ttl });
+  if (!redisClient) return;
+  
+  try {
+    const ttl = Math.max(60, Math.min(24 * 60 * 60, Number(params.ttlSeconds || DEFAULT_TTL_SECONDS)));
+    await redisClient.set(projectionLastSeqKey(params.riderId, params.orderId), String(params.seq), { EX: ttl });
+  } catch {
+    // Silently fail - tracking is not critical
+  }
 }
 
 export async function writeTrackingProjection(params: {
@@ -118,8 +133,14 @@ export async function writeTrackingProjection(params: {
   projection: TrackingProjectionV1;
   ttlSeconds?: number;
 }): Promise<void> {
-  const ttl = Math.max(60, Math.min(24 * 60 * 60, Number(params.ttlSeconds || DEFAULT_TTL_SECONDS)));
-  await redisClient.set(projectionKey(params.orderId), JSON.stringify(params.projection), { EX: ttl });
+  if (!redisClient) return;
+  
+  try {
+    const ttl = Math.max(60, Math.min(24 * 60 * 60, Number(params.ttlSeconds || DEFAULT_TTL_SECONDS)));
+    await redisClient.set(projectionKey(params.orderId), JSON.stringify(params.projection), { EX: ttl });
+  } catch {
+    // Silently fail - tracking is not critical
+  }
 }
 
 export function computeFreshnessState(params: {

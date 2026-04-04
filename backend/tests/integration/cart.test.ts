@@ -1,5 +1,5 @@
 import request from "supertest";
-import app from "../../src/app";
+import app from "../helpers/testApp";
 import { createTestUser, getAuthHeaders } from "../helpers/auth";
 import "../types/global.d.ts";
 
@@ -37,6 +37,24 @@ describe("Cart Endpoints", () => {
       expect(response.body.cart.items[0].productId).toBe(product._id.toString());
       expect(response.body.cart.items[0].quantity).toBe(2);
       expect(response.body.cart.totalAmount).toBe(200);
+    });
+
+    it("should use pricePerUnit for total calculation if available", async () => {
+      const flexibleProduct = await global.createTestProduct({
+        name: "Flexible Price Product",
+        price: 100,
+        pricePerUnit: 5,
+        stock: 50,
+      });
+
+      const response = await request(app)
+        .post("/api/cart/add")
+        .set(authHeaders)
+        .send({ productId: flexibleProduct._id, quantity: 10 })
+        .expect(200);
+
+      expect(response.body.cart.items[0].price).toBe(5);
+      expect(response.body.cart.totalAmount).toBe(50); // 10 * 5
     });
 
     it("should update quantity if item already exists in cart", async () => {

@@ -157,7 +157,7 @@ export class CartService {
       userId,
       product._id.toString(),
       product.name,
-      product.price,
+      product.pricePerUnit || product.price, // Use pricePerUnit if available, fallback to price
       typeof product.images[0] === 'string' 
         ? product.images[0] 
         : (product.images[0] as any)?.variants?.thumb 

@@ -3,7 +3,8 @@ import dotenv from 'dotenv';
 dotenv.config({ path: '.env.test', override: true });
 
 process.env.NODE_ENV = "test";
-process.env.MONGOMS_STARTUP_TIMEOUT = process.env.MONGOMS_STARTUP_TIMEOUT || "60000";
+process.env.MONGOMS_STARTUP_TIMEOUT = process.env.MONGOMS_STARTUP_TIMEOUT || "120000"; // Increased timeout
+process.env.MONGOMS_DOWNLOAD_DIR = process.env.MONGOMS_DOWNLOAD_DIR || "./.mongodb-binaries"; // Cache binaries
 process.env.MOCK_OTP = process.env.MOCK_OTP || "true";
 process.env.JWT_SECRET = process.env.JWT_SECRET || "test-jwt-secret-key";
 process.env.JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || "test-jwt-refresh-secret-key";
@@ -27,6 +28,8 @@ process.env.SELLER_PINCODE = process.env.SELLER_PINCODE || "560001";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import mongoose from "mongoose";
 
+const MONGO_URI = "mongodb://127.0.0.1:27017/test-db";
+
 type GlobalWithMongo = typeof globalThis & {
   __mongoMemoryReplSet?: MongoMemoryReplSet;
   __mongoSuiteRefCount?: number;
@@ -49,15 +52,9 @@ beforeAll(async () => {
     };
   }
 
-  if (!g.__mongoMemoryReplSet) {
-    g.__mongoMemoryReplSet = await MongoMemoryReplSet.create({
-      replSet: { count: 1 },
-      instanceOpts: [{ instance: { launchTimeout: 60000 } }],
-    });
-  }
-
+  // Use local MongoDB instead of MongoMemoryServer
   if (mongoose.connection.readyState === 0) {
-    await mongoose.connect(g.__mongoMemoryReplSet.getUri());
+    await mongoose.connect(MONGO_URI);
   }
 });
 
@@ -98,10 +95,7 @@ afterAll(async () => {
       // ignore
     }
 
-    if (g.__mongoMemoryReplSet) {
-      await g.__mongoMemoryReplSet.stop().catch(() => undefined);
-      delete g.__mongoMemoryReplSet;
-    }
+    // No need to stop MongoMemoryServer anymore
 
     delete g.__jestOriginalSetInterval;
     delete g.__jestIntervalIds;
@@ -129,10 +123,20 @@ beforeEach(async () => {
 (global as any).createTestUser = async (overrides: any = {}) => {
   const { User } = await import("../src/models/User");
   const hashedPassword = await require("bcryptjs").hash("password123", 10);
+  
+  // Generate unique phone if not provided in overrides
+  const uniquePhone = overrides.phone || 
+    `98765${Math.floor(Math.random() * 100000).toString().padStart(5, '0')}`;
+  
+  // Generate unique referralCode if not provided (to avoid duplicate null key errors)
+  const uniqueReferralCode = overrides.referralCode !== undefined 
+    ? overrides.referralCode 
+    : `REF${Date.now()}${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
+  
   const userData = {
     name: "Test User",
-    email: "test@example.com",
-    phone: "9876543210",
+    phone: uniquePhone,  // ✅ UNIQUE per test
+    referralCode: uniqueReferralCode,  // ✅ UNIQUE per test
     passwordHash: hashedPassword,
     role: "customer",
     ...overrides,
@@ -141,7 +145,7 @@ beforeEach(async () => {
   const user = await User.create(userData);
   console.log("Created user:", { 
     id: user._id, 
-    email: user.email, 
+    phone: user.phone, 
     hasPasswordHash: !!user.passwordHash 
   });
   return user;
@@ -385,7 +389,7 @@ beforeEach(async () => {
 (global as any).getAuthToken = async (user: any) => {
   const jwt = require("jsonwebtoken");
   return jwt.sign(
-    { userId: user._id, email: user.email, role: user.role || "customer" },
+    { userId: user._id, phone: user.phone, role: user.role || "customer" },
     process.env.JWT_SECRET!,
     { expiresIn: "1h" }
   );

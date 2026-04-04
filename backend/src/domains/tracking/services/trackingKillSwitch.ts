@@ -28,6 +28,12 @@ export async function getTrackingKillSwitchMode(): Promise<TrackingKillSwitchMod
     return cache.mode;
   }
 
+  if (!redisClient) {
+    const mode = getEnvDefaultMode();
+    cache = { mode, expiresAt: now + CACHE_TTL_MS };
+    return mode;
+  }
+
   try {
     const v = await redisClient.get(REDIS_KEY);
     const mode = isValidMode(v) ? v : getEnvDefaultMode();
@@ -54,7 +60,11 @@ export async function setTrackingKillSwitchMode(params: {
   }
 
   const prev = await getTrackingKillSwitchMode();
-  await redisClient.set(REDIS_KEY, next);
+  
+  if (redisClient) {
+    await redisClient.set(REDIS_KEY, next);
+  }
+  
   cache = { mode: next, expiresAt: Date.now() + CACHE_TTL_MS };
 
   const log = {

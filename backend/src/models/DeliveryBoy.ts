@@ -70,6 +70,11 @@ const DeliveryBoySchema = new Schema<IDeliveryBoy>(
       unique: true,
       match: [/^[6-9]\d{9}$/, "Please enter a valid 10-digit phone number"],
     },
+    email: {
+      type: String,
+      lowercase: true,
+      trim: true,
+    },
     vehicleType: {
       type: String,
       required: [true, "Vehicle type is required"],
@@ -114,11 +119,6 @@ const DeliveryBoySchema = new Schema<IDeliveryBoy>(
     },
     lastAssignedAt: {
       type: Date,
-    },
-    email: {
-      type: String,
-      trim: true,
-      lowercase: true,
     },
     userId: {
       type: Schema.Types.ObjectId,

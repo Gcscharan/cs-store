@@ -17,6 +17,7 @@ export interface IProduct extends Document {
   };
   category: string;
   price: number;
+  pricePerUnit?: number; // Flexible pricing per unit (₹1, ₹2, ₹5, etc.)
   mrp?: number;
   gstRate?: number; // GST rate as percentage (e.g., 18 for 18%)
   stock: number;
@@ -45,6 +46,13 @@ export interface IProduct extends Document {
       height?: number;
       aspectRatio?: number;
     };
+  }[];
+  videos?: {
+    publicId?: string;
+    url: string;
+    thumbnailUrl?: string;
+    duration?: number;
+    format?: string;
   }[];
   sku?: string;
   tags: string[];
@@ -108,6 +116,20 @@ const ProductSchema = new Schema<IProduct>(
       required: [true, "Price is required"],
       min: [0, "Price cannot be negative"],
     },
+    pricePerUnit: {
+      type: Number,
+      required: true,
+      min: [0.01, "Price per unit must be greater than 0"],
+      validate: {
+        validator: function(this: any, value: number) {
+          return value <= this.price;
+        },
+        message: "Price per unit ({VALUE}) cannot exceed base price"
+      },
+      default: function(this: any) {
+        return this.price; // Default to 'price' for backward compatibility
+      }
+    },
     mrp: {
       type: Number,
       min: [0, "MRP cannot be negative"],
@@ -170,6 +192,15 @@ const ProductSchema = new Schema<IProduct>(
           height: { type: Number },
           aspectRatio: { type: Number }
         }
+      }
+    ],
+    videos: [
+      {
+        publicId: { type: String },
+        url: { type: String, required: true },
+        thumbnailUrl: { type: String },
+        duration: { type: Number },
+        format: { type: String },
       }
     ],
     sku: {
