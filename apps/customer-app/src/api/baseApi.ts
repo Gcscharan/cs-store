@@ -1,49 +1,54 @@
 import { createApi, BaseQueryFn } from '@reduxjs/toolkit/query/react';
 import { Platform } from 'react-native';
 import { axiosBaseQuery, AxiosBaseQueryError } from './axiosBaseQuery';
-import Constants from 'expo-constants';
+import * as Device from 'expo-device';
 import { storage } from '../utils/storage';
-import { logout, setTokens } from '../store/slices/authSlice';
 import axios from 'axios';
 
+// After this change run: npx expo start -c
+// IMPORTANT: Device and laptop must be on same WiFi for local IP to work
 const getRawUrl = (): string => {
-  const envUrl = process.env.EXPO_PUBLIC_API_URL;
+  const normalizeUrl = (value: string): string => {
+    let v = value.trim();
+    const wrapped =
+      (v.startsWith('`') && v.endsWith('`')) ||
+      (v.startsWith('"') && v.endsWith('"')) ||
+      (v.startsWith("'") && v.endsWith("'"));
+    if (wrapped) v = v.slice(1, -1).trim();
+    v = v.replace(/^[`'"]+/, '').replace(/[`'"]+$/, '').trim();
+    return v;
+  };
+
+  const envUrlRaw = process.env.EXPO_PUBLIC_API_URL;
+  const envUrl = envUrlRaw ? normalizeUrl(envUrlRaw) : '';
   
   // If explicit URL provided, use it
   if (envUrl) {
     console.log("🌐 BASE_URL CONFIG:", {
       source: 'EXPO_PUBLIC_API_URL',
       url: envUrl,
-      isDevice: Constants.isDevice,
+      isDevice: Device.isDevice,
       platform: Platform.OS,
     });
     return envUrl;
   }
 
-  // Fallback: Auto-detect based on platform and device type
-  const isEmulator = Constants.isDevice === false;
+  // Fallback: Use .local hostname (mDNS) which is more stable across IP changes
+  const hostname = 'GCSCharans-MacBook-Air.local';
+  const fallbackUrl = `http://${hostname}:5002/api`;
   
-  if (Platform.OS === 'android' && isEmulator) {
-    // Android emulator: use 10.0.2.2 (special alias for host machine)
-    console.log("🌐 BASE_URL CONFIG:", {
-      source: 'auto-detect',
-      url: 'http://10.0.2.2:5001/api',
-      reason: 'Android Emulator',
-    });
-    return 'http://10.0.2.2:5001/api';
-  }
-  
-  // Real device or iOS simulator
   console.log("🌐 BASE_URL CONFIG:", {
-    source: 'fallback',
-    url: 'http://localhost:5001/api',
-    isDevice: Constants.isDevice,
+    source: 'fallback (.local)',
+    url: fallbackUrl,
+    isDevice: Device.isDevice,
     platform: Platform.OS,
   });
-  return 'http://localhost:5001/api';
+  return fallbackUrl;
 };
 
 export const BASE_URL = getRawUrl();
+
+console.log("🔥 FINAL API BASE URL (Axios):", BASE_URL);
 
 const baseQuery = axiosBaseQuery({ baseUrl: BASE_URL });
 
@@ -79,21 +84,21 @@ const baseQueryWithReauth: BaseQueryFn<
           }
 
           // Update Redux state
-          api.dispatch(setTokens({ accessToken, refreshToken: newRefreshToken || refreshToken }));
+          api.dispatch({ type: 'auth/setTokens', payload: { accessToken, refreshToken: newRefreshToken || refreshToken } });
 
           // Retry the initial query
           result = await baseQuery(args, api, extraOptions);
         } else {
           console.warn('❌ [Auth] Refresh failed: No token in response');
-          api.dispatch(logout());
+          api.dispatch({ type: 'auth/logout' });
         }
       } else {
         console.log('🔐 [Auth] No refresh token available, logging out');
-        api.dispatch(logout());
+        api.dispatch({ type: 'auth/logout' });
       }
     } catch (refreshError) {
       console.error('❌ [Auth] Token refresh failed with error:', refreshError);
-      api.dispatch(logout());
+      api.dispatch({ type: 'auth/logout' });
     }
   }
 
@@ -123,11 +128,14 @@ export const baseApi = createApi({
     'Profile',
     'Notifications',
     'DeliveryOrders',
+    'DeliveryBoys',
     'Reviews',
     'Coupons',
+    'Users',
 
     'AdminRoutes',
     'AdminSettings',
+    'Pincode',
   ],
   endpoints: () => ({}),
 });

@@ -18,6 +18,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
+import { safeT } from '../../utils/safeTranslate';
 import {
   useGetProductsQuery,
   useGetCategoriesQuery,
@@ -46,6 +47,7 @@ import VoiceListeningModal from '../../components/VoiceListeningModal';
 import { LoadingState } from '../../components/common/LoadingState';
 import { ErrorState } from '../../components/common/ErrorState';
 import { EmptyState } from '../../components/common/EmptyState';
+import { HomeSearchBar } from '../../components/HomeSearchBar';
 
 const { width } = Dimensions.get('window');
 
@@ -90,30 +92,6 @@ const s = StyleSheet.create({
     borderColor: Colors.primary,
   },
   notifBadgeTxt: { color: Colors.primary, fontSize: 9, fontWeight: '900' },
-  searchBarRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 16,
-    backgroundColor: Colors.inputBackground,
-    borderRadius: 12,
-    height: 48,
-  },
-  searchBar: {
-    flex: 1,
-    height: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-  },
-  micBtn: {
-    width: 48,
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  searchPlaceholder: { color: Colors.textMuted, fontSize: 14, flex: 1, fontWeight: '500' },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -331,7 +309,7 @@ const HomeProductCard = memo(({
         <SmartImage uri={imageUrl} style={s.productImg} resizeMode="contain" />
         {discount > 0 && (
           <View style={s.discountBadge}>
-            <Text style={s.discountTxt}>{discount}% {t('off') || 'OFF'}</Text>
+            <Text style={s.discountTxt}>{discount}% {safeT(t, 'common.off', 'OFF')}</Text>
           </View>
         )}
         {rating !== null && (
@@ -349,14 +327,14 @@ const HomeProductCard = memo(({
           )}
         </View>
         {item.price >= BusinessRules.FREE_DELIVERY_THRESHOLD && (
-          <Text style={s.freeDelivery}>🚚 {t('free_delivery') || 'Free Delivery'}</Text>
+          <Text style={s.freeDelivery}>🚚 {safeT(t, 'common.free_delivery', 'Free Delivery')}</Text>
         )}
         <TouchableOpacity
           style={s.addBtn}
           onPress={handleAdd}
           activeOpacity={0.7}
         >
-          <Text style={s.addBtnTxt}>{t('home.add') || 'Add to Cart'}</Text>
+          <Text style={s.addBtnTxt}>{safeT(t, 'home.add', 'Add to Cart')}</Text>
         </TouchableOpacity>
       </View>
     </Pressable>
@@ -376,15 +354,6 @@ export default function HomeScreen({ navigation }: any) {
 
   // Add minimal logging
   console.log("🎯 UI RENDER", {userId: user?.id, time: Date.now()});
-
-  // Block UI until user is ready
-  if (!user) {
-    return (
-      <View style={s.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-      </View>
-    );
-  }
 
   // Fix 1: guard against double-navigation if mic tapped rapidly
   const hasNavigatedRef = useRef(false);
@@ -494,6 +463,15 @@ export default function HomeScreen({ navigation }: any) {
     />
   ), [navigation, t, handleAddToCart, handlePrefetch]);
 
+  // Block UI until user is ready - MOVED DOWN after all hooks
+  if (!user) {
+    return (
+      <View style={s.loadingContainer}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </View>
+    );
+  }
+
   if (isLoading) {
     return (
       <View style={s.container}>
@@ -508,7 +486,7 @@ export default function HomeScreen({ navigation }: any) {
       <View style={s.container}>
         <ScreenHeader title="Vyapara Setu" />
         <ErrorState 
-          message={t('home.error_loading') || 'Failed to load products. Please check your connection.'} 
+          message={safeT(t, 'home.error_loading', 'Failed to load products. Please check your connection.')} 
           onRetry={refetch} 
           screenName="Home"
         />
@@ -521,10 +499,10 @@ export default function HomeScreen({ navigation }: any) {
       <View style={s.container}>
         <ScreenHeader title="Vyapara Setu" />
         <EmptyState 
-          title={t('home.no_products_title') || 'No products available'} 
-          description={t('home.no_products_desc') || 'Check back later for exciting new items!'} 
+          title={safeT(t, 'home.no_products_title', 'No products available')} 
+          description={safeT(t, 'home.no_products_desc', 'Check back later for exciting new items!')} 
           onAction={onRefresh}
-          actionLabel={t('refresh') || 'Refresh'}
+          actionLabel={safeT(t, 'common.refresh', 'Refresh')}
         />
       </View>
     );
@@ -564,31 +542,11 @@ export default function HomeScreen({ navigation }: any) {
       />
 
       {/* Search bar + Mic */}
-      <View style={s.searchBarRow}>
-        <TouchableOpacity
-          style={s.searchBar}
-          onPress={() => navigation.navigate('Search', {})}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="search" size={20} color={Colors.textMuted} style={{ marginRight: 8 }} />
-          <Text style={s.searchPlaceholder}>
-            {t('home.search_placeholder') || 'Search for products…'}
-          </Text>
-        </TouchableOpacity>
-        {/* Mic: separate touchable so tap is independent */}
-        <TouchableOpacity
-          style={s.micBtn}
-          onPress={handleMicPress}
-          activeOpacity={0.75}
-          hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
-        >
-          <Ionicons
-            name={voice.state === 'listening' ? 'mic' : 'mic-outline'}
-            size={22}
-            color={voice.state === 'listening' ? Colors.primary : Colors.textMuted}
-          />
-        </TouchableOpacity>
-      </View>
+      <HomeSearchBar
+        navigation={navigation}
+        onMicPress={handleMicPress}
+        voiceState={voice.state}
+      />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -603,7 +561,7 @@ export default function HomeScreen({ navigation }: any) {
         {categories.length > 0 && (
           <>
             <View style={s.sectionHeader}>
-              <Text style={s.sectionTitle}>{t('home.shop_by_category') || 'Shop by Category'}</Text>
+              <Text style={s.sectionTitle}>{safeT(t, 'home.shop_by_category', 'Shop by Category')}</Text>
             </View>
             <ScrollView
               horizontal
@@ -648,7 +606,7 @@ export default function HomeScreen({ navigation }: any) {
         {deals.length > 0 && (
           <>
             <View style={s.sectionHeader}>
-              <Text style={s.sectionTitle}>{t('home.top_deals') || 'Top Deals'}</Text>
+              <Text style={s.sectionTitle}>{safeT(t, 'home.top_deals', 'Top Deals')}</Text>
             </View>
             <ScrollView
               horizontal
@@ -668,7 +626,7 @@ export default function HomeScreen({ navigation }: any) {
                   </View>
                   <View style={s.dealBadge}>
                     <Text style={s.dealBadgeTxt}>
-                      {Math.round(((item.mrp - item.price) / item.mrp) * 100)}% {t('off') || 'OFF'}
+                      {Math.round(((item.mrp - item.price) / item.mrp) * 100)}% {safeT(t, 'common.off', 'OFF')}
                     </Text>
                   </View>
                   <Text style={s.dealName} numberOfLines={2}>{item.name}</Text>
@@ -684,7 +642,7 @@ export default function HomeScreen({ navigation }: any) {
 
         {/* Top Selling */}
         <View style={s.sectionHeader}>
-          <Text style={s.sectionTitle}>{t('home.topSelling') || 'Top Selling'}</Text>
+          <Text style={s.sectionTitle}>{safeT(t, 'home.topSelling', 'Top Selling')}</Text>
         </View>
 
         <View style={[s.productGrid, { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }]}>

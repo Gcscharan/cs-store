@@ -9,9 +9,9 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Colors } from '../../constants/colors';
+import { BASE_URL } from '../../api/baseApi';
 import AdminHeader from '../../components/admin/AdminHeader';
 import {
   useGetFinanceDataQuery,
@@ -31,7 +31,7 @@ const daysAgoIso = (days: number) => {
   return d.toISOString().split('T')[0];
 };
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5001/api';
+const API_URL = BASE_URL;
 
 const formatCurrency = (amount: number, currency: string = 'INR') => {
   try {
@@ -109,7 +109,7 @@ const AdminFinanceScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <View style={styles.safe}>
       <AdminHeader title="Finance Reports" onBack={() => navigation.goBack()} />
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
@@ -320,9 +320,9 @@ const AdminFinanceScreen: React.FC = () => {
               </View>
             ))}
           </View>
-        )}}
+        )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

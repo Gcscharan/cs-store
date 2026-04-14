@@ -91,6 +91,7 @@ export const axiosBaseQuery = (
           ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
           ...(headers || {}),
           ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+          'ngrok-skip-browser-warning': 'true',
         };
 
         // Allow custom timeout via X-Request-Timeout header (for voice UX)
@@ -193,4 +194,3 @@ export const axiosBaseQuery = (
       },
     };
   };
-

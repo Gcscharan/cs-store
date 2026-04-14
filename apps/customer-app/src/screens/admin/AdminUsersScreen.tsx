@@ -9,7 +9,6 @@ import {
   RefreshControl,
   Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Colors } from '../../constants/colors';
 import AdminHeader from '../../components/admin/AdminHeader';
@@ -61,15 +60,20 @@ const AdminUsersScreen: React.FC = () => {
         text: 'Delete',
         style: 'destructive',
         onPress: async () => {
-          await deleteUser(id).unwrap();
-          refetch();
+          try {
+            await deleteUser(id).unwrap();
+            Alert.alert('Success', 'User deleted successfully');
+          } catch (err: any) {
+            console.error('Delete user error:', err);
+            Alert.alert('Error', err.data?.message || 'Failed to delete user');
+          }
         },
       },
     ]);
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <View style={styles.safe}>
       <AdminHeader title="Users Management" onBack={() => navigation.goBack()} />
 
       <View style={styles.container}>
@@ -155,7 +159,7 @@ const AdminUsersScreen: React.FC = () => {
           />
         )}
       </View>
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -187,14 +191,14 @@ const styles = StyleSheet.create({
     height: 44,
     width: 44,
     borderRadius: 22,
-    backgroundColor: Colors.backgroundDark,
+    backgroundColor: Colors.inputBackground,
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarText: { fontSize: 16, fontWeight: '900', color: Colors.textPrimary },
   nameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   name: { flex: 1, fontSize: 14, fontWeight: '900', color: Colors.textPrimary },
-  roleBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: Colors.backgroundDark },
+  roleBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: Colors.inputBackground },
   roleText: { fontSize: 11, fontWeight: '900', color: Colors.textSecondary },
   muted: { marginTop: 2, fontSize: 12, color: Colors.textMuted, fontWeight: '700' },
   metaRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },

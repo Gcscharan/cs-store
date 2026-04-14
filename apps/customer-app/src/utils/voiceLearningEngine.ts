@@ -13,6 +13,7 @@
 
 import { storage } from './storage';
 import type { Product } from '../types';
+import { BASE_URL } from '../api/baseApi';
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -120,8 +121,8 @@ class VoiceLearningEngine {
     try {
       console.log('[Learning] Syncing with backend for user:', userId);
       
-      // Get API base URL from environment
-      const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5001/api';
+      // Get API base URL from baseApi
+      const apiUrl = BASE_URL;
       
       // Prepare user corrections for sync
       const userCorrections = Array.from(this.userCorrections.values());
@@ -129,7 +130,10 @@ class VoiceLearningEngine {
       
       const response = await fetch(`${apiUrl}/voice/sync`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
+        },
         body: JSON.stringify({
           userId,
           corrections: userCorrections,
@@ -167,11 +171,14 @@ class VoiceLearningEngine {
     userId?: string
   ): Promise<void> {
     try {
-      const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5001/api';
+      const apiUrl = BASE_URL;
       
       const response = await fetch(`${apiUrl}/voice/correction`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
+        },
         body: JSON.stringify({
           wrong,
           correct,
@@ -205,11 +212,14 @@ class VoiceLearningEngine {
     sessionId?: string
   ): Promise<void> {
     try {
-      const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5001/api';
+      const apiUrl = BASE_URL;
       
       const response = await fetch(`${apiUrl}/voice/click`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
+        },
         body: JSON.stringify({
           productId,
           productName,

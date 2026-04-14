@@ -34,6 +34,14 @@ export const couponsApi = baseApi.injectEndpoints({
         data: body,
       }),
     }),
+    getSmartCoupons: builder.query<Coupon[], { cartTotal: number }>({
+      query: (params) => ({
+        url: '/coupons/smart',
+        method: 'GET',
+        params,
+      }),
+      providesTags: ['Coupons'],
+    }),
   }),
 });
 

@@ -10,6 +10,9 @@ import {
   Platform,
   Pressable,
   Image,
+  TextInput,
+  Keyboard,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -19,6 +22,9 @@ import { ScreenHeader } from '../../components/ScreenHeader';
 import { useGetOrdersQuery } from '../../api/ordersApi';
 import type { OrdersNavigationProp } from '../../navigation/types';
 import type { Order } from '../../types';
+import { HomeSearchBar } from '../../components/HomeSearchBar';
+import { useVoiceSearch } from '../../hooks/useVoiceSearch';
+import VoiceListeningModal from '../../components/VoiceListeningModal';
 
 const mapDbToFriendly = (dbStatus?: string): string => {
   const s = String(dbStatus || '').toUpperCase();
@@ -139,6 +145,65 @@ const OrdersScreen: React.FC = () => {
     refetchOnMountOrArgChange: true,
   });
   const orders: Order[] = (data as any)?.orders || [];
+  
+  const [searchQuery, setSearchQuery] = React.useState('');
+  const [debouncedQuery, setDebouncedQuery] = React.useState('');
+  const [voiceModalVisible, setVoiceModalVisible] = React.useState(false);
+
+  // Voice search handlers
+  const handleVoiceResult = React.useCallback((text: string) => {
+    setVoiceModalVisible(false);
+    if (text.trim()) {
+      setTimeout(() => {
+        (navigation as any).navigate('Search', { initialQuery: text });
+      }, 160);
+    }
+  }, [navigation]);
+
+  const voice = useVoiceSearch(handleVoiceResult);
+
+  const handleMicPress = React.useCallback(async () => {
+    setVoiceModalVisible(true);
+    await voice.start('OrdersListScreen mic press');
+  }, [voice]);
+
+  const handleVoiceCancel = React.useCallback(() => {
+    voice.cancel();
+    setVoiceModalVisible(false);
+  }, [voice]);
+
+  // Debounce search input
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Filter orders based on search query (performance optimized)
+  const filteredOrders = React.useMemo(() => {
+    if (!debouncedQuery.trim()) return orders;
+    
+    const lowerQuery = debouncedQuery.toLowerCase(); // Reuse lowercase conversion
+    return orders.filter((order: any) => {
+      // Search by Order ID
+      const orderId = String(order.orderId || order._id || '').toLowerCase();
+      if (orderId.includes(lowerQuery)) return true;
+      
+      // Search by Product name
+      if (Array.isArray(order.items)) {
+        return order.items.some((item: any) => {
+          const productName = item?.name || 
+                             item?.product?.name || 
+                             item?.productId?.name || 
+                             '';
+          return productName.toLowerCase().includes(lowerQuery);
+        });
+      }
+      
+      return false;
+    });
+  }, [orders, debouncedQuery]);
 
   const pulse = React.useRef(new Animated.Value(0.4)).current;
   React.useEffect(() => {
@@ -152,9 +217,9 @@ const OrdersScreen: React.FC = () => {
     return () => anim.stop();
   }, [pulse]);
 
-  const dataToRender: Array<any> = isFetching && orders.length === 0
+  const dataToRender: Array<any> = isFetching && filteredOrders.length === 0
     ? Array.from({ length: 4 }).map((_, idx) => ({ __skeleton: true, key: `s-${idx}` }))
-    : orders;
+    : filteredOrders;
 
   const handleOrderPress = React.useCallback((orderId: string) => {
     navigation.navigate('OrderDetail', { orderId });
@@ -187,7 +252,45 @@ const OrdersScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <ScreenHeader title="My Orders" />
+      <StatusBar barStyle="light-content" backgroundColor={Colors.primary} />
+      
+      <VoiceListeningModal
+        visible={voiceModalVisible}
+        state={voice.state}
+        voicePhase={voice.voicePhase}
+        partialText={voice.partialText}
+        finalText={voice.finalText}
+        errorMessage={voice.errorMessage}
+        onCancel={handleVoiceCancel}
+        onRetry={handleMicPress}
+      />
+
+      <SafeAreaView edges={['top']} style={{ backgroundColor: Colors.primary }}>
+        <View style={styles.header}>
+          {/* Back Button */}
+          <TouchableOpacity 
+            onPress={() => navigation.goBack()} 
+            style={styles.headerBackBtn}
+          >
+            <Ionicons name="arrow-back" size={24} color={Colors.white} />
+          </TouchableOpacity>
+
+          {/* SAME SEARCH BAR */}
+          <View style={{ flex: 1, marginHorizontal: 8 }}>
+            <HomeSearchBar
+              navigation={navigation}
+              variant="header"
+              editable
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              onSubmitEditing={() => {}}
+              onMicPress={handleMicPress}
+              voiceState={voice.state}
+              placeholder="Search your orders..."
+            />
+          </View>
+        </View>
+      </SafeAreaView>
 
       <FlatList
         data={dataToRender}
@@ -198,16 +301,29 @@ const OrdersScreen: React.FC = () => {
           maxToRenderPerBatch={6}
           windowSize={7}
           removeClippedSubviews={Platform.OS === 'android'}
+          keyboardShouldPersistTaps="handled"
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
               <View style={styles.emptyIconCircle}>
                 <Feather name="package" size={40} color={Colors.primary} />
               </View>
-              <Text style={styles.emptyTitle}>No orders found</Text>
-              <Text style={styles.emptySubtitle}>You haven't placed any orders in this category yet. Start exploring our store!</Text>
-              <TouchableOpacity style={styles.shopBtn} onPress={() => navigation.reset({ index: 0, routes: [{ name: "Home" }] })} activeOpacity={0.9}>
-                <Text style={styles.shopBtnText}>Browse Products</Text>
-              </TouchableOpacity>
+              <Text style={styles.emptyTitle}>
+                {debouncedQuery ? 'No matching orders' : 'No orders yet'}
+              </Text>
+              <Text style={styles.emptySubtitle}>
+                {debouncedQuery 
+                  ? `No orders match "${debouncedQuery}". Try a different search term.`
+                  : 'You haven\'t placed any orders yet. Start exploring our store!'}
+              </Text>
+              {!debouncedQuery && (
+                <TouchableOpacity 
+                  style={styles.shopBtn} 
+                  onPress={() => navigation.getParent()?.navigate('Home' as never)} 
+                  activeOpacity={0.9}
+                >
+                  <Text style={styles.shopBtnText}>Browse Products</Text>
+                </TouchableOpacity>
+              )}
             </View>
           }
           renderItem={renderItem}
@@ -219,13 +335,18 @@ const OrdersScreen: React.FC = () => {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
   container: { flex: 1, backgroundColor: Colors.background },
+  
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 12,
-    backgroundColor: '#F8F9FA',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: Colors.primary,
+    minHeight: 56,
   },
-  headerTitle: { fontSize: 24, fontWeight: '900', color: Colors.textPrimary, letterSpacing: -0.5 },
+  headerBackBtn: {
+    padding: 4,
+  },
   
   listContent: { paddingHorizontal: 16, paddingBottom: 32 },
   

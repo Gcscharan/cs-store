@@ -23,7 +23,7 @@ export const useLazyCheckPincodeQuery = jest.fn(() => [
     unwrap: async () => ({
       deliverable: true,
       state: 'Telangana',
-      cities: ['Hyderabad', 'Secunderabad'],
+      cities: ['Hyderabad', 'Secunderabad', 'Rangareddy', 'Medchal', 'Vikarabad'],
       admin_district: 'Hyderabad',
       postal_district: 'Hyderabad',
     }),

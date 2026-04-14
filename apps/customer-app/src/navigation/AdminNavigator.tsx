@@ -19,6 +19,7 @@ import AdminSettingsScreen from '../screens/admin/AdminSettingsScreen';
 import AdminProfileScreen from '../screens/admin/AdminProfileScreen';
 import AdminPaymentsScreen from '../screens/admin/AdminPaymentsScreen';
 import AdminOpsScreen from '../screens/admin/AdminOpsScreen';
+import AdminProductVersionHistoryScreen from '../screens/admin/AdminProductVersionHistoryScreen';
 
 const Stack = createStackNavigator();
 
@@ -57,6 +58,7 @@ export default function AdminNavigator() {
       <Stack.Screen name="AdminProfile" component={AdminProfileScreen} />
       <Stack.Screen name="AdminPayments" component={AdminPaymentsScreen} />
       <Stack.Screen name="AdminOps" component={AdminOpsScreen} />
+      <Stack.Screen name="AdminProductVersionHistory" component={AdminProductVersionHistoryScreen} />
     </Stack.Navigator>
   );
 }

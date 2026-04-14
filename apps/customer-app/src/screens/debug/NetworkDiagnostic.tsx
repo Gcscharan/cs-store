@@ -19,8 +19,10 @@ export default function NetworkDiagnostic() {
     
     const testUrls = [
       BASE_URL.replace('/api', '/api/health'),
-      'http://192.168.1.2:5001/api/health',
-      'http://10.0.2.2:5001/api/health', // Android emulator
+      'https://untraceried-kina-draffy.ngrok-free.dev/api/health',
+      'http://GCSCharans-MacBook-Air.local:9000/api/health',
+      'http://192.168.1.4:9000/api/health',
+      'http://10.0.2.2:9000/api/health', // Android emulator
     ];
 
     for (const url of testUrls) {
@@ -28,7 +30,10 @@ export default function NetworkDiagnostic() {
         addResult(`Testing: ${url}`);
         const response = await fetch(url, { 
           method: 'GET',
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 
+            'Content-Type': 'application/json',
+            'ngrok-skip-browser-warning': 'true'
+          }
         });
         const data = await response.json();
         addResult(`✅ SUCCESS: ${url} - ${JSON.stringify(data)}`);

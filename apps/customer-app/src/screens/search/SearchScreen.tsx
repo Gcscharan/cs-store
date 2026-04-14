@@ -17,7 +17,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { ScreenHeader } from '../../components/ScreenHeader';
 import { Colors } from '../../constants/colors';
 import { useGetProductsQuery, useLazySearchProductsQuery, useGetCategoriesQuery } from '../../api/productsApi';
 import type { HomeNavigationProp, HomeStackParamList } from '../../navigation/types';
@@ -28,6 +27,7 @@ import FilterBottomSheet, { FilterState } from '../../components/FilterBottomShe
 import { useVoiceSearch } from '../../hooks/useVoiceSearch';
 import VoiceListeningModal from '../../components/VoiceListeningModal';
 import VoiceCartConfirmation from '../../components/VoiceCartConfirmation';
+import { HomeSearchBar } from '../../components/HomeSearchBar';
 import { 
   processVoiceInput, 
   resolveItems, 
@@ -622,8 +622,6 @@ const SearchScreen: React.FC = () => {
 
   return (
     <View style={styles.safe}>
-      <ScreenHeader title="Search" showBackButton />
-      
       {/* Voice Listening Modal */}
       <VoiceListeningModal
         visible={voiceModalVisible}
@@ -645,42 +643,45 @@ const SearchScreen: React.FC = () => {
         onCancel={handleVoiceCancel}
       />
       
-      <View style={styles.header}>
-        <View style={styles.searchBar}>
-          <Ionicons name="search" size={20} color={Colors.textMuted} style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search for products..."
-            placeholderTextColor={Colors.textMuted}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            autoFocus={!initialQuery}
-            returnKeyType="search"
-            onSubmitEditing={() => {
-              if (searchQuery.trim()) {
-                addRecentSearch(searchQuery.trim()).then(setRecentSearches);
-                Keyboard.dismiss();
-              }
-            }}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearBtn}>
-              <Ionicons name="close-circle" size={20} color={Colors.textMuted} />
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity 
-            style={styles.clearBtn} 
-            onPress={handleMicPress}
-            activeOpacity={0.7}
-          >
-            <Ionicons 
-              name={voice.state === 'listening' ? "mic" : "mic-outline"} 
-              size={22} 
-              color={voice.state === 'listening' ? Colors.primary : Colors.textMuted} 
+      {/* Header matching Home Screen */}
+      <SafeAreaView edges={['top']} style={{ backgroundColor: Colors.primary }}>
+        <View style={styles.header}>
+          {/* Back Button */}
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBackBtn}>
+            <Ionicons name="arrow-back" size={24} color={Colors.white} />
+          </TouchableOpacity>
+          
+          {/* Search Bar */}
+          <View style={{ flex: 1, marginHorizontal: 8 }}>
+            <HomeSearchBar
+              navigation={navigation}
+              variant="header"
+              editable
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              onSubmitEditing={() => {
+                if (searchQuery.trim()) {
+                  addRecentSearch(searchQuery.trim()).then(setRecentSearches);
+                }
+              }}
+              onMicPress={handleMicPress}
+              voiceState={voice.state}
+              placeholder="Search or ask a question"
             />
+          </View>
+          
+          {/* Right Button (Filter/Options) */}
+          <TouchableOpacity 
+            style={styles.headerRightBtn}
+            onPress={() => {
+              setFilterMode('filter');
+              setIsFilterVisible(true);
+            }}
+          >
+            <Ionicons name="options-outline" size={22} color={Colors.white} />
           </TouchableOpacity>
         </View>
-      </View>
+      </SafeAreaView>
 
       {(debouncedQuery || activeFiltersCount > 0) && renderFilterBar()}
 
@@ -729,28 +730,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    paddingVertical: 8,
+    backgroundColor: Colors.primary,
+    height: 56,
   },
-  backBtn: { padding: 4, marginRight: 8 },
-  searchBar: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.background,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    height: 44,
+  headerBackBtn: {
+    padding: 4,
   },
-  searchIcon: { marginRight: 8 },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    color: Colors.textPrimary,
-    fontWeight: '500',
+  headerRightBtn: {
+    padding: 4,
   },
-  clearBtn: { padding: 4 },
   listContent: { padding: 16, paddingBottom: 40 },
   columnWrapper: { justifyContent: 'space-between', marginBottom: 16 },
   productCard: {

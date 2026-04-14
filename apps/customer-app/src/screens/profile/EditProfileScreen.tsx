@@ -32,7 +32,6 @@ const EditProfileScreen: React.FC = () => {
   const [updateProfile, { isLoading }] = useUpdateProfileMutation();
 
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [avatar, setAvatar] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -40,7 +39,6 @@ const EditProfileScreen: React.FC = () => {
   useEffect(() => {
     if (user) {
       setName(user.name || '');
-      setEmail(user.email || '');
       setPhone(user.phone || '');
       setAvatar(user.avatar || null);
     }
@@ -102,11 +100,6 @@ const EditProfileScreen: React.FC = () => {
       return false;
     }
 
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      Alert.alert('Error', 'Please enter a valid email address');
-      return false;
-    }
-
     if (phone && !/^[6-9][0-9]{9}$/.test(phone)) {
       Alert.alert('Error', 'Please enter a valid 10-digit phone number starting with 6-9');
       return false;
@@ -121,7 +114,6 @@ const EditProfileScreen: React.FC = () => {
     try {
       const response = await updateProfile({
         name: name.trim(),
-        email: email.trim() || undefined,
         phone: phone || undefined,
         avatar: avatar || undefined,
       }).unwrap();
@@ -187,21 +179,6 @@ const EditProfileScreen: React.FC = () => {
             placeholder="Enter your name"
             placeholderTextColor={Colors.textMuted}
             autoCapitalize="words"
-          />
-        </View>
-
-        {/* Email */}
-        <View style={styles.field}>
-          <Text style={styles.label}>Email</Text>
-          <TextInput
-            style={styles.input}
-            value={email}
-            onChangeText={setEmail}
-            placeholder="Enter your email"
-            placeholderTextColor={Colors.textMuted}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
           />
         </View>
 

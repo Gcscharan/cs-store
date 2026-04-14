@@ -10,9 +10,11 @@ import { enableScreens } from 'react-native-screens';
 import { store, persistor, RootState } from './src/store';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { useAuthBootstrap } from './src/hooks/useAuthBootstrap';
+import { useConnectivityCheck } from './src/hooks/useConnectivityCheck';
 import LoadingScreen from './src/screens/common/LoadingScreen';
 import ErrorBoundary from './src/components/common/ErrorBoundary';
 import OfflineBanner from './src/components/common/OfflineBanner';
+import BackendStatusBanner from './src/components/common/BackendStatusBanner';
 import { PendingPaymentTracker } from './src/components/common/PendingPaymentTracker';
 import { Toast } from './src/components/common/Toast';
 import { ExpoPushNotificationService } from './src/utils/ExpoPushNotificationService';
@@ -58,6 +60,9 @@ if (GOOGLE_WEB_CLIENT_ID) {
 }
 
 function AppContent() {
+  // Check backend connectivity before proceeding
+  const { isChecking: checkingConnectivity, isConnected, error: connectivityError, retry } = useConnectivityCheck();
+  
   useAuthBootstrap();
   const dispatch = useDispatch<AppDispatch>();
 
@@ -104,6 +109,12 @@ function AppContent() {
     };
   }, []);
 
+  // Show loading screen while checking connectivity (non-blocking after initial check)
+  if (checkingConnectivity) {
+    return <LoadingScreen />;
+  }
+
+  // Show loading screen while auth is initializing
   if (status === 'LOADING') {
     return <LoadingScreen />;
   }
@@ -112,6 +123,7 @@ function AppContent() {
     <View style={{ flex: 1 }}>
       <RootNavigator />
       <OfflineBanner />
+      <BackendStatusBanner error={connectivityError} onRetry={retry} />
       <PendingPaymentTracker />
       <Toast />
     </View>

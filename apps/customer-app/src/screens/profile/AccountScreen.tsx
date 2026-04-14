@@ -44,7 +44,8 @@ const AccountScreen: React.FC = () => {
   const dispatch = useDispatch();
   const user = useSelector((state: RootState) => state.auth.user);
 
-  const { data: profileData, isLoading, isFetching, refetch, error } = useGetProfileQuery();
+  const { data: profileResponse, isLoading, isFetching, refetch, error } = useGetProfileQuery();
+  const profileData = (profileResponse as any)?.user || profileResponse;
 
   const onLogout = async () => {
     // 1. Clear RTK Query cache
@@ -112,8 +113,7 @@ const AccountScreen: React.FC = () => {
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{getInitial()}</Text>
           </View>
-          <Text style={styles.userName}>{profileData?.name || 'User'}</Text>
-          <Text style={styles.userEmail}>{profileData?.email || 'No email'}</Text>
+          <Text style={styles.userName}>{profileData?.name || profileData?.fullName || 'User'}</Text>
         </View>
 
         {/* Menu Items */}

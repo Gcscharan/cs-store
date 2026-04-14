@@ -16,7 +16,7 @@ export const authApi = baseApi.injectEndpoints({
       }),
     }),
 
-    verifyOtp: builder.mutation<AuthResponse | { requiresOnboarding: true; phone: string; email?: string }, { phone: string; otp: string; name?: string }>({
+    verifyOtp: builder.mutation<AuthResponse | { requiresOnboarding: true; phone: string }, { phone: string; otp: string; name?: string }>({
       query: (body) => ({
         url: `/auth/verify-otp`,
         method: 'POST',
@@ -67,7 +67,7 @@ export const authApi = baseApi.injectEndpoints({
       invalidatesTags: ['Profile'],
     }),
 
-    signup: builder.mutation<AuthResponse, { name: string; email: string; phone: string }>({
+    signup: builder.mutation<AuthResponse, { name: string; phone: string }>({
       query: (body) => ({
         url: '/auth/signup',
         method: 'POST',

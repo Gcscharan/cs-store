@@ -15,12 +15,14 @@ import { io, Socket } from 'socket.io-client';
 import axios from 'axios';
 import { storage } from '../utils/storage';
 import { logEvent } from '../utils/analytics';
-import { baseApi } from '../api/baseApi';
+import { baseApi, BASE_URL } from '../api/baseApi';
 import type { AppDispatch } from '../store';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5001';
+const API_URL = BASE_URL;
 // Socket connects to the server root, not /api
 const SOCKET_URL = API_URL.replace('/api', '');
+
+console.log("🔥 FINAL SOCKET URL:", SOCKET_URL);
 
 // ── Reconnection config (exponential backoff: 1s → 2s → 4s → 8s → 16s, max 30s) ──
 const RECONNECT_DELAY_MIN = 1000;

@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Image, ImageProps } from 'expo-image';
+import { BASE_URL } from '../api/baseApi';
 
 interface SmartImageProps extends Omit<ImageProps, 'source'> {
   uri?: string;
@@ -40,9 +41,6 @@ const extractImageUrl = (image: any): string | undefined => {
   
   return undefined;
 };
-
-// Get base URL from environment
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
 
 // Helper to convert relative/localhost URLs to absolute URLs
 const normalizeImageUrl = (uri: string): string => {

@@ -7,9 +7,11 @@ import {
   Alert,
   ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../../constants/colors';
+import { DELIVERY_COLORS } from '../../constants/deliveryTheme';
+import { AppHeader } from '../../components/delivery/AppHeader/AppHeader';
 import { RootState } from '../../store';
 import { logout } from '../../store/slices/authSlice';
 import { storage } from '../../utils/storage';
@@ -87,33 +89,35 @@ const DeliveryMoreTab: React.FC = () => {
       icon: 'alert-circle',
       label: 'Emergency',
       onPress: () => navigation.navigate('DeliveryEmergency'),
-      color: Colors.error,
+      color: DELIVERY_COLORS.danger,
       showArrow: true,
     },
     {
       icon: 'log-out',
       label: 'Logout',
       onPress: handleLogout,
-      color: Colors.error,
+      color: DELIVERY_COLORS.danger,
       showArrow: false,
     },
   ];
 
   return (
-    <ScrollView style={styles.container}>
-      {/* Profile Header */}
-      <View style={styles.header}>
-        <View style={styles.avatar}>
-          <Ionicons name="person" size={32} color={Colors.white} />
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      <AppHeader title="Profile" />
+      <ScrollView>
+        {/* Profile info */}
+        <View style={styles.profileRow}>
+          <View style={styles.avatar}>
+            <Ionicons name="person" size={28} color={DELIVERY_COLORS.white} />
+          </View>
+          <View style={styles.profileInfo}>
+            <Text style={styles.userName}>{user?.name || 'Delivery Partner'}</Text>
+            <Text style={styles.userPhone}>{user?.phone || 'No phone'}</Text>
+          </View>
         </View>
-        <View style={styles.headerInfo}>
-          <Text style={styles.userName}>{user?.name || 'Delivery Partner'}</Text>
-          <Text style={styles.userPhone}>{user?.phone || 'No phone'}</Text>
-        </View>
-      </View>
 
-      {/* Menu Items */}
-      <View style={styles.menuSection}>
+        {/* Menu Items */}
+        <View style={styles.menuSection}>
         {menuItems.map((item, index) => (
           <TouchableOpacity
             key={index}
@@ -126,7 +130,7 @@ const DeliveryMoreTab: React.FC = () => {
                 <Ionicons
                   name={item.icon as any}
                   size={20}
-                  color={item.color || Colors.primary}
+                  color={item.color || DELIVERY_COLORS.primary}
                 />
               </View>
               <Text style={[styles.menuLabel, item.color && { color: item.color }]}>
@@ -134,56 +138,55 @@ const DeliveryMoreTab: React.FC = () => {
               </Text>
             </View>
             {item.showArrow && (
-              <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
+              <Ionicons name="chevron-forward" size={20} color={DELIVERY_COLORS.textMuted} />
             )}
           </TouchableOpacity>
         ))}
       </View>
 
       {/* App Version */}
-      <Text style={styles.version}>Version 1.0.0</Text>
-    </ScrollView>
+        <Text style={styles.version}>Version 1.0.0</Text>
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: DELIVERY_COLORS.background,
   },
-  header: {
-    backgroundColor: Colors.primary,
+  profileRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 20,
-    paddingTop: 40,
+    padding: 16,
+    gap: 12,
   },
   avatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: DELIVERY_COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerInfo: {
-    marginLeft: 16,
+  profileInfo: {
     flex: 1,
   },
   userName: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '700',
-    color: Colors.white,
+    color: DELIVERY_COLORS.textPrimary,
   },
   userPhone: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
-    marginTop: 4,
+    fontSize: 13,
+    color: DELIVERY_COLORS.textSecondary,
+    marginTop: 2,
   },
   menuSection: {
     marginTop: 16,
     marginHorizontal: 16,
-    backgroundColor: Colors.white,
+    backgroundColor: DELIVERY_COLORS.card,
     borderRadius: 12,
     overflow: 'hidden',
   },
@@ -193,7 +196,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: DELIVERY_COLORS.border,
   },
   menuLeft: {
     flexDirection: 'row',
@@ -203,19 +206,19 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#fff7ed',
+    backgroundColor: DELIVERY_COLORS.cardElevated,
     alignItems: 'center',
     justifyContent: 'center',
   },
   menuLabel: {
     fontSize: 16,
     fontWeight: '500',
-    color: Colors.textPrimary,
+    color: DELIVERY_COLORS.textPrimary,
   },
   version: {
     textAlign: 'center',
     fontSize: 12,
-    color: Colors.textMuted,
+    color: DELIVERY_COLORS.textMuted,
     marginTop: 32,
     marginBottom: 20,
   },

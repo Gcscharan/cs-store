@@ -8,8 +8,9 @@ import * as ImagePicker from 'expo-image-picker';
 import { Colors } from '../../constants/colors';
 import { logEvent } from '../../utils/analytics';
 import { storage } from '../../utils/storage';
+import { BASE_URL } from '../../api/baseApi';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5001/api';
+const API_URL = BASE_URL;
 
 type DocType = 'aadhaar_front' | 'aadhaar_back' | 'pan_card' | 'selfie';
 type KYCStatus = 'NOT_STARTED' | 'PENDING' | 'VERIFIED' | 'REJECTED';

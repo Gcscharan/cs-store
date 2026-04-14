@@ -1,7 +1,7 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../../constants/colors';
+import { DELIVERY_COLORS } from '../../constants/deliveryTheme';
 import DeliveryHomeTab from './DeliveryHomeTab';
 import DeliveryEarningsTab from './DeliveryEarningsTab';
 import NotificationsScreen from '../notifications/NotificationsScreen';
@@ -14,13 +14,13 @@ const DeliveryDashboardScreen: React.FC = () => {
     <Tab.Navigator id="DeliveryTabs"
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: Colors.primary,
-        tabBarInactiveTintColor: Colors.tabInactive,
+        tabBarActiveTintColor: DELIVERY_COLORS.primary,
+        tabBarInactiveTintColor: DELIVERY_COLORS.textMuted,
         tabBarStyle: {
-          backgroundColor: Colors.tabBackground,
+          backgroundColor: DELIVERY_COLORS.card,
           borderTopWidth: 1,
-          borderTopColor: Colors.border,
-          height: 60,
+          borderTopColor: DELIVERY_COLORS.border,
+          height: 64,
           paddingBottom: 8,
           paddingTop: 8,
         },
@@ -54,9 +54,9 @@ const DeliveryDashboardScreen: React.FC = () => {
         name="DeliveryNotifications"
         component={NotificationsScreen}
         options={{
-          tabBarLabel: 'Notifications',
+          tabBarLabel: 'Orders',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="notifications" size={size} color={color} />
+            <Ionicons name="list" size={size} color={color} />
           ),
         }}
       />
@@ -64,9 +64,9 @@ const DeliveryDashboardScreen: React.FC = () => {
         name="DeliveryMore"
         component={DeliveryMoreTab}
         options={{
-          tabBarLabel: 'More',
+          tabBarLabel: 'Profile',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="menu" size={size} color={color} />
+            <Ionicons name="person" size={size} color={color} />
           ),
         }}
       />

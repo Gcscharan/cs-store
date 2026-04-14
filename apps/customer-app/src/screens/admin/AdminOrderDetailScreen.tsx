@@ -9,7 +9,6 @@ import {
   Image,
   Linking,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Colors } from '../../constants/colors';
 import AdminHeader from '../../components/admin/AdminHeader';
@@ -128,18 +127,18 @@ const AdminOrderDetailScreen: React.FC = () => {
 
   if (isFetching && !order) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <View style={styles.safe}>
         <AdminHeader title="Order Details" onBack={() => navigation.goBack()} />
         <View style={styles.center}>
           <ActivityIndicator size="large" color={Colors.primary} />
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (error || !order) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <View style={styles.safe}>
         <AdminHeader title="Order Details" onBack={() => navigation.goBack()} />
         <View style={styles.center}>
           <Text style={styles.errorText}>Failed to load order</Text>
@@ -147,12 +146,12 @@ const AdminOrderDetailScreen: React.FC = () => {
             <Text style={styles.retryText}>Retry</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <View style={styles.safe}>
       <AdminHeader title="Order Details" onBack={() => navigation.goBack()} />
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
@@ -324,26 +323,18 @@ const AdminOrderDetailScreen: React.FC = () => {
           </View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
   scroll: { flex: 1 },
-  content: { padding: 12, paddingBottom: 24 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  errorText: { fontSize: 14, fontWeight: '900', color: Colors.error },
-  retryBtn: {
-    marginTop: 12,
-    height: 44,
-    paddingHorizontal: 18,
-    borderRadius: 12,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  retryText: { color: Colors.white, fontWeight: '900' },
+  content: { padding: 12, paddingBottom: 40 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 },
+  errorText: { fontSize: 14, fontWeight: '700', color: Colors.error, marginBottom: 12 },
+  retryBtn: { backgroundColor: Colors.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 },
+  retryText: { color: Colors.white, fontWeight: '700' },
   sectionCard: {
     backgroundColor: Colors.white,
     borderRadius: 16,
@@ -363,9 +354,9 @@ const styles = StyleSheet.create({
   actionText: { color: Colors.white, fontWeight: '900' },
   sectionTitle: { fontSize: 14, fontWeight: '900', color: Colors.textPrimary, marginBottom: 10 },
   itemRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  itemImgWrap: { height: 48, width: 48, borderRadius: 12, overflow: 'hidden', backgroundColor: Colors.backgroundDark },
+  itemImgWrap: { height: 48, width: 48, borderRadius: 12, overflow: 'hidden', backgroundColor: Colors.inputBackground },
   itemImg: { height: '100%', width: '100%' },
-  itemImgPlaceholder: { flex: 1, backgroundColor: Colors.backgroundDark },
+  itemImgPlaceholder: { flex: 1, backgroundColor: Colors.inputBackground },
   itemName: { fontSize: 13, fontWeight: '900', color: Colors.textPrimary },
   itemPrice: { fontSize: 13, fontWeight: '900', color: Colors.primary },
   kvRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
@@ -374,7 +365,7 @@ const styles = StyleSheet.create({
   totalK: { fontSize: 13, color: Colors.textPrimary, fontWeight: '900' },
   totalV: { fontSize: 13, color: Colors.primary, fontWeight: '900' },
   addressTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  addressLabel: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: Colors.backgroundDark },
+  addressLabel: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: Colors.inputBackground },
   addressLabelText: { fontSize: 11, fontWeight: '900', color: Colors.textSecondary },
   addressLine: { marginTop: 8, fontSize: 12, fontWeight: '900', color: Colors.textPrimary },
   callBtn: {

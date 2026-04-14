@@ -5,7 +5,7 @@ export type { User };
 
 export interface UpdateProfilePayload {
   name?: string;
-  email?: string;
+  email?: string | null; // deprecated - customer auth uses phone only
   phone?: string;
   avatar?: string;
 }
@@ -21,7 +21,7 @@ export interface ProfileUser {
   _id?: string;
   id?: string;
   name: string;
-  email?: string;
+  email?: string | null; // deprecated - customer auth uses phone only
   phone?: string;
   avatar?: string;
   role?: string;

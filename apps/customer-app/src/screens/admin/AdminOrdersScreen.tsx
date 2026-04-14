@@ -9,12 +9,12 @@ import {
   RefreshControl,
   Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Colors } from '../../constants/colors';
 import AdminHeader from '../../components/admin/AdminHeader';
 import StatusBadge from '../../components/admin/StatusBadge';
 import { storage } from '../../utils/storage';
+import { BASE_URL } from '../../api/baseApi';
 import { useGetAdminOrdersQuery, useCancelOrderMutation, useConfirmOrderMutation, usePackOrderMutation } from '../../api/adminApi';
 
 type OrderLike = {
@@ -41,21 +41,34 @@ const FILTERS: Array<{ key: StatusFilter; label: string }> = [
   { key: 'CANCELLED', label: 'CANCELLED' },
 ];
 
-const normalizeStatus = (raw?: string): Exclude<StatusFilter, 'ALL'> => {
-  const s = String(raw || '').toUpperCase();
-  if (s === 'PENDING' || s === 'PENDING_PAYMENT') return 'CREATED';
-  if (s === 'OUT_FOR_DELIVERY') return 'IN_TRANSIT';
-  if (
-    s === 'CREATED' ||
-    s === 'CONFIRMED' ||
-    s === 'PACKED' ||
-    s === 'IN_TRANSIT' ||
-    s === 'DELIVERED' ||
-    s === 'CANCELLED'
-  ) {
-    return s;
+const normalizeStatus = (raw?: string): StatusFilter => {
+  const s = String(raw || '').toLowerCase();
+  
+  switch (s) {
+    case 'created':
+    case 'pending':
+    case 'pending_payment':
+      return 'CREATED';
+    
+    case 'confirmed':
+      return 'CONFIRMED';
+    
+    case 'packed':
+      return 'PACKED';
+    
+    case 'in_transit':
+    case 'out_for_delivery':
+      return 'IN_TRANSIT';
+    
+    case 'delivered':
+      return 'DELIVERED';
+    
+    case 'cancelled':
+      return 'CANCELLED';
+    
+    default:
+      return 'CREATED';
   }
-  return 'CREATED';
 };
 
 const formatDate = (iso?: string): string => {
@@ -77,27 +90,66 @@ const AdminOrdersScreen: React.FC = () => {
   const [packOrder, { isLoading: packing }] = usePackOrderMutation();
   const [cancelOrder, { isLoading: cancelling }] = useCancelOrderMutation();
 
+  // STEP 2: Preprocess orders ONCE (not inside filter)
+  const processedOrders = useMemo(() => {
+    return orders.map((o) => ({
+      ...o,
+      normalizedStatus: normalizeStatus(o.orderStatus || o.status),
+    }));
+  }, [orders]);
+
+  // STEP 3: Fix filtering logic (clean + predictable)
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase();
-    return orders
-      .map((o) => ({ ...o, _normalized: normalizeStatus(o.orderStatus || o.status) }))
-      .filter((o: any) => {
-        if (filter !== 'ALL' && o._normalized !== filter) return false;
-        if (!query) return true;
+    
+    return processedOrders.filter((o) => {
+      // FILTER BY STATUS
+      if (filter !== 'ALL' && o.normalizedStatus !== filter) {
+        return false;
+      }
+      
+      // FILTER BY SEARCH
+      if (!query) return true;
+      
+      const id = String(o._id || '').toLowerCase();
+      const orderNumber = String(o.orderNumber || '').toLowerCase();
+      const customerName = String(
+        (o.userId as any)?.name || (o.user as any)?.name || ''
+      ).toLowerCase();
+      
+      return (
+        id.includes(query) ||
+        orderNumber.includes(query) ||
+        customerName.includes(query)
+      );
+    });
+  }, [processedOrders, filter, q]);
 
-        const id = String(o._id || '').toLowerCase();
-        const orderNumber = String(o.orderNumber || '').toLowerCase();
-        const customerName = String((o.userId as any)?.name || (o.user as any)?.name || '').toLowerCase();
-        return id.includes(query) || orderNumber.includes(query) || customerName.includes(query);
-      });
-  }, [orders, filter, q]);
+  // STEP 5: Add debug safety (temporary)
+  console.log('FILTER DEBUG', {
+    selectedFilter: filter,
+    total: orders.length,
+    afterFilter: filtered.length,
+  });
 
   const onConfirm = async (id: string) => {
-    await confirmOrder(id).unwrap();
+    try {
+      await confirmOrder(id).unwrap();
+      Alert.alert('Success', 'Order confirmed successfully');
+    } catch (err: any) {
+      console.error('Confirm order error:', err);
+      Alert.alert('Error', err.data?.message || 'Failed to confirm order');
+    }
   };
 
   const onPack = async (id: string) => {
-    await packOrder(id).unwrap();
+    try {
+      await packOrder(id).unwrap();
+      Alert.alert('Success', 'Order packed successfully');
+    } catch (err: any) {
+      console.error('Pack order error:', err);
+      Alert.alert('Error', err.data?.message || 'Failed to pack order');
+    }
   };
 
   const onCancel = async (id: string) => {
@@ -118,68 +170,44 @@ const AdminOrdersScreen: React.FC = () => {
     ]);
   };
 
-  const onPurge = () => {
-    Alert.alert(
-      '⚠️ Purge Orders',
-      'This will permanently delete all CANCELLED and DELIVERED orders older than 30 days. Continue?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Purge', style: 'destructive', onPress: async () => {
-          try {
-            const token = await storage.getItem('accessToken');
-            const res = await fetch(`${process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5001/api'}/admin/orders/purge`, {
-              method: 'POST',
-              headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) {
-              const data = await res.json();
-              Alert.alert('Success', `Purged ${data.deletedCount || 0} orders`);
-              refetch();
-            } else {
-              Alert.alert('Error', 'Failed to purge orders');
-            }
-          } catch {
-            Alert.alert('Error', 'Network error');
-          }
-        }},
-      ]
-    );
-  };
+
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <View style={styles.safe}>
       <AdminHeader 
         title="Orders Management" 
         onBack={() => navigation.goBack()} 
-        rightAction={
-          <TouchableOpacity onPress={onPurge} style={styles.purgeBtn}>
-            <Text style={styles.purgeBtnText}>🧹 Purge</Text>
-          </TouchableOpacity>
-        }
       />
 
       <View style={styles.container}>
-        <FlatList
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          data={FILTERS}
-          keyExtractor={(i) => i.key}
-          contentContainerStyle={styles.filtersRow}
-          renderItem={({ item }) => {
-            const selected = item.key === filter;
-            return (
-              <TouchableOpacity
-                onPress={() => setFilter(item.key)}
-                style={[styles.pill, selected ? styles.pillSelected : styles.pillUnselected, { marginRight: 8 }]}
-                activeOpacity={0.9}
-              >
-                <Text style={[styles.pillText, selected ? styles.pillTextSelected : styles.pillTextUnselected]}>
-                  {item.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          }}
-        />
+        {/* STEP 6: Sticky filter bar with border */}
+        <View style={styles.filterBarContainer}>
+          <FlatList
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            data={FILTERS}
+            keyExtractor={(i) => i.key}
+            contentContainerStyle={styles.filtersRow}
+            renderItem={({ item }) => {
+              const selected = item.key === filter;
+              return (
+                <TouchableOpacity
+                  onPress={() => setFilter(item.key)}
+                  style={[
+                    styles.pill, 
+                    selected ? styles.pillSelected : styles.pillUnselected, 
+                    { marginRight: 10 }
+                  ]}
+                  activeOpacity={0.85}
+                >
+                  <Text style={[styles.pillText, selected ? styles.pillTextSelected : styles.pillTextUnselected]}>
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            }}
+          />
+        </View>
 
         <View style={styles.searchWrap}>
           <TextInput
@@ -212,7 +240,7 @@ const AdminOrdersScreen: React.FC = () => {
               </View>
             }
             renderItem={({ item }: { item: any }) => {
-              const status = item._normalized as Exclude<StatusFilter, 'ALL'>;
+              const status = item.normalizedStatus as Exclude<StatusFilter, 'ALL'>;
               const shortId = String(item._id).slice(-6);
               const customerName = String((item.userId as any)?.name || (item.user as any)?.name || 'Unknown');
               const customerPhone = String((item.userId as any)?.phone || (item.user as any)?.phone || '-');
@@ -303,25 +331,57 @@ const AdminOrdersScreen: React.FC = () => {
           />
         )}
       </View>
-    </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
   container: { flex: 1 },
-  filtersRow: { paddingHorizontal: 12, paddingTop: 10, paddingBottom: 10 },
-  pill: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    borderWidth: 1,
+  // STEP 6: Sticky filter bar container
+  filterBarContainer: {
+    backgroundColor: Colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
-  pillSelected: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  pillUnselected: { backgroundColor: Colors.white, borderColor: Colors.border },
-  pillText: { fontSize: 12, fontWeight: '800' },
-  pillTextSelected: { color: Colors.white },
-  pillTextUnselected: { color: Colors.textSecondary },
+  // STEP 1: Increased spacing + structure
+  filtersRow: { 
+    paddingHorizontal: 16, 
+    paddingVertical: 12,
+  },
+  // STEP 2: Upgraded pill design
+  pill: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    minHeight: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  // STEP 2: Selected pill with glow
+  pillSelected: { 
+    backgroundColor: '#0B5FFF',
+    borderColor: '#0B5FFF',
+    shadowColor: '#0B5FFF',
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
+  },
+  // STEP 2: Unselected pill with soft gray
+  pillUnselected: { 
+    backgroundColor: '#F1F5F9', 
+    borderColor: '#E2E8F0',
+  },
+  // STEP 3: Improved text readability
+  pillText: { 
+    fontSize: 13, 
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  pillTextSelected: { color: '#FFFFFF' },
+  pillTextUnselected: { color: '#475569' },
   searchWrap: { paddingHorizontal: 12, paddingBottom: 10 },
   search: {
     height: 44,
@@ -350,17 +410,6 @@ const styles = StyleSheet.create({
   muted: { marginTop: 2, fontSize: 12, color: Colors.textMuted, fontWeight: '600' },
   row: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
   label: { fontSize: 12, color: Colors.textSecondary, fontWeight: '700' },
-  purgeBtn: {
-    backgroundColor: '#fee2e2',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  purgeBtnText: {
-    color: '#dc2626',
-    fontSize: 12,
-    fontWeight: '800',
-  },
   value: { flex: 1, textAlign: 'right', fontSize: 12, color: Colors.textPrimary, fontWeight: '800' },
   amount: { fontSize: 14, color: Colors.primary, fontWeight: '900' },
   actionsRow: { flexDirection: 'row', marginTop: 12 },

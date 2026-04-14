@@ -9,8 +9,9 @@
  */
 
 import { storage } from '../utils/storage';
+import { BASE_URL } from '../api/baseApi';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5001/api';
+const API_URL = BASE_URL;
 
 export type FeatureFlagKey =
   | 'socketEnabled'

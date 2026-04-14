@@ -8,7 +8,6 @@ import {
   RefreshControl,
   ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Colors } from '../../constants/colors';
 import AdminHeader from '../../components/admin/AdminHeader';
@@ -47,7 +46,7 @@ const AdminPaymentsScreen: React.FC = () => {
   if (error) return <ErrorState message="Failed to load payment logs" onRetry={refetch} screenName="AdminPayments" />;
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <View style={styles.safe}>
       <AdminHeader title="Payment Logs" onBack={() => navigation.goBack()} />
       
       <FlatList
@@ -96,7 +95,7 @@ const AdminPaymentsScreen: React.FC = () => {
           </View>
         )}
       />
-    </SafeAreaView>
+    </View>
   );
 };
 

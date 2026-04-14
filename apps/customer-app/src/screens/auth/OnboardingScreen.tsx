@@ -70,7 +70,18 @@ const OnboardingScreen: React.FC = () => {
       }
 
       // 2. Send OTP
-      await sendOtp({ phone, mode: 'signup' }).unwrap();
+      const result = await sendOtp({ phone, mode: 'signup' }).unwrap();
+      
+      // DEVELOPMENT ONLY: Show OTP in console and alert if available
+      if (result.devMode && result.otp) {
+        console.log('\n' + '='.repeat(50));
+        console.log('🔑 DEVELOPMENT MODE - OTP RECEIVED');
+        console.log('📱 Phone:', phone);
+        console.log('🔢 OTP:', result.otp);
+        console.log('⏰ Expires in:', result.expiresIn, 'seconds');
+        console.log('='.repeat(50) + '\n');
+      }
+      
       setOtpSent(true);
       setOtpCooldown(60);
       Alert.alert('OTP Sent', 'A verification code has been sent to your mobile number');

@@ -1,8 +1,10 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import * as SecureStore from 'expo-secure-store';
 import type { RootState } from './index';
+import { BASE_URL } from '../api/baseApi';
 
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5001/api';
+// After this change run: npx expo start -c
+console.log("🔥 FINAL API BASE URL (RTK Query):", BASE_URL);
 
 export const api = createApi({
   reducerPath: 'legacyApi',
@@ -12,6 +14,7 @@ export const api = createApi({
       const storeToken = (getState() as RootState).auth.accessToken;
       const token = storeToken || await SecureStore.getItemAsync('accessToken');
       if (token) headers.set('Authorization', `Bearer ${token}`);
+      headers.set('ngrok-skip-browser-warning', 'true');
       return headers;
     },
   }),

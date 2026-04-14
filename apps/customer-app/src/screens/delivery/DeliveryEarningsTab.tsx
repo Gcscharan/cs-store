@@ -7,8 +7,10 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../../constants/colors';
+import { DELIVERY_COLORS, DELIVERY_TYPOGRAPHY, DELIVERY_SPACING, DELIVERY_RADIUS } from '../../constants/deliveryTheme';
+import { AppHeader } from '../../components/delivery/AppHeader/AppHeader';
 import { useGetEarningsQuery } from '../../api/deliveryApi';
 
 interface EarningsOrder {
@@ -51,7 +53,7 @@ const DeliveryEarningsTab: React.FC = () => {
           <Text style={styles.orderDate}>{formatDate(item.createdAt)}</Text>
         </View>
         <View style={styles.deliveredBadge}>
-          <Ionicons name="checkmark-circle" size={16} color={Colors.success} style={{ marginRight: 4 }} />
+          <Ionicons name="checkmark-circle" size={16} color={DELIVERY_COLORS.success} style={{ marginRight: 4 }} />
           <Text style={styles.deliveredText}>Delivered</Text>
         </View>
       </View>
@@ -76,7 +78,7 @@ const DeliveryEarningsTab: React.FC = () => {
 
       {item.address && (
         <View style={styles.orderAddress}>
-          <Ionicons name="location-outline" size={14} color={Colors.textMuted} style={{ marginRight: 4 }} />
+          <Ionicons name="location-outline" size={14} color={DELIVERY_COLORS.textMuted} style={{ marginRight: 4 }} />
           <Text style={styles.addressText}>
             {item.address.addressLine}, {item.address.city}
           </Text>
@@ -87,7 +89,7 @@ const DeliveryEarningsTab: React.FC = () => {
 
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
-      <Ionicons name="wallet-outline" size={64} color={Colors.textMuted} />
+      <Ionicons name="wallet-outline" size={64} color={DELIVERY_COLORS.textMuted} />
       <Text style={styles.emptyTitle}>No Earnings Yet</Text>
       <Text style={styles.emptySubtitle}>
         Complete deliveries to start earning
@@ -98,7 +100,7 @@ const DeliveryEarningsTab: React.FC = () => {
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.primary} />
+        <ActivityIndicator size="large" color={DELIVERY_COLORS.primary} />
       </View>
     );
   }
@@ -106,73 +108,69 @@ const DeliveryEarningsTab: React.FC = () => {
   if (error) {
     return (
       <View style={styles.errorContainer}>
-        <Ionicons name="alert-circle" size={48} color={Colors.error} />
+        <Ionicons name="alert-circle" size={48} color={DELIVERY_COLORS.danger} />
         <Text style={styles.errorText}>Failed to load earnings</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      {/* Total Earnings Card */}
-      <View style={styles.totalCard}>
-        <Text style={styles.totalCardLabel}>Total Earnings</Text>
-        <Text style={styles.totalAmount}>₹{totalEarnings.toLocaleString('en-IN')}</Text>
-      </View>
-
-      {/* Earnings Breakdown */}
-      <View style={styles.breakdownRow}>
-        <View style={styles.breakdownItem}>
-          <View style={[styles.breakdownIcon, { backgroundColor: '#dbeafe' }]}>
-            <Ionicons name="bicycle" size={20} color={Colors.info} />
-          </View>
-          <Text style={styles.breakdownValue}>₹{deliveryFees}</Text>
-          <Text style={styles.breakdownLabel}>Delivery Fees</Text>
-        </View>
-
-        <View style={styles.breakdownItem}>
-          <View style={[styles.breakdownIcon, { backgroundColor: '#dcfce7' }]}>
-            <Ionicons name="heart" size={20} color={Colors.success} />
-          </View>
-          <Text style={styles.breakdownValue}>₹{tips}</Text>
-          <Text style={styles.breakdownLabel}>Tips</Text>
-        </View>
-
-        <View style={styles.breakdownItem}>
-          <View style={[styles.breakdownIcon, { backgroundColor: '#fef3c7' }]}>
-            <Ionicons name="checkmark-done" size={20} color={Colors.warning} />
-          </View>
-          <Text style={styles.breakdownValue}>{completedOrders}</Text>
-          <Text style={styles.breakdownLabel}>Deliveries</Text>
-        </View>
-      </View>
-
-      {/* Recent Orders */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Recent Deliveries</Text>
-        <FlatList
-          data={orders}
-          renderItem={renderOrder}
-          keyExtractor={(item) => item._id}
-          ListEmptyComponent={renderEmpty}
-          refreshControl={
-            <RefreshControl
-              refreshing={isFetching}
-              onRefresh={refetch}
-              colors={[Colors.primary]}
-            />
-          }
-          scrollEnabled={false}
-        />
-      </View>
-    </View>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      <AppHeader title="Earnings" />
+      <FlatList
+        data={orders}
+        renderItem={renderOrder}
+        keyExtractor={(item) => item._id}
+        ListHeaderComponent={
+          <>
+            <View style={styles.totalCard}>
+              <Text style={styles.totalCardLabel}>Total Earnings</Text>
+              <Text style={styles.totalAmount}>₹{totalEarnings.toLocaleString('en-IN')}</Text>
+            </View>
+            <View style={styles.breakdownRow}>
+              <View style={styles.breakdownItem}>
+                <View style={[styles.breakdownIcon, { backgroundColor: DELIVERY_COLORS.card }]}>
+                  <Ionicons name="bicycle" size={20} color={DELIVERY_COLORS.info} />
+                </View>
+                <Text style={styles.breakdownValue}>₹{deliveryFees}</Text>
+                <Text style={styles.breakdownLabel}>Delivery Fees</Text>
+              </View>
+              <View style={styles.breakdownItem}>
+                <View style={[styles.breakdownIcon, { backgroundColor: DELIVERY_COLORS.successBg }]}>
+                  <Ionicons name="heart" size={20} color={DELIVERY_COLORS.success} />
+                </View>
+                <Text style={styles.breakdownValue}>₹{tips}</Text>
+                <Text style={styles.breakdownLabel}>Tips</Text>
+              </View>
+              <View style={styles.breakdownItem}>
+                <View style={[styles.breakdownIcon, { backgroundColor: DELIVERY_COLORS.warningBg }]}>
+                  <Ionicons name="checkmark-done" size={20} color={DELIVERY_COLORS.warning} />
+                </View>
+                <Text style={styles.breakdownValue}>{completedOrders}</Text>
+                <Text style={styles.breakdownLabel}>Deliveries</Text>
+              </View>
+            </View>
+            <Text style={styles.sectionTitle}>Recent Deliveries</Text>
+          </>
+        }
+        ListEmptyComponent={renderEmpty}
+        contentContainerStyle={styles.listContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={isFetching}
+            onRefresh={refetch}
+            colors={[DELIVERY_COLORS.primary]}
+          />
+        }
+      />
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: DELIVERY_COLORS.background,
   },
   loadingContainer: {
     flex: 1,
@@ -187,11 +185,11 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 16,
-    color: Colors.textSecondary,
+    color: DELIVERY_COLORS.textSecondary,
     marginTop: 12,
   },
   totalCard: {
-    backgroundColor: Colors.primary,
+    backgroundColor: DELIVERY_COLORS.primary,
     margin: 16,
     borderRadius: 16,
     padding: 24,
@@ -205,7 +203,7 @@ const styles = StyleSheet.create({
   totalAmount: {
     fontSize: 36,
     fontWeight: '800',
-    color: Colors.white,
+    color: DELIVERY_COLORS.white,
   },
   breakdownRow: {
     flexDirection: 'row',
@@ -227,11 +225,11 @@ const styles = StyleSheet.create({
   breakdownValue: {
     fontSize: 18,
     fontWeight: '700',
-    color: Colors.textPrimary,
+    color: DELIVERY_COLORS.textPrimary,
   },
   breakdownLabel: {
     fontSize: 12,
-    color: Colors.textMuted,
+    color: DELIVERY_COLORS.textMuted,
     marginTop: 2,
   },
   section: {
@@ -240,16 +238,22 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.textPrimary,
+    color: DELIVERY_COLORS.textPrimary,
     marginBottom: 12,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  listContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 32,
   },
   orderCard: {
-    backgroundColor: Colors.white,
+    backgroundColor: DELIVERY_COLORS.card,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: DELIVERY_COLORS.border,
   },
   orderHeader: {
     flexDirection: 'row',
@@ -259,17 +263,17 @@ const styles = StyleSheet.create({
   orderId: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.textPrimary,
+    color: DELIVERY_COLORS.textPrimary,
   },
   orderDate: {
     fontSize: 12,
-    color: Colors.textMuted,
+    color: DELIVERY_COLORS.textMuted,
     marginTop: 2,
   },
   deliveredBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#dcfce7',
+    backgroundColor: DELIVERY_COLORS.successBg,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
@@ -277,13 +281,13 @@ const styles = StyleSheet.create({
   deliveredText: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.success,
+    color: DELIVERY_COLORS.success,
   },
   orderEarnings: {
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopColor: DELIVERY_COLORS.border,
   },
   earningRow: {
     flexDirection: 'row',
@@ -292,30 +296,30 @@ const styles = StyleSheet.create({
   },
   earningLabel: {
     fontSize: 14,
-    color: Colors.textSecondary,
+    color: DELIVERY_COLORS.textSecondary,
   },
   earningValue: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.textPrimary,
+    color: DELIVERY_COLORS.textPrimary,
   },
   tipValue: {
-    color: Colors.success,
+    color: DELIVERY_COLORS.success,
   },
   earningDivider: {
     height: 1,
-    backgroundColor: Colors.border,
+    backgroundColor: DELIVERY_COLORS.border,
     marginVertical: 8,
   },
   totalLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.textPrimary,
+    color: DELIVERY_COLORS.textPrimary,
   },
   totalValue: {
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.primary,
+    color: DELIVERY_COLORS.primary,
   },
   orderAddress: {
     flexDirection: 'row',
@@ -324,7 +328,7 @@ const styles = StyleSheet.create({
   },
   addressText: {
     fontSize: 12,
-    color: Colors.textMuted,
+    color: DELIVERY_COLORS.textMuted,
     flex: 1,
   },
   emptyContainer: {
@@ -334,12 +338,12 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: Colors.textPrimary,
+    color: DELIVERY_COLORS.textPrimary,
     marginTop: 12,
   },
   emptySubtitle: {
     fontSize: 14,
-    color: Colors.textSecondary,
+    color: DELIVERY_COLORS.textSecondary,
     marginTop: 4,
   },
 });

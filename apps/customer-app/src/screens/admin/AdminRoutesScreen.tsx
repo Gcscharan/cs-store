@@ -3,7 +3,6 @@ import {
   View, Text, TouchableOpacity, FlatList, StyleSheet, Modal,
   ActivityIndicator, Alert, ScrollView,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
 import { logEvent } from '../../utils/analytics';
 import { ErrorState } from '../../components/common/ErrorState';
@@ -14,6 +13,8 @@ import {
   AdminRoute,
 } from '../../api/settingsApi';
 import { useGetDeliveryBoysQuery } from '../../api/adminApi';
+
+import AdminHeader from '../../components/admin/AdminHeader';
 
 const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   CREATED: { bg: '#eff6ff', text: '#1d4ed8', border: '#bfdbfe' },
@@ -142,27 +143,33 @@ export default function AdminRoutesScreen({ navigation }: any) {
     );
   };
 
-  if (error) return <SafeAreaView style={s.container}><ErrorState message="Failed to load routes" onRetry={refetch} screenName="AdminRoutes" /></SafeAreaView>;
+  if (error) return (
+    <View style={s.container}>
+      <AdminHeader title="Dispatch Management" onBack={() => navigation.goBack()} />
+      <ErrorState message="Failed to load routes" onRetry={refetch} screenName="AdminRoutes" />
+    </View>
+  );
 
   return (
-    <SafeAreaView style={s.container}>
-      <View style={s.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={s.backText}>← Back</Text>
-        </TouchableOpacity>
-        <Text style={s.headerTitle}>Routes / Clusters</Text>
-        <TouchableOpacity onPress={() => navigation.navigate('AdminOrders')}>
-          <Text style={s.clusterBtn}>Cluster Orders</Text>
-        </TouchableOpacity>
-      </View>
-
-      {isLoading ? (
+    <View style={s.container}>
+      <AdminHeader 
+        title="Dispatch Management" 
+        onBack={() => navigation.goBack()}
+        rightAction={
+          <TouchableOpacity onPress={() => navigation.navigate('AdminRecentRoutes')} style={s.historyBtn}>
+            <Text style={s.historyBtnText}>📜 History</Text>
+          </TouchableOpacity>
+        }
+      />
+      <View style={s.content}>
+        {isLoading ? (
         <View style={s.loader}><ActivityIndicator size="large" color={Colors.primary} /></View>
       ) : routes.length === 0 ? (
         <EmptyState icon="🗺️" title="No Routes Yet" description="Click 'Cluster Orders' to generate delivery routes." actionLabel="Go to Orders" onAction={() => navigation.navigate('AdminOrders')} />
       ) : (
         <FlatList data={routes} keyExtractor={r => r.routeId} renderItem={renderRoute} contentContainerStyle={s.list} />
       )}
+      </View>
 
       {/* Assign Modal */}
       <Modal visible={showModal} transparent animationType="slide">
@@ -220,7 +227,7 @@ export default function AdminRoutesScreen({ navigation }: any) {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -243,7 +250,7 @@ const s = StyleSheet.create({
   metaItem: { fontSize: 12, color: Colors.textSecondary },
   assignedText: { fontSize: 12, color: Colors.textMuted, fontWeight: '500' },
   routeActions: { flexDirection: 'row' },
-  detailBtn: { flex: 1, backgroundColor: Colors.backgroundDark, borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
+  detailBtn: { flex: 1, backgroundColor: Colors.inputBackground, borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
   detailBtnText: { fontSize: 13, color: Colors.textSecondary, fontWeight: '600' },
   assignBtn: { flex: 1, backgroundColor: Colors.success, borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
   assignBtnDisabled: { backgroundColor: Colors.border },
@@ -275,7 +282,7 @@ const s = StyleSheet.create({
   vehicleBadge: { backgroundColor: '#dbeafe', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   vehicleText: { fontSize: 10, fontWeight: '700', color: '#1e40af' },
   modalActions: { flexDirection: 'row', marginTop: 8 },
-  cancelBtn: { flex: 1, backgroundColor: Colors.backgroundDark, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
+  cancelBtn: { flex: 1, backgroundColor: Colors.inputBackground, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
   cancelBtnText: { fontSize: 14, fontWeight: '600', color: Colors.textSecondary },
   confirmBtn: { flex: 1, backgroundColor: Colors.success, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
   confirmBtnDisabled: { opacity: 0.5 },

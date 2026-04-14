@@ -11,7 +11,6 @@ import {
   RefreshControl,
   FlatList,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Colors } from '../../constants/colors';
 import AdminHeader from '../../components/admin/AdminHeader';
@@ -165,7 +164,7 @@ const AdminOpsScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <View style={styles.safe}>
       <AdminHeader title="Operations" onBack={() => navigation.goBack()} />
       
       <View style={styles.tabs}>
@@ -187,7 +186,7 @@ const AdminOpsScreen: React.FC = () => {
         {activeTab === 'outbox' && renderOutbox()}
         {activeTab === 'inventory' && renderInventory()}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

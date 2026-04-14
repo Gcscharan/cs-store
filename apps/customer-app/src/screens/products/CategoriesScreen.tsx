@@ -2,7 +2,7 @@ import React, { useState, useCallback, memo, useMemo, useEffect } from 'react';
 import { 
   View, Text, StyleSheet, FlatList, 
   TouchableOpacity, ActivityIndicator, Image, 
-  ScrollView, TextInput, Alert, Platform, Dimensions, Pressable,
+  ScrollView, TextInput, Alert, Platform, Dimensions, Pressable, StatusBar,
 } from 'react-native'; 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useGetCategoriesQuery, useGetProductsQuery } from '../../api/productsApi'; 
@@ -15,8 +15,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { Colors } from '../../constants/colors';
 import FilterBottomSheet, { FilterState } from '../../components/FilterBottomSheet';
+import { HomeSearchBar } from '../../components/HomeSearchBar';
+import { useVoiceSearch } from '../../hooks/useVoiceSearch';
+import VoiceListeningModal from '../../components/VoiceListeningModal';
 
-import { CURATED_CATEGORIES } from '../../constants/categories';
+import { CURATED_CATEGORIES, MASTER_CATEGORIES, matchesCategoryFilter } from '../../constants/categoriesConfig';
 
 const DEFAULT_CATEGORY_IMAGE = { uri: "https://images.unsplash.com/photo-1549007994-cb92caebd54b?q=80&w=200&auto=format&fit=crop" }; // Fallback
 
@@ -163,10 +166,55 @@ export default function CategoriesScreen({ navigation, route }: any) {
   const [filterMode, setFilterMode] = useState<'filter' | 'sort'>('filter');
   const [addToCart] = useAddToCartMutation();
   const [previousProducts, setPreviousProducts] = useState<any[]>([]);
+  const [voiceModalVisible, setVoiceModalVisible] = useState(false);
+
+  // Voice search handlers
+  const handleVoiceResult = useCallback((text: string) => {
+    setVoiceModalVisible(false);
+    if (text.trim()) {
+      setTimeout(() => {
+        navigation.navigate('Search', { initialQuery: text });
+      }, 160);
+    }
+  }, [navigation]);
+
+  const voice = useVoiceSearch(handleVoiceResult);
+
+  const handleMicPress = useCallback(async () => {
+    setVoiceModalVisible(true);
+    await voice.start('CategoriesScreen mic press');
+  }, [voice]);
+
+  const handleVoiceCancel = useCallback(() => {
+    voice.cancel();
+    setVoiceModalVisible(false);
+  }, [voice]);
  
   const { data: catData, isLoading: loadingCats } = useGetCategoriesQuery(); 
+  
+  // Build query params based on selected category
+  const queryParams = useMemo(() => {
+    if (!selectedCategory) return {};
+    
+    const categoryConfig = MASTER_CATEGORIES.find(cat => cat.label === selectedCategory);
+    if (!categoryConfig) return { category: selectedCategory, limit: 50, search };
+    
+    if (categoryConfig.type === 'price') {
+      // Price-based filtering - use price parameter with safe number conversion
+      const targetPrice = Number(categoryConfig.value);
+      if (isNaN(targetPrice)) {
+        console.warn(`[Category] Invalid price value for category: ${selectedCategory}`);
+        return { limit: 50, search };
+      }
+      return { price: targetPrice, limit: 50, search };
+    } else {
+      // Product category filtering
+      return { category: selectedCategory, limit: 50, search };
+    }
+  }, [selectedCategory, search]);
+  
   const { data: productsData, isLoading: loadingProducts, isFetching } = useGetProductsQuery( 
-    { ...filters, category: selectedCategory!, limit: 50, search }, 
+    { ...filters, ...queryParams }, 
     { skip: !selectedCategory } 
   ); 
  
@@ -338,31 +386,57 @@ export default function CategoriesScreen({ navigation, route }: any) {
     
     return ( 
       <View style={s.container}> 
-        {/* Header */} 
-        <ScreenHeader 
-          title={categoryInfo.name} 
-          showBackButton 
-          onBack={() => { setSelectedCategory(null); setSearch(''); }}
-        /> 
- 
-        {/* Search */}
-        <View style={s.searchBarWrapper}>
-          <View style={s.searchRow}> 
-            <Ionicons name="search" size={18} color="#aaa" style={{ marginRight: 8 }} />
-            <TextInput 
-              style={s.searchInput} 
-              placeholder={`Search in ${categoryInfo.name}...`} 
-              placeholderTextColor="#aaa" 
-              value={search} 
-              onChangeText={setSearch} 
-            /> 
-            {search.length > 0 && ( 
-              <TouchableOpacity onPress={() => setSearch('')} style={s.clearBtn}> 
-                <Ionicons name="close-circle" size={18} color="#aaa" />
-              </TouchableOpacity> 
-            )} 
-          </View> 
-        </View>
+        <StatusBar barStyle="light-content" backgroundColor={Colors.primary} />
+        
+        <VoiceListeningModal
+          visible={voiceModalVisible}
+          state={voice.state}
+          voicePhase={voice.voicePhase}
+          partialText={voice.partialText}
+          finalText={voice.finalText}
+          errorMessage={voice.errorMessage}
+          onCancel={handleVoiceCancel}
+          onRetry={handleMicPress}
+        />
+
+        {/* Header with Search */}
+        <SafeAreaView edges={['top']} style={{ backgroundColor: Colors.primary }}>
+          <View style={s.customHeader}>
+            {/* Back Button */}
+            <TouchableOpacity 
+              onPress={() => { setSelectedCategory(null); setSearch(''); }}
+              style={s.headerBackBtn}
+            >
+              <Ionicons name="arrow-back" size={24} color={Colors.white} />
+            </TouchableOpacity>
+
+            {/* Search Bar (WITH MIC INSIDE) */}
+            <View style={{ flex: 1, marginHorizontal: 8 }}>
+              <HomeSearchBar
+                navigation={navigation}
+                variant="header"
+                editable
+                value={search}
+                onChangeText={setSearch}
+                onSubmitEditing={() => {}}
+                onMicPress={handleMicPress}
+                voiceState={voice.state}
+                placeholder={`Search in ${categoryInfo.name}...`}
+              />
+            </View>
+
+            {/* Right icon (Filter like SearchScreen) */}
+            <TouchableOpacity 
+              style={s.headerRightBtn}
+              onPress={() => {
+                setFilterMode('filter');
+                setIsFilterVisible(true);
+              }}
+            >
+              <Ionicons name="options-outline" size={22} color={Colors.white} />
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
 
         {renderFilterBar()}
  
@@ -423,7 +497,38 @@ export default function CategoriesScreen({ navigation, route }: any) {
    // CATEGORIES VIEW - main screen 
    return ( 
      <View style={s.container}> 
-       <ScreenHeader title="Categories" />
+       <StatusBar barStyle="light-content" backgroundColor={Colors.primary} />
+       
+       <VoiceListeningModal
+         visible={voiceModalVisible}
+         state={voice.state}
+         voicePhase={voice.voicePhase}
+         partialText={voice.partialText}
+         finalText={voice.finalText}
+         errorMessage={voice.errorMessage}
+         onCancel={handleVoiceCancel}
+         onRetry={handleMicPress}
+       />
+
+       <SafeAreaView edges={['top']} style={{ backgroundColor: Colors.primary }}>
+         <View style={s.customHeader}>
+           {/* SEARCH BAR */}
+           <View style={{ flex: 1 }}>
+             <HomeSearchBar
+               navigation={navigation}
+               variant="header"
+               onMicPress={handleMicPress}
+               voiceState={voice.state}
+               placeholder="Search products..."
+             />
+           </View>
+
+           {/* RIGHT ICON */}
+           <TouchableOpacity style={s.headerRightBtn}>
+             <Ionicons name="options-outline" size={22} color={Colors.white} />
+           </TouchableOpacity>
+         </View>
+       </SafeAreaView>
  
        {loadingCats ? ( 
          <View style={s.skeletonGrid}> 
@@ -460,6 +565,22 @@ export default function CategoriesScreen({ navigation, route }: any) {
    title: { fontSize: 22, fontWeight: '800', color: Colors.textPrimary, 
      paddingHorizontal: 16, paddingTop: 16, paddingBottom: 12 }, 
  
+   // Custom Header
+   customHeader: {
+     flexDirection: 'row',
+     alignItems: 'center',
+     paddingHorizontal: 12,
+     paddingVertical: 8,
+     backgroundColor: Colors.primary,
+     minHeight: 56,
+   },
+   headerBackBtn: {
+     padding: 4,
+   },
+   headerRightBtn: {
+     padding: 4,
+   },
+
    // Category grid 
   categoryGrid: { paddingHorizontal: H_PAD, paddingTop: 12, paddingBottom: 28 }, 
   categoryCard: { 
@@ -525,14 +646,6 @@ export default function CategoriesScreen({ navigation, route }: any) {
      borderBottomWidth: 1, borderColor: Colors.border }, 
    backBtn: { padding: 4, marginRight: 12 }, 
    headerTitle: { fontSize: 17, fontWeight: '700', color: Colors.textPrimary, flex: 1 }, 
- 
-   // Search 
-   searchBarWrapper: { flexDirection: 'row', alignItems: 'center', margin: 12, marginBottom: 4 },
-   searchRow: { flex: 1, flexDirection: 'row', alignItems: 'center', 
-     backgroundColor: Colors.inputBackground, borderRadius: 12, 
-     paddingHorizontal: 14, borderWidth: 1, borderColor: Colors.border }, 
-   searchInput: { flex: 1, paddingVertical: 12, fontSize: 15, color: Colors.textPrimary }, 
-   clearBtn: { padding: 8 }, 
  
    // Product grid 
    productGrid: { padding: 12 }, 

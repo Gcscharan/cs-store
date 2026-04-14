@@ -10,6 +10,7 @@
     ],
     "android": {
       "package": "com.vyaparsetu.customer",
+      "usesCleartextTraffic": true,
       "config": {
         "googleMaps": {
           "apiKey": "AIzaSyBNKtlvo5xWWO-S02fm1GCIr6eVLJmFP_k"
@@ -50,7 +51,8 @@
       "expo-web-browser",
       "@react-native-google-signin/google-signin",
       "expo-image",
-      "expo-speech-recognition"
+      "expo-speech-recognition",
+      "expo-video"
     ],
     "extra": {
       "eas": {

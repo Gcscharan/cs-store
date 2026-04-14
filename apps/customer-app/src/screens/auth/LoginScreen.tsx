@@ -48,6 +48,23 @@ export default function LoginScreen({ navigation }: any) {
       console.log('🔥 Sending OTP for phone:', phone);
       const result = await sendOtp({ phone }).unwrap(); // Removed mode parameter
       console.log('✅ OTP sent successfully:', result);
+      
+      // DEVELOPMENT ONLY: Show OTP in console and alert if available
+      if (result.devMode && result.otp) {
+        console.log('\n' + '='.repeat(50));
+        console.log('🔑 DEVELOPMENT MODE - OTP RECEIVED');
+        console.log('📱 Phone:', phone);
+        console.log('🔢 OTP:', result.otp);
+        console.log('⏰ Expires in:', result.expiresIn, 'seconds');
+        console.log('='.repeat(50) + '\n');
+        
+        Alert.alert(
+          '🔑 Development OTP',
+          `Your OTP is: ${result.otp}\n\n(This alert only appears in development mode)`,
+          [{ text: 'OK' }]
+        );
+      }
+      
       setStep('otp'); 
       startTimer(); 
     } catch (err: any) {

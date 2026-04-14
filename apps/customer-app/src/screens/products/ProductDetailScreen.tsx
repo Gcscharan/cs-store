@@ -1,22 +1,28 @@
-import React, { useState } from 'react'; 
+import React, { useState, useRef, useCallback } from 'react'; 
 import { 
   View, Text, ScrollView, TouchableOpacity, StyleSheet, 
-  ActivityIndicator, Share, Alert, Pressable,
+  ActivityIndicator, Share, Alert, FlatList, useWindowDimensions,
+  StatusBar, Platform, Pressable, Animated, Easing,
 } from 'react-native'; 
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useGetProductByIdQuery } from '../../api/productsApi';
+import { LinearGradient } from 'expo-linear-gradient';
+import { VideoView, useVideoPlayer } from 'expo-video';
+import { useGetProductByIdQuery, useLazyGetSimilarProductsQuery } from '../../api/productsApi';
 import { useGetProductReviewsQuery } from '../../api/reviewsApi';
 import { useAddToCartMutation } from '../../api/cartApi';
-import { useDispatch, useSelector } from 'react-redux'; 
+import { useDispatch } from 'react-redux'; 
 import { addItem } from '../../store/slices/cartSlice'; 
 import { showToast } from '../../store/slices/uiSlice';
 import { SmartImage } from '../../components/SmartImage'; 
 import { BusinessRules } from '../../constants/businessRules';
 import { Colors } from '../../constants/colors';
-import type { RootState } from '../../store'; 
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { logEvent } from '../../utils/analytics';
+import { HomeSearchBar } from '../../components/HomeSearchBar';
+import { useVoiceSearch } from '../../hooks/useVoiceSearch';
+import VoiceListeningModal from '../../components/VoiceListeningModal';
+import ProductCard from '../../components/ProductCard';
 
 const getImageUrl = (img: any): string | undefined => {
   if (!img) return undefined;
@@ -33,19 +39,239 @@ const getImageUrl = (img: any): string | undefined => {
   ) || undefined;
 };
 
+// ✅ Modern autoplay video component (Instagram/Reels style) with proper lifecycle management
+const VideoItem = React.memo(({ item, width, isActive }: { 
+  item: { type: 'video'; url: string; thumbnail?: string; duration?: number }; 
+  width: number; 
+  isActive: boolean; 
+}) => {
+  const [isPausedByUser, setIsPausedByUser] = useState(false);
+  const [showPauseIcon, setShowPauseIcon] = useState(false);
+  const [isPlayerReleased, setIsPlayerReleased] = useState(false);
+  const scale = useRef(new Animated.Value(1)).current;
+
+  // Each video has its own player
+  const player = useVideoPlayer(item.url, (p) => {
+    try {
+      p.loop = true; // 🔁 Infinite loop
+      p.muted = true; // 🔇 Muted by default (better UX)
+    } catch (e) {
+      console.log('[VideoItem] Player setup error:', e);
+    }
+  });
+
+  // ✅ FIXED: Proper player cleanup on unmount
+  React.useEffect(() => {
+    return () => {
+      if (player && !isPlayerReleased) {
+        try {
+          setIsPlayerReleased(true);
+          player.release();
+        } catch (e) {
+          console.log('[VideoItem] Player release error:', e);
+        }
+      }
+    };
+  }, [player, isPlayerReleased]);
+
+  // ✅ FIXED: Clean autoplay logic with proper null checks and release state tracking
+  React.useEffect(() => {
+    if (!player || isPlayerReleased) return;
+    
+    if (isActive) {
+      if (!isPausedByUser) {
+        try {
+          player.play();
+        } catch (e) {
+          console.log('[VideoItem] Play error:', e);
+          // If error suggests player is released, update state
+          if (e.message && e.message.includes('released')) {
+            setIsPlayerReleased(true);
+          }
+        }
+      }
+    } else {
+      try {
+        player.pause();
+      } catch (e) {
+        console.log('[VideoItem] Pause error:', e);
+        // If error suggests player is released, update state
+        if (e.message && e.message.includes('released')) {
+          setIsPlayerReleased(true);
+        }
+      }
+    }
+  }, [isActive, isPausedByUser, player, isPlayerReleased]);
+
+  // ✅ FIXED: Reset pause state only on unmount
+  React.useEffect(() => {
+    return () => {
+      setIsPausedByUser(false);
+    };
+  }, []);
+
+  // ✅ FIXED: Tap feedback + pause/resume with pause icon and proper error handling
+  const handleToggle = () => {
+    if (!player || isPlayerReleased) return;
+    
+    // Micro feedback animation
+    Animated.sequence([
+      Animated.timing(scale, { toValue: 0.97, duration: 80, useNativeDriver: true }),
+      Animated.timing(scale, { toValue: 1, duration: 80, useNativeDriver: true }),
+    ]).start();
+
+    setIsPausedByUser(prev => {
+      const next = !prev;
+      
+      try {
+        if (next) {
+          player.pause();
+          
+          // 👇 Show pause icon briefly
+          setShowPauseIcon(true);
+          setTimeout(() => setShowPauseIcon(false), 800);
+        } else {
+          player.play();
+        }
+      } catch (e) {
+        console.log('[VideoItem] Toggle error:', e);
+        // If error suggests player is released, update state
+        if (e.message && e.message.includes('released')) {
+          setIsPlayerReleased(true);
+        }
+      }
+      
+      return next;
+    });
+  };
+
+  // Don't render if player is released to prevent further errors
+  if (isPlayerReleased) {
+    return (
+      <View style={[s.mediaItem, { width }]}>
+        <View style={s.videoErrorState}>
+          <Ionicons name="videocam-off" size={32} color="#666" />
+          <Text style={s.videoErrorText}>Video unavailable</Text>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <Pressable onPress={handleToggle} style={[s.mediaItem, { width }]}>
+      <Animated.View style={{ transform: [{ scale }], width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' }}>
+        
+        {player && (
+          <VideoView
+            player={player}
+            style={s.mediaVideo}
+            nativeControls={false}
+            contentFit="contain"
+          />
+        )}
+        
+        {/* Pause feedback */}
+        {showPauseIcon && (
+          <View style={s.pauseOverlay}>
+            <Ionicons name="pause" size={28} color="#000" />
+          </View>
+        )}
+        
+        {/* Video hint */}
+        <View style={s.videoHint}>
+          <Ionicons name="videocam" size={12} color="#fff" />
+        </View>
+        
+      </Animated.View>
+    </Pressable>
+  );
+});
+
 export default function ProductDetailScreen({ route, navigation }: any) { 
   // Handle both id and productId from navigation params
   const id = route.params?.productId || route.params?.id; 
   const { data: product, isLoading, isError, refetch } = useGetProductByIdQuery(id, { skip: !id }); 
   const dispatch = useDispatch(); 
-  const { user } = useSelector((s: RootState) => s.auth); 
- 
+  const { width } = useWindowDimensions();
+
   const [qty, setQty] = useState(1); 
-  const [selectedImage, setSelectedImage] = useState(0); 
+  const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
+  const [voiceModalVisible, setVoiceModalVisible] = useState(false);
+  const [carouselWidth, setCarouselWidth] = useState(width);
+  const scrollX = useRef(new Animated.Value(0)).current;
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  // Voice search handlers
+  const handleVoiceResult = React.useCallback((text: string) => {
+    setVoiceModalVisible(false);
+    if (text.trim()) {
+      setTimeout(() => {
+        navigation.navigate('Search', { initialQuery: text });
+      }, 160);
+    }
+  }, [navigation]);
+
+  const voice = useVoiceSearch(handleVoiceResult);
+
+  const handleMicPress = React.useCallback(async () => {
+    setVoiceModalVisible(true);
+    await voice.start('ProductDetailScreen mic press');
+  }, [voice]);
+
+  const handleVoiceCancel = React.useCallback(() => {
+    voice.cancel();
+    setVoiceModalVisible(false);
+  }, [voice]);
+
+  // Build unified media array (images + video)
+  const media = React.useMemo(() => {
+    const items: Array<{ type: 'image' | 'video'; url: string; thumbnail?: string; duration?: number }> = [];
+    
+    // Add images
+    if (product?.images?.length) {
+      product.images.forEach((img: any) => {
+        const url = getImageUrl(img);
+        if (url) {
+          items.push({ type: 'image', url });
+        }
+      });
+    }
+    
+    // Add video
+    if (product?.video?.url) {
+      items.push({
+        type: 'video',
+        url: product.video.url,
+        thumbnail: product.video.thumbnail,
+        duration: product.video.duration,
+      });
+    }
+    
+    console.log("🔍 MEDIA LENGTH:", items.length);
+    console.log("🔍 MEDIA:", items);
+    
+    return items;
+  }, [product]);
+
+  // Handle scroll
+  const handleScroll = (event: any) => {
+    const offsetX = event.nativeEvent.contentOffset.x;
+    const index = Math.round(offsetX / carouselWidth);
+    console.log("� SCROLL X:", offsetX, "| Index:", index, "| Expected max:", carouselWidth * (media.length - 1));
+    setCurrentMediaIndex(index);
+    scrollX.setValue(offsetX);
+  }; 
  
   const { data: reviewsData } = useGetProductReviewsQuery( 
     { productId: id }, { skip: !id }); 
+  const [getSimilar, { data: similarData }] = useLazyGetSimilarProductsQuery();
   const [addToCart, { isLoading: addingToCart }] = useAddToCartMutation(); 
+
+  React.useEffect(() => {
+    if (id) {
+      getSimilar({ id, limit: 6 });
+    }
+  }, [id, getSimilar]);
  
   if (!id) return (
     <View style={s.container}>
@@ -92,7 +318,6 @@ export default function ProductDetailScreen({ route, navigation }: any) {
     </View>
   );
 
-  const images = product.images?.length ? product.images : [null]; 
   const discount = product.mrp > product.price 
     ? Math.round(((product.mrp - product.price) / product.mrp) * 100) : 0; 
   const savings = product.mrp - product.price; 
@@ -110,6 +335,12 @@ export default function ProductDetailScreen({ route, navigation }: any) {
     return Math.abs(hash % 20) + 5; // Returns a number between 5 and 24
   };
   const urgencyCount = id ? getUrgencyCount(id) : 12;
+
+  const getMediaUrl = (item: any): string | undefined => {
+    if (!item) return undefined;
+    if (typeof item === 'string') return item;
+    return item.url || item.uri || getImageUrl(item);
+  };
  
   const handleShare = async () => { 
     await Share.share({ 
@@ -119,7 +350,21 @@ export default function ProductDetailScreen({ route, navigation }: any) {
   }; 
  
   const handleAddToCart = async () => { 
-    const imageUrl = getImageUrl(images);
+    // Validate product availability
+    if (!product || product.stock === 0) {
+      Alert.alert(
+        'Unavailable',
+        product?.stock === 0 
+          ? 'This product is currently out of stock.' 
+          : 'This product is no longer available.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    const firstImage = product.images?.[0];
+    const imageUrl = getMediaUrl(firstImage);
+
     try { 
       logEvent('add_to_cart', { 
         productId: product._id, 
@@ -144,264 +389,362 @@ export default function ProductDetailScreen({ route, navigation }: any) {
       // For now, we alert the user 
       Alert.alert('Error', error?.data?.message || 'Failed to sync cart with server'); 
     } 
-  }; 
- 
-  return ( 
-    <View style={s.container}> 
-      <ScreenHeader 
-        title={product.name} 
-        showBackButton 
-        rightComponent={
-          <TouchableOpacity onPress={handleShare} style={s.shareBtn}> 
-            <Ionicons name="share-social-outline" size={20} color={Colors.white} /> 
-          </TouchableOpacity> 
-        }
-      /> 
- 
-      <ScrollView showsVerticalScrollIndicator={false}> 
-        {/* Image gallery */} 
-        <View style={s.imageSection}> 
-          <SmartImage 
-            uri={getImageUrl(images[selectedImage])} 
-            style={s.mainImage} 
-            resizeMode="contain" 
-          /> 
-          {discount > 0 && ( 
-            <View style={s.bigDiscount}> 
-              <Text style={s.bigDiscountTxt}>{discount}% OFF</Text> 
-            </View> 
-          )} 
-          {images.length > 1 && ( 
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false} 
-              contentContainerStyle={s.thumbRow} 
-            > 
-              {images.map((img: any, i: number) => ( 
-                <TouchableOpacity 
-                  key={i} 
-                  onPress={() => setSelectedImage(i)} 
-                  style={[s.thumbWrap, selectedImage === i && s.thumbActive, { marginRight: 8 }]} 
-                > 
-                  <SmartImage uri={getImageUrl(img)} style={s.thumb} resizeMode="contain" /> 
-                </TouchableOpacity> 
-              ))} 
-            </ScrollView> 
-          )} 
-        </View> 
- 
-        <View style={s.content}> 
-          {/* Product name */} 
-          <Text style={s.name}>{product.name}</Text> 
- 
-           {/* Rating */} 
-           {avgRating && ( 
-             <TouchableOpacity 
-               style={s.ratingRow} 
-               onPress={() => {}} 
-             > 
-               <Text style={[s.stars, { marginRight: 6 }]}>★ {avgRating}</Text> 
-               <Text style={s.reviewCount}>({reviews.length} reviews)</Text> 
-             </TouchableOpacity> 
-           )} 
- 
-           {/* Badges */}
-          <View style={s.badgesRow}>
-            {product.isBestseller && (
-              <View style={[s.badge, s.bestsellerBadge, { marginRight: 8, marginBottom: 8 }]}>
-               <Ionicons name="flame" size={12} color="#E53E3E" style={{ marginRight: 4 }} />
-               <Text style={s.bestsellerBadgeTxt}>Bestseller</Text>
-              </View>
-            )}
-            {avgRating && Number(avgRating) >= 4.5 && (
-              <View style={[s.badge, s.ratingBadge, { marginRight: 8, marginBottom: 8 }]}>
-                <Ionicons name="star" size={12} color="#FBBF24" style={{ marginRight: 4 }} />
-                <Text style={s.ratingBadgeTxt}>High Rating</Text>
-              </View>
-            )}
-            <View style={[s.badge, s.deliveryBadge, { marginRight: 8, marginBottom: 8 }]}>
-              <Ionicons name="flash" size={12} color="#48BB78" style={{ marginRight: 4 }} />
-              <Text style={s.deliveryBadgeTxt}>Fast Delivery</Text>
-            </View>
-            {product.isSponsored && <Text style={[s.badge, s.sponsoredBadge, { marginRight: 8, marginBottom: 8 }]}>Sponsored</Text>}
-          </View>
+  };
 
-          {/* Urgency & Scarcity */}
-          <View style={s.urgencyRow}>
-            <View style={[s.badge, s.urgencyBadge, { marginRight: 8 }]}>
-              <Ionicons name="trending-up" size={12} color="#D97706" style={{ marginRight: 4 }} />
-              <Text style={s.urgencyBadgeTxt}>{urgencyCount} bought today</Text>
-            </View>
-            {product.stock > 0 && product.stock <= 10 && (
-              <View style={[s.badge, s.scarcityBadge]}>
-                <Ionicons name="time" size={12} color="#DC2626" style={{ marginRight: 4 }} />
-                <Text style={s.scarcityBadgeTxt}>Only {product.stock} left</Text>
-              </View>
-            )}
+  // Render media item
+  const renderMediaItem = (item: typeof media[0], index: number) => {
+    if (item.type === 'image') {
+      return (
+        <View key={`image-${item.url}-${index}`} style={[s.mediaItem, { width: carouselWidth }]}>
+          <SmartImage 
+            uri={item.url} 
+            style={s.mediaImage} 
+          />
+        </View>
+      );
+    }
+
+    if (item.type === 'video') {
+      return (
+        <VideoItem 
+          key={`video-${item.url}-${index}`}
+          item={item as { type: 'video'; url: string; thumbnail?: string; duration?: number }} 
+          width={carouselWidth} 
+          isActive={currentMediaIndex === index}
+        />
+      );
+    }
+
+    return null;
+  };
+
+  const carouselHeight = carouselWidth; // Square aspect ratio like Flipkart 
+  const AnimatedScrollView = Animated.createAnimatedComponent(ScrollView); 
+
+  // Render carousel
+  const renderCarousel = () => (
+    <View 
+      style={[s.mediaCarouselContainer, { height: carouselHeight }]}
+      onLayout={(e) => {
+        const w = e.nativeEvent.layout.width;
+        console.log("✅ ACTUAL CAROUSEL WIDTH:", w);
+        if (w !== carouselWidth) {
+          setCarouselWidth(w);
+        }
+      }}
+    >
+      <AnimatedScrollView
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        decelerationRate="fast"
+        scrollEventThrottle={16}
+        onScroll={handleScroll}
+        snapToInterval={carouselWidth}
+        snapToAlignment="center"
+        contentContainerStyle={{ width: carouselWidth * media.length }}
+      >
+        {media.map((item, index) => renderMediaItem(item, index))}
+      </AnimatedScrollView>
+
+      {/* Pagination Dots - Animated Wave Effect */}
+      {media.length > 1 && (
+        <View style={s.paginationDots}>
+          {media.map((_, index) => {
+            const inputRange = [
+              (index - 1) * carouselWidth,
+              index * carouselWidth,
+              (index + 1) * carouselWidth,
+            ];
+
+            const scale = scrollX.interpolate({
+              inputRange,
+              outputRange: [1, 1.8, 1],
+              extrapolate: 'clamp',
+            });
+
+            const opacity = scrollX.interpolate({
+              inputRange,
+              outputRange: [0.3, 1, 0.3],
+              extrapolate: 'clamp',
+            });
+
+            const widthAnim = scrollX.interpolate({
+              inputRange,
+              outputRange: [5, 12, 5],
+              extrapolate: 'clamp',
+            });
+
+            return (
+              <Animated.View
+                key={index}
+                style={[
+                  s.dot,
+                  {
+                    opacity,
+                    transform: [{ scale }],
+                    width: widthAnim,
+                  },
+                ]}
+              />
+            );
+          })}
+        </View>
+      )}
+    </View>
+  );
+
+  // Render product info
+  const renderProductInfo = () => (
+    <View style={s.productInfo}> 
+      {/* Title */}
+      <Text style={s.name}>{product.name}</Text> 
+
+      {/* Brand (clickable blue text) */}
+      <TouchableOpacity onPress={() => {}}>
+        <Text style={s.brand}>Visit the Store</Text>
+      </TouchableOpacity>
+
+      {/* Rating Row + Bestseller Badge */}
+      <View style={s.ratingBadgeRow}>
+        {avgRating && ( 
+          <TouchableOpacity style={s.ratingRow} onPress={() => {}}> 
+            <Text style={s.stars}>{avgRating}</Text>
+            <Ionicons name="star" size={12} color="#FFA41C" style={{ marginLeft: 2, marginRight: 4 }} />
+            <Text style={s.reviewCount}>({reviews.length})</Text> 
+          </TouchableOpacity> 
+        )}
+        {product.isBestseller && (
+          <View style={s.bestsellerBadge}>
+            <Text style={s.bestsellerBadgeTxt}>#1 Best Seller</Text>
           </View>
- 
-          {/* Price */} 
-          <View style={s.priceSection}> 
-            <Text style={s.price}>₹{product.price}</Text> 
-            {product.mrp > product.price && ( 
-              <> 
-                <Text style={s.mrp}>M.R.P: ₹{product.mrp}</Text> 
-                <View style={s.saveBadge}> 
-                  <Text style={s.saveTxt}>You save ₹{savings} ({discount}%)</Text> 
-                </View> 
-              </> 
-            )} 
-          </View> 
- 
-          {/* Trust badges */} 
-          <View style={s.trustRow}> 
-            <View style={[s.trustBadge, { marginRight: 8, marginBottom: 8 }]}>
-              <Ionicons name="shield-checkmark" size={14} color="#555" style={{ marginRight: 6 }} />
-              <Text style={s.trustTxt}>Secure Pay</Text>
-            </View>
-            <View style={[s.trustBadge, { marginRight: 8, marginBottom: 8 }]}>
-              <Ionicons name="refresh" size={14} color="#555" style={{ marginRight: 6 }} />
-              <Text style={s.trustTxt}>Easy Returns</Text>
-            </View>
-            <View style={[s.trustBadge, { marginRight: 8, marginBottom: 8 }]}>
-              <Ionicons name="flash" size={14} color="#555" style={{ marginRight: 6 }} />
-              <Text style={s.trustTxt}>Fast Delivery</Text>
-            </View>
-          </View> 
- 
-          {/* Free delivery badge */} 
-          {product.price >= BusinessRules.FREE_DELIVERY_THRESHOLD && ( 
-            <View style={s.freeDeliveryBadge}> 
-              <Ionicons name="car" size={16} color="#1565C0" style={{ marginRight: 6 }} />
-              <Text style={s.freeDeliveryTxt}>FREE Delivery on this order</Text> 
-            </View> 
-          )} 
- 
-          {/* Stock status */} 
-          <View style={s.stockStatusRow}>
-            <Ionicons name={product.stock > 0 ? "checkmark-circle" : "close-circle"} size={16} color={product.stock > 0 ? "#16A34A" : "#DC2626"} style={{ marginRight: 6 }} />
-            <Text style={product.stock > 0 ? s.inStock : s.outStock}> 
-              {product.stock > 0 
-                ? `In Stock (${product.stock} available)` 
-                : `Out of Stock`} 
-            </Text> 
-          </View> 
- 
-          {/* Description */} 
-          {product.description && ( 
-            <View style={s.section}> 
-              <Text style={s.sectionTitle}>About this product</Text> 
-              <Text style={s.desc}>{product.description}</Text> 
-            </View> 
-          )} 
- 
-          {/* Reviews */}
-          <View style={s.section}>
-            <View style={s.reviewHeader}>
-              <View>
-                <Text style={s.sectionTitle}>Customer Reviews</Text>
-                {avgRating && (
-                  <View style={s.avgRatingRow}>
-                    {[1,2,3,4,5].map(star => (
-                      <Text
-                        key={star}
-                        style={{ color: star <= Math.round(Number(avgRating)) ? '#f59e0b' : '#ddd', fontSize: 14, marginRight: 2 }}
-                      >
-                        ★
-                      </Text>
-                    ))}
-                    <Text style={[s.avgRatingText, { marginLeft: 4 }]}>{avgRating} ({reviews.length})</Text>
-                  </View>
-                )}
+        )}
+      </View>
+
+      {/* Price Section - Amazon Style */}
+      <View style={s.priceSection}> 
+        <View style={s.priceRow}>
+          {product.mrp > product.price && (
+            <Text style={s.discountPercent}>-{discount}%</Text>
+          )}
+          <Text style={s.price}>₹{product.price.toLocaleString('en-IN')}</Text> 
+        </View>
+        {product.mrp > product.price && ( 
+          <View style={s.mrpRow}>
+            <Text style={s.mrpLabel}>M.R.P.: </Text>
+            <Text style={s.mrp}>₹{product.mrp.toLocaleString('en-IN')}</Text> 
+          </View>
+        )} 
+      </View> 
+
+      {/* Small Badges - Compact */}
+      <View style={s.badgesRow}>
+        {product.price >= BusinessRules.FREE_DELIVERY_THRESHOLD && (
+          <View style={s.badge}>
+            <Text style={s.badgeTxt}>FREE Delivery</Text>
+          </View>
+        )}
+        {product.stock > 0 && product.stock <= 10 && (
+          <View style={[s.badge, s.urgentBadge]}>
+            <Text style={s.urgentBadgeTxt}>Only {product.stock} left</Text>
+          </View>
+        )}
+      </View>
+
+      {/* Trust Row - Inline Icons */}
+      <View style={s.trustRow}> 
+        <View style={s.trustItem}>
+          <Ionicons name="shield-checkmark-outline" size={16} color="#007185" />
+          <Text style={s.trustTxt}>Secure Pay</Text>
+        </View>
+        <View style={s.trustDivider} />
+        <View style={s.trustItem}>
+          <Ionicons name="refresh-outline" size={16} color="#007185" />
+          <Text style={s.trustTxt}>Easy Returns</Text>
+        </View>
+        <View style={s.trustDivider} />
+        <View style={s.trustItem}>
+          <Ionicons name="flash-outline" size={16} color="#007185" />
+          <Text style={s.trustTxt}>Fast Delivery</Text>
+        </View>
+      </View> 
+
+      {/* Stock Status - Small Green Text */}
+      {product.stock > 0 ? (
+        <Text style={s.inStock}>In Stock</Text> 
+      ) : (
+        <Text style={s.outStock}>Currently unavailable</Text>
+      )}
+
+      {/* Description - Compact */}
+      {product.description && ( 
+        <View style={s.section}> 
+          <Text style={s.sectionTitle}>About this item</Text> 
+          <Text style={s.desc}>{product.description}</Text> 
+        </View> 
+      )} 
+
+      {/* Reviews */}
+      <View style={s.section}>
+        <Text style={s.sectionTitle}>Customer reviews</Text>
+        
+        {avgRating && (
+          <View style={s.reviewSummary}>
+            <Text style={s.avgRating}>{avgRating}</Text>
+            <View style={s.starsColumn}>
+              <View style={s.starsRow}>
+                {[1,2,3,4,5].map(star => (
+                  <Ionicons
+                    key={star}
+                    name={star <= Math.round(Number(avgRating)) ? "star" : "star-outline"}
+                    size={14}
+                    color="#FFA41C"
+                  />
+                ))}
               </View>
+              <Text style={s.reviewCountText}>{reviews.length} ratings</Text>
+            </View>
+          </View>
+        )}
+
+        {reviews.length === 0 ? (
+          <Text style={s.noReviews}>No reviews yet</Text>
+        ) : (
+          <>
+            {reviews.slice(0, 5).map((review: any) => (
+              <View key={review._id} style={s.reviewCard}>
+                <View style={s.reviewHeader}>
+                  <View style={s.reviewAvatar}>
+                    <Text style={s.reviewAvatarText}>
+                      {(review.userName || 'C').charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.reviewAuthor}>{review.userName || 'Customer'}</Text>
+                    <View style={s.reviewStarRow}>
+                      {[1,2,3,4,5].map(star => (
+                        <Ionicons
+                          key={star}
+                          name={star <= review.rating ? "star" : "star-outline"}
+                          size={12}
+                          color="#FFA41C"
+                        />
+                      ))}
+                      <Text style={s.reviewDate}>
+                        {' '}{new Date(review.createdAt).toLocaleDateString('en-IN', {
+                          day: 'numeric', month: 'short', year: 'numeric',
+                        })}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+                <Text style={s.reviewText}>{review.comment}</Text>
+              </View>
+            ))}
+
+            {reviews.length > 5 && (
               <TouchableOpacity
-                style={s.writeReviewBtn}
-                onPress={() => navigation.navigate('WriteReview', {
+                style={s.seeAllReviews}
+                onPress={() => navigation.navigate('AllReviews', {
                   productId: id,
                   productName: product.name,
                 })}
               >
-                <Text style={s.writeReviewTxt}>+ Write Review</Text>
+                <Text style={s.seeAllReviewsTxt}>
+                  See all {reviews.length} reviews
+                </Text>
               </TouchableOpacity>
-            </View>
-
-            {reviews.length === 0 ? (
-              <View style={s.noReviewsContainer}>
-                <Ionicons name="chatbubbles-outline" size={32} color={Colors.textMuted} style={{ marginBottom: 8 }} />
-                <Text style={s.noReviews}>No reviews yet. Be the first to review!</Text>
-                <TouchableOpacity
-                  style={s.beFirstBtn}
-                  onPress={() => navigation.navigate('WriteReview', {
-                    productId: id,
-                    productName: product.name,
-                  })}
-                >
-                  <Text style={s.beFirstBtnText}>Write a Review</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <>
-                {reviews.slice(0, 3).map((review: any) => (
-                  <View key={review._id} style={s.reviewCard}>
-                    <View style={s.reviewTop}>
-                      <View style={s.reviewAvatar}>
-                        <Text style={s.reviewAvatarText}>
-                          {(review.userName || 'C').charAt(0).toUpperCase()}
-                        </Text>
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={s.reviewAuthor}>{review.userName || 'Customer'}</Text>
-                        <View style={s.reviewStarRow}>
-                          {[1,2,3,4,5].map(star => (
-                            <Text
-                              key={star}
-                              style={{ color: star <= review.rating ? '#f59e0b' : '#ddd', fontSize: 12 }}
-                            >
-                              ★
-                            </Text>
-                          ))}
-                          <Text style={s.reviewDate}>
-                            {'  '}{new Date(review.createdAt).toLocaleDateString('en-IN', {
-                              day: 'numeric', month: 'short', year: 'numeric',
-                            })}
-                          </Text>
-                        </View>
-                      </View>
-                    </View>
-                    <Text style={s.reviewText}>{review.comment}</Text>
-                  </View>
-                ))}
-
-                {reviews.length > 3 && (
-                  <TouchableOpacity
-                    style={s.seeAllReviews}
-                    onPress={() => navigation.navigate('AllReviews', {
-                      productId: id,
-                      productName: product.name,
-                    })}
-                  >
-                    <Text style={s.seeAllReviewsTxt}>
-                      See all {reviews.length} reviews →
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </>
             )}
-          </View> 
-        </View> 
-      </ScrollView> 
+          </>
+        )}
+      </View>
+
+      {/* Similar Products Section */}
+      {similarData?.products && Array.isArray(similarData.products) && similarData.products.length > 0 && (
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Similar Products</Text>
+          <FlatList
+            data={similarData.products}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            nestedScrollEnabled={true}
+            keyExtractor={(item: any) => item._id}
+            renderItem={({ item }) => (
+              <View style={{ width: 160, marginRight: 12 }}>
+                <ProductCard
+                  product={item}
+                  onPress={() => navigation.push('ProductDetail', { productId: item._id })}
+                  onAddToCart={() => {
+                    dispatch(addItem({ 
+                      productId: item._id, 
+                      name: item.name, 
+                      price: item.price, 
+                      quantity: 1, 
+                      image: getMediaUrl(item.images?.[0]) 
+                    }));
+                    dispatch(showToast(`${item.name} added to cart`));
+                  }}
+                />
+              </View>
+            )}
+          />
+        </View>
+      )}
+    </View> 
+  );
  
-      {/* Add to cart footer */} 
-      {product.stock > 0 && ( 
+  return ( 
+    <View style={s.container}> 
+      <StatusBar barStyle="light-content" backgroundColor={Colors.primary} />
+      
+      <VoiceListeningModal
+        visible={voiceModalVisible}
+        state={voice.state}
+        voicePhase={voice.voicePhase}
+        partialText={voice.partialText}
+        finalText={voice.finalText}
+        errorMessage={voice.errorMessage}
+        onCancel={handleVoiceCancel}
+        onRetry={handleMicPress}
+      />
+
+      {/* Header matching Home Screen */}
+      <SafeAreaView edges={['top']} style={{ backgroundColor: Colors.primary }}>
+        <View style={s.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={s.headerBackBtn}>
+            <Ionicons name="arrow-back" size={24} color={Colors.white} />
+          </TouchableOpacity>
+          <HomeSearchBar
+            navigation={navigation}
+            placeholder="Search or ask a question"
+            variant="header"
+            onMicPress={handleMicPress}
+            voiceState={voice.state}
+          />
+        </View>
+      </SafeAreaView>
+      
+      {/* Main ScrollView with carousel and product info */}
+      <ScrollView
+        ref={scrollViewRef}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 100 }}
+      >
+        {renderCarousel()}
+        {renderProductInfo()}
+      </ScrollView>
+ 
+      {/* Sticky Bottom Bar - Amazon Style */}
+      {product.stock > 0 ? ( 
         <View style={s.footer}> 
-          <View style={[s.qtyRow, { marginRight: 16 }]}> 
+          <View style={s.qtyRow}> 
             <TouchableOpacity 
               style={s.qtyBtn} 
               onPress={() => setQty(q => Math.max(1, q - 1))} 
             > 
               <Text style={s.qtyBtnTxt}>−</Text> 
             </TouchableOpacity> 
-            <Text style={[s.qty, { marginHorizontal: 16 }]}>{qty}</Text> 
+            <Text style={s.qty}>{qty}</Text> 
             <TouchableOpacity 
               style={s.qtyBtn} 
               onPress={() => setQty(q => Math.min(product.stock, q + 1))} 
@@ -417,179 +760,476 @@ export default function ProductDetailScreen({ route, navigation }: any) {
             {addingToCart ? (
               <ActivityIndicator color="#fff" size="small" />
             ) : (
-              <Text style={s.addBtnTxt}>Add to Cart · ₹{product.price * qty}</Text> 
+              <Text style={s.addBtnTxt}>Add to Cart</Text> 
             )}
           </TouchableOpacity> 
-        </View> 
+        </View>
+      ) : (
+        <View style={s.footer}>
+          <View style={s.outOfStockFooter}>
+            <Ionicons name="close-circle" size={20} color="#B12704" style={{ marginRight: 8 }} />
+            <Text style={s.outOfStockFooterText}>Out of Stock</Text>
+          </View>
+          <TouchableOpacity 
+            style={s.notifyBtn}
+            onPress={() => {
+              dispatch(showToast('We\'ll notify you when this product is back in stock'));
+            }}
+          >
+            <Text style={s.notifyBtnTxt}>Notify Me</Text>
+          </TouchableOpacity>
+        </View>
       )} 
     </View> 
   ); 
 } 
  
 const s = StyleSheet.create({ 
-  container: { flex: 1, backgroundColor: Colors.background }, 
+  container: { 
+    flex: 1, 
+    backgroundColor: '#FFFFFF',
+  }, 
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' }, 
-  topBar: { flexDirection: 'row', justifyContent: 'space-between', 
-    alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, 
-    backgroundColor: Colors.white, borderBottomWidth: 1, borderColor: Colors.border }, 
-  backBtn: { padding: 4 }, 
-  backTxt: { fontSize: 24, color: Colors.textPrimary }, 
-  shareBtn: { padding: 8, backgroundColor: Colors.inputBackground, borderRadius: 8 }, 
-  imageSection: { backgroundColor: Colors.white, paddingBottom: 16 }, 
-  mainImage: { width: '100%', height: 320, backgroundColor: Colors.white }, 
-  bigDiscount: { position: 'absolute', top: 12, right: 12, 
-    backgroundColor: Colors.primary, paddingHorizontal: 12, 
-    paddingVertical: 6, borderRadius: 8 }, 
-  bigDiscountTxt: { color: Colors.white, fontWeight: '900', fontSize: 16 }, 
-  thumbRow: { padding: 12 }, 
-  thumbWrap: { borderRadius: 8, overflow: 'hidden', 
-    borderWidth: 2, borderColor: Colors.border, padding: 4, backgroundColor: Colors.white }, 
-  thumbActive: { borderColor: Colors.primary }, 
-  thumb: { width: 64, height: 64, backgroundColor: Colors.white }, 
-  content: { padding: 16, backgroundColor: Colors.background }, 
-  name: { fontSize: 18, fontWeight: '700', color: Colors.textPrimary, lineHeight: 26 }, 
-  ratingRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6 }, 
-  stars: { fontSize: 14, color: '#FBBF24', fontWeight: '700' }, 
-  reviewCount: { fontSize: 13, color: Colors.primary, fontWeight: '500' }, 
-  urgencyRow: {
+  
+  // Header matching Home Screen
+  header: {
     flexDirection: 'row',
-    marginTop: 12,
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: Colors.primary,
+    minHeight: 56,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
-  urgencyBadge: {
-    backgroundColor: '#FFFBEB',
-    borderColor: '#FDF4CA',
+  headerBackBtn: {
+    padding: 4,
   },
-  urgencyBadgeTxt: { fontSize: 12, fontWeight: '600', color: '#B45309' },
-  scarcityBadge: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#FECACA',
+  
+  // Full-Width Image Carousel - White Background
+  mediaCarouselContainer: {
+    backgroundColor: '#FFFFFF',
+    position: 'relative',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E3E6E6',
   },
-  scarcityBadgeTxt: { fontSize: 12, fontWeight: '600', color: '#DC2626' },
+  mediaItem: {
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  mediaImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'contain',
+  },
+  mediaVideo: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#000',
+  },
+  pauseOverlay: {
+    position: 'absolute',
+    alignSelf: 'center',
+    top: '40%',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  videoHint: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    padding: 4,
+    borderRadius: 6,
+    zIndex: 3,
+  },
+  videoErrorState: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+  },
+  videoErrorText: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  paginationDots: {
+    position: 'absolute',
+    bottom: 12,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+  },
+  dot: {
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: '#000',
+    marginHorizontal: 3,
+  },
+  
+  // Product Info - White Background, No Card
+  productInfo: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 100,
+  }, 
+  
+  // Title
+  name: { 
+    fontSize: 15, 
+    fontWeight: '400', 
+    color: '#0F1111', 
+    lineHeight: 20,
+    marginBottom: 4,
+  }, 
+  
+  // Brand
+  brand: {
+    fontSize: 13,
+    color: '#007185',
+    fontWeight: '400',
+    marginBottom: 8,
+  },
+  
+  // Rating + Bestseller Badge Row
+  ratingBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    flexWrap: 'wrap',
+  },
+  ratingRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center',
+    marginRight: 12,
+  }, 
+  stars: { 
+    fontSize: 13, 
+    color: '#111', 
+    fontWeight: '400',
+  }, 
+  reviewCount: { 
+    fontSize: 13, 
+    color: '#007185', 
+    fontWeight: '400',
+    marginLeft: 4,
+  }, 
+  bestsellerBadge: {
+    backgroundColor: '#FF9900',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 2,
+  },
+  bestsellerBadgeTxt: { 
+    color: '#FFFFFF', 
+    fontSize: 11, 
+    fontWeight: '600',
+  },
+  
+  // Price Section - Amazon Style
+  priceSection: { 
+    marginBottom: 12,
+  }, 
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  discountPercent: {
+    fontSize: 14,
+    fontWeight: '400',
+    color: '#CC0C39',
+    marginRight: 6,
+  },
+  price: { 
+    fontSize: 28, 
+    fontWeight: '700', 
+    color: '#0F1111',
+  }, 
+  mrpRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  mrpLabel: {
+    fontSize: 13,
+    color: '#565959',
+    fontWeight: '400',
+  },
+  mrp: { 
+    fontSize: 13, 
+    color: '#565959', 
+    textDecorationLine: 'line-through',
+    fontWeight: '400',
+  }, 
+  
+  // Small Badges - Compact
   badgesRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginTop: 12,
+    marginBottom: 12,
+    gap: 6,
   },
   badge: {
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 2,
+    backgroundColor: '#F0F2F2',
+  },
+  badgeTxt: {
+    fontSize: 11,
+    fontWeight: '400',
+    color: '#111',
+  },
+  urgentBadge: {
+    backgroundColor: '#FEF2F2',
+  },
+  urgentBadgeTxt: {
+    fontSize: 11,
+    fontWeight: '400',
+    color: '#DC2626',
+  },
+  
+  // Trust Row - Inline Icons
+  trustRow: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: '#E3E6E6',
+    marginBottom: 12,
+  }, 
+  trustItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    flex: 1,
+    justifyContent: 'center',
   },
-  bestsellerBadge: { backgroundColor: '#FFF1F2', borderColor: '#FECDD3' },
-  bestsellerBadgeTxt: { color: '#E53E3E', fontSize: 12, fontWeight: '600' },
-  ratingBadge: { backgroundColor: '#FEFCE8', borderColor: '#FEF08A' },
-  ratingBadgeTxt: { color: '#B45309', fontSize: 12, fontWeight: '600' },
-  deliveryBadge: { backgroundColor: '#F0FFF4', borderColor: '#BBF7D0' },
-  deliveryBadgeTxt: { color: '#16A34A', fontSize: 12, fontWeight: '600' },
-  sponsoredBadge: { backgroundColor: '#FAF5FF', borderColor: '#E9D5FF', color: '#9333EA', fontSize: 12, fontWeight: '600' },
-  priceSection: { marginTop: 16 }, 
-  price: { fontSize: 28, fontWeight: '900', color: Colors.textPrimary }, 
-  mrp: { fontSize: 14, color: Colors.textMuted, 
-    textDecorationLine: 'line-through', marginTop: 2 }, 
-  saveBadge: { backgroundColor: Colors.successLight, alignSelf: 'flex-start', 
-    paddingHorizontal: 10, paddingVertical: 4, 
-    borderRadius: 6, marginTop: 6 }, 
-  saveTxt: { color: Colors.success, fontWeight: '700', fontSize: 12 }, 
-  trustRow: { flexDirection: 'row', flexWrap: 'wrap', 
-    marginTop: 16 }, 
-  trustBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.white, paddingHorizontal: 10, 
-    paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: Colors.border }, 
-  trustTxt: { fontSize: 12, color: Colors.textSecondary, fontWeight: '500' }, 
-  freeDeliveryBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#EFF6FF', padding: 12, 
-    borderRadius: 8, marginTop: 16, borderWidth: 1, borderColor: '#BFDBFE' }, 
-  freeDeliveryTxt: { color: '#1E40AF', fontWeight: '600', fontSize: 13 }, 
-  stockStatusRow: { flexDirection: 'row', alignItems: 'center', marginTop: 16 },
-  inStock: { color: Colors.success, fontWeight: '600', fontSize: 14 }, 
-  outStock: { color: '#DC2626', fontWeight: '600', fontSize: 14 }, 
-  section: { marginTop: 24, paddingTop: 20, 
-    borderTopWidth: 1, borderColor: Colors.border }, 
-  sectionTitle: { fontSize: 16, fontWeight: '700', 
-    color: Colors.textPrimary, marginBottom: 12 }, 
-  desc: { fontSize: 14, color: Colors.textSecondary, lineHeight: 22 }, 
-  reviewHeader: { flexDirection: 'row', justifyContent: 'space-between', 
-    alignItems: 'center', marginBottom: 16 }, 
-  avgRatingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
+  trustDivider: {
+    width: 1,
+    height: 16,
+    backgroundColor: '#E3E6E6',
   },
-  avgRatingText: {
-    fontSize: 13,
-    color: Colors.textMuted,
-    marginLeft: 6,
-    fontWeight: '500',
-  },
-  writeReviewBtn: { backgroundColor: Colors.white, borderWidth: 1, 
-    borderColor: Colors.border, paddingHorizontal: 12, 
-    paddingVertical: 8, borderRadius: 10 }, 
-  writeReviewTxt: { color: Colors.textPrimary, fontWeight: '600', fontSize: 12 }, 
-  noReviewsContainer: {
-    alignItems: 'center',
-    paddingVertical: 32,
-    backgroundColor: Colors.white,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  noReviews: { color: Colors.textMuted, fontSize: 14 }, 
-  beFirstBtn: {
+  trustTxt: { 
+    fontSize: 11, 
+    color: '#007185', 
+    fontWeight: '400',
+    marginLeft: 4,
+  }, 
+  
+  // Stock Status - Small Green Text
+  inStock: { 
+    color: '#007600', 
+    fontWeight: '400', 
+    fontSize: 14,
+    marginBottom: 16,
+  }, 
+  outStock: { 
+    color: '#B12704', 
+    fontWeight: '400', 
+    fontSize: 14,
+    marginBottom: 16,
+  }, 
+  
+  // Description - Compact
+  section: { 
     marginTop: 16,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    backgroundColor: Colors.primary,
-    borderRadius: 10,
+    paddingTop: 16, 
+    borderTopWidth: 1, 
+    borderColor: '#E3E6E6',
+  }, 
+  sectionTitle: { 
+    fontSize: 14, 
+    fontWeight: '700', 
+    color: '#111', 
+    marginBottom: 8,
+  }, 
+  desc: { 
+    fontSize: 13, 
+    color: '#111', 
+    lineHeight: 19,
+    fontWeight: '400',
+  }, 
+  
+  // Reviews - Amazon Style
+  reviewSummary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
   },
-  beFirstBtnText: {
-    color: Colors.white,
-    fontWeight: '700',
+  avgRating: {
+    fontSize: 48,
+    fontWeight: '400',
+    color: '#111',
+    marginRight: 16,
+  },
+  starsColumn: {
+    flex: 1,
+  },
+  starsRow: {
+    flexDirection: 'row',
+    marginBottom: 4,
+  },
+  reviewCountText: {
     fontSize: 13,
+    color: '#007185',
+    fontWeight: '400',
   },
-  reviewCard: { backgroundColor: Colors.white, borderRadius: 12, borderWidth: 1, borderColor: Colors.border,
-    padding: 16, marginBottom: 12 }, 
-  reviewTop: { flexDirection: 'row', justifyContent: 'space-between', 
-    marginBottom: 8 }, 
+  noReviews: { 
+    color: '#565959', 
+    fontSize: 13,
+    fontWeight: '400',
+  }, 
+  reviewCard: { 
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderColor: '#E3E6E6',
+  }, 
+  reviewHeader: { 
+    flexDirection: 'row', 
+    marginBottom: 8,
+  }, 
   reviewAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Colors.inputBackground,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F0F2F2',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 10,
   },
   reviewAvatarText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: Colors.textPrimary,
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#111',
   },
-  reviewAuthor: { fontSize: 14, fontWeight: '600', color: Colors.textPrimary }, 
+  reviewAuthor: { 
+    fontSize: 13, 
+    fontWeight: '600', 
+    color: '#111',
+  }, 
   reviewStarRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
+    marginTop: 2,
   },
   reviewDate: {
     fontSize: 12,
-    color: Colors.textMuted,
-    marginLeft: 8,
+    color: '#565959',
+    marginLeft: 6,
+    fontWeight: '400',
   },
-  reviewText: { fontSize: 14, color: Colors.textSecondary, lineHeight: 22, marginTop: 4 }, 
-  seeAllReviews: { alignItems: 'center', padding: 12, backgroundColor: Colors.white, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, marginTop: 4 }, 
-  seeAllReviewsTxt: { color: Colors.textPrimary, fontWeight: '600', fontSize: 13 }, 
-  footer: { flexDirection: 'row', alignItems: 'center', 
-    padding: 16, borderTopWidth: 1, borderColor: Colors.border, 
-    backgroundColor: Colors.white }, 
-  qtyRow: { flexDirection: 'row', alignItems: 'center' }, 
-  qtyBtn: { width: 40, height: 40, borderRadius: 20, 
-    backgroundColor: Colors.inputBackground, 
-    justifyContent: 'center', alignItems: 'center' }, 
-  qtyBtnTxt: { fontSize: 22, color: Colors.textPrimary, fontWeight: '500' }, 
-  qty: { fontSize: 18, fontWeight: '700', minWidth: 24, textAlign: 'center', color: Colors.textPrimary }, 
-  addBtn: { flex: 1, backgroundColor: Colors.primary, padding: 16, 
-    borderRadius: 12, alignItems: 'center' }, 
-  addBtnTxt: { color: Colors.white, fontSize: 15, fontWeight: '700' }, 
+  reviewText: { 
+    fontSize: 13, 
+    color: '#111', 
+    lineHeight: 19,
+    fontWeight: '400',
+  }, 
+  seeAllReviews: { 
+    paddingVertical: 12,
+  }, 
+  seeAllReviewsTxt: { 
+    color: '#007185', 
+    fontWeight: '400', 
+    fontSize: 13,
+  }, 
+  
+  // Sticky Bottom Bar - Amazon Style
+  footer: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    padding: 12,
+    borderTopWidth: 1, 
+    borderColor: '#E3E6E6', 
+    backgroundColor: '#FFFFFF',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  }, 
+  qtyRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center',
+    marginRight: 12,
+  }, 
+  qtyBtn: { 
+    width: 32, 
+    height: 32, 
+    borderRadius: 4,
+    backgroundColor: '#F0F2F2', 
+    justifyContent: 'center', 
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#D5D9D9',
+  }, 
+  qtyBtnTxt: { 
+    fontSize: 18, 
+    color: '#111', 
+    fontWeight: '400',
+  }, 
+  qty: { 
+    fontSize: 16, 
+    fontWeight: '400', 
+    minWidth: 32, 
+    textAlign: 'center', 
+    color: '#111',
+    marginHorizontal: 12,
+  }, 
+  addBtn: { 
+    flex: 1, 
+    backgroundColor: '#FFA41C', 
+    paddingVertical: 14,
+    borderRadius: 8, 
+    alignItems: 'center',
+  }, 
+  addBtnTxt: { 
+    color: '#111', 
+    fontSize: 14, 
+    fontWeight: '700',
+  },
+  
+  // Out of Stock Footer
+  outOfStockFooter: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  outOfStockFooterText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#B12704',
+  },
+  notifyBtn: {
+    flex: 1,
+    backgroundColor: '#F0F2F2',
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#D5D9D9',
+  },
+  notifyBtnTxt: {
+    color: '#111',
+    fontSize: 14,
+    fontWeight: '600',
+  },
 }); 

@@ -6,6 +6,7 @@ import { BusinessRules } from '../../constants/businessRules';
 import { FreeDeliveryBanner } from '../../components/FreeDeliveryBanner';
 import { PAYMENT_ICONS } from '../../constants/paymentIcons';
 import { storage } from '../../utils/storage';
+import { BASE_URL as API_BASE_URL } from '../../api/baseApi';
 import { calculatePriceBreakdown, estimateDeliveryFee, formatPrice } from '../../utils/priceCalculator';
 import { clearCart } from '../../store/slices/cartSlice';
 import type { CartNavigationProp } from '../../navigation/types';
@@ -57,7 +58,7 @@ const generateIdempotencyKey = (
   return `order_${paymentMethod}_${Math.abs(hash).toString(36)}`;
 };
 
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5001/api';
+const BASE_URL = API_BASE_URL;
 
 const UPI_APPS = [ 
   { 

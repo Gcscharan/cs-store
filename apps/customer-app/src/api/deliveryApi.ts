@@ -10,49 +10,54 @@ export const deliveryApi = baseApi.injectEndpoints({
     }),
 
     // Order Actions
-    acceptOrder: builder.mutation<any, string>({
-      query: (orderId) => ({
+    acceptOrder: builder.mutation<any, { orderId: string; idempotencyKey?: string }>({
+      query: ({ orderId, idempotencyKey }) => ({
         url: `/delivery/orders/${orderId}/accept`,
         method: 'POST',
         body: {},
+        headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
       }),
       invalidatesTags: ['DeliveryOrders'],
     }),
 
-    rejectOrder: builder.mutation<any, { orderId: string; reason?: string }>({
-      query: ({ orderId, reason }) => ({
+    rejectOrder: builder.mutation<any, { orderId: string; reason?: string; idempotencyKey?: string }>({
+      query: ({ orderId, reason, idempotencyKey }) => ({
         url: `/delivery/orders/${orderId}/reject`,
         method: 'POST',
         body: { reason },
+        headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
       }),
       invalidatesTags: ['DeliveryOrders'],
     }),
 
-    pickupOrder: builder.mutation<any, string>({
-      query: (orderId) => ({
+    pickupOrder: builder.mutation<any, { orderId: string; idempotencyKey?: string }>({
+      query: ({ orderId, idempotencyKey }) => ({
         url: `/delivery/orders/${orderId}/pickup`,
         method: 'POST',
         body: {},
+        headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
       }),
-      invalidatesTags: ['DeliveryOrders'],
+      // No invalidatesTags — cache is updated optimistically from the response body in the mutation handler
     }),
 
-    startDelivery: builder.mutation<any, string>({
-      query: (orderId) => ({
+    startDelivery: builder.mutation<any, { orderId: string; idempotencyKey?: string }>({
+      query: ({ orderId, idempotencyKey }) => ({
         url: `/delivery/orders/${orderId}/start-delivery`,
         method: 'POST',
         body: {},
+        headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
       }),
-      invalidatesTags: ['DeliveryOrders'],
+      // No invalidatesTags — cache is updated optimistically from the response body in the mutation handler
     }),
 
-    markArrived: builder.mutation<any, string>({
-      query: (orderId) => ({
+    markArrived: builder.mutation<any, { orderId: string; idempotencyKey?: string }>({
+      query: ({ orderId, idempotencyKey }) => ({
         url: `/delivery/orders/${orderId}/arrived`,
         method: 'POST',
         body: {},
+        headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
       }),
-      invalidatesTags: ['DeliveryOrders'],
+      // No invalidatesTags — cache is updated optimistically from the response body in the mutation handler
     }),
 
     deliverAttempt: builder.mutation<any, string>({
@@ -64,22 +69,24 @@ export const deliveryApi = baseApi.injectEndpoints({
       invalidatesTags: ['DeliveryOrders'],
     }),
 
-    verifyDeliveryOtp: builder.mutation<any, { orderId: string; otp: string }>({
-      query: ({ orderId, otp }) => ({
+    verifyDeliveryOtp: builder.mutation<any, { orderId: string; otp: string; idempotencyKey?: string }>({
+      query: ({ orderId, otp, idempotencyKey }) => ({
         url: `/delivery/orders/${orderId}/verify-otp`,
         method: 'POST',
         body: { otp },
+        headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
       }),
-      invalidatesTags: ['DeliveryOrders'],
+      // No invalidatesTags — cache is updated optimistically from the response body in the mutation handler
     }),
 
-    failDelivery: builder.mutation<any, { orderId: string; failureReasonCode: string; failureNotes?: string }>({
-      query: ({ orderId, failureReasonCode, failureNotes }) => ({
-        url: `/delivery/orders/${orderId}/fail`,
+    // Match web: record delivery attempt with status FAILED (same as /attempt endpoint)
+    recordDeliveryAttempt: builder.mutation<any, { orderId: string; status: 'SUCCESS' | 'FAILED'; failureReason?: string; failureNotes?: string }>({
+      query: ({ orderId, status, failureReason, failureNotes }) => ({
+        url: `/delivery/orders/${orderId}/attempt`,
         method: 'POST',
-        body: { failureReasonCode, failureNotes },
+        body: { status, failureReason, failureNotes },
       }),
-      invalidatesTags: ['DeliveryOrders'],
+      // No invalidatesTags — cache is updated optimistically from the response body in the mutation handler
     }),
 
     // COD Collection
@@ -175,7 +182,7 @@ export const {
   useMarkArrivedMutation,
   useDeliverAttemptMutation,
   useVerifyDeliveryOtpMutation,
-  useFailDeliveryMutation,
+  useRecordDeliveryAttemptMutation,
   useGetCodCollectionQuery,
   useCreateCodCollectionMutation,
   useUpdateLocationMutation,

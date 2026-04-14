@@ -9,7 +9,6 @@ import {
   TextInput,
   Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Colors } from '../../constants/colors';
 import AdminHeader from '../../components/admin/AdminHeader';
@@ -90,16 +89,26 @@ const AdminDeliveryBoysScreen: React.FC = () => {
         text: 'Suspend',
         style: 'destructive',
         onPress: async () => {
-          await suspend({ id, reason: 'Suspended by admin' }).unwrap();
-          refetch();
+          try {
+            await suspend({ id, reason: 'Suspended by admin' }).unwrap();
+            Alert.alert('Success', 'Delivery partner suspended successfully');
+          } catch (err: any) {
+            console.error('Suspend partner error:', err);
+            Alert.alert('Error', err.data?.message || 'Failed to suspend partner');
+          }
         },
       },
     ]);
   };
 
   const doApprove = async (id: string) => {
-    await approve(id).unwrap();
-    refetch();
+    try {
+      await approve(id).unwrap();
+      Alert.alert('Success', 'Delivery partner approved successfully');
+    } catch (err: any) {
+      console.error('Approve partner error:', err);
+      Alert.alert('Error', err.data?.message || 'Failed to approve partner');
+    }
   };
 
   const filters: Array<{ key: StatusFilter; label: string }> = [
@@ -110,9 +119,8 @@ const AdminDeliveryBoysScreen: React.FC = () => {
   ];
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <View style={styles.safe}>
       <AdminHeader title="Delivery Partners" onBack={() => navigation.goBack()} />
-
       <View style={styles.container}>
         <View style={styles.searchWrap}>
           <TextInput
@@ -125,27 +133,34 @@ const AdminDeliveryBoysScreen: React.FC = () => {
           />
         </View>
 
-        <FlatList
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          data={filters}
-          keyExtractor={(i) => i.key}
-          contentContainerStyle={styles.filtersRow}
-          renderItem={({ item }) => {
-            const selected = item.key === filter;
-            return (
-              <TouchableOpacity
-                onPress={() => setFilter(item.key)}
-                style={[styles.pill, selected ? styles.pillSelected : styles.pillUnselected, { marginRight: 8 }]}
-                activeOpacity={0.9}
-              >
-                <Text style={[styles.pillText, selected ? styles.pillTextSelected : styles.pillTextUnselected]}>
-                  {item.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          }}
-        />
+        {/* Professional filter bar with sticky container */}
+        <View style={styles.filterBarContainer}>
+          <FlatList
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            data={filters}
+            keyExtractor={(i) => i.key}
+            contentContainerStyle={styles.filtersRow}
+            renderItem={({ item }) => {
+              const selected = item.key === filter;
+              return (
+                <TouchableOpacity
+                  onPress={() => setFilter(item.key)}
+                  style={[
+                    styles.pill, 
+                    selected ? styles.pillSelected : styles.pillUnselected, 
+                    { marginRight: 10 }
+                  ]}
+                  activeOpacity={0.85}
+                >
+                  <Text style={[styles.pillText, selected ? styles.pillTextSelected : styles.pillTextUnselected]}>
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            }}
+          />
+        </View>
 
         {error ? (
           <View style={styles.center}>
@@ -235,12 +250,11 @@ const AdminDeliveryBoysScreen: React.FC = () => {
                 </View>
               );
             }}
-          />
-        )}
+          />)}
+        </View>
       </View>
-    </SafeAreaView>
-  );
-};
+    );
+  };
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
@@ -256,13 +270,50 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     fontWeight: '700',
   },
-  filtersRow: { paddingHorizontal: 12, paddingBottom: 10 },
-  pill: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1 },
-  pillSelected: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  pillUnselected: { backgroundColor: Colors.white, borderColor: Colors.border },
-  pillText: { fontSize: 12, fontWeight: '900' },
-  pillTextSelected: { color: Colors.white },
-  pillTextUnselected: { color: Colors.textSecondary },
+  // Professional filter bar container with border
+  filterBarContainer: {
+    backgroundColor: Colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  // Upgraded spacing and structure
+  filtersRow: { 
+    paddingHorizontal: 16, 
+    paddingVertical: 12,
+  },
+  // Professional pill design
+  pill: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    minHeight: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  // Selected pill with glow effect
+  pillSelected: { 
+    backgroundColor: '#0B5FFF',
+    borderColor: '#0B5FFF',
+    shadowColor: '#0B5FFF',
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
+  },
+  // Unselected pill with soft gray
+  pillUnselected: { 
+    backgroundColor: '#F1F5F9', 
+    borderColor: '#E2E8F0',
+  },
+  // Improved text readability
+  pillText: { 
+    fontSize: 13, 
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  pillTextSelected: { color: '#FFFFFF' },
+  pillTextUnselected: { color: '#475569' },
   listContent: { padding: 12, paddingBottom: 24 },
   card: { backgroundColor: Colors.white, borderRadius: 16, borderWidth: 1, borderColor: Colors.border, padding: 14, marginBottom: 12 },
   topRow: { flexDirection: 'row', justifyContent: 'space-between' },

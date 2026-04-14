@@ -3,10 +3,10 @@ import {
   View, Text, TouchableOpacity, ScrollView, TextInput, Switch, StyleSheet,
   ActivityIndicator, Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
 import { logEvent } from '../../utils/analytics';
 import { ErrorState } from '../../components/common/ErrorState';
+import AdminHeader from '../../components/admin/AdminHeader';
 import {
   useGetAdminSettingsQuery,
   useUpdateAdminSettingsMutation,
@@ -80,19 +80,22 @@ export default function AdminSettingsScreen({ navigation }: any) {
     );
   };
 
-  if (isLoading) return <SafeAreaView style={s.container}><View style={s.center}><ActivityIndicator size="large" color={Colors.primary} /></View></SafeAreaView>;
-  if (error) return <SafeAreaView style={s.container}><ErrorState message="Failed to load settings" onRetry={refetch} screenName="AdminSettings" /></SafeAreaView>;
+  if (isLoading) return (
+    <View style={s.container}>
+      <AdminHeader title="Admin Settings" onBack={() => navigation.goBack()} />
+      <View style={s.center}><ActivityIndicator size="large" color={Colors.primary} /></View>
+    </View>
+  );
+  if (error) return (
+    <View style={s.container}>
+      <AdminHeader title="Admin Settings" onBack={() => navigation.goBack()} />
+      <ErrorState message="Failed to load settings" onRetry={refetch} screenName="AdminSettings" />
+    </View>
+  );
 
   return (
-    <SafeAreaView style={s.container}>
-      <View style={s.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={s.backText}>← Back</Text>
-        </TouchableOpacity>
-        <Text style={s.headerTitle}>Admin Settings</Text>
-        <View style={{ width: 50 }} />
-      </View>
-
+    <View style={s.container}>
+      <AdminHeader title="Admin Settings" onBack={() => navigation.goBack()} />
       <ScrollView style={s.content}>
         {/* General Settings */}
         <View style={s.section}>
@@ -189,7 +192,7 @@ export default function AdminSettingsScreen({ navigation }: any) {
 
         <View style={{ height: 40 }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

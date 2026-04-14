@@ -9,8 +9,12 @@ export const adminApi = baseApi.injectEndpoints({
     }),
 
     // Products
-    getAdminProducts: builder.query({
-      query: () => ({ url: '/admin/products', method: 'GET' }),
+    getAdminProducts: builder.query<any, { status?: 'draft' | 'published' } | undefined>({
+      query: (arg) => ({
+        url: '/admin/products',
+        method: 'GET',
+        params: arg?.status ? { status: arg.status } : undefined,
+      }),
       providesTags: ['Products'],
     }),
     deleteAdminProduct: builder.mutation({
@@ -20,7 +24,7 @@ export const adminApi = baseApi.injectEndpoints({
     updateAdminProduct: builder.mutation({
       query: ({ id, ...body }) => ({
         url: `/admin/products/${id}`,
-        method: 'PUT',
+        method: 'PATCH', // Changed to PATCH for partial updates
         body,
       }),
       invalidatesTags: ['Products'],
@@ -30,6 +34,44 @@ export const adminApi = baseApi.injectEndpoints({
         url: '/admin/products',
         method: 'POST',
         body: formData,
+        headers: {
+          'X-Request-Timeout': '60000', // 60s for image uploads
+        },
+      }),
+      invalidatesTags: ['Products'],
+    }),
+    publishAdminProduct: builder.mutation({
+      query: (id) => ({
+        url: `/admin/products/${id}/publish`,
+        method: 'POST',
+      }),
+      invalidatesTags: ['Products'],
+    }),
+
+    // Version Control
+    getProductVersionHistory: builder.query<any, { productId: string; page?: number; limit?: number }>({
+      query: ({ productId, page = 1, limit = 20 }) => ({
+        url: `/admin/products/${productId}/versions`,
+        method: 'GET',
+        params: { page, limit },
+      }),
+    }),
+    getProductVersion: builder.query<any, { productId: string; version: number }>({
+      query: ({ productId, version }) => ({
+        url: `/admin/products/${productId}/versions/${version}`,
+        method: 'GET',
+      }),
+    }),
+    getProductVersionDiff: builder.query<any, { productId: string; v1: number; v2: number }>({
+      query: ({ productId, v1, v2 }) => ({
+        url: `/admin/products/${productId}/versions/${v1}/diff/${v2}`,
+        method: 'GET',
+      }),
+    }),
+    rollbackProduct: builder.mutation<any, { productId: string; version: number }>({
+      query: ({ productId, version }) => ({
+        url: `/admin/products/${productId}/rollback/${version}`,
+        method: 'POST',
       }),
       invalidatesTags: ['Products'],
     }),
@@ -64,12 +106,14 @@ export const adminApi = baseApi.injectEndpoints({
     // Users
     getAdminUsers: builder.query({
       query: () => ({ url: '/admin/users', method: 'GET' }),
+      providesTags: ['Users'],
     }),
     deleteAdminUser: builder.mutation({
       query: (id) => ({
         url: `/admin/users/${id}`,
         method: 'DELETE',
       }),
+      invalidatesTags: ['Users'],
     }),
 
     // Delivery Boys
@@ -78,12 +122,14 @@ export const adminApi = baseApi.injectEndpoints({
         url: '/admin/delivery-boys-list',
         method: 'GET',
       }),
+      providesTags: ['DeliveryBoys'],
     }),
     approveDeliveryBoy: builder.mutation({
       query: (id) => ({
         url: `/admin/delivery-boys/${id}/approve`,
         method: 'PUT',
       }),
+      invalidatesTags: ['DeliveryBoys'],
     }),
     suspendDeliveryBoy: builder.mutation({
       query: ({ id, reason }) => ({
@@ -91,6 +137,7 @@ export const adminApi = baseApi.injectEndpoints({
         method: 'PUT',
         body: { reason },
       }),
+      invalidatesTags: ['DeliveryBoys'],
     }),
 
     // Analytics
@@ -171,6 +218,11 @@ export const {
   useDeleteAdminProductMutation,
   useUpdateAdminProductMutation,
   useCreateAdminProductMutation,
+  usePublishAdminProductMutation,
+  useGetProductVersionHistoryQuery,
+  useGetProductVersionQuery,
+  useGetProductVersionDiffQuery,
+  useRollbackProductMutation,
   useGetAdminOrdersQuery,
   useConfirmOrderMutation,
   usePackOrderMutation,
