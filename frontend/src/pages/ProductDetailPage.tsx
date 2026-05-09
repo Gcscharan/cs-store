@@ -200,9 +200,15 @@ const ProductDetailPage = () => {
         showError("Product Not Found", "This product is no longer available.");
       } else if (
         error?.data?.error === "Insufficient stock" ||
-        error?.data?.error === "Insufficient stock available"
+        error?.data?.error === "Insufficient stock available" ||
+        error?.data?.message?.includes("available") ||
+        error?.data?.message?.includes("stock")
       ) {
-        showError("Out of Stock", "This item is currently out of stock.");
+        const available = error?.data?.availableStock;
+        showError("Out of Stock", available !== undefined
+          ? `Only ${available} item(s) available`
+          : "This item is currently out of stock.");
+        if (available !== undefined) setQuantity(Math.min(quantity, available));
       } else if (error?.status === 403) {
         showError(
           "Access Denied",
@@ -434,6 +440,35 @@ const ProductDetailPage = () => {
 
             {/* Add to Cart Section - Below product image */}
             <div className="bg-white rounded-xl shadow-lg p-6">
+
+            {/* Product Videos */}
+            {(() => {
+              const videos = product?.videos || (product?.video ? [product.video] : []);
+              if (!videos.length) return null;
+              return (
+                <div className="mb-4">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Product Videos</h3>
+                  <div className="space-y-3">
+                    {videos.map((v: any, i: number) => {
+                      const url = typeof v === 'string' ? v : v?.url;
+                      if (!url) return null;
+                      return (
+                        <video
+                          key={i}
+                          src={url}
+                          controls
+                          muted
+                          playsInline
+                          className="w-full rounded-lg border border-gray-200 max-h-64 object-cover bg-black"
+                          poster={typeof v === 'object' ? v?.thumbnail : undefined}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+
               <div className="space-y-4">
                 {/* Quantity Input */}
                 <div className="flex items-center space-x-4">
@@ -443,13 +478,20 @@ const ProductDetailPage = () => {
                   <input
                     type="number"
                     min="1"
+                    max={product?.stock || 1}
                     value={quantity}
                     onChange={(e) => {
                       const value = parseInt(e.target.value) || 1;
-                      setQuantity(Math.max(1, value));
+                      const maxStock = product?.stock || 1;
+                      setQuantity(Math.min(Math.max(1, value), maxStock));
                     }}
                     className="w-16 px-3 py-2 text-center border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                   />
+                  {(product?.stock || 0) > 0 && (product?.stock || 0) <= 5 && (
+                    <span className="text-xs font-medium text-orange-600 bg-orange-50 px-2 py-1 rounded-full">
+                      Only {product.stock} left!
+                    </span>
+                  )}
                 </div>
 
                 {/* Action Buttons */}

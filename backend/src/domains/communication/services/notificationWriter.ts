@@ -69,14 +69,28 @@ export function initializeNotificationWriter(): void {
 
     let processedCreated = false;
     try {
-      await ProcessedEvent.create({ eventId, processedAt: new Date() });
+      await ProcessedEvent.create({
+        eventId,
+        consumerName: "notificationWriter",
+        processedAt: new Date(),
+      });
       processedCreated = true;
     } catch (err: any) {
       if (err?.code === 11000) {
+        // Already processed by this consumer — skip
+        logger.info("[EVENT_CONSUMED] consumer=notificationWriter skipped=true reason=already_processed", {
+          eventId,
+          eventType,
+        });
         return;
       }
       throw err;
     }
+
+    logger.info("[EVENT_CONSUMED] consumer=notificationWriter skipped=false", {
+      eventId,
+      eventType,
+    });
 
     const title = typeof data.title === "string" && data.title.trim()
       ? data.title.trim()
@@ -121,7 +135,7 @@ export function initializeNotificationWriter(): void {
     } catch (err) {
       if (processedCreated) {
         try {
-          await ProcessedEvent.deleteOne({ eventId });
+          await ProcessedEvent.deleteOne({ eventId, consumerName: "notificationWriter" });
         } catch {
           // best-effort
         }

@@ -7,6 +7,8 @@ import { logger, capturePaymentError } from "../../../utils/logger";
 
 const RECONCILIATION_INTERVAL_MS = 5 * 60_000; // 5 minutes
 const ORDER_AGE_THRESHOLD_MS = 5 * 60_000; // 5 minutes
+const RECONCILIATION_BATCH_LIMIT = 100; // cap per-run work to prevent DB spikes
+const RECONCILIATION_INTER_ITEM_SLEEP_MS = 100; // brief pause between Razorpay API calls
 
 type ReconciliationCounts = {
   scanned: number;
@@ -30,7 +32,7 @@ function nowMs(d?: Date): number {
 async function fetchRazorpayPaymentStatus(
   razorpay: Razorpay,
   gatewayOrderId: string
-): Promise<{ status: RazorpayPaymentStatus; paymentId?: string; capturedAt?: Date } | null> {
+): Promise<{ status: RazorpayPaymentStatus; paymentId?: string; capturedAt?: Date; amountPaise?: number } | null> {
   try {
     // Fetch payments for the order
     const payments: any = await new Promise((resolve, reject) => {
@@ -57,8 +59,10 @@ async function fetchRazorpayPaymentStatus(
     const capturedAt = latestPayment?.created_at
       ? new Date(Number(latestPayment.created_at) * 1000)
       : undefined;
+    // Preserve the actual amount from Razorpay so the webhook amount-validation passes
+    const amountPaise = Number(latestPayment?.amount || 0);
 
-    return { status, paymentId, capturedAt };
+    return { status, paymentId, capturedAt, amountPaise };
   } catch (error) {
     logger.error("Failed to fetch Razorpay payment status", error as Error, {
       gatewayOrderId,
@@ -71,6 +75,7 @@ function buildSyntheticCapturedWebhook(args: {
   gatewayOrderId: string;
   razorpayPaymentId?: string;
   capturedAt?: Date;
+  amountPaise: number; // actual amount from Razorpay — required for amount validation
 }): { rawBody: Buffer; headers: Record<string, any> } {
   const occurredAt = args.capturedAt || new Date();
   const payload = {
@@ -78,7 +83,7 @@ function buildSyntheticCapturedWebhook(args: {
     gatewayEventId: String(args.razorpayPaymentId || `reconciliation_${args.gatewayOrderId}_${occurredAt.getTime()}`),
     gatewayOrderId: args.gatewayOrderId,
     occurredAt: occurredAt.toISOString(),
-    amount: 0,
+    amount: args.amountPaise, // must match order.totalAmount * 100 for the guard to pass
     currency: "INR",
     rawEvent: {
       payload: {
@@ -89,6 +94,7 @@ function buildSyntheticCapturedWebhook(args: {
             ),
             order_id: args.gatewayOrderId,
             status: "captured",
+            amount: args.amountPaise,
             created_at: Math.floor(occurredAt.getTime() / 1000),
             notes: {},
           },
@@ -137,6 +143,7 @@ export async function runReconciliationScanOnce(args?: { now?: Date }): Promise<
     isLocked: { $ne: true },
   })
     .select("_id orderId status gatewayOrderId updatedAt")
+    .limit(RECONCILIATION_BATCH_LIMIT) // backpressure: cap per-run work
     .lean();
 
   counts.scanned = intents.length;
@@ -202,52 +209,117 @@ export async function runReconciliationScanOnce(args?: { now?: Date }): Promise<
           paymentId: paymentInfo.paymentId,
         });
 
-        const synthetic = buildSyntheticCapturedWebhook({
-          gatewayOrderId,
-          razorpayPaymentId: paymentInfo.paymentId,
-          capturedAt: paymentInfo.capturedAt,
-        });
+        // CRITICAL: Commit inventory BEFORE finalization
+        // Start a transaction to ensure inventory commit and finalization are atomic
+        const session = await mongoose.startSession();
+        try {
+          await session.withTransaction(async () => {
+            // Fetch order items for inventory commit
+            const orderDoc = await Order.findById(orderId)
+              .select("items")
+              .session(session);
+            
+            if (orderDoc) {
+              const orderItems = Array.isArray((orderDoc as any).items) ? ((orderDoc as any).items as any[]) : [];
+              const items = orderItems.map((it: any) => ({
+                productId: it.productId,
+                qty: Number(it.qty ?? it.quantity ?? 0),
+              }));
 
-        const out = await processRazorpayWebhook({
-          rawBody: synthetic.rawBody,
-          headers: synthetic.headers,
-        });
+              if (items.length > 0) {
+                const { inventoryReservationService } = await import('../../orders/services/inventoryReservationService');
+                const { InventoryReservation } = await import('../../../models/InventoryReservation');
+                
+                await inventoryReservationService.reserveForOrder({
+                  session,
+                  orderId: new mongoose.Types.ObjectId(orderId),
+                  ttlMs: 30 * 60_000,
+                  items,
+                });
 
-        if (out.ok) {
-          // Keep scan timestamp consistent even if the internal webhook path already updated intent status.
-          await PaymentIntent.updateOne(
-            { _id: intent._id },
-            { $set: { lastScannedAt: new Date(now) } }
-          );
+                const res = await inventoryReservationService.commitReservationsForOrder({
+                  session,
+                  orderId: new mongoose.Types.ObjectId(orderId),
+                });
 
-          counts.reconciled_success += 1;
-          logger.info("reconciled_success: Order marked PAID via reconciliation", {
-            orderId,
-            gatewayOrderId,
+                if (!res.committed) {
+                  // Either already committed, or missing reservations
+                  const committedCount = await InventoryReservation.countDocuments({
+                    orderId: new mongoose.Types.ObjectId(orderId),
+                    status: "COMMITTED",
+                  }).session(session);
+                  if (Number(committedCount || 0) === 0) {
+                    throw new Error("Inventory commit missing for paid order");
+                  }
+                }
+              }
+            }
+
+            // Build synthetic webhook and process it
+            const synthetic = buildSyntheticCapturedWebhook({
+              gatewayOrderId,
+              razorpayPaymentId: paymentInfo.paymentId,
+              capturedAt: paymentInfo.capturedAt,
+              amountPaise: paymentInfo.amountPaise ?? 0,
+            });
+
+            const out = await processRazorpayWebhook({
+              rawBody: synthetic.rawBody,
+              headers: synthetic.headers,
+            });
+
+            if (out.ok) {
+              // Keep scan timestamp consistent even if the internal webhook path already updated intent status.
+              await PaymentIntent.updateOne(
+                { _id: intent._id },
+                { $set: { lastScannedAt: new Date(now) } }
+              );
+
+              counts.reconciled_success += 1;
+              logger.info("reconciled_success: Order marked PAID via reconciliation", {
+                orderId,
+                gatewayOrderId,
+              });
+            } else {
+              counts.errors += 1;
+              capturePaymentError("reconciliation_error: Synthetic webhook processing failed", new Error(out.message), {
+                orderId,
+                gatewayOrderId,
+                statusCode: out.statusCode,
+              });
+            }
           });
-        } else {
-          counts.errors += 1;
-          capturePaymentError("reconciliation_error: Synthetic webhook processing failed", new Error(out.message), {
-            orderId,
-            gatewayOrderId,
-            statusCode: out.statusCode,
-          });
+        } finally {
+          session.endSession();
         }
       } else if (paymentInfo.status === "failed") {
-        // Payment failed at gateway
+        // Payment failed at gateway — transition PI to FAILED using versioned update
         logger.info("reconciled_failed: Payment failed at gateway", {
           orderId,
           gatewayOrderId,
           paymentId: paymentInfo.paymentId,
         });
 
-        // Update PaymentIntent status to FAILED
-        await PaymentIntent.updateOne(
-          { _id: intent._id },
-          { $set: { lastScannedAt: new Date(now) } }
-        );
+        // Re-fetch the intent to get its current version before writing
+        const currentIntent = await PaymentIntent.findOne({ gatewayOrderId })
+          .select("_id version status")
+          .lean();
 
-        // Update Order paymentStatus to FAILED
+        if (currentIntent) {
+          const currentStatus = String((currentIntent as any).status || "").toUpperCase();
+          // Only transition if not already in a terminal state
+          if (!['CAPTURED', 'FAILED', 'CANCELLED', 'EXPIRED'].includes(currentStatus)) {
+            await PaymentIntent.updateOne(
+              { _id: (currentIntent as any)._id, version: (currentIntent as any).version ?? 0 },
+              {
+                $set: { status: 'FAILED', paymentState: 'FAILED', lastScannedAt: new Date(now) },
+                $inc: { version: 1 },
+              }
+            );
+          }
+        }
+
+        // Mark Order FAILED only if still PENDING (idempotent)
         await Order.updateOne(
           { _id: orderId, paymentStatus: "PENDING" },
           { $set: { paymentStatus: "FAILED" } }
@@ -263,6 +335,9 @@ export async function runReconciliationScanOnce(args?: { now?: Date }): Promise<
         gatewayOrderId,
       });
     }
+
+    // Brief yield between items — Razorpay API calls are expensive; avoid burst
+    await new Promise(r => setTimeout(r, RECONCILIATION_INTER_ITEM_SLEEP_MS));
   }
 
   logger.info("Reconciliation scan complete", {

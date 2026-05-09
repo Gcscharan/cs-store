@@ -217,6 +217,14 @@ const AdminCreateProductScreen: React.FC = () => {
       return;
     }
 
+    // Don't create a new draft unless all required fields are present
+    if (!productId) {
+      if (!price.trim() || !stock.trim() || !category.trim()) {
+        console.log('⚠️ Skipping auto-save: required fields missing (price, stock, category)');
+        return;
+      }
+    }
+
     // GAP #2 FIX: Protect against destructive auto-save
     // Don't save if critical numeric fields are empty strings (user might be editing)
     // Only skip if they were previously filled (destructive case)
@@ -323,20 +331,19 @@ const AdminCreateProductScreen: React.FC = () => {
   const canPublish = useMemo(() => {
     const hasUploadingImages = uploadedImages.some(img => img.status === 'uploading');
     const hasValidationErrors = Object.values(fieldErrors).some(error => error !== '');
+    const hasUploadedImages = uploadedImages.some(img => img.status === 'uploaded');
     
     return (
       name.trim().length > 0 &&
       description.trim().length > 0 &&
       String(category).length > 0 &&
       price.trim().length > 0 &&
-      pricePerUnit.trim().length > 0 &&
       stock.trim().length > 0 &&
-      weight.trim().length > 0 &&
+      hasUploadedImages &&
       !hasUploadingImages &&
-      !hasValidationErrors && // Phase 3: Disable if validation errors exist
-      productId !== null // Must have saved draft first
+      !hasValidationErrors
     );
-  }, [name, description, category, price, pricePerUnit, stock, weight, uploadedImages, productId, fieldErrors]);
+  }, [name, description, category, price, stock, uploadedImages, fieldErrors]);
 
   const uploadImages = async (pickedImages: PickedImage[]) => {
     // DUPLICATE PREVENTION: Check if any URI already exists
@@ -518,11 +525,75 @@ const AdminCreateProductScreen: React.FC = () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsMultipleSelection: true,
-      quality: 0.8,
+      // Request full quality so server-side resize can work properly
+      quality: 1,
       selectionLimit: 10,
     });
 
     if (result.canceled) return;
+
+    // ── Client-side validation ────────────────────────────────────────────
+    const IMAGE_STANDARDS = {
+      ALLOWED_MIME_TYPES: ['image/jpeg', 'image/webp'],
+      MAX_FILE_SIZE_BYTES: 500 * 1024,
+      MIN_DIMENSION: 600,
+      MAX_INPUT_DIMENSION: 4000,
+      ASPECT_RATIO_TOLERANCE: 1,
+    };
+
+    const rejections: string[] = [];
+
+    for (const asset of result.assets) {
+      const mimeType = asset.mimeType || 'image/jpeg';
+      const ext = (asset.fileName || '').split('.').pop()?.toLowerCase() ?? '';
+
+      // Format check
+      const mimeOk = IMAGE_STANDARDS.ALLOWED_MIME_TYPES.includes(mimeType);
+      const extOk = ['jpg', 'jpeg', 'webp'].includes(ext);
+      if (!mimeOk && !extOk) {
+        rejections.push(`"${asset.fileName || 'image'}": only JPEG and WebP are accepted.`);
+        continue;
+      }
+
+      // File size check
+      if (asset.fileSize && asset.fileSize > IMAGE_STANDARDS.MAX_FILE_SIZE_BYTES) {
+        const kb = Math.round(asset.fileSize / 1024);
+        rejections.push(`"${asset.fileName || 'image'}": ${kb} KB exceeds the 500 KB limit.`);
+      }
+
+      // Dimension checks
+      const w = asset.width ?? 0;
+      const h = asset.height ?? 0;
+      if (w > 0 && h > 0) {
+        // Hard pixel guard
+        if (w > IMAGE_STANDARDS.MAX_INPUT_DIMENSION || h > IMAGE_STANDARDS.MAX_INPUT_DIMENSION) {
+          rejections.push(
+            `"${asset.fileName || 'image'}": dimensions ${w}×${h} are too large. Max input is ${IMAGE_STANDARDS.MAX_INPUT_DIMENSION}×${IMAGE_STANDARDS.MAX_INPUT_DIMENSION} px.`,
+          );
+          continue;
+        }
+        if (Math.abs(w - h) > IMAGE_STANDARDS.ASPECT_RATIO_TOLERANCE) {
+          rejections.push(
+            `"${asset.fileName || 'image'}": must be square (1:1). Got ${w}×${h} — please crop before uploading.`,
+          );
+        }
+        const side = Math.min(w, h);
+        if (side < IMAGE_STANDARDS.MIN_DIMENSION) {
+          rejections.push(
+            `"${asset.fileName || 'image'}": too small (${w}×${h}). Minimum is ${IMAGE_STANDARDS.MIN_DIMENSION}×${IMAGE_STANDARDS.MIN_DIMENSION} px.`,
+          );
+        }
+      }
+    }
+
+    if (rejections.length > 0) {
+      Alert.alert(
+        'Image Requirements Not Met',
+        rejections.join('\n\n') +
+          '\n\nRequirements:\n• JPEG or WebP only\n• Square (1:1 ratio)\n• Min 600×600 px\n• Max 500 KB',
+      );
+      return;
+    }
 
     const picked = result.assets.map((a, idx) => {
       const filename = a.fileName || `image-${Date.now()}-${idx}.jpg`;
@@ -639,29 +710,51 @@ const AdminCreateProductScreen: React.FC = () => {
   };
 
   const handlePublish = async () => {
-    if (!productId) {
-      Alert.alert('Error', 'Please save the product first');
-      return;
-    }
-
     if (!canPublish) {
-      Alert.alert('Missing fields', 'Please fill all required fields before publishing.');
+      Alert.alert('Missing fields', 'Please fill all required fields and upload at least one image before publishing.');
       return;
     }
 
     try {
-      console.log('📢 Publishing product:', productId);
-      const response: any = await publishProduct(productId).unwrap();
-      
+      const backendCategories = getBackendCategories(category);
+      const backendCategory = backendCategories[0];
+      const imageUrls = uploadedImages.filter(img => img.status === 'uploaded').map(img => img.url);
+
+      const payload = {
+        name: name.trim(),
+        description: description.trim(),
+        category: backendCategory,
+        price: parseFloat(price),
+        pricePerUnit: pricePerUnit.trim() ? parseFloat(pricePerUnit) : parseFloat(price),
+        stock: parseInt(stock, 10),
+        mrp: mrp.trim() ? parseFloat(mrp) : undefined,
+        weight: weight.trim() ? parseFloat(weight) : undefined,
+        tags: tags.trim() || undefined,
+        sku: sku.trim() || undefined,
+        images: imageUrls,
+        video: video || undefined,
+        status: 'published',
+      };
+
+      let targetId = productId;
+
+      if (!targetId) {
+        // No draft yet — create and publish in one shot
+        console.log('📢 Creating and publishing product...');
+        const response: any = await createProduct(payload).unwrap();
+        targetId = response.productId || response.product?._id;
+      } else {
+        // Update existing draft then publish
+        await updateProduct({ id: targetId, ...payload }).unwrap();
+        await publishProduct(targetId).unwrap();
+      }
+
       console.log('✅ Product published successfully');
-      Alert.alert('Success', 'Product published successfully');
+      Alert.alert('Success', 'Product published successfully!');
       navigation.goBack();
     } catch (error: any) {
       console.error('❌ Publish failed:', error);
-      
-      // Handle validation errors
       if (error.data?.errors) {
-        setValidationErrors(error.data.errors);
         const errorMessages = Object.entries(error.data.errors)
           .map(([field, message]) => `${field}: ${message}`)
           .join('\n');

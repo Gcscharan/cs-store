@@ -1,0 +1,1549 @@
+
+> customer-app@1.0.0 test
+> jest mobileClusterOrderFlow --verbose
+
+ts-jest[ts-jest-transformer] (WARN) Define `ts-jest` config under `globals` is deprecated. Please do
+transform: {
+    <transform_regex>: ['ts-jest', { /* ts-jest config goes here in Jest */ }],
+},
+See more at https://kulshekhar.github.io/ts-jest/docs/getting-started/presets#advanced
+ts-jest[ts-jest-transformer] (WARN) Define `ts-jest` config under `globals` is deprecated. Please do
+transform: {
+    <transform_regex>: ['ts-jest', { /* ts-jest config goes here in Jest */ }],
+},
+See more at https://kulshekhar.github.io/ts-jest/docs/getting-started/presets#advanced
+  console.log
+    🧪 TEST START: Verify getClusters API endpoint exists
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:52:15)
+
+  console.log
+    🧪 PROPERTY TEST START: Non-PACKED orders display verification
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:45:15)
+
+  console.log
+    ================================================
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:46:15)
+
+  console.log
+    ================================================
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:53:15)
+
+  console.log
+    🔍 Searching for getClusters endpoint in adminApi.ts
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:71:17)
+
+  console.log
+       Contains getClusters: builder.query: true
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:72:17)
+
+  console.log
+       Contains /admin/routes/compute?mode=preview: true
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:73:17)
+
+  console.log
+       Contains providesTags: ['Clusters']: true
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:74:17)
+
+  console.log
+    ✅ getClusters endpoint exists in adminApi.ts
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:82:19)
+
+  console.log
+    ================================================
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:88:15)
+
+  console.log
+    🧪 TEST END: getClusters API endpoint verification
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:89:15)
+
+  console.log
+    ✓ Testing order y" -ym with status IN_TRANSIT
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:84:19
+
+  console.log
+    🧪 TEST START: Verify ClusterOrdersScreen component exists
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:97:15)
+
+  console.log
+    ================================================
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:98:15)
+
+  console.log
+    🔍 Verifying ClusterOrdersScreen component
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:115:17)
+
+  console.log
+    ✓ Testing order ## "xc with status CREATED
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:84:19
+
+  console.log
+       File exists: true
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:116:17)
+
+  console.log
+       Contains ClusterOrdersScreen: true
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:117:17)
+
+  console.log
+       Uses useGetClustersQuery: true
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:118:17)
+
+  console.log
+    ✓ Testing order ~#D%Ok with status CREATED
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:84:19
+
+  console.log
+       Has default export: true
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:119:17)
+
+  console.log
+    ✅ ClusterOrdersScreen component found and properly implemented
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:126:19)
+
+  console.log
+    ================================================
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:136:15)
+
+  console.log
+    ✓ Testing order $h!^&  with status IN_TRANSIT
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:84:19
+
+  console.log
+    🧪 TEST END: ClusterOrdersScreen component verification
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:137:15)
+
+  console.log
+    ✓ Testing order !!s`2& with status CONFIRMED
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:84:19
+
+  console.log
+    🧪 TEST START: Verify "Cluster Orders" navigation button exists
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:145:15)
+
+  console.log
+    ================================================
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:146:15)
+
+  console.log
+    ✓ Testing order *WjoSx with status CONFIRMED
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:84:19
+
+  console.log
+    🔍 Searching for "Cluster Orders" button in AdminOrdersScreen.tsx
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:164:17)
+
+  console.log
+       Contains "Cluster Orders" text: true
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:165:17)
+
+  console.log
+       Contains ClusterOrders navigation: true
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:166:17)
+
+  console.log
+    ✓ Testing order  ^xx|t with status CONFIRMED
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:84:19
+
+  console.log
+    ✅ "Cluster Orders" button found in AdminOrdersScreen
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:175:19)
+
+  console.log
+    ================================================
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:181:15)
+
+  console.log
+    ✓ Testing order $xB% # with status CANCELLED
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:84:19
+
+  console.log
+    🧪 TEST END: "Cluster Orders" button verification
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:182:15)
+
+  console.log
+    ✓ Testing order ~!!Sz) with status CANCELLED
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:84:19
+
+  console.log
+    🧪 TEST START: Verify onPack triggers cluster data refresh
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:190:15)
+
+  console.log
+    ✓ Testing order w~<SvH with status DELIVERED
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:84:19
+
+  console.log
+    ================================================
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:191:15)
+
+  console.log
+    ✓ Testing order Z|"xK| with status CREATED
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:84:19
+
+  console.log
+    🔍 Analyzing onPack function
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:215:19)
+
+  console.log
+    ✓ Testing order 2D+!#D with status DELIVERED
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:84:19
+
+  console.log
+    ✓ Testing order &y3G#A with status CANCELLED
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:84:19
+
+  console.log
+       Function found: true
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:216:19)
+
+  console.log
+    ✓ Testing order @&"$&" with status CONFIRMED
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:84:19
+
+  console.log
+       Invalidates Clusters tag: true
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:217:19)
+
+  console.log
+    ✅ onPack function triggers cluster data refresh
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:225:21)
+
+  console.log
+    ✓ Testing order r"B7Rs with status CREATED
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:84:19
+
+  console.log
+    ================================================
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:234:15)
+
+  console.log
+    🧪 TEST END: onPack cluster refresh verification
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:235:15)
+
+  console.log
+    ✓ Testing order {M{#r_ with status CREATED
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:84:19
+
+  console.log
+    ✓ Testing order f%V9HV with status CONFIRMED
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:84:19
+
+  console.log
+    🧪 TEST START: Verify socket handler refreshes clusters for PACKED status
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:243:15)
+
+  console.log
+    ================================================
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:244:15)
+
+  console.log
+    🔍 Analyzing socket event handler
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:265:17)
+
+  console.log
+       Checks for PACKED status: true
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:266:17)
+
+  console.log
+    ✓ Testing order k# gN% with status DELIVERED
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:84:19
+
+  console.log
+       Invalidates Clusters tag: true
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:267:17)
+
+  console.log
+       Both conditions met: true
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:268:17)
+
+  console.log
+    ✓ Testing order ~!J`$M with status IN_TRANSIT
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:84:19
+
+  console.log
+    ✅ Socket event handler refreshes clusters for PACKED status
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:276:19)
+
+  console.log
+    ✓ Testing order M?G*N" with status CREATED
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:84:19
+
+  console.log
+    ================================================
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:282:15)
+
+  console.log
+    🧪 TEST END: Socket handler cluster refresh verification
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:283:15)
+
+  console.log
+    ✅ All non-PACKED orders have required display fields
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:91:15)
+
+  console.log
+    🧪 PROPERTY TEST START: Cluster data structure verification
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:297:15)
+
+  console.log
+    ================================================
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:92:15)
+
+  console.log
+    🧪 PROPERTY TEST END: Non-PACKED orders display verified
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:93:15)
+
+  console.log
+    ================================================
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:298:15)
+
+  console.log
+    🧪 PROPERTY TEST START: Action buttons verification
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:102:15)
+
+  console.log
+    ================================================
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:103:15)
+
+  console.log
+    🔍 Testing status: CREATED
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:116:17
+          at Array.forEach (<anonymous>)
+
+  console.log
+    📋 Testing with example cluster: {
+      tempClusterId: 'cluster-1',
+      orderCount: 3,
+      distanceKm: 5.2,
+      estimatedTimeMin: 25,
+      orders: [ 'order-1', 'order-2', 'order-3' ]
+    }
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:318:15)
+
+  console.log
+       Allowed actions: CONFIRM, CANCEL
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:117:17
+          at Array.forEach (<anonymous>)
+
+  console.log
+    🔍 Cluster structure validation:
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:329:15)
+
+  console.log
+       Has tempClusterId: true
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:330:15)
+
+  console.log
+       Has orderCount: true
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:331:15)
+
+  console.log
+    ✓ Status CREATED has correct action configuration
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:127:17
+          at Array.forEach (<anonymous>)
+
+  console.log
+       Has distanceKm: true
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:332:15)
+
+  console.log
+    🔍 Testing status: CONFIRMED
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:116:17
+          at Array.forEach (<anonymous>)
+
+  console.log
+       Has estimatedTimeMin: true
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:333:15)
+
+  console.log
+       Has orders array: true
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:334:15)
+
+  console.log
+       Allowed actions: PACK, CANCEL
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:117:17
+          at Array.forEach (<anonymous>)
+
+  console.log
+       Orders array not empty: true
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:335:15)
+
+  console.log
+    ✓ Status CONFIRMED has correct action configuration
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:127:17
+          at Array.forEach (<anonymous>)
+
+  console.log
+    ✅ Cluster data structure is valid
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:340:17)
+
+  console.log
+    🔍 Testing status: IN_TRANSIT
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:116:17
+          at Array.forEach (<anonymous>)
+
+  console.log
+    ================================================
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:343:15)
+
+  console.log
+       Allowed actions: None
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:117:17
+          at Array.forEach (<anonymous>)
+
+  console.log
+    🧪 PROPERTY TEST END: Cluster data structure verified
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:344:15)
+
+  console.log
+    ✓ Status IN_TRANSIT has correct action configuration
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:127:17
+          at Array.forEach (<anonymous>)
+
+  console.log
+    🔍 Testing status: DELIVERED
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:116:17
+          at Array.forEach (<anonymous>)
+
+  console.log
+    📊 BUG CONDITION SUMMARY
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:376:15)
+
+  console.log
+    ================================================
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:377:15)
+
+  console.log
+       Allowed actions: None
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:117:17
+          at Array.forEach (<anonymous>)
+
+  console.log
+    This test suite verifies the bug condition:
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:378:15)
+
+  console.log
+    ✓ Status DELIVERED has correct action configuration
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:127:17
+          at Array.forEach (<anonymous>)
+
+  console.log
+    PACKED orders disappear from mobile admin interface
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:379:15)
+
+  console.log
+    🔍 Testing status: CANCELLED
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:116:17
+          at Array.forEach (<anonymous>)
+
+  console.log
+
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:380:15)
+
+  console.log
+       Allowed actions: None
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:117:17
+          at Array.forEach (<anonymous>)
+
+  console.log
+    Expected counterexamples on UNFIXED code:
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:381:15)
+
+  console.log
+    1. getClusters API endpoint not defined
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:382:15)
+
+  console.log
+    2. ClusterOrdersScreen component does not exist
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:383:15)
+
+  console.log
+    ✓ Status CANCELLED has correct action configuration
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:127:17
+          at Array.forEach (<anonymous>)
+
+  console.log
+    3. "Cluster Orders" button not found
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:384:15)
+
+  console.log
+    ✅ All non-PACKED orders have correct action buttons
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:130:15)
+
+  console.log
+    4. onPack does not trigger cluster refresh
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:385:15)
+
+  console.log
+    ================================================
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:131:15)
+
+  console.log
+    🧪 PROPERTY TEST END: Action buttons verified
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:132:15)
+
+  console.log
+    5. Socket handler does not check PACKED status
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:386:15)
+
+  console.log
+
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:387:15)
+
+  console.log
+    🧪 PROPERTY TEST START: Socket event handling verification
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:141:15)
+
+  console.log
+    When all tests PASS, the bug is fixed and:
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:388:15)
+
+  console.log
+    ================================================
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:142:15)
+
+  console.log
+    ✅ Mobile app fetches cluster data
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:389:15)
+
+  console.log
+    ✅ ClusterOrdersScreen displays PACKED orders
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:390:15)
+
+  console.log
+    ✅ Navigation to cluster view is available
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:391:15)
+
+  console.log
+    ✓ Testing socket event: CREATED → DELIVERED
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:180:19
+
+  console.log
+    ✅ Data flow refreshes clusters after PACK
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:392:15)
+
+  console.log
+    ✅ Socket events update cluster view
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:393:15)
+
+  console.log
+    ✓ Testing socket event: DELIVERED → DELIVERED
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:180:19
+
+  console.log
+    ================================================
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx:394:15)
+
+  console.log
+    ✓ Testing socket event: DELIVERED → CONFIRMED
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:180:19
+
+  console.log
+    ✓ Testing socket event: CONFIRMED → DELIVERED
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:180:19
+
+  console.log
+    ✓ Testing socket event: CONFIRMED → DELIVERED
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:180:19
+
+  console.log
+    ✓ Testing socket event: IN_TRANSIT → CANCELLED
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:180:19
+
+  console.log
+    ✓ Testing socket event: CONFIRMED → IN_TRANSIT
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:180:19
+
+  console.log
+    ✓ Testing socket event: CREATED → CONFIRMED
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:180:19
+
+  console.log
+    ✓ Testing socket event: CONFIRMED → CANCELLED
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:180:19
+
+  console.log
+    ✓ Testing socket event: DELIVERED → CONFIRMED
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:180:19
+
+  console.log
+    ✓ Testing socket event: CONFIRMED → CONFIRMED
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:180:19
+
+  console.log
+    ✓ Testing socket event: DELIVERED → IN_TRANSIT
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:180:19
+
+  console.log
+    ✓ Testing socket event: CONFIRMED → DELIVERED
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:180:19
+
+  console.log
+    ✓ Testing socket event: IN_TRANSIT → IN_TRANSIT
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:180:19
+
+  console.log
+    ✓ Testing socket event: IN_TRANSIT → CONFIRMED
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:180:19
+
+  console.log
+    ✓ Testing socket event: DELIVERED → DELIVERED
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:180:19
+
+  console.log
+    ✓ Testing socket event: CREATED → IN_TRANSIT
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:180:19
+
+  console.log
+    ✓ Testing socket event: DELIVERED → DELIVERED
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:180:19
+
+  console.log
+    ✓ Testing socket event: DELIVERED → CANCELLED
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:180:19
+
+  console.log
+    ✓ Testing socket event: DELIVERED → DELIVERED
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:180:19
+
+  console.log
+    ✅ All non-PACKED socket events are handled correctly
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:195:15)
+
+  console.log
+    ================================================
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:196:15)
+
+  console.log
+    🧪 PROPERTY TEST END: Socket event handling verified
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:197:15)
+
+PASS src/__tests__/mobileClusterOrderFlow.bugCondition.test.tsx
+  Bug Condition Exploration: Mobile Cluster Order Flow
+    Property 1: Bug Condition - PACKED Orders Disappear from Mobile UI
+      ✓ should verify getClusters API endpoint exists in adminApi (48 ms)
+      ✓ should verify ClusterOrdersScreen component exists (8 ms)
+      ✓ should verify "Cluster Orders" button exists in AdminOrdersScreen (13 ms)
+      ✓ should verify onPack function triggers cluster data refresh (12 ms)
+      ✓ should verify socket event handler refreshes clusters for PACKED status (12 ms)
+      ✓ Property 1: Cluster data should have correct structure for PACKED orders (14 ms)
+    SUMMARY: Bug Condition Verification
+      ✓ should document all counterexamples found (13 ms)
+
+  console.log
+    🧪 PROPERTY TEST START: Order filtering verification
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:206:15)
+
+  console.log
+    ================================================
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:207:15)
+
+  console.log
+    🔍 Testing filter: IN_TRANSIT with 10 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:233:19
+
+  console.log
+       Filtered result: 1 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:241:19
+
+  console.log
+    🔍 Testing filter: IN_TRANSIT with 10 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:233:19
+
+  console.log
+       Filtered result: 1 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:241:19
+
+  console.log
+    🔍 Testing filter: CANCELLED with 19 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:233:19
+
+  console.log
+       Filtered result: 3 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:241:19
+
+  console.log
+    🔍 Testing filter: CREATED with 16 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:233:19
+
+  console.log
+       Filtered result: 4 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:241:19
+
+  console.log
+    🔍 Testing filter: CANCELLED with 5 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:233:19
+
+  console.log
+       Filtered result: 2 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:241:19
+
+  console.log
+    🔍 Testing filter: CONFIRMED with 10 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:233:19
+
+  console.log
+       Filtered result: 3 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:241:19
+
+  console.log
+    🔍 Testing filter: CREATED with 8 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:233:19
+
+  console.log
+       Filtered result: 1 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:241:19
+
+  console.log
+    🔍 Testing filter: ALL with 17 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:233:19
+
+  console.log
+       Filtered result: 17 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:241:19
+
+  console.log
+    🔍 Testing filter: CREATED with 5 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:233:19
+
+  console.log
+       Filtered result: 1 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:241:19
+
+  console.log
+    🔍 Testing filter: DELIVERED with 14 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:233:19
+
+  console.log
+       Filtered result: 3 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:241:19
+
+  console.log
+    🔍 Testing filter: IN_TRANSIT with 19 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:233:19
+
+  console.log
+       Filtered result: 6 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:241:19
+
+  console.log
+    🔍 Testing filter: CONFIRMED with 6 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:233:19
+
+  console.log
+       Filtered result: 4 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:241:19
+
+  console.log
+    🔍 Testing filter: CREATED with 19 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:233:19
+
+  console.log
+       Filtered result: 3 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:241:19
+
+  console.log
+    🔍 Testing filter: ALL with 20 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:233:19
+
+  console.log
+       Filtered result: 20 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:241:19
+
+  console.log
+    🔍 Testing filter: ALL with 7 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:233:19
+
+  console.log
+       Filtered result: 7 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:241:19
+
+  console.log
+    🔍 Testing filter: CONFIRMED with 9 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:233:19
+
+  console.log
+       Filtered result: 3 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:241:19
+
+  console.log
+    🔍 Testing filter: CANCELLED with 17 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:233:19
+
+  console.log
+       Filtered result: 4 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:241:19
+
+  console.log
+    🔍 Testing filter: CONFIRMED with 13 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:233:19
+
+  console.log
+       Filtered result: 5 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:241:19
+
+  console.log
+    🔍 Testing filter: ALL with 18 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:233:19
+
+  console.log
+       Filtered result: 18 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:241:19
+
+  console.log
+    🔍 Testing filter: DELIVERED with 17 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:233:19
+
+  console.log
+       Filtered result: 3 orders
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:241:19
+
+  console.log
+    ✅ All non-PACKED order filters work correctly
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:255:15)
+
+  console.log
+    ================================================
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:256:15)
+
+  console.log
+    🧪 PROPERTY TEST END: Order filtering verified
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:257:15)
+
+  console.log
+    🧪 PROPERTY TEST START: Search functionality verification
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:266:15)
+
+  console.log
+    ================================================
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:267:15)
+
+  console.log
+    ✓ Testing search for order XV?I y
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:296:19
+
+  console.log
+       Search by ID: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:297:19
+
+  console.log
+       Search by name: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:298:19
+
+  console.log
+    ✓ Testing search for order &  "|"
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:296:19
+
+  console.log
+       Search by ID: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:297:19
+
+  console.log
+       Search by name: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:298:19
+
+  console.log
+    ✓ Testing search for order  *j ""
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:296:19
+
+  console.log
+       Search by ID: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:297:19
+
+  console.log
+       Search by name: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:298:19
+
+  console.log
+    ✓ Testing search for order "}!du[
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:296:19
+
+  console.log
+       Search by ID: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:297:19
+
+  console.log
+       Search by name: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:298:19
+
+  console.log
+    ✓ Testing search for order z|%#yy
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:296:19
+
+  console.log
+       Search by ID: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:297:19
+
+  console.log
+       Search by name: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:298:19
+
+  console.log
+    ✓ Testing search for order "z|&_(
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:296:19
+
+  console.log
+       Search by ID: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:297:19
+
+  console.log
+       Search by name: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:298:19
+
+  console.log
+    ✓ Testing search for order >IzN!x
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:296:19
+
+  console.log
+       Search by ID: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:297:19
+
+  console.log
+       Search by name: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:298:19
+
+  console.log
+    ✓ Testing search for order  [G\zz
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:296:19
+
+  console.log
+       Search by ID: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:297:19
+
+  console.log
+       Search by name: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:298:19
+
+  console.log
+    ✓ Testing search for order !Q.? |
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:296:19
+
+  console.log
+       Search by ID: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:297:19
+
+  console.log
+       Search by name: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:298:19
+
+  console.log
+    ✓ Testing search for order #kzYR!
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:296:19
+
+  console.log
+       Search by ID: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:297:19
+
+  console.log
+       Search by name: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:298:19
+
+  console.log
+    ✓ Testing search for order &|l_9;
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:296:19
+
+  console.log
+       Search by ID: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:297:19
+
+  console.log
+       Search by name: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:298:19
+
+  console.log
+    ✓ Testing search for order `{1\hl
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:296:19
+
+  console.log
+       Search by ID: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:297:19
+
+  console.log
+       Search by name: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:298:19
+
+  console.log
+    ✓ Testing search for order r$%&~$
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:296:19
+
+  console.log
+       Search by ID: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:297:19
+
+  console.log
+       Search by name: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:298:19
+
+  console.log
+    ✓ Testing search for order *1^#~#
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:296:19
+
+  console.log
+       Search by ID: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:297:19
+
+  console.log
+       Search by name: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:298:19
+
+  console.log
+    ✓ Testing search for order O}#v#|
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:296:19
+
+  console.log
+       Search by ID: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:297:19
+
+  console.log
+       Search by name: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:298:19
+
+  console.log
+    ✓ Testing search for order 3"(7l%
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:296:19
+
+  console.log
+       Search by ID: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:297:19
+
+  console.log
+       Search by name: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:298:19
+
+  console.log
+    ✓ Testing search for order &PmI"3
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:296:19
+
+  console.log
+       Search by ID: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:297:19
+
+  console.log
+       Search by name: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:298:19
+
+  console.log
+    ✓ Testing search for order Q%dS&!
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:296:19
+
+  console.log
+       Search by ID: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:297:19
+
+  console.log
+       Search by name: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:298:19
+
+  console.log
+    ✓ Testing search for order }:" }C
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:296:19
+
+  console.log
+       Search by ID: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:297:19
+
+  console.log
+       Search by name: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:298:19
+
+  console.log
+    ✓ Testing search for order !i['}u
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:296:19
+
+  console.log
+       Search by ID: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:297:19
+
+  console.log
+       Search by name: true
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:298:19
+
+  console.log
+    ✅ Search functionality works correctly for non-PACKED orders
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:306:15)
+
+  console.log
+    ================================================
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:307:15)
+
+  console.log
+    🧪 PROPERTY TEST END: Search functionality verified
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:308:15)
+
+  console.log
+    🧪 PROPERTY TEST START: Order state updater verification
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:317:15)
+
+  console.log
+    ================================================
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:318:15)
+
+  console.log
+    ✓ Testing state updater for order ~%|!y) (DELIVERED)
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:354:19
+
+  console.log
+    ✓ Testing state updater for order |&x,y8 (CANCELLED)
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:354:19
+
+  console.log
+    ✓ Testing state updater for order p#&7x! (CANCELLED)
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:354:19
+
+  console.log
+    ✓ Testing state updater for order @_W~]$ (DELIVERED)
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:354:19
+
+  console.log
+    ✓ Testing state updater for order 5[7+(w (CANCELLED)
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:354:19
+
+  console.log
+    ✓ Testing state updater for order ,}=&^x (CANCELLED)
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:354:19
+
+  console.log
+    ✓ Testing state updater for order {! x%z (CREATED)
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:354:19
+
+  console.log
+    ✓ Testing state updater for order { xX&" (IN_TRANSIT)
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:354:19
+
+  console.log
+    ✓ Testing state updater for order 5}5 m. (DELIVERED)
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:354:19
+
+  console.log
+    ✓ Testing state updater for order G%HI#~ (CONFIRMED)
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:354:19
+
+  console.log
+    ✓ Testing state updater for order Yix(!z (IN_TRANSIT)
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:354:19
+
+  console.log
+    ✓ Testing state updater for order x4$)Hk (CREATED)
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:354:19
+
+  console.log
+    ✓ Testing state updater for order :>hxz2 (IN_TRANSIT)
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:354:19
+
+  console.log
+    ✓ Testing state updater for order xEy '  (DELIVERED)
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:354:19
+
+  console.log
+    ✓ Testing state updater for order |{#?Yz (DELIVERED)
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:354:19
+
+  console.log
+    ✓ Testing state updater for order !vng & (CANCELLED)
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:354:19
+
+  console.log
+    ✓ Testing state updater for order B2%&v] (IN_TRANSIT)
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:354:19
+
+  console.log
+    ✓ Testing state updater for order /E4(5# (IN_TRANSIT)
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:354:19
+
+  console.log
+    ✓ Testing state updater for order #&M#I~ (CONFIRMED)
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:354:19
+
+  console.log
+    ✓ Testing state updater for order {<\~^W (CANCELLED)
+
+      at src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:354:19
+
+  console.log
+    ✅ Order state updater preserves non-PACKED order data correctly
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:368:15)
+
+  console.log
+    ================================================
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:369:15)
+
+  console.log
+    🧪 PROPERTY TEST END: Order state updater verified
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:370:15)
+
+  console.log
+    📊 PRESERVATION SUMMARY
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:395:15)
+
+  console.log
+    ================================================
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:396:15)
+
+  console.log
+    This test suite verifies preservation of non-PACKED order behavior:
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:397:15)
+
+  console.log
+
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:398:15)
+
+  console.log
+    Baseline behavior on UNFIXED code:
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:399:15)
+
+  console.log
+    ✅ Non-PACKED orders display correctly
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:400:15)
+
+  console.log
+    ✅ Action buttons work correctly
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:401:15)
+
+  console.log
+    ✅ Socket events update orders correctly
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:402:15)
+
+  console.log
+    ✅ Order filtering works correctly
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:403:15)
+
+  console.log
+    ✅ Search functionality works correctly
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:404:15)
+
+  console.log
+    ✅ Order state updater preserves data
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:405:15)
+
+  console.log
+
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:406:15)
+
+  console.log
+    After fix, all tests should STILL PASS:
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:407:15)
+
+  console.log
+    ✅ No regressions in non-PACKED order functionality
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:408:15)
+
+  console.log
+    ✅ Cluster order flow does not affect existing behavior
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:409:15)
+
+  console.log
+    ================================================
+
+      at Object.<anonymous> (src/__tests__/mobileClusterOrderFlow.preservation.test.tsx:410:15)
+
+PASS src/__tests__/mobileClusterOrderFlow.preservation.test.tsx
+  Preservation Property Tests: Non-PACKED Order Behavior
+    Property 2: Preservation - Non-PACKED Order Behavior
+      ✓ Property 2.1: Non-PACKED orders should display in AdminOrdersScreen (95 ms)
+      ✓ Property 2.2: Action buttons should work for non-PACKED orders (16 ms)
+      ✓ Property 2.3: Socket events should update non-PACKED orders correctly (40 ms)
+      ✓ Property 2.4: Order filtering should work for non-PACKED orders (66 ms)
+      ✓ Property 2.5: Search should work for non-PACKED orders (97 ms)
+      ✓ Property 2.6: Order state updater should preserve non-PACKED order data (37 ms)
+    SUMMARY: Preservation Verification
+      ✓ should document all preservation checks (21 ms)
+
+Test Suites: 2 passed, 2 total
+Tests:       14 passed, 14 total
+Snapshots:   0 total
+Time:        6.184 s
+Ran all test suites matching /mobileClusterOrderFlow/i.

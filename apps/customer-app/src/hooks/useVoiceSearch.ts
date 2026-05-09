@@ -71,7 +71,7 @@ import { correctVoiceQuery as localCorrectVoiceQuery } from '../utils/voiceCorre
 import { useCorrectVoiceQueryMutation } from '../api/voiceApi';
 import { useGetProductsQuery } from '../api/productsApi';
 import { useSelector } from 'react-redux';
-import { RootState } from '../store/store';
+import { RootState } from '../store';
 
 // ─── Native Config (Optimized for long pauses, like Google) ──────
 
@@ -391,7 +391,7 @@ export function useVoiceSearch(
       // Hardware cooldown: ensure 400ms between stop and start
       const timeSinceStop = Date.now() - lastStopTimeRef.current;
       if (timeSinceStop < 400) {
-        await new Promise(r => setTimeout(r, 400 - timeSinceStop));
+        await new Promise<void>(r => setTimeout(() => r(), 400 - timeSinceStop));
       }
 
       // Reset all state

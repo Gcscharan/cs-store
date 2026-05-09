@@ -265,7 +265,7 @@ const s = StyleSheet.create({
   sortRow: { paddingHorizontal: 12, paddingBottom: 8 },
   sortChip: {
     paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14,
-    backgroundColor: Colors.backgroundDark, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.inputBackground, borderWidth: 1, borderColor: Colors.border,
     marginRight: 6,
   },
   sortChipActive: { backgroundColor: Colors.secondaryDark, borderColor: Colors.secondaryDark },
@@ -278,7 +278,7 @@ const s = StyleSheet.create({
     overflow: 'hidden', elevation: 3, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8,
     marginBottom: 12, marginHorizontal: 6,
   },
-  productImg: { width: '100%', height: 140, backgroundColor: Colors.backgroundDark },
+  productImg: { width: '100%', height: 140, backgroundColor: Colors.inputBackground },
   discountBadge: {
     position: 'absolute', top: 8, left: 8, backgroundColor: '#16a34a',
     paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,

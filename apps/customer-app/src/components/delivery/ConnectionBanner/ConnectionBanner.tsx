@@ -35,7 +35,7 @@ export const ConnectionBanner: React.FC<ConnectionBannerProps> = ({
   }
 
   return (
-    <View style={[styles.banner, { backgroundColor }]}>
+    <View style={[styles.banner, { backgroundColor }]} pointerEvents="box-none">
       <Text style={styles.text}>{message}</Text>
     </View>
   );

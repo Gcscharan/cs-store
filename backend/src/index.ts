@@ -209,7 +209,7 @@ if (verboseLoggingEnabled) {
   logger.info("🔧 Environment Variables Check");
   logger.info("========================================");
   logger.info(`🌍 NODE_ENV: ${process.env.NODE_ENV || "development"}`);
-  logger.info(`🚪 PORT: ${process.env.PORT || "5001"}`);
+  logger.info(`🚪 PORT: ${process.env.PORT || "5002"}`);
   logger.info(`🔗 MONGODB_URI present: ${process.env.MONGODB_URI ? "✅ Yes" : "❌ NO"}`);
   logger.info(`🔑 JWT_SECRET present: ${process.env.JWT_SECRET ? "✅ Yes" : "❌ NO"}`);
   logger.info(`🔑 JWT_REFRESH_SECRET present: ${process.env.JWT_REFRESH_SECRET ? "✅ Yes" : "❌ NO"}`);
@@ -241,10 +241,12 @@ import { Order } from "./models/Order";
 import { deliveryPartnerLoadService } from "./domains/operations/services/deliveryPartnerLoadService";
 import { OrderEventBroadcaster } from "./domains/orders/services/orderEventBroadcaster";
 import { initializeNotificationWriter } from "./domains/communication/services/notificationWriter";
+import { initializeAdminAssignmentConsumer } from "./domains/operations/services/adminAssignmentConsumer";
 import { initializeOutboxDispatcher } from "./domains/events/outboxDispatcher";
 import { initializeInventoryReservationSweeper } from "./domains/orders/services/inventoryReservationSweeper";
 import { startStuckPaymentScanner } from "./domains/payments/services/stuckPaymentScanner";
 import { initializePaymentReconciliation } from "./domains/payments/services/paymentReconciliationService";
+import { startReconciliationSystem } from "./domains/payments/services/reconciliation";
 import { calculateETA } from "./domains/tracking/services/etaCalculator";
 import { startRankingJob } from "./jobs/rankingJob";
 import { startExperimentMonitor, stopExperimentMonitor } from "./jobs/experimentMonitorJob";
@@ -623,7 +625,7 @@ io.on("connection", (socket) => {
 });
 
 // Start server
-const PORT = process.env.PORT || 5001;
+const PORT = process.env.PORT || 5002;
 
 // Function to gracefully close existing server instances on a port (development only)
 const closeExistingServer = async (port: number): Promise<void> => {
@@ -685,6 +687,7 @@ const startServer = async () => {
       liveLocationStore.start();
 
       initializeNotificationWriter();
+      initializeAdminAssignmentConsumer();
       initializeOutboxDispatcher();
       initializeInventoryReservationSweeper();
 
@@ -692,6 +695,9 @@ const startServer = async () => {
 
       // Initialize payment reconciliation service (reconciles captured payments missed by webhook)
       initializePaymentReconciliation();
+
+      // Start payment reconciliation system (scheduled runs + recovery of abandoned runs)
+      await startReconciliationSystem();
 
       // 🚨 NEW: Initialize queue system (BullMQ + Redis)
       logger.info("📬 Initializing queue system...");

@@ -58,17 +58,17 @@ const SignupScreen: React.FC = () => {
     try {
       const result = await sendOtp({
         phone: phoneDigits,
-        mode: 'signup',
         name: name.trim(),
       }).unwrap();
 
       // DEVELOPMENT ONLY: Show OTP in console if available
-      if (result.devMode && result.otp) {
+      const devResult = result as any;
+      if (devResult.devMode && devResult.otp) {
         console.log('\n' + '='.repeat(50));
         console.log('🔑 DEVELOPMENT MODE - OTP RECEIVED');
         console.log('📱 Phone:', phoneDigits);
-        console.log('🔢 OTP:', result.otp);
-        console.log('⏰ Expires in:', result.expiresIn, 'seconds');
+        console.log('🔢 OTP:', devResult.otp);
+        console.log('⏰ Expires in:', devResult.expiresIn, 'seconds');
         console.log('='.repeat(50) + '\n');
       }
 

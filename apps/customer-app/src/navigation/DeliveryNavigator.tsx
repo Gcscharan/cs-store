@@ -8,6 +8,7 @@ import DeliverySelfieScreen from '../screens/delivery/DeliverySelfieScreen';
 import DeliverySettingsScreen from '../screens/delivery/DeliverySettingsScreen';
 import DeliveryHelpCenterScreen from '../screens/delivery/DeliveryHelpCenterScreen';
 import DeliveryKYCScreen from '../screens/delivery/DeliveryKYCScreen';
+import DeliveryRouteScreen from '../screens/delivery/DeliveryRouteScreen';
 
 const Stack = createStackNavigator();
 
@@ -55,6 +56,11 @@ export default function DeliveryNavigator() {
       <Stack.Screen
         name="DeliveryKYC"
         component={DeliveryKYCScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="DeliveryRoute"
+        component={DeliveryRouteScreen}
         options={{ headerShown: false }}
       />
     </Stack.Navigator>

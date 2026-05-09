@@ -18,6 +18,7 @@ import AdminHeader from '../../components/admin/AdminHeader';
 import { useDeleteAdminProductMutation, useGetAdminProductsQuery } from '../../api/adminApi';
 import { MASTER_CATEGORIES, getBackendCategories } from '../../constants/categoriesConfig';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { useProductSocket } from '../../hooks/useProductSocket';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -173,6 +174,9 @@ const AdminProductsScreen: React.FC = () => {
   const [statusTab, setStatusTab] = useState<StatusTab>('all');
   const [category, setCategory] = useState<CategoryFilter>('All');
   const [q, setQ] = useState('');
+
+  // Real-time product updates via Socket.IO
+  useProductSocket();
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   React.useEffect(() => {

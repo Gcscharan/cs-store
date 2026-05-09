@@ -265,7 +265,9 @@ const CartPage = () => {
                 {/* Cart Items List */}
                 <div className="divide-y divide-gray-200">
                   {cart.items.map((item, index) => {
-                    const isOutOfStock = item.price === 0;
+                    const isOutOfStock = (item as any).isOutOfStock || item.price === 0;
+                    const hasInsufficientStock = (item as any).hasInsufficientStock;
+                    const availableStock = (item as any).stock ?? null;
 
                     return (
                       <motion.div
@@ -302,6 +304,10 @@ const CartPage = () => {
                         </h3>
                         {isOutOfStock ? (
                           <p className="text-xs mt-1 text-red-600">{t("product.outOfStock")}</p>
+                        ) : hasInsufficientStock ? (
+                          <p className="text-xs mt-1 text-orange-600 font-medium">
+                            Only {availableStock} available — reduce quantity
+                          </p>
                         ) : (
                           <p className="text-gray-600 text-xs mt-1">
                             ₹{item.price.toFixed(2)} each
@@ -480,28 +486,37 @@ const CartPage = () => {
 
                   {/* Place Order Button */}
                   <div className="mt-4">
-                    {!userAddress ? (
-                      <button
-                        disabled
-                        className="w-full py-3 px-4 rounded-lg font-medium text-center bg-amber-400 text-amber-800 cursor-not-allowed text-lg"
-                      >
-                        ADD DELIVERY ADDRESS TO PLACE ORDER
-                      </button>
-                    ) : (!userAddress?.lat || !userAddress?.lng || userAddress.lat === 0 || userAddress.lng === 0) ? (
-                      <button
-                        disabled
-                        className="w-full py-3 px-4 rounded-lg font-medium text-center bg-gray-400 text-gray-700 cursor-not-allowed text-lg"
-                      >
-                        CANNOT PLACE ORDER - INVALID ADDRESS
-                      </button>
-                    ) : (
-                      <Link
-                        to="/checkout"
-                        className="w-full py-3 px-4 rounded-lg font-medium text-center transition-colors bg-orange-500 text-white hover:bg-orange-600 text-lg block"
-                      >
-                        {t("checkout.placeOrder").toUpperCase()}
-                      </Link>
-                    )}
+                    {(() => {
+                      const hasStockIssues = cart.items.some(
+                        (item: any) => item.isOutOfStock || item.hasInsufficientStock || item.price === 0
+                      );
+                      if (!userAddress) {
+                        return (
+                          <button disabled className="w-full py-3 px-4 rounded-lg font-medium text-center bg-amber-400 text-amber-800 cursor-not-allowed text-lg">
+                            ADD DELIVERY ADDRESS TO PLACE ORDER
+                          </button>
+                        );
+                      }
+                      if (!userAddress?.lat || !userAddress?.lng || userAddress.lat === 0 || userAddress.lng === 0) {
+                        return (
+                          <button disabled className="w-full py-3 px-4 rounded-lg font-medium text-center bg-gray-400 text-gray-700 cursor-not-allowed text-lg">
+                            CANNOT PLACE ORDER - INVALID ADDRESS
+                          </button>
+                        );
+                      }
+                      if (hasStockIssues) {
+                        return (
+                          <button disabled className="w-full py-3 px-4 rounded-lg font-medium text-center bg-red-100 text-red-700 cursor-not-allowed text-lg border border-red-300">
+                            REMOVE OUT OF STOCK ITEMS TO PROCEED
+                          </button>
+                        );
+                      }
+                      return (
+                        <Link to="/checkout" className="w-full py-3 px-4 rounded-lg font-medium text-center transition-colors bg-orange-500 text-white hover:bg-orange-600 text-lg block">
+                          {t("checkout.placeOrder").toUpperCase()}
+                        </Link>
+                      );
+                    })()}
                   </div>
 
                 </div>

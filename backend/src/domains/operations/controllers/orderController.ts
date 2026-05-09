@@ -221,6 +221,11 @@ export const createOrder = async (req: Request, res: Response) => {
     const userId = (req as any).user?._id;
     const paymentMethod = String(req.body?.paymentMethod || "").toLowerCase();
 
+    // 🔥 DEBUG LOGGING
+    console.log("🔥 CREATE ORDER BODY:", req.body);
+    console.log("🔥 PAYMENT METHOD:", paymentMethod);
+    console.log("🔥 USER ID:", userId);
+
     if (!userId) {
       return res.status(401).json({ message: "User not authenticated" });
     }
@@ -229,14 +234,38 @@ export const createOrder = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Unsupported payment method" });
     }
 
-    const upiVpa = paymentMethod === "upi" ? String(req.body?.upiVpa || "").trim() : undefined;
-    if (paymentMethod === "upi" && !upiVpa) {
-      return res.status(400).json({ message: "UPI ID required" });
+    // UPI VPA is optional for Razorpay UPI Intent flow
+    // Only required when explicitly provided (for "Other UPI App" option)
+    const upiVpa = paymentMethod === "upi" ? String(req.body?.upiVpa || "").trim() || undefined : undefined;
+    
+    console.log("🔥 UPI VPA:", upiVpa);
+
+    // ============================================================
+    // PHASE 5: IDEMPOTENCY KEY ENFORCEMENT (BREAKING CHANGE)
+    // Extract and validate idempotency key from header (preferred) or body
+    // This is a BREAKING CHANGE - clients MUST send x-idempotency-key header
+    // ============================================================
+    const idempotencyKeyHeader = String(req.header("x-idempotency-key") || req.header("Idempotency-Key") || "").trim();
+    const idempotencyKeyBody = String(req.body?.idempotencyKey || "").trim();
+    const idempotencyKey = idempotencyKeyHeader || idempotencyKeyBody;
+
+    // Strict validation: idempotency key is REQUIRED
+    if (!idempotencyKey) {
+      return res.status(400).json({
+        error: 'IDEMPOTENCY_KEY_REQUIRED',
+        message: 'x-idempotency-key header is required'
+      });
     }
 
-    const idempotencyKeyHeader = String(req.header("Idempotency-Key") || "").trim();
-    const idempotencyKeyBody = String(req.body?.idempotencyKey || "").trim();
-    const idempotencyKey = idempotencyKeyHeader || idempotencyKeyBody || undefined;
+    // Validate format: UUID v4 (recommended format)
+    // Pattern: 8-4-4-4-12 hex digits with version 4 indicator
+    const uuidV4Regex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidV4Regex.test(idempotencyKey)) {
+      return res.status(400).json({
+        error: 'INVALID_IDEMPOTENCY_KEY',
+        message: 'x-idempotency-key must be a valid UUID v4'
+      });
+    }
 
     const { order, created } = await createOrderFromCart({
       userId,
@@ -270,16 +299,26 @@ export const createOrder = async (req: Request, res: Response) => {
       created: created,
     });
   } catch (error: any) {
+    console.error("🚨 FULL ERROR:", error);
+    console.error("🚨 ERROR MESSAGE:", error.message);
+    console.error("🚨 ERROR STACK:", error.stack);
+    
     logger.error("Create order error:", {
       message: error.message,
       statusCode: error.statusCode,
       stack: error.stack,
+      fullError: error,
     });
     const statusCode = Number(error?.statusCode) || 500;
     if (statusCode >= 400 && statusCode < 500) {
       return res.status(statusCode).json({ message: error.message || "Bad request" });
     }
-    return res.status(500).json({ message: "Failed to create order" });
+    return res.status(500).json({ 
+      message: "Failed to create order",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+      realError: error.message, // Always include for debugging
+    });
   }
 };
 
@@ -290,9 +329,32 @@ export const placeOrderCOD = async (req: Request, res: Response) => {
       return res.status(401).json({ message: "User not authenticated" });
     }
 
-    const idempotencyKeyHeader = String(req.header("Idempotency-Key") || "").trim();
+    // ============================================================
+    // PHASE 5: IDEMPOTENCY KEY ENFORCEMENT (BREAKING CHANGE)
+    // Extract and validate idempotency key from header (preferred) or body
+    // This is a BREAKING CHANGE - clients MUST send x-idempotency-key header
+    // ============================================================
+    const idempotencyKeyHeader = String(req.header("x-idempotency-key") || req.header("Idempotency-Key") || "").trim();
     const idempotencyKeyBody = String(req.body?.idempotencyKey || "").trim();
-    const idempotencyKey = idempotencyKeyHeader || idempotencyKeyBody || undefined;
+    const idempotencyKey = idempotencyKeyHeader || idempotencyKeyBody;
+
+    // Strict validation: idempotency key is REQUIRED
+    if (!idempotencyKey) {
+      return res.status(400).json({
+        error: 'IDEMPOTENCY_KEY_REQUIRED',
+        message: 'x-idempotency-key header is required'
+      });
+    }
+
+    // Validate format: UUID v4 (recommended format)
+    // Pattern: 8-4-4-4-12 hex digits with version 4 indicator
+    const uuidV4Regex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidV4Regex.test(idempotencyKey)) {
+      return res.status(400).json({
+        error: 'INVALID_IDEMPOTENCY_KEY',
+        message: 'x-idempotency-key must be a valid UUID v4'
+      });
+    }
 
     logger.info("[DEBUG] placeOrderCOD:", { userId, idempotencyKey });
 

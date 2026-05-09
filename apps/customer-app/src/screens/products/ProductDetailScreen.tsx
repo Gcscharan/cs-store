@@ -6,7 +6,7 @@ import {
 } from 'react-native'; 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { VideoView, useVideoPlayer } from 'expo-video';
+import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
 import { useGetProductByIdQuery, useLazyGetSimilarProductsQuery } from '../../api/productsApi';
 import { useGetProductReviewsQuery } from '../../api/reviewsApi';
 import { useAddToCartMutation } from '../../api/cartApi';
@@ -39,82 +39,28 @@ const getImageUrl = (img: any): string | undefined => {
   ) || undefined;
 };
 
-// ✅ Modern autoplay video component (Instagram/Reels style) with proper lifecycle management
+// ✅ Video component using expo-av (installed and native-ready)
 const VideoItem = React.memo(({ item, width, isActive }: { 
   item: { type: 'video'; url: string; thumbnail?: string; duration?: number }; 
   width: number; 
   isActive: boolean; 
 }) => {
+  const videoRef = useRef<Video>(null);
   const [isPausedByUser, setIsPausedByUser] = useState(false);
   const [showPauseIcon, setShowPauseIcon] = useState(false);
-  const [isPlayerReleased, setIsPlayerReleased] = useState(false);
   const scale = useRef(new Animated.Value(1)).current;
 
-  // Each video has its own player
-  const player = useVideoPlayer(item.url, (p) => {
-    try {
-      p.loop = true; // 🔁 Infinite loop
-      p.muted = true; // 🔇 Muted by default (better UX)
-    } catch (e) {
-      console.log('[VideoItem] Player setup error:', e);
-    }
-  });
-
-  // ✅ FIXED: Proper player cleanup on unmount
+  // Play/pause based on active state
   React.useEffect(() => {
-    return () => {
-      if (player && !isPlayerReleased) {
-        try {
-          setIsPlayerReleased(true);
-          player.release();
-        } catch (e) {
-          console.log('[VideoItem] Player release error:', e);
-        }
-      }
-    };
-  }, [player, isPlayerReleased]);
-
-  // ✅ FIXED: Clean autoplay logic with proper null checks and release state tracking
-  React.useEffect(() => {
-    if (!player || isPlayerReleased) return;
-    
-    if (isActive) {
-      if (!isPausedByUser) {
-        try {
-          player.play();
-        } catch (e) {
-          console.log('[VideoItem] Play error:', e);
-          // If error suggests player is released, update state
-          if (e.message && e.message.includes('released')) {
-            setIsPlayerReleased(true);
-          }
-        }
-      }
+    if (!videoRef.current) return;
+    if (isActive && !isPausedByUser) {
+      videoRef.current.playAsync().catch(() => {});
     } else {
-      try {
-        player.pause();
-      } catch (e) {
-        console.log('[VideoItem] Pause error:', e);
-        // If error suggests player is released, update state
-        if (e.message && e.message.includes('released')) {
-          setIsPlayerReleased(true);
-        }
-      }
+      videoRef.current.pauseAsync().catch(() => {});
     }
-  }, [isActive, isPausedByUser, player, isPlayerReleased]);
+  }, [isActive, isPausedByUser]);
 
-  // ✅ FIXED: Reset pause state only on unmount
-  React.useEffect(() => {
-    return () => {
-      setIsPausedByUser(false);
-    };
-  }, []);
-
-  // ✅ FIXED: Tap feedback + pause/resume with pause icon and proper error handling
   const handleToggle = () => {
-    if (!player || isPlayerReleased) return;
-    
-    // Micro feedback animation
     Animated.sequence([
       Animated.timing(scale, { toValue: 0.97, duration: 80, useNativeDriver: true }),
       Animated.timing(scale, { toValue: 1, duration: 80, useNativeDriver: true }),
@@ -122,66 +68,34 @@ const VideoItem = React.memo(({ item, width, isActive }: {
 
     setIsPausedByUser(prev => {
       const next = !prev;
-      
-      try {
-        if (next) {
-          player.pause();
-          
-          // 👇 Show pause icon briefly
-          setShowPauseIcon(true);
-          setTimeout(() => setShowPauseIcon(false), 800);
-        } else {
-          player.play();
-        }
-      } catch (e) {
-        console.log('[VideoItem] Toggle error:', e);
-        // If error suggests player is released, update state
-        if (e.message && e.message.includes('released')) {
-          setIsPlayerReleased(true);
-        }
+      if (next) {
+        setShowPauseIcon(true);
+        setTimeout(() => setShowPauseIcon(false), 800);
       }
-      
       return next;
     });
   };
 
-  // Don't render if player is released to prevent further errors
-  if (isPlayerReleased) {
-    return (
-      <View style={[s.mediaItem, { width }]}>
-        <View style={s.videoErrorState}>
-          <Ionicons name="videocam-off" size={32} color="#666" />
-          <Text style={s.videoErrorText}>Video unavailable</Text>
-        </View>
-      </View>
-    );
-  }
-
   return (
     <Pressable onPress={handleToggle} style={[s.mediaItem, { width }]}>
       <Animated.View style={{ transform: [{ scale }], width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' }}>
-        
-        {player && (
-          <VideoView
-            player={player}
-            style={s.mediaVideo}
-            nativeControls={false}
-            contentFit="contain"
-          />
-        )}
-        
-        {/* Pause feedback */}
+        <Video
+          ref={videoRef}
+          source={{ uri: item.url }}
+          style={s.mediaVideo}
+          resizeMode={ResizeMode.CONTAIN}
+          isLooping
+          isMuted
+          shouldPlay={isActive && !isPausedByUser}
+        />
         {showPauseIcon && (
           <View style={s.pauseOverlay}>
             <Ionicons name="pause" size={28} color="#000" />
           </View>
         )}
-        
-        {/* Video hint */}
         <View style={s.videoHint}>
           <Ionicons name="videocam" size={12} color="#fff" />
         </View>
-        
       </Animated.View>
     </Pressable>
   );
@@ -385,9 +299,12 @@ export default function ProductDetailScreen({ route, navigation }: any) {
       // Background API sync 
       await addToCart({ productId: product._id, quantity: qty }).unwrap(); 
     } catch (error: any) { 
-      // If API fails, cart slice logic or a manual rollback would go here 
-      // For now, we alert the user 
-      Alert.alert('Error', error?.data?.message || 'Failed to sync cart with server'); 
+      const available = error?.data?.availableStock;
+      const msg = available !== undefined
+        ? `Only ${available} item(s) available. Please reduce quantity.`
+        : error?.data?.message || 'Failed to sync cart with server';
+      if (available !== undefined) setQty(Math.min(qty, available));
+      Alert.alert('Error', msg); 
     } 
   };
 

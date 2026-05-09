@@ -96,9 +96,16 @@ export const ordersApi = baseApi.injectEndpoints({
       invalidatesTags: ['Cart'],
     }),
 
-    getPaymentStatus: builder.query<{ paymentStatus: string }, string>({
+    getPaymentStatus: builder.query<{
+      orderId: string;
+      paymentStatus: 'PAID' | 'PENDING' | 'FAILED';
+      razorpayOrderId?: string;
+      razorpayPaymentId?: string;
+      verifiedAt?: string;
+      amount: number;
+    }, string>({
       query: (orderId) => ({
-        url: `/payment-status/${orderId}`,
+        url: `/payments/verify/${orderId}`,
         method: 'GET',
       }),
     }),

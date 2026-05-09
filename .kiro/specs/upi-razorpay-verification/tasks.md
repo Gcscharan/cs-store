@@ -1,0 +1,98 @@
+# Implementation Plan
+
+- [x] 1. Write bug condition exploration test
+  - **Property 1: Bug Condition** - Hybrid Deep-Link Path Is Active
+  - **CRITICAL**: This test MUST FAIL on unfixed code — failure confirms the bug exists
+  - **DO NOT attempt to fix the test or the code when it fails**
+  - **NOTE**: This test encodes the expected behavior — it will validate the fix when it passes after implementation
+  - **GOAL**: Surface counterexamples that demonstrate the bug exists in the current `handleUpiPayment` implementation
+  - **Scoped PBT Approach**: For deterministic bugs, scope the property to the concrete failing cases to ensure reproducibility
+  - **Test file**: `apps/customer-app/src/screens/checkout/__tests__/CheckoutScreen.bugCondition.test.tsx`
+  - Mock `Linking.openURL`, `Linking.canOpenURL`, `RazorpayCheckout.open`, `createOrder`, `AsyncStorage`, and `Constants`
+  - **Sub-test A — Deep-link is opened**: Call `handleUpiPayment` with `selectedApp = gpay` on unfixed code. Assert `Linking.openURL` IS called with a URL matching `^upi://pay`. This PASSES on unfixed code, confirming the bug exists.
+  - **Sub-test B — show_default_blocks is false**: Call `handleUpiPayment` with `selectedApp = gpay` on unfixed code. Capture the options object passed to `RazorpayCheckout.open` (via the fallback path). Assert `options.config.display.preferences.show_default_blocks === false`. This PASSES on unfixed code, confirming the UX regression.
+  - **Sub-test C — Merchant VPA env var is read**: Set `process.env.EXPO_PUBLIC_MERCHANT_UPI_VPA` to a sentinel value. Call `handleUpiPayment`. Assert the sentinel value appears in the `upi://pay` URL passed to `Linking.openURL`. This PASSES on unfixed code, confirming the VPA dependency.
+  - Run tests on UNFIXED code
+  - **EXPECTED OUTCOME**: All three sub-tests PASS on unfixed code (this is correct — it proves the bug exists). After the fix in task 3, these same tests will FAIL, confirming the buggy path has been removed.
+  - Document counterexamples found (e.g., "`Linking.openURL` called with `upi://pay?pa=merchant@paytm&...`", "`show_default_blocks: false`", "`EXPO_PUBLIC_MERCHANT_UPI_VPA` read as `merchant@paytm`")
+  - Mark task complete when tests are written, run, and passing on unfixed code (counterexamples documented)
+  - _Requirements: 1.1, 1.2, 1.3, 1.4_
+
+- [x] 2. Write preservation property tests (BEFORE implementing fix)
+  - **Property 2: Preservation** - Non-Payment-Initiation Behavior Unchanged
+  - **IMPORTANT**: Follow observation-first methodology — observe behavior on UNFIXED code first, then encode as tests
+  - **Test file**: `apps/customer-app/src/screens/checkout/__tests__/CheckoutScreen.preservation.test.tsx`
+  - Mock `Linking.openURL`, `Linking.canOpenURL`, `RazorpayCheckout.open`, `createOrder`, `AsyncStorage`, `pollPaymentStatus`, and `Constants`
+  - **Observation step**: Run each scenario below on UNFIXED code and record the actual behavior before writing assertions
+  - **Sub-test A — Order creation payload unchanged**: For any `selectedApp` (gpay, phonepe, paytm, bhim, other with verified VPA), assert `createOrder` is called with `{ paymentMethod: 'upi', idempotencyKey: expect.any(String) }` and optionally `upiVpa` (only when `selectedApp.id === 'other'`) and `couponCode` (only when a coupon is applied). Verify the payload shape is identical on unfixed code.
+  - **Sub-test B — AsyncStorage writes unchanged**: Assert `AsyncStorage.setItem('pendingPaymentOrderId', orderId)` and `AsyncStorage.setItem('pendingPaymentTimestamp', expect.any(String))` are called after order creation, for all `selectedApp` values.
+  - **Sub-test C — pollPaymentStatus called after Razorpay success**: Assert `pollPaymentStatus` is called with `(orderId, selectedApp)` after `RazorpayCheckout.open` resolves successfully.
+  - **Sub-test D — PAYMENT_CANCELLED triggers recovery modal**: Throw `{ code: 'PAYMENT_CANCELLED' }` from `RazorpayCheckout.open`. Assert `setIsRecoveryModalVisible(true)` is called and no Alert is shown.
+  - **Sub-test E — NETWORK_ERROR triggers Alert**: Throw `{ code: 'NETWORK_ERROR' }` from `RazorpayCheckout.open`. Assert `Alert.alert` is called with `'Network Error'`.
+  - **Sub-test F — 400 response triggers order-creation-failed Alert**: Throw `{ response: { status: 400, data: { message: 'Bad request' } } }` from `createOrder`. Assert `Alert.alert` is called with `'Order Creation Failed'`.
+  - **Sub-test G — `other` VPA gate check unchanged**: Call `handleUpiPayment` with `selectedApp.id === 'other'` and no verified VPA (`upiVerified = false`). Assert early return with `Alert.alert('Verify UPI', ...)` and `createOrder` is NOT called.
+  - **Sub-test H — COD flow unaffected**: Call `handleCodPayment`. Assert `handleUpiPayment` is never invoked and the COD order creation payload is unchanged.
+  - Write property-based tests using `fast-check` (or equivalent) for sub-tests A and B: generate random `selectedApp` values from the valid set and random order amounts, asserting the payload and AsyncStorage writes are always correct.
+  - Run tests on UNFIXED code
+  - **EXPECTED OUTCOME**: All sub-tests PASS on unfixed code (this confirms baseline behavior to preserve)
+  - Mark task complete when tests are written, run, and passing on unfixed code
+  - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8_
+
+- [x] 3. Fix: Revert handleUpiPayment to Razorpay-only UPI flow
+
+  - [x] 3.1 Implement the fix in `handleUpiPayment`
+    - **File**: `apps/customer-app/src/screens/checkout/CheckoutScreen.tsx`
+    - Remove `constructUpiDeepLink()` function definition and all call sites
+    - Remove `fallbackToRazorpayIntent()` function definition and all call sites
+    - Remove `Linking.openURL(upiUrl)` call from the payment flow
+    - Remove `Linking.canOpenURL(upiUrl)` call from the payment flow
+    - Remove all reads of `process.env.EXPO_PUBLIC_MERCHANT_UPI_VPA` and `Constants.expoConfig?.extra?.EXPO_PUBLIC_MERCHANT_UPI_VPA`
+    - Update the Razorpay `options` object:
+      - Set `config.display.preferences.show_default_blocks: true`
+      - Remove `upi: { flow: 'intent' }` field
+      - Remove `intent: true` field
+      - Remove `upi.preferred_app` field
+      - Remove `options['_[app]']` assignment
+      - Keep `method: { upi: true, card: false, netbanking: false, wallet: false }`
+      - Keep `prefill: { contact: user?.phone || selectedAddress?.phone || '9999999999', name: user?.name || selectedAddress?.name || 'Customer' }`
+      - Add `theme: { color: '#3399cc' }` if not already present
+    - Call `RazorpayCheckout.open(options)` directly (no deep-link attempt before it)
+    - Check whether `Linking` is used anywhere else in the file (e.g., `checkUpiAppInstalled` uses `Linking.canOpenURL` for app detection — do NOT remove that usage). Only remove the `Linking` import if no other usage remains.
+    - Keep all other logic identical: stale-state clear, `logEvent`, `other` VPA gate, idempotency key, `createOrder`, `AsyncStorage.setItem`, `saveLastUsedUpiApp`, `RazorpayCheckout.open`, `pollPaymentStatus`, and all error-handling branches.
+    - _Bug_Condition: isBugCondition(X) where X.usesDirectUpiDeepLink = true OR X.usesMerchantVpaEnvVar = true OR X.callsFallbackToRazorpayIntent = true OR X.callsLinkingOpenURL = true_
+    - _Expected_Behavior: RazorpayCheckout.open called directly with show_default_blocks: true, method.upi: true, no Linking.openURL, no EXPO_PUBLIC_MERCHANT_UPI_VPA_
+    - _Preservation: Order creation payload, AsyncStorage writes, pollPaymentStatus call, error handling branches, other VPA gate, COD flow, address/coupon logic — all unchanged_
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7_
+
+  - [x] 3.2 Verify bug condition exploration test now passes (fix-checking)
+    - **Property 1: Expected Behavior** - Razorpay-Only UPI Initiation
+    - **IMPORTANT**: Re-run the SAME tests from task 1 — do NOT write new tests
+    - The tests from task 1 encode the expected behavior (no deep link, no VPA env var, show_default_blocks not false)
+    - When these tests FAIL (i.e., the assertions that were passing on unfixed code now fail), it confirms the buggy path has been removed
+    - Additionally, run fix-checking assertions in the same test file:
+      - Assert `RazorpayCheckout.open` IS called with `options.config.display.preferences.show_default_blocks === true`
+      - Assert `Linking.openURL` is NEVER called during `handleUpiPayment`
+      - Assert `EXPO_PUBLIC_MERCHANT_UPI_VPA` is NEVER read during `handleUpiPayment`
+      - Assert `options.method` equals `{ upi: true, card: false, netbanking: false, wallet: false }`
+      - Assert `options.upi` is undefined (no `flow: 'intent'`)
+      - Assert `options.intent` is undefined
+      - Assert `options['_[app]']` is undefined
+    - Run bug condition exploration tests from task 1 on FIXED code
+    - **EXPECTED OUTCOME**: Bug condition sub-tests A/B/C now FAIL (confirming buggy path removed); fix-checking assertions PASS (confirming correct behavior)
+    - _Requirements: 2.1, 2.2, 2.3, 2.4_
+
+  - [x] 3.3 Verify preservation tests still pass
+    - **Property 2: Preservation** - Non-Payment-Initiation Behavior Unchanged
+    - **IMPORTANT**: Re-run the SAME tests from task 2 — do NOT write new tests
+    - Run all preservation property tests from task 2 on FIXED code
+    - **EXPECTED OUTCOME**: All sub-tests A through H PASS (confirms no regressions)
+    - Confirm order creation payload, AsyncStorage writes, polling, error handling, VPA gate, and COD flow are all identical to unfixed behavior
+    - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8_
+
+- [x] 4. Checkpoint — Ensure all tests pass
+  - Run the full test suite for `CheckoutScreen`
+  - Confirm `CheckoutScreen.bugCondition.test.tsx`: bug condition sub-tests FAIL (expected — buggy path removed), fix-checking assertions PASS
+  - Confirm `CheckoutScreen.preservation.test.tsx`: all preservation sub-tests PASS
+  - Confirm no TypeScript errors in `CheckoutScreen.tsx` (`tsc --noEmit`)
+  - Confirm no other files are broken by the removal of `constructUpiDeepLink`, `fallbackToRazorpayIntent`, or the `Linking` import (if removed)
+  - Ensure all tests pass; ask the user if questions arise.

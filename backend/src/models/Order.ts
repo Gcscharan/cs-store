@@ -29,7 +29,7 @@ export interface IOrderAddress {
 }
 
 export interface IUpiDetails {
-  vpa: string;
+  vpa?: string; // Optional - VPA comes from Razorpay webhook after payment
   amount: number;
 }
 
@@ -141,7 +141,11 @@ export interface ISellerDetails {
 export interface IOrder extends Document {
   _id: mongoose.Types.ObjectId;
   userId: mongoose.Types.ObjectId;
-  idempotencyKey?: string;
+  idempotencyKey: string; // Required at creation time; may be absent on legacy orders
+  cartHash?: string; // Content-based deduplication (Amazon-style)
+  adminAssigned?: boolean; // Guard for idempotent admin assignment
+  adminAssignedAt?: Date; // Timestamp of admin assignment
+  adminAssignedBy?: string; // Which admin/system assigned
   items: IOrderItem[];
   itemsTotal?: number;
   subtotalBeforeTax?: number; // Amount before GST
@@ -186,6 +190,10 @@ export interface IOrder extends Document {
   razorpayOrderId?: string;
   razorpayPaymentId?: string;
   razorpaySignature?: string;
+  paymentVerifiedAt?: Date;
+  paymentConfirmedBy?: 'WEBHOOK' | 'POLLING' | 'RECONCILIATION';
+  finalizedAt?: Date; // Set exactly once when order is finalized — hard boundary for exactly-once writes
+  activePaymentIntentId?: mongoose.Types.ObjectId;
   deliveryProof?: IDeliveryProof;
   deliveryOtp?: string; // 4-digit OTP for verification
   deliveryOtpGeneratedAt?: Date;
@@ -219,6 +227,13 @@ export interface IOrder extends Document {
   invoiceItems?: IInvoiceItem[]; // Detailed line items for invoice
   sellerDetails?: ISellerDetails; // Seller info at time of invoice
   
+  // ============================================
+  // RECONCILIATION FIELDS
+  // ============================================
+  lastReconciledAt?: Date; // Set after a clean 4-way consistency check
+  reconciliationFlag?: string; // e.g. 'FALSE_PAID_UNRESOLVED', 'DEAD_LETTER' — set when manual review needed
+  reconciliationErrorCount: number; // Incremented on each scan error for this entity (dead-letter threshold: 5)
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -281,7 +296,7 @@ const OrderAddressSchema = new Schema<IOrderAddress>({
 });
 
 const UpiDetailsSchema = new Schema<IUpiDetails>({
-  vpa: { type: String, required: true },
+  vpa: { type: String, required: false }, // Optional - VPA comes from Razorpay webhook after payment
   amount: { type: Number, required: true, min: 0 },
 });
 
@@ -381,7 +396,24 @@ const OrderSchema = new Schema<IOrder>(
     },
     idempotencyKey: {
       type: String,
+      required: false, // Not required on existing orders — enforced at creation time via orderBuilder
       trim: true,
+    },
+    cartHash: {
+      type: String,
+      trim: true,
+      index: true,
+    },
+    adminAssigned: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    adminAssignedAt: {
+      type: Date,
+    },
+    adminAssignedBy: {
+      type: String,
     },
     items: [OrderItemSchema],
     itemsTotal: {
@@ -493,6 +525,10 @@ const OrderSchema = new Schema<IOrder>(
     razorpayOrderId: { type: String },
     razorpayPaymentId: { type: String },
     razorpaySignature: { type: String },
+    paymentVerifiedAt: { type: Date },
+    paymentConfirmedBy: { type: String, enum: ['WEBHOOK', 'POLLING', 'RECONCILIATION'] },
+    finalizedAt: { type: Date }, // Exactly-once finalization boundary — set once, never overwritten
+    activePaymentIntentId: { type: Schema.Types.ObjectId, ref: "PaymentIntent" },
     deliveryProof: DeliveryProofSchema,
     deliveryOtp: {
       type: String,
@@ -577,6 +613,13 @@ const OrderSchema = new Schema<IOrder>(
       phone: { type: String },
       email: { type: String },
     },
+
+    // ============================================
+    // RECONCILIATION FIELDS
+    // ============================================
+    lastReconciledAt: { type: Date },
+    reconciliationFlag: { type: String, trim: true },
+    reconciliationErrorCount: { type: Number, required: true, default: 0 },
   },
   {
     timestamps: true,
@@ -830,17 +873,26 @@ OrderSchema.pre("findOneAndUpdate", function (next) {
 
 // Indexes
 OrderSchema.index({ userId: 1, createdAt: -1 });
+OrderSchema.index({ _id: 1, userId: 1 }); // auth-protected lookups: findOne({ _id, userId }) — _id is the leading key
 OrderSchema.index({ deliveryBoyId: 1, orderStatus: 1 });
 OrderSchema.index({ orderStatus: 1 });
 OrderSchema.index({ paymentStatus: 1 });
+OrderSchema.index({ razorpayOrderId: 1 }); // For webhook lookups
 // Compound index for GST report aggregation (DELIVERED + PAID + date range)
 OrderSchema.index({ orderStatus: 1, paymentStatus: 1, createdAt: -1 });
+// Idempotency key index - unique constraint (partial filter removed in Phase 1)
+// Note: Field is still optional in schema, will be enforced in Phase 3
 OrderSchema.index(
   { userId: 1, idempotencyKey: 1 },
-  {
+  { unique: true }
+);
+// Cart hash deduplication index - time-bounded uniqueness (5 minutes)
+OrderSchema.index(
+  { userId: 1, cartHash: 1, createdAt: 1 },
+  { 
     unique: true,
     partialFilterExpression: {
-      idempotencyKey: { $type: "string" },
+      cartHash: { $type: "string" },
     },
   }
 );

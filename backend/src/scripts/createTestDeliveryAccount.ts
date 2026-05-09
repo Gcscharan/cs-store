@@ -121,7 +121,7 @@ async function createTestDeliveryAccount() {
     logger.info("   📧 Email: delivery@test.com");
     logger.info("   🔑 Password: delivery123");
     logger.info("\n🔗 API Endpoint:");
-    logger.info("   POST http://localhost:5001/api/delivery/auth/login");
+    logger.info("   POST http://localhost:5002/api/delivery/auth/login");
     logger.info("\n📦 Request Body:");
     logger.info('   { "email": "delivery@test.com", "password": "delivery123" }');
     logger.info("=".repeat(60));

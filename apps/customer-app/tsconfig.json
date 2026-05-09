@@ -4,8 +4,13 @@
     "strict": false,
     "skipLibCheck": true,
     "noEmit": true,
-    "typeRoots": ["./node_modules/@types"],
-    "types": ["jest", "@testing-library/react-native"],
+    "jsx": "react-native",
+    "esModuleInterop": true,
+    "target": "es2017",
+    "lib": ["es2018"],
+    "downlevelIteration": true,
+    "typeRoots": ["./node_modules/@types", "./src/types"],
+    "types": [],
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
@@ -13,5 +18,20 @@
       "@vyaparsetu/shared-utils": ["../../packages/shared-utils/src"],
       "@vyaparsetu/i18n": ["../../packages/i18n/src"]
     }
-  }
+  },
+  "include": [
+    "src/**/*",
+    "src/types/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "**/__tests__/**",
+    "**/__mocks__/**",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.spec.ts",
+    "**/*.spec.tsx",
+    "src/scripts/**",
+    "src/tests/**"
+  ]
 }

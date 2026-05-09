@@ -19,6 +19,7 @@ import { CodCollection } from "../../../models/CodCollection";
 import { updateRouteAfterOrderStatusChange } from "../../routes/routeLifecycleService";
 import { liveLocationStore } from "../../../services/liveLocationStore";
 import { safeDoc } from "../../../utils/safeDoc";
+import { computeAllowedActions } from "../../delivery/utils/allowedActions";
 
 const getApprovedDeliveryBoy = async (user: any): Promise<any | null> => {
   if (!user || user.role !== "delivery") return null;
@@ -532,12 +533,48 @@ export const getDeliveryOrders = async (
       logger.info(`  - Order ${order._id}: status=${order.orderStatus}, deliveryStatus=${order.deliveryStatus}`);
     });
 
+    const orderIds = orders.map((o: any) => String(o?._id)).filter(Boolean);
+
+    const riderLocation = await liveLocationStore.getAsync(String((deliveryBoy as any)._id));
+    const riderHasLocation = !!(riderLocation && Number.isFinite((riderLocation as any).lat) && Number.isFinite((riderLocation as any).lng));
+
+    const activeRoute = await Route.findOne({
+      deliveryBoyId: (deliveryBoy as any)._id,
+      status: { $in: ["ASSIGNED", "IN_PROGRESS"] },
+    })
+      .select("routePath deliveredCount failedCount")
+      .lean();
+
+    const orderedOrderIds = (Array.isArray((activeRoute as any)?.routePath) ? (activeRoute as any).routePath : [])
+      .filter((x: any) => String(x || "").toUpperCase() !== "WAREHOUSE")
+      .map((x: any) => String(x));
+
+    const isDone = (st: string) => st === "DELIVERED" || st === "FAILED" || st === "CANCELLED" || st === "RETURNED";
+    const statusById: Record<string, string> = {};
+    for (const o of orders as any[]) {
+      statusById[String(o._id)] = String(o.orderStatus || "").toUpperCase();
+    }
+    const nextStop = orderedOrderIds.find((id: string) => !isDone(statusById[id] || "")) || null;
+
+    const codCollections = await CodCollection.find({ orderId: { $in: orderIds } }).select("_id orderId").lean();
+    const codCollectedByOrderId = new Set<string>(codCollections.map((c: any) => String(c.orderId)));
+
     const normalizedOrders = orders.map((o: any) => {
       const raw = String(o.orderStatus || "").toUpperCase();
+      const orderId = String(o._id);
+      const isNext = nextStop ? nextStop === orderId : true;
+      const codCollected = codCollectedByOrderId.has(orderId);
+
+      const allowedActions = computeAllowedActions(o, {
+        codCollected,
+        isNext,
+        riderHasLocation,
+      });
+
       if (raw === "OUT_FOR_DELIVERY") {
-        return { ...safeDoc(o), orderStatus: "IN_TRANSIT" };
+        return { ...safeDoc(o), orderStatus: "IN_TRANSIT", allowedActions };
       }
-      return safeDoc(o);
+      return { ...safeDoc(o), allowedActions };
     });
 
     const computedCompletedOrdersCount = await Order.countDocuments({
@@ -685,38 +722,38 @@ export const updateLocation = async (
     const routeIdStr = String(routeId || "").trim();
 
     if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
-      res.status(422).json({ error: "Invalid lat/lng" });
+      res.status(400).json({ error: "Invalid lat/lng" });
       return;
     }
 
     if (latNum < -90 || latNum > 90 || lngNum < -180 || lngNum > 180) {
-      res.status(422).json({ error: "Invalid lat/lng" });
+      res.status(400).json({ error: "Invalid lat/lng" });
       return;
     }
 
     if (!routeIdStr) {
-      res.status(422).json({ error: "routeId is required" });
+      res.status(400).json({ error: "routeId is required" });
       return;
     }
 
     if (!Number.isFinite(accuracyNum)) {
-      res.status(422).json({ error: "accuracy is required" });
+      res.status(400).json({ error: "accuracy is required" });
       return;
     }
 
     if (accuracyNum > 50) {
-      res.status(422).json({ error: "GPS accuracy too low" });
+      res.status(400).json({ error: "GPS accuracy too low" });
       return;
     }
 
     if (!Number.isFinite(tsNum)) {
-      res.status(422).json({ error: "timestamp is required" });
+      res.status(400).json({ error: "timestamp is required" });
       return;
     }
 
     const now = Date.now();
-    if (now - tsNum > 30_000) {
-      res.status(422).json({ error: "stale timestamp" });
+    if (now - tsNum > 60_000) {
+      res.status(400).json({ error: "stale timestamp" });
       return;
     }
 
@@ -746,12 +783,12 @@ export const updateLocation = async (
       .lean();
 
     if (!activeRoute) {
-      res.status(403).json({ error: "NO_ACTIVE_ROUTE" });
+      res.status(422).json({ error: "NO_ACTIVE_ROUTE" });
       return;
     }
 
     if (String((activeRoute as any).routeId) !== routeIdStr) {
-      res.status(403).json({ error: "ROUTE_MISMATCH" });
+      res.status(422).json({ error: "ROUTE_MISMATCH" });
       return;
     }
 
@@ -763,7 +800,7 @@ export const updateLocation = async (
       const distM = haversineMeters({ lat: prev.lat, lng: prev.lng }, { lat: latNum, lng: lngNum });
       const speedKmh = (distM / dtSec) * 3.6;
       if (speedKmh > 120) {
-        res.status(422).json({ error: "impossible jump" });
+        res.status(400).json({ error: "impossible jump" });
         return;
       }
     }

@@ -53,7 +53,7 @@ const ProductCard: React.FC<ProductCardProps> = memo(({ product, onPress, onAddT
           <Image 
             source={{ uri: imageUrl }} 
             style={styles.image} 
-            contentFit="contain"
+            contentFit="cover"
             transition={200}
             cachePolicy="memory-disk"
           />

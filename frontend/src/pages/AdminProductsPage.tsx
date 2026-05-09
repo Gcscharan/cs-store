@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { RootState } from "../store";
@@ -15,6 +15,11 @@ import {
   Package,
   DollarSign,
   Hash,
+  Upload,
+  Download,
+  CheckCircle,
+  AlertCircle,
+  X,
 } from "lucide-react";
 import FileUpload from "../components/FileUpload";
 import { getProductImage } from "../utils/image";
@@ -58,6 +63,15 @@ const AdminProductsPage: React.FC = () => {
     weight: 0,
     images: [] as { full: string; thumb: string }[],
   });
+
+  // ── Bulk Upload State ──────────────────────────────────────────────────────
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [bulkFile, setBulkFile] = useState<File | null>(null);
+  const [bulkPreview, setBulkPreview] = useState<any[]>([]);
+  const [bulkErrors, setBulkErrors] = useState<string[]>([]);
+  const [isBulkUploading, setIsBulkUploading] = useState(false);
+  const [bulkResult, setBulkResult] = useState<{ created: number; failed: number } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Check authentication
   useEffect(() => {
@@ -210,6 +224,118 @@ const AdminProductsPage: React.FC = () => {
     });
   };
 
+  // ── Bulk Upload Handlers ───────────────────────────────────────────────────
+  const REQUIRED_COLS = ['name', 'price', 'category', 'stock'];
+
+  const parseCsvRow = (line: string): string[] => {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') { inQuotes = !inQuotes; continue; }
+      if (ch === ',' && !inQuotes) { result.push(current.trim()); current = ''; continue; }
+      current += ch;
+    }
+    result.push(current.trim());
+    return result;
+  };
+
+  const handleBulkFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBulkFile(file);
+    setBulkErrors([]);
+    setBulkResult(null);
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      const lines = text.split('\n').filter(l => l.trim());
+      if (lines.length < 2) { setBulkErrors(['CSV must have a header row and at least one data row.']); return; }
+
+      const headers = parseCsvRow(lines[0]).map(h => h.toLowerCase().replace(/\s+/g, '_'));
+      const missing = REQUIRED_COLS.filter(c => !headers.includes(c));
+      if (missing.length) { setBulkErrors([`Missing required columns: ${missing.join(', ')}`]); return; }
+
+      const rows: any[] = [];
+      const errs: string[] = [];
+      for (let i = 1; i < Math.min(lines.length, 201); i++) {
+        const vals = parseCsvRow(lines[i]);
+        const row: any = {};
+        headers.forEach((h, idx) => { row[h] = vals[idx] || ''; });
+        if (!row.name) { errs.push(`Row ${i}: name is required`); continue; }
+        if (isNaN(Number(row.price)) || Number(row.price) <= 0) { errs.push(`Row ${i}: price must be a positive number`); continue; }
+        if (!row.category) { errs.push(`Row ${i}: category is required`); continue; }
+        row.price = Number(row.price);
+        row.mrp = row.mrp ? Number(row.mrp) : undefined;
+        row.stock = row.stock ? Number(row.stock) : 0;
+        row.weight = row.weight ? Number(row.weight) : undefined;
+        rows.push(row);
+      }
+      setBulkErrors(errs);
+      setBulkPreview(rows.slice(0, 5));
+    };
+    reader.readAsText(file);
+  };
+
+  const handleBulkUpload = async () => {
+    if (!bulkFile || !tokens?.accessToken) return;
+    setIsBulkUploading(true);
+    setBulkResult(null);
+    try {
+      const reader = new FileReader();
+      const text = await new Promise<string>((res) => {
+        reader.onload = (e) => res(e.target?.result as string);
+        reader.readAsText(bulkFile);
+      });
+      const lines = text.split('\n').filter(l => l.trim());
+      const headers = parseCsvRow(lines[0]).map(h => h.toLowerCase().replace(/\s+/g, '_'));
+      const products: any[] = [];
+      for (let i = 1; i < lines.length; i++) {
+        const vals = parseCsvRow(lines[i]);
+        const row: any = {};
+        headers.forEach((h, idx) => { row[h] = vals[idx] || ''; });
+        if (!row.name || !row.price || !row.category) continue;
+        products.push({
+          name: row.name,
+          description: row.description || '',
+          price: Number(row.price),
+          mrp: row.mrp ? Number(row.mrp) : undefined,
+          category: row.category,
+          stock: row.stock ? Number(row.stock) : 0,
+          weight: row.weight ? Number(row.weight) : undefined,
+        });
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/admin/products/bulk`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${tokens.accessToken}`,
+        },
+        body: JSON.stringify({ products }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Bulk upload failed');
+      setBulkResult({ created: data.created || products.length, failed: data.failed || 0 });
+      fetchProducts();
+    } catch (err: any) {
+      setBulkErrors([err.message || 'Upload failed']);
+    } finally {
+      setIsBulkUploading(false);
+    }
+  };
+
+  const downloadCsvTemplate = () => {
+    const csv = 'name,description,price,mrp,category,stock,weight\nSample Product,A great product,99,149,Groceries,100,500\n';
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'products-template.csv'; a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const filteredProducts = products.filter((product) => {
     const matchesSearch =
       product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -290,6 +416,13 @@ const AdminProductsPage: React.FC = () => {
             >
               <Plus className="h-4 w-4" />
               Add Product
+            </button>
+            <button
+              onClick={() => { setShowBulkModal(true); setBulkResult(null); setBulkErrors([]); setBulkPreview([]); setBulkFile(null); }}
+              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
+            >
+              <Upload className="h-4 w-4" />
+              Bulk Upload
             </button>
           </div>
         </div>
@@ -496,6 +629,80 @@ const AdminProductsPage: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Bulk Upload Modal */}
+        {showBulkModal && (
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+            <div className="relative top-10 mx-auto p-6 border w-full max-w-2xl shadow-lg rounded-md bg-white">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Bulk Upload Products</h3>
+                <button onClick={() => setShowBulkModal(false)} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
+              </div>
+
+              {/* Template download */}
+              <div className="mb-4 p-3 bg-blue-50 rounded-lg flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-blue-800">Download CSV Template</p>
+                  <p className="text-xs text-blue-600">Required columns: name, price, category, stock</p>
+                </div>
+                <button onClick={downloadCsvTemplate} className="flex items-center gap-1 text-blue-600 hover:text-blue-800 text-sm font-medium">
+                  <Download className="h-4 w-4" /> Template
+                </button>
+              </div>
+
+              {/* File input */}
+              <div
+                className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-blue-400 transition-colors"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                <p className="text-sm text-gray-600">{bulkFile ? bulkFile.name : 'Click to select CSV file (max 200 products)'}</p>
+                <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleBulkFileChange} />
+              </div>
+
+              {/* Errors */}
+              {bulkErrors.length > 0 && (
+                <div className="mt-3 p-3 bg-red-50 rounded-lg">
+                  <div className="flex items-center gap-1 mb-1"><AlertCircle className="h-4 w-4 text-red-500" /><span className="text-sm font-medium text-red-700">Validation errors</span></div>
+                  {bulkErrors.slice(0, 5).map((e, i) => <p key={i} className="text-xs text-red-600">• {e}</p>)}
+                  {bulkErrors.length > 5 && <p className="text-xs text-red-500">...and {bulkErrors.length - 5} more</p>}
+                </div>
+              )}
+
+              {/* Preview */}
+              {bulkPreview.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-sm font-medium text-gray-700 mb-2">Preview (first {bulkPreview.length} rows)</p>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-xs border border-gray-200 rounded">
+                      <thead className="bg-gray-50"><tr>{['name','price','category','stock'].map(h => <th key={h} className="px-2 py-1 text-left font-medium text-gray-500 uppercase">{h}</th>)}</tr></thead>
+                      <tbody>{bulkPreview.map((row, i) => <tr key={i} className="border-t"><td className="px-2 py-1">{row.name}</td><td className="px-2 py-1">₹{row.price}</td><td className="px-2 py-1">{row.category}</td><td className="px-2 py-1">{row.stock}</td></tr>)}</tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Result */}
+              {bulkResult && (
+                <div className="mt-3 p-3 bg-green-50 rounded-lg flex items-center gap-2">
+                  <CheckCircle className="h-5 w-5 text-green-500" />
+                  <span className="text-sm text-green-700 font-medium">{bulkResult.created} products created{bulkResult.failed > 0 ? `, ${bulkResult.failed} failed` : ''}.</span>
+                </div>
+              )}
+
+              <div className="mt-4 flex justify-end gap-3">
+                <button onClick={() => setShowBulkModal(false)} className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">Cancel</button>
+                <button
+                  onClick={handleBulkUpload}
+                  disabled={!bulkFile || bulkErrors.length > 0 || isBulkUploading}
+                  className="px-4 py-2 text-sm text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
+                >
+                  {isBulkUploading ? <><div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />Uploading...</> : <><Upload className="h-4 w-4" />Upload Products</>}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Edit Product Modal */}
         {showEditModal && editingProduct && (

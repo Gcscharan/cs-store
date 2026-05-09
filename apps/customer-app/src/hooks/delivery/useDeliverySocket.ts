@@ -124,7 +124,7 @@ export const useDeliverySocket = (): UseDeliverySocketReturn => {
           // Short outage: sync missed events with jitter to avoid reconnect storm
           // (1000 riders reconnecting simultaneously → staggered over 2 seconds)
           const jitterMs = Math.random() * 2000;
-          await new Promise(r => setTimeout(r, jitterMs));
+          await new Promise<void>(r => setTimeout(() => r(), jitterMs));
           await emitSyncRequest();
         }
       }

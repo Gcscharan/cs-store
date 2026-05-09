@@ -1,8 +1,10 @@
 import { Router } from 'express';
+import { authenticateToken } from '../../../middleware/auth';
 import { getPaymentStatus } from '../controllers/paymentStatus.controller';
 
 const router = Router();
 
-router.get('/:orderId', getPaymentStatus);
+// Auth required — only the order owner should see payment status
+router.get('/:orderId', authenticateToken, getPaymentStatus);
 
 export default router;

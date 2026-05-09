@@ -24,7 +24,7 @@ export const adminApi = baseApi.injectEndpoints({
     updateAdminProduct: builder.mutation({
       query: ({ id, ...body }) => ({
         url: `/admin/products/${id}`,
-        method: 'PATCH', // Changed to PATCH for partial updates
+        method: 'PATCH',
         body,
       }),
       invalidatesTags: ['Products'],
@@ -35,7 +35,7 @@ export const adminApi = baseApi.injectEndpoints({
         method: 'POST',
         body: formData,
         headers: {
-          'X-Request-Timeout': '60000', // 60s for image uploads
+          'X-Request-Timeout': '60000',
         },
       }),
       invalidatesTags: ['Products'],
@@ -86,21 +86,38 @@ export const adminApi = baseApi.injectEndpoints({
         url: `/admin/orders/${id}/confirm`,
         method: 'POST',
       }),
-      invalidatesTags: ['Orders'],
     }),
     packOrder: builder.mutation({
       query: (id) => ({
         url: `/admin/orders/${id}/pack`,
         method: 'POST',
       }),
+    }),
+    assignOrder: builder.mutation({
+      query: ({ id, deliveryBoyId }) => ({
+        url: `/admin/orders/${id}/assign`,
+        method: 'PATCH',
+        body: { deliveryBoyId },
+      }),
       invalidatesTags: ['Orders'],
+    }),
+    startDelivery: builder.mutation({
+      query: (id) => ({
+        url: `/delivery/orders/${id}/start`,
+        method: 'PATCH',
+      }),
+    }),
+    markDelivered: builder.mutation({
+      query: (id) => ({
+        url: `/delivery/orders/${id}/deliver`,
+        method: 'PATCH',
+      }),
     }),
     cancelOrder: builder.mutation({
       query: (id) => ({
         url: `/orders/${id}/cancel`,
         method: 'PUT',
       }),
-      invalidatesTags: ['Orders'],
     }),
 
     // Users
@@ -123,6 +140,50 @@ export const adminApi = baseApi.injectEndpoints({
         method: 'GET',
       }),
       providesTags: ['DeliveryBoys'],
+    }),
+    getDeliveryPartners: builder.query({
+      query: () => ({
+        url: '/admin/delivery-partners/available',
+        method: 'GET',
+      }),
+      transformResponse: (response: any) => {
+        // Backend returns: { deliveryBoys: [{ user: {...}, deliveryBoy: {...} }], pagination: {...} }
+        // Transform to flat structure expected by modal
+        const deliveryBoys = response?.deliveryBoys || [];
+        const transformed = deliveryBoys.map((item: any) => {
+          const currentLoad = Number(item.deliveryBoy?.currentLoad || 0);
+          
+          // Show "Busy" only when delivery partner has active orders (currentLoad > 0)
+          // Otherwise show "Available"
+          const isAvailable = currentLoad === 0;
+          
+          // Keep original vehicle type - admin decides who to assign
+          const vehicleType = String(item.deliveryBoy?.vehicleType || 'UNKNOWN').toUpperCase();
+          
+          return {
+            _id: item.deliveryBoy?._id || item.user?._id,
+            name: item.user?.name || 'Unknown',
+            phone: item.user?.phone,
+            vehicleType, // Show actual vehicle type (BIKE, AUTO, CAR, etc.)
+            isAvailable, // Based on currentLoad: 0 = Available, >0 = Busy
+            currentLoad,
+          };
+        });
+        
+        console.log('🚚 Delivery Partners Transformed:', {
+          total: transformed.length,
+          available: transformed.filter(p => p.isAvailable).length,
+          busy: transformed.filter(p => !p.isAvailable).length,
+          sampleTransformed: transformed[0],
+          sampleRaw: deliveryBoys[0],
+        });
+        
+        return {
+          deliveryPartners: transformed,
+          pagination: response?.pagination,
+        };
+      },
+      providesTags: ['DeliveryPartners'],
     }),
     approveDeliveryBoy: builder.mutation({
       query: (id) => ({
@@ -209,6 +270,37 @@ export const adminApi = baseApi.injectEndpoints({
         params: { from, to, currency: 'INR' },
       }),
     }),
+
+    // Clusters
+    getClusters: builder.query({
+      query: () => ({
+        url: '/admin/routes/compute?mode=preview',
+        method: 'POST',
+        body: { vehicle: { type: 'AUTO' } },
+      }),
+      providesTags: ['Clusters'],
+    }),
+    assignCluster: builder.mutation({
+      query: (body: { deliveryBoyId: string; orderIds: string[]; routePath: string[] }) => ({
+        url: '/admin/routes/assign',
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['Orders', 'Clusters'],
+    }),
+    getRecentRoutes: builder.query({
+      query: (limit = 50) => ({
+        url: `/admin/routes/recent?limit=${limit}`,
+        method: 'GET',
+      }),
+      providesTags: ['RecentRoutes'],
+    }),
+    getAdminCodCollection: builder.query({
+      query: (orderId: string) => ({
+        url: `/admin/orders/${orderId}/cod-collection`,
+        method: 'GET',
+      }),
+    }),
   }),
 });
 
@@ -226,10 +318,14 @@ export const {
   useGetAdminOrdersQuery,
   useConfirmOrderMutation,
   usePackOrderMutation,
+  useAssignOrderMutation,
+  useStartDeliveryMutation,
+  useMarkDeliveredMutation,
   useCancelOrderMutation,
   useGetAdminUsersQuery,
   useDeleteAdminUserMutation,
   useGetDeliveryBoysQuery,
+  useGetDeliveryPartnersQuery,
   useApproveDeliveryBoyMutation,
   useSuspendDeliveryBoyMutation,
   useGetAnalyticsQuery,
@@ -244,4 +340,8 @@ export const {
   useGetFinanceRevenueLedgerQuery,
   useGetFinanceRefundLedgerQuery,
   useGetFinanceGatewayPerformanceQuery,
+  useGetClustersQuery,
+  useAssignClusterMutation,
+  useGetRecentRoutesQuery,
+  useGetAdminCodCollectionQuery,
 } = adminApi;

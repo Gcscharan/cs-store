@@ -268,17 +268,15 @@ export default function OptimizedImage({
     return () => observer.disconnect();
   }, [priority, imgRef.current]);
 
-  // Aspect ratio fallback
-  const aspect = metadata?.aspectRatio || 1;
+  // Aspect ratio — always 1:1 for product images (enforced by upload standards)
   const wrapperStyle: React.CSSProperties = {
-    aspectRatio: aspect,
-    minWidth: 1,
-    minHeight: 1,
+    aspectRatio: 1,
+    width: "100%",
     overflow: "hidden",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#ffffff", // white bg for object-contain
+    backgroundColor: "#f3f4f6",
   };
 
   // Prevent classname from explicitly overriding width/height (log)
@@ -318,7 +316,7 @@ export default function OptimizedImage({
           decoding="async"
           loading={priority ? "eager" : "lazy"}
           {...fetchPriorityProps}
-          style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
         />
       </div>
     );
@@ -348,7 +346,7 @@ export default function OptimizedImage({
             style={{
               width: "100%",
               height: "100%",
-              objectFit: "contain",
+              objectFit: "cover",
               display: "block",
               opacity: 1,
               transition: "opacity 300ms ease-in-out",
@@ -368,7 +366,7 @@ export default function OptimizedImage({
             style={{
               width: "100%",
               height: "100%",
-              objectFit: "contain",
+              objectFit: "cover",
               filter: "blur(6px)",
             }}
           />

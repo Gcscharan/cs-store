@@ -58,4 +58,14 @@ LedgerEntrySchema.index({ paymentIntentId: 1, recordedAt: -1 });
 
 LedgerEntrySchema.index({ refundId: 1 }, { sparse: true });
 
+// Belt-and-suspenders guard: only one CAPTURE entry per PaymentIntent
+// Partial unique index — only applies where eventType = 'CAPTURE'
+LedgerEntrySchema.index(
+  { paymentIntentId: 1, eventType: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { eventType: 'CAPTURE' },
+  }
+);
+
 export const LedgerEntry = mongoose.model<ILedgerEntry>("LedgerEntry", LedgerEntrySchema);

@@ -852,8 +852,9 @@ describe('📍 AddAddressScreen - Use Current Location', () => {
   });
 });
 
-    test('TC-068: Property 15 - Required Indicators on Editable Fields Only', async () => {
-      const fc = require('fast-check');
+describe('AddAddressScreen - Additional Property Tests', () => {
+  test('TC-068: Property 15 - Required Indicators on Editable Fields Only', async () => {
+    const fc = require('fast-check');
 
       /**
        * **Validates: Requirements 11.4**
@@ -973,4 +974,3 @@ describe('📍 AddAddressScreen - Use Current Location', () => {
       );
     });
   });
-});

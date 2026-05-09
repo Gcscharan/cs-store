@@ -8,6 +8,7 @@ import { inventoryReservationService } from "../../orders/services/inventoryRese
 import { incCounterWithLabels } from "../../../ops/opsMetrics";
 import { isProviderUnavailableError } from "../types";
 import { capturePaymentError, logger } from "../../../utils/logger";
+import { paymentMetricsService } from "./paymentMetricsService";
 
 export function verifyRazorpaySignature(
   orderId: string,
@@ -81,10 +82,15 @@ export async function createRazorpayPaymentIntent(args: {
         } catch {
         }
 
+        // Versioned update — prevents overwriting CAPTURED/FAILED with EXPIRED
         try {
-          (intent as any).status = "EXPIRED" as any;
-          (intent as any).paymentState = "FAILED" as any;
-          await (intent as any).save();
+          await PaymentIntent.updateOne(
+            { _id: (intent as any)._id, version: (intent as any).version ?? 0 },
+            {
+              $set: { status: "EXPIRED" as any, paymentState: "FAILED" as any },
+              $inc: { version: 1 },
+            }
+          );
         } catch {
         }
 
@@ -105,6 +111,12 @@ export async function createRazorpayPaymentIntent(args: {
     const key = String(args.idempotencyKey || "").trim();
     if (!key) {
       const err: any = new Error("Idempotency key is required");
+      err.statusCode = 400;
+      throw err;
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(args.orderId)) {
+      const err: any = new Error("Invalid orderId");
       err.statusCode = 400;
       throw err;
     }
@@ -471,6 +483,137 @@ export async function createRazorpayPaymentIntent(args: {
 
     logger.info("[CHECK-6] Razorpay order creation about to happen");
     
+    // GAP 2 fix: atomically claim the gateway creation slot before calling Razorpay.
+    // Uses a single updateOne with { gatewayCreateAttemptedAt: { $exists: false } } as the filter —
+    // only ONE concurrent caller can win this write. The loser sees modifiedCount=0 and waits
+    // for the winner to save the gatewayOrderId, preventing duplicate Razorpay orders.
+    const claimStartMs = Date.now();
+    const claim = await PaymentIntent.updateOne(
+      {
+        _id: intent._id,
+        gatewayCreateAttemptedAt: { $exists: false },
+        status: "CREATED",
+      },
+      { $set: { gatewayCreateAttemptedAt: new Date() } }
+    );
+    
+    // Track gateway creation claim attempt
+    paymentMetricsService.trackGatewayCreationClaim({
+      orderId: String(args.orderId),
+      intentId: String(intent._id),
+      won: Number((claim as any).modifiedCount) > 0,
+    });
+    
+    if (Number((claim as any).modifiedCount) === 0) {
+      // Another request already claimed the slot — MUST wait for winner to complete
+      logger.info("[PI][GATEWAY_CLAIM_LOST] Another worker claimed gateway creation", {
+        orderId: String(args.orderId),
+        intentId: String(intent._id),
+      });
+      
+      // Wait for winner to save gatewayOrderId (with timeout)
+      const maxWaitMs = 30_000; // 30 seconds
+      const startWaitMs = Date.now();
+      
+      logger.info("[PI][GATEWAY_CLAIM_WAIT_START] Waiting for winner to complete", {
+        orderId: String(args.orderId),
+        intentId: String(intent._id),
+        maxWaitMs,
+      });
+      
+      while (Date.now() - startWaitMs < maxWaitMs) {
+        const existing = await PaymentIntent.findById(intent._id)
+          .select("gatewayOrderId checkoutPayload amount currency expiresAt status")
+          .lean();
+        
+        if (existing && String((existing as any).gatewayOrderId || "").trim()) {
+          // Winner saved gatewayOrderId - return it
+          const waitTimeMs = Date.now() - startWaitMs;
+          
+          logger.info("[PI][GATEWAY_CLAIM_WAIT_SUCCESS] Winner completed gateway creation", {
+            orderId: String(args.orderId),
+            intentId: String(intent._id),
+            gatewayOrderId: (existing as any).gatewayOrderId,
+            waitTimeMs,
+          });
+          
+          // Track successful wait
+          paymentMetricsService.trackGatewayCreationWaitTime({
+            orderId: String(args.orderId),
+            intentId: String(intent._id),
+            waitTimeMs,
+            outcome: 'success',
+          });
+          
+          return {
+            paymentIntentId: String(intent._id),
+            gateway: "RAZORPAY",
+            razorpayOrderId: String((existing as any).gatewayOrderId),
+            amount: Number((existing as any).amount),
+            currency: String((existing as any).currency || "INR"),
+            expiresAt: (existing as any).expiresAt,
+            checkoutPayload: ((existing as any).checkoutPayload || {}) as any,
+          };
+        }
+        
+        // Check if winner failed
+        const status = String((existing as any)?.status || "").toUpperCase();
+        if (status === "FAILED" || status === "EXPIRED") {
+          const waitTimeMs = Date.now() - startWaitMs;
+          
+          logger.error("[PI][GATEWAY_CLAIM_WAIT_FAILED] Winner failed to create gateway order", {
+            orderId: String(args.orderId),
+            intentId: String(intent._id),
+            status,
+            waitTimeMs,
+          });
+          
+          // Track failed wait
+          paymentMetricsService.trackGatewayCreationWaitTime({
+            orderId: String(args.orderId),
+            intentId: String(intent._id),
+            waitTimeMs,
+            outcome: 'winner_failed',
+          });
+          
+          const err: any = new Error("Gateway order creation failed by another worker");
+          err.statusCode = 500;
+          throw err;
+        }
+        
+        // Wait briefly before checking again
+        await new Promise(r => setTimeout(r, 500));
+      }
+      
+      // Timeout - winner crashed or is stuck
+      const waitTimeMs = Date.now() - startWaitMs;
+      
+      logger.error("[PI][GATEWAY_CLAIM_WAIT_TIMEOUT] Winner did not complete gateway creation", {
+        orderId: String(args.orderId),
+        intentId: String(intent._id),
+        waitedMs: waitTimeMs,
+      });
+      
+      // Track timeout
+      paymentMetricsService.trackGatewayCreationWaitTime({
+        orderId: String(args.orderId),
+        intentId: String(intent._id),
+        waitTimeMs,
+        outcome: 'timeout',
+      });
+      
+      // DO NOT proceed to call Razorpay - fail fast
+      const err: any = new Error("Gateway order creation timeout - winner did not complete");
+      err.statusCode = 503;
+      throw err;
+    }
+    
+    // We won the claim - proceed to call Razorpay
+    logger.info("[PI][GATEWAY_CLAIM_WON] This worker will create gateway order", {
+      orderId: String(args.orderId),
+      intentId: String(intent._id),
+    });
+
     let created: any;
     try {
       created =
@@ -505,9 +648,13 @@ export async function createRazorpayPaymentIntent(args: {
             String(intent.status) as any,
             "PAYMENT_PENDING_EXTERNAL"
           );
-          intent.status = "PAYMENT_PENDING_EXTERNAL" as any;
-          intent.paymentState = "CREATED" as any;
-          await intent.save();
+          await PaymentIntent.updateOne(
+            { _id: intent._id, version: (intent as any).version ?? 0 },
+            {
+              $set: { status: "PAYMENT_PENDING_EXTERNAL" as any, paymentState: "CREATED" as any },
+              $inc: { version: 1 },
+            }
+          );
         } catch {
           // State transition not allowed, continue with normal error handling
         }
@@ -573,11 +720,40 @@ export async function createRazorpayPaymentIntent(args: {
       throw err;
     }
 
-    intent.status = "GATEWAY_ORDER_CREATED" as any;
-    intent.paymentState = "AUTHORIZED" as any;
-    intent.gatewayOrderId = gatewayOrderId;
-    intent.checkoutPayload = checkoutPayload;
-    await intent.save();
+    // Versioned update — prevents overwriting CAPTURED with GATEWAY_ORDER_CREATED
+    // if webhook arrived between Razorpay API call and this write
+    const updateRes = await PaymentIntent.updateOne(
+      { _id: intent._id, version: (intent as any).version ?? 0 },
+      {
+        $set: {
+          status: "GATEWAY_ORDER_CREATED" as any,
+          paymentState: "AUTHORIZED" as any,
+          gatewayOrderId,
+          checkoutPayload,
+        },
+        $inc: { version: 1 },
+      }
+    );
+    if (Number((updateRes as any).modifiedCount) === 0) {
+      // Another worker already transitioned (e.g. webhook arrived) — idempotent, return existing
+      logger.info("[PI][GATEWAY_ORDER_CREATED_SKIPPED] Version mismatch — intent already transitioned", {
+        orderId: String(args.orderId),
+        intentId: String(intent._id),
+      });
+    }
+
+    // Track metrics: payment attempt initiated
+    paymentMetricsService.trackPaymentAttempt({
+      orderId: String(args.orderId),
+      razorpayOrderId: gatewayOrderId,
+      amount,
+    });
+
+    // Track expected webhook for this payment
+    paymentMetricsService.trackWebhookExpected({
+      orderId: String(args.orderId),
+      razorpayOrderId: gatewayOrderId,
+    });
 
     return {
       paymentIntentId: String(intent._id),
@@ -608,8 +784,13 @@ export async function createRazorpayPaymentIntent(args: {
           err.statusCode = 400;
           throw err;
         }
-        intent.status = "FAILED" as any;
-        await intent.save();
+        await PaymentIntent.updateOne(
+          { _id: intent._id, version: (intent as any).version ?? 0 },
+          {
+            $set: { status: "FAILED" as any },
+            $inc: { version: 1 },
+          }
+        );
       }
     } catch {
       // ignore

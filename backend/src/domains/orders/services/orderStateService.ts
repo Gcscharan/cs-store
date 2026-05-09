@@ -490,11 +490,11 @@ export const orderStateService = {
           const eventId = stableEventId(`order:${orderId}:status:${String(toStatus)}`);
 
           const publishWithSession = async (evt: any) => {
-            if (ownsSession) {
-              await publish(evt);
-              return;
-            }
-
+            // Always publish with the session so the OutboxEvent row is written
+            // atomically with the order.save(). If the transaction rolls back,
+            // the event is never created — no phantom notifications.
+            // For ownsSession=true the session is still active after withTransaction
+            // completes (it's only ended in the finally block below).
             await publish(evt, { session });
           };
 

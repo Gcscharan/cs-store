@@ -76,7 +76,10 @@ const OrderSuccessScreen: React.FC = () => {
       setRedirectTimer((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
-          handleTrackOrder();
+          // Use setTimeout to avoid navigation during render
+          setTimeout(() => {
+            handleTrackOrder();
+          }, 0);
           return 0;
         }
         return prev - 1;
@@ -119,7 +122,7 @@ const OrderSuccessScreen: React.FC = () => {
       />
 
       <ScrollView 
-        style={styles.container} 
+        style={styles.scrollView} 
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
@@ -256,6 +259,12 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
+    alignItems: 'center' as const,
+    padding: 20,
+  },
+  scrollView: {
+    flex: 1,
+    backgroundColor: Colors.background,
   },
   confetti: {
     ...StyleSheet.absoluteFillObject,
@@ -268,8 +277,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   container: {
-    padding: 20,
-    alignItems: 'center',
+    flex: 1,
   },
   header: {
     alignItems: 'center',

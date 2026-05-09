@@ -10,7 +10,7 @@ dotenv.config();
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const NODE_ENV = process.env.NODE_ENV || "development";
-const PORT = String(process.env.PORT || "5001").trim() || "5001";
+const PORT = String(process.env.PORT || "5002").trim() || "5002";
 
 const backendBaseUrl = String(process.env.BACKEND_URL || "").trim().replace(/\/+$/, "");
 const googleCallbackUrlFromEnv = String(process.env.GOOGLE_CALLBACK_URL || "").trim();
@@ -19,7 +19,7 @@ const GOOGLE_CALLBACK_URL =
   (googleCallbackUrlFromEnv ? googleCallbackUrlFromEnv : undefined) ||
   (backendBaseUrl ? `${backendBaseUrl}/api/auth/google/callback` : undefined) ||
   (NODE_ENV !== "production"
-    ? "http://localhost:5001/api/auth/google/callback"
+    ? "http://localhost:5002/api/auth/google/callback"
     : undefined);
 
 logger.info("Google OAuth credentials:", {

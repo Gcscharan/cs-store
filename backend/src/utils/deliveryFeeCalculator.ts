@@ -29,6 +29,7 @@ const googleMapsClient = new Client({});
 // Delivery fee configuration - Swiggy/Zomato style pricing
 const DELIVERY_CONFIG = {
   FREE_DELIVERY_THRESHOLD: 2000, // Free delivery for orders ≥ ₹2000
+  MAX_DELIVERY_FEE: 150,        // Cap delivery fee at ₹150 for dev/testing
   // New distance-based pricing tiers
   BASE_FEE_0_2_KM: 25,        // ₹25 for up to 2 km
   BASE_FEE_2_6_KM_MIN: 35,    // ₹35 minimum for 2-6 km range
@@ -208,13 +209,19 @@ export async function calculateDeliveryFee(
 
   logger.info(`💰 [Backend] Final Delivery Fee: ₹${deliveryFee} (road distance)`);
 
+  // Cap delivery fee to prevent absurd charges from wrong coordinates
+  const cappedFee = Math.min(deliveryFee, DELIVERY_CONFIG.MAX_DELIVERY_FEE);
+  if (cappedFee < deliveryFee) {
+    logger.warn(`⚠️ [Backend] Delivery fee capped: ₹${deliveryFee} → ₹${cappedFee}`);
+  }
+
   return {
     distance: distance,
-    baseFee: deliveryFee,
-    distanceFee: 0, // No separate distance fee calculation
-    totalFee: deliveryFee,
+    baseFee: cappedFee,
+    distanceFee: 0,
+    totalFee: cappedFee,
     isFreeDelivery: false,
-    finalFee: deliveryFee,
+    finalFee: cappedFee,
     distanceFrom: `${distance.toFixed(2)} km from Tiruvuru (road distance)`,
     coordsSource: 'saved',
     distanceSource: routeResult.source,

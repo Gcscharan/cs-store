@@ -225,7 +225,7 @@ const s = StyleSheet.create({
   backText: { fontSize: 16, color: Colors.secondary },
   headerTitle: { fontSize: 18, fontWeight: '700', color: Colors.textPrimary },
   channelRow: { paddingHorizontal: 12, paddingVertical: 10 },
-  channelChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: Colors.backgroundDark, borderWidth: 1, borderColor: Colors.border, marginRight: 8 },
+  channelChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: Colors.inputBackground, borderWidth: 1, borderColor: Colors.border, marginRight: 8 },
   channelLabel: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
   channelLabelActive: { color: Colors.white },
   content: { flex: 1, padding: 16 },

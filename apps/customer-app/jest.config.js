@@ -1,6 +1,10 @@
+const { defaults } = require('jest-config');
+
 module.exports = {
   preset: 'jest-expo',
-  testEnvironment: 'node',
+  testEnvironment: 'jsdom',
+  setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
+  watchman: false,
   roots: ['<rootDir>/src'],
   testMatch: [
     '**/__tests__/**/*.test.ts?(x)',
@@ -9,17 +13,18 @@ module.exports = {
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {
       tsconfig: {
-        jsx: 'react',
+        jsx: 'react-jsx',
         esModuleInterop: true,
         allowSyntheticDefaultImports: true,
         skipLibCheck: true,
       },
-      isolatedModules: true,
       diagnostics: false,
     }],
   },
+  transformIgnorePatterns: [
+    'node_modules/(?!(react-native|@react-native|@react-navigation|@react-native-firebase|expo|@expo|expo-modules-core|expo-location|expo-device|expo-font|expo-asset|@expo/vector-icons|@testing-library|socket.io-client)/)',
+  ],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx'],
-  setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',
     '!src/**/*.d.ts',
@@ -28,10 +33,11 @@ module.exports = {
   ],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
-    '\\.(jpg|jpeg|png|gif|svg)$': '<rootDir>/__mocks__/fileMock.js',
-    '^expo-location$': '<rootDir>/__mocks__/expo-location.ts',
+    '\\.(jpg|jpeg|png|gif|eot|otf|webp|svg|ttf|woff|woff2|mp4|webm|wav|mp3|m4a|aac|oga)$': '<rootDir>/__mocks__/fileMock.js',
   },
-  transformIgnorePatterns: [
-    'node_modules/(?!(react-native|@react-native|@react-navigation|react-redux|@reduxjs|expo|@expo|expo-location)/)',
-  ],
+  globals: {
+    'ts-jest': {
+      useESM: true,
+    },
+  },
 };

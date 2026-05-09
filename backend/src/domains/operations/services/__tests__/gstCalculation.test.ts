@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { randomUUID } from 'crypto';
 import { Product } from '../../../../models/Product';
 import { User } from '../../../../models/User';
 import { Cart } from '../../../../models/Cart';
@@ -126,6 +127,7 @@ describe('GST Calculation', () => {
       const result = await createOrderFromCart({
         userId: mockUserId,
         paymentMethod: 'cod',
+        idempotencyKey: randomUUID(),
       });
 
       delete (globalThis as any).__testBuyerStateLower;
@@ -195,6 +197,7 @@ describe('GST Calculation', () => {
       const result = await createOrderFromCart({
         userId: mockUserId,
         paymentMethod: 'cod',
+        idempotencyKey: randomUUID(),
       });
 
       expect(result.created).toBe(true);
@@ -218,6 +221,7 @@ describe('GST Calculation', () => {
       const result = await createOrderFromCart({
         userId: mockUserId,
         paymentMethod: 'cod',
+        idempotencyKey: randomUUID(),
       });
 
       expect(result.created).toBe(true);
@@ -240,6 +244,7 @@ describe('GST Calculation', () => {
       const result = await createOrderFromCart({
         userId: mockUserId,
         paymentMethod: 'cod',
+        idempotencyKey: randomUUID(),
       });
 
       expect(result.created).toBe(true);
@@ -253,6 +258,7 @@ describe('GST Calculation', () => {
       const result = await createOrderFromCart({
         userId: mockUserId,
         paymentMethod: 'cod',
+        idempotencyKey: randomUUID(),
       });
 
       expect(result.created).toBe(true);
@@ -272,6 +278,7 @@ describe('GST Calculation', () => {
       const result = await createOrderFromCart({
         userId: mockUserId,
         paymentMethod: 'cod',
+        idempotencyKey: randomUUID(),
       });
 
       // GST should still be calculated on DB price (100 * 2 = 200, 18% => 36)
@@ -289,6 +296,7 @@ describe('GST Calculation', () => {
       const result = await createOrderFromCart({
         userId: mockUserId,
         paymentMethod: 'cod',
+        idempotencyKey: randomUUID(),
       });
 
       expect(result.order.gstAmount).toBe(36);
@@ -304,6 +312,7 @@ describe('GST Calculation', () => {
       const result = await createOrderFromCart({
         userId: mockUserId,
         paymentMethod: 'cod',
+        idempotencyKey: randomUUID(),
       });
 
       // 2 items * 99.99 = 199.98; GST 18% = 35.9964 -> 36.00
@@ -344,6 +353,7 @@ describe('GST Calculation', () => {
       const result = await createOrderFromCart({
         userId: mockUserId,
         paymentMethod: 'cod',
+        idempotencyKey: randomUUID(),
       });
 
       expect(result.created).toBe(true);

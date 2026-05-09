@@ -90,14 +90,19 @@ const baseQueryWithReauth: BaseQueryFn<
           result = await baseQuery(args, api, extraOptions);
         } else {
           console.warn('❌ [Auth] Refresh failed: No token in response');
+          await storage.removeItem('accessToken');
+          await storage.removeItem('refreshToken');
           api.dispatch({ type: 'auth/logout' });
         }
       } else {
         console.log('🔐 [Auth] No refresh token available, logging out');
+        await storage.removeItem('accessToken');
         api.dispatch({ type: 'auth/logout' });
       }
     } catch (refreshError) {
       console.error('❌ [Auth] Token refresh failed with error:', refreshError);
+      await storage.removeItem('accessToken');
+      await storage.removeItem('refreshToken');
       api.dispatch({ type: 'auth/logout' });
     }
   }
@@ -129,10 +134,12 @@ export const baseApi = createApi({
     'Notifications',
     'DeliveryOrders',
     'DeliveryBoys',
+    'DeliveryPartners',
     'Reviews',
     'Coupons',
     'Users',
-
+    'Clusters',
+    'RecentRoutes',
     'AdminRoutes',
     'AdminSettings',
     'Pincode',

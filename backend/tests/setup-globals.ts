@@ -259,6 +259,7 @@ beforeEach(async () => {
   
   return await Order.create({
     userId: typeof user === 'string' ? user : user._id,
+    idempotencyKey: `test-${new mongoose.Types.ObjectId().toString()}`,
     items: [
       {
         productId: defaultProduct._id,

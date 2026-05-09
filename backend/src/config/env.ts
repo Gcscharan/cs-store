@@ -24,3 +24,5 @@ export const ENV = {
   JWT_SECRET: requireEnv("JWT_SECRET"),
   JWT_REFRESH_SECRET: requireEnv("JWT_REFRESH_SECRET"),
 };
+
+export const IS_TEST = process.env.NODE_ENV === "test";

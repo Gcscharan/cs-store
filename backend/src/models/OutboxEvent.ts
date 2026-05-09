@@ -1,6 +1,6 @@
 import mongoose, { Document, Schema } from "mongoose";
 
-export type OutboxStatus = "PENDING" | "DISPATCHED" | "FAILED";
+export type OutboxStatus = "PENDING" | "DISPATCHING" | "DISPATCHED" | "FAILED" | "DEAD_LETTER";
 
 export interface IOutboxEvent extends Document {
   eventId: string;
@@ -12,6 +12,8 @@ export interface IOutboxEvent extends Document {
   data: any;
   status: OutboxStatus;
   attempts: number;
+  deliveryAttempts: number;   // counts actual deliverToSubscribers() calls
+  lastAttemptAt?: Date;       // when last delivery was attempted
   lockedAt?: Date;
   lockedBy?: string;
   nextAttemptAt?: Date;
@@ -31,11 +33,13 @@ const OutboxEventSchema = new Schema<IOutboxEvent>(
     data: { type: Schema.Types.Mixed, required: true },
     status: {
       type: String,
-      enum: ["PENDING", "DISPATCHED", "FAILED"],
+      enum: ["PENDING", "DISPATCHING", "DISPATCHED", "FAILED", "DEAD_LETTER"],
       default: "PENDING",
       index: true,
     },
     attempts: { type: Number, default: 0 },
+    deliveryAttempts: { type: Number, default: 0 },
+    lastAttemptAt: { type: Date },
     lockedAt: { type: Date },
     lockedBy: { type: String },
     nextAttemptAt: { type: Date },

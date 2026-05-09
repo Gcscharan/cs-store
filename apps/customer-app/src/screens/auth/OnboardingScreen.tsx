@@ -70,15 +70,16 @@ const OnboardingScreen: React.FC = () => {
       }
 
       // 2. Send OTP
-      const result = await sendOtp({ phone, mode: 'signup' }).unwrap();
+      const result = await sendOtp({ phone }).unwrap();
       
       // DEVELOPMENT ONLY: Show OTP in console and alert if available
-      if (result.devMode && result.otp) {
+      const devResult = result as any;
+      if (devResult.devMode && devResult.otp) {
         console.log('\n' + '='.repeat(50));
         console.log('🔑 DEVELOPMENT MODE - OTP RECEIVED');
         console.log('📱 Phone:', phone);
-        console.log('🔢 OTP:', result.otp);
-        console.log('⏰ Expires in:', result.expiresIn, 'seconds');
+        console.log('🔢 OTP:', devResult.otp);
+        console.log('⏰ Expires in:', devResult.expiresIn, 'seconds');
         console.log('='.repeat(50) + '\n');
       }
       
@@ -337,6 +338,12 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.border,
     shadowOpacity: 0,
     elevation: 0,
+  },
+  inner: {
+    flex: 1,
+  },
+  header: {
+    marginBottom: 24,
   },
 });
 

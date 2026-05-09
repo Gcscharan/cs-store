@@ -21,7 +21,7 @@ export default function NetworkDiagnostic() {
       BASE_URL.replace('/api', '/api/health'),
       'https://untraceried-kina-draffy.ngrok-free.dev/api/health',
       'http://GCSCharans-MacBook-Air.local:9000/api/health',
-      'http://192.168.1.4:9000/api/health',
+      'http://192.0.0.2:9000/api/health',
       'http://10.0.2.2:9000/api/health', // Android emulator
     ];
 

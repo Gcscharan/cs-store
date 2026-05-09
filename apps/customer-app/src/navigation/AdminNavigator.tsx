@@ -20,6 +20,8 @@ import AdminProfileScreen from '../screens/admin/AdminProfileScreen';
 import AdminPaymentsScreen from '../screens/admin/AdminPaymentsScreen';
 import AdminOpsScreen from '../screens/admin/AdminOpsScreen';
 import AdminProductVersionHistoryScreen from '../screens/admin/AdminProductVersionHistoryScreen';
+import ClusterOrdersScreen from '../screens/admin/ClusterOrdersScreen';
+import SelectDeliveryPartnerScreen from '../screens/admin/SelectDeliveryPartnerScreen';
 
 const Stack = createStackNavigator();
 
@@ -59,6 +61,8 @@ export default function AdminNavigator() {
       <Stack.Screen name="AdminPayments" component={AdminPaymentsScreen} />
       <Stack.Screen name="AdminOps" component={AdminOpsScreen} />
       <Stack.Screen name="AdminProductVersionHistory" component={AdminProductVersionHistoryScreen} />
+      <Stack.Screen name="ClusterOrders" component={ClusterOrdersScreen} />
+      <Stack.Screen name="SelectDeliveryPartner" component={SelectDeliveryPartnerScreen} />
     </Stack.Navigator>
   );
 }

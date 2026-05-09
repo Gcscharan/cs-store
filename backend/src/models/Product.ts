@@ -25,6 +25,7 @@ export interface IProduct extends Document {
   weight: number;
   isActive?: boolean;
   isSellable?: boolean;
+  status?: 'draft' | 'published';
   deletedAt?: Date | null;
   images: {
     publicId?: string;
@@ -158,6 +159,12 @@ const ProductSchema = new Schema<IProduct>(
     isSellable: {
       type: Boolean,
       default: true,
+      index: true,
+    },
+    status: {
+      type: String,
+      enum: ['draft', 'published'],
+      default: 'published',
       index: true,
     },
     deletedAt: {

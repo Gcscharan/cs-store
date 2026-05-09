@@ -254,18 +254,66 @@ const AdminEditProductScreen: React.FC = () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsMultipleSelection: true,
-      quality: 0.8,
+      quality: 1,
       selectionLimit: MAX_IMAGES - activeImages.length,
     });
 
     if (result.canceled || !result.assets?.length) return;
 
+    // ── Client-side validation ────────────────────────────────────────────
+    const IMAGE_STANDARDS = {
+      ALLOWED_MIME_TYPES: ['image/jpeg', 'image/webp'],
+      MAX_FILE_SIZE_BYTES: 500 * 1024,
+      MIN_DIMENSION: 600,
+      MAX_INPUT_DIMENSION: 4000,
+      ASPECT_RATIO_TOLERANCE: 1,
+    };
+
+    const rejections: string[] = [];
+    for (const asset of result.assets) {
+      const mimeType = asset.mimeType || 'image/jpeg';
+      const ext = (asset.fileName || '').split('.').pop()?.toLowerCase() ?? '';
+      const mimeOk = IMAGE_STANDARDS.ALLOWED_MIME_TYPES.includes(mimeType);
+      const extOk = ['jpg', 'jpeg', 'webp'].includes(ext);
+      if (!mimeOk && !extOk) {
+        rejections.push(`"${asset.fileName || 'image'}": only JPEG and WebP are accepted.`);
+        continue;
+      }
+      if (asset.fileSize && asset.fileSize > IMAGE_STANDARDS.MAX_FILE_SIZE_BYTES) {
+        const kb = Math.round(asset.fileSize / 1024);
+        rejections.push(`"${asset.fileName || 'image'}": ${kb} KB exceeds the 500 KB limit.`);
+      }
+      const w = asset.width ?? 0;
+      const h = asset.height ?? 0;
+      if (w > 0 && h > 0) {
+        if (w > IMAGE_STANDARDS.MAX_INPUT_DIMENSION || h > IMAGE_STANDARDS.MAX_INPUT_DIMENSION) {
+          rejections.push(`"${asset.fileName || 'image'}": dimensions ${w}×${h} are too large. Max input is ${IMAGE_STANDARDS.MAX_INPUT_DIMENSION}×${IMAGE_STANDARDS.MAX_INPUT_DIMENSION} px.`);
+          continue;
+        }
+        if (Math.abs(w - h) > IMAGE_STANDARDS.ASPECT_RATIO_TOLERANCE) {
+          rejections.push(`"${asset.fileName || 'image'}": must be square (1:1). Got ${w}×${h}.`);
+        }
+        if (Math.min(w, h) < IMAGE_STANDARDS.MIN_DIMENSION) {
+          rejections.push(`"${asset.fileName || 'image'}": too small (${w}×${h}). Min ${IMAGE_STANDARDS.MIN_DIMENSION}×${IMAGE_STANDARDS.MIN_DIMENSION} px.`);
+        }
+      }
+    }
+
+    if (rejections.length > 0) {
+      Alert.alert(
+        'Image Requirements Not Met',
+        rejections.join('\n\n') +
+          '\n\nRequirements:\n• JPEG or WebP only\n• Square (1:1)\n• Min 600×600 px\n• Max 500 KB',
+      );
+      return;
+    }
+
     const toUpload = result.assets.slice(0, MAX_IMAGES - activeImages.length);
 
     // Add uploading placeholders
     const abortController = new AbortController();
-    const placeholders: ImageEntry[] = toUpload.map(asset => ({
-      kind: 'uploading',
+    const placeholders: Extract<ImageEntry, { kind: 'uploading' }>[] = toUpload.map(asset => ({
+      kind: 'uploading' as const,
       localUri: asset.uri,
       abort: abortController,
     }));
@@ -301,7 +349,7 @@ const AdminEditProductScreen: React.FC = () => {
       setImages(prev => {
         // Remove placeholders, add uploaded
         const withoutPlaceholders = prev.filter(
-          img => !(img.kind === 'uploading' && placeholders.some(p => p.localUri === img.localUri))
+          img => !(img.kind === 'uploading' && placeholders.some(p => (img as any).localUri === p.localUri))
         );
         const newUploaded: ImageEntry[] = uploadedUrls.map(url => ({
           kind: 'uploaded',
@@ -314,7 +362,7 @@ const AdminEditProductScreen: React.FC = () => {
       // Remove failed placeholders
       setImages(prev =>
         prev.filter(
-          img => !(img.kind === 'uploading' && placeholders.some(p => p.localUri === img.localUri))
+          img => !(img.kind === 'uploading' && placeholders.some(p => (img as any).localUri === p.localUri))
         )
       );
       Alert.alert('Upload failed', 'Could not upload images. Please try again.');

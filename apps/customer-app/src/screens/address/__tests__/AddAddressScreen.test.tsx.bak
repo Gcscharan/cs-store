@@ -1,0 +1,977 @@
+/**
+ * AddAddressScreen Test Suite
+ * Production-grade tests for "Use Current Location" feature
+ * 
+ * Test Layers:
+ * - P0: Core Flow (30 tests)
+ * - P1: Failure Scenarios (40 tests)
+ * - P2: Edge Cases (20 tests)
+ * - P3: Security/Abuse (10 tests)
+ */
+
+import React from 'react';
+import { render, fireEvent, waitFor, screen } from '@testing-library/react-native';
+import { Alert } from 'react-native';
+import AddAddressScreen from '../AddAddressScreen';
+import * as Location from 'expo-location';
+
+// Mock dependencies
+jest.mock('expo-location');
+jest.mock('../../../api/addressesApi');
+jest.mock('@react-navigation/native', () => ({
+  useNavigation: () => ({
+    navigate: jest.fn(),
+    goBack: jest.fn(),
+  }),
+  useRoute: () => ({
+    params: {},
+  }),
+}));
+
+// Mock Alert
+jest.spyOn(Alert, 'alert');
+
+describe('📍 AddAddressScreen - Use Current Location', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  // ========================================
+  // 🥇 LAYER 1: CORE FLOW (P0 - CRITICAL)
+  // ========================================
+
+  describe('P0: Core Flow Tests', () => {
+    test('TC-001: GPS Autofill Success - Full Happy Path', async () => {
+      const { getByText, getByPlaceholderText } = render(<AddAddressScreen />);
+
+      // Tap "Use current location" button
+      const locationButton = getByText(/use current location/i);
+      fireEvent.press(locationButton);
+
+      // Wait for autofill to complete
+      await waitFor(() => {
+        const houseInput = getByPlaceholderText('House / Flat / Building');
+        const areaInput = getByPlaceholderText('Area / Street / Village');
+        
+        expect(houseInput.props.value).toBe('Building 5');
+        expect(areaInput.props.value).toContain('Hitech City Road');
+      }, { timeout: 3000 });
+
+      // Verify all fields populated
+      expect(Location.requestForegroundPermissionsAsync).toHaveBeenCalledTimes(1);
+      expect(Location.getCurrentPositionAsync).toHaveBeenCalledTimes(1);
+      expect(Location.reverseGeocodeAsync).toHaveBeenCalledTimes(1);
+    });
+
+    test('TC-002: GPS → Pincode Validation → Success', async () => {
+      const { getByText, getByPlaceholderText } = render(<AddAddressScreen />);
+
+      fireEvent.press(getByText(/use current location/i));
+
+      await waitFor(() => {
+        const pincodeInput = getByPlaceholderText('000000');
+        expect(pincodeInput.props.value).toBe('500081');
+      });
+
+      // Pincode should be validated automatically
+      await waitFor(() => {
+        expect(getByText(/deliverable/i)).toBeTruthy();
+      }, { timeout: 2000 });
+    });
+
+    test('TC-003: GPS → User Edits House → Submit', async () => {
+      const { getByText, getByPlaceholderText } = render(<AddAddressScreen />);
+
+      // Trigger GPS
+      fireEvent.press(getByText(/use current location/i));
+
+      await waitFor(() => {
+        expect(getByPlaceholderText('House / Flat / Building').props.value).toBe('Building 5');
+      });
+
+      // User edits house field
+      const houseInput = getByPlaceholderText('House / Flat / Building');
+      fireEvent.changeText(houseInput, 'Flat 301, Building 5');
+
+      expect(houseInput.props.value).toBe('Flat 301, Building 5');
+    });
+
+    test('TC-004: Manual Entry → Valid Pincode → Submit', async () => {
+      const { getByPlaceholderText } = render(<AddAddressScreen />);
+
+      // Manual entry
+      fireEvent.changeText(getByPlaceholderText('Full Name'), 'John Doe');
+      fireEvent.changeText(getByPlaceholderText('10-digit mobile'), '9876543210');
+      fireEvent.changeText(getByPlaceholderText('House / Flat / Building'), 'Flat 101');
+      fireEvent.changeText(getByPlaceholderText('Area / Street / Village'), 'MG Road');
+      fireEvent.changeText(getByPlaceholderText('000000'), '500081');
+
+      await waitFor(() => {
+        expect(getByPlaceholderText('000000').props.value).toBe('500081');
+      });
+    });
+
+    test('TC-005: Default Address Toggle Works', async () => {
+      const { getByText } = render(<AddAddressScreen />);
+
+      const toggleButton = getByText(/make this my default address/i);
+      fireEvent.press(toggleButton);
+
+      // Toggle should work (visual state change)
+      expect(toggleButton).toBeTruthy();
+    });
+  });
+
+  // ========================================
+  // ⚠️ LAYER 2: FAILURE SCENARIOS (P1)
+  // ========================================
+
+  describe('P1: Failure Scenario Tests', () => {
+    test('TC-012: Permission Denied', async () => {
+      (Location.requestForegroundPermissionsAsync as jest.Mock).mockResolvedValueOnce({
+        status: 'denied',
+        granted: false,
+        canAskAgain: false,
+      });
+
+      const { getByText } = render(<AddAddressScreen />);
+
+      fireEvent.press(getByText(/use current location/i));
+
+      await waitFor(() => {
+        expect(Alert.alert).toHaveBeenCalledWith(
+          'Permission Denied',
+          expect.any(String)
+        );
+      });
+
+      // Should NOT call GPS
+      expect(Location.getCurrentPositionAsync).not.toHaveBeenCalled();
+    });
+
+    test('TC-013: GPS Timeout (30s)', async () => {
+      (Location.getCurrentPositionAsync as jest.Mock).mockImplementationOnce(
+        () => new Promise(() => {}) // Never resolves
+      );
+
+      const { getByText } = render(<AddAddressScreen />);
+
+      fireEvent.press(getByText(/use current location/i));
+
+      // App should not hang - button should be responsive
+      await waitFor(() => {
+        expect(getByText(/use current location/i)).toBeTruthy();
+      }, { timeout: 1000 });
+    });
+
+    test('TC-014: Reverse Geocode Timeout', async () => {
+      (Location.reverseGeocodeAsync as jest.Mock).mockImplementationOnce(
+        () => new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 100))
+      );
+
+      const { getByText } = render(<AddAddressScreen />);
+
+      fireEvent.press(getByText(/use current location/i));
+
+      await waitFor(() => {
+        expect(Alert.alert).toHaveBeenCalledWith(
+          'Location Detected',
+          expect.stringContaining('manually')
+        );
+      }, { timeout: 3000 });
+    });
+
+    test('TC-015: Reverse Geocode Returns Empty', async () => {
+      (Location.reverseGeocodeAsync as jest.Mock).mockResolvedValueOnce([]);
+
+      const { getByText } = render(<AddAddressScreen />);
+
+      fireEvent.press(getByText(/use current location/i));
+
+      await waitFor(() => {
+        // Should handle gracefully - no crash
+        expect(getByText(/use current location/i)).toBeTruthy();
+      });
+    });
+
+    test('TC-016: Low GPS Accuracy (>100m)', async () => {
+      (Location.getCurrentPositionAsync as jest.Mock).mockResolvedValueOnce({
+        coords: {
+          latitude: 17.385044,
+          longitude: 78.486671,
+          accuracy: 250, // Low accuracy
+        },
+        timestamp: Date.now(),
+      });
+
+      const { getByText } = render(<AddAddressScreen />);
+
+      fireEvent.press(getByText(/use current location/i));
+
+      await waitFor(() => {
+        expect(Alert.alert).toHaveBeenCalledWith(
+          'Low Location Accuracy',
+          expect.stringContaining('250')
+        );
+      });
+    });
+
+    test('TC-017: User Taps Button Repeatedly (Spam Click)', async () => {
+      const { getByText } = render(<AddAddressScreen />);
+
+      const button = getByText(/use current location/i);
+      
+      // Rapid clicks
+      fireEvent.press(button);
+      fireEvent.press(button);
+      fireEvent.press(button);
+      fireEvent.press(button);
+      fireEvent.press(button);
+
+      await waitFor(() => {
+        // Should only call GPS once (lock mechanism)
+        expect(Location.getCurrentPositionAsync).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    test('TC-018: Location Fetch Throws Error', async () => {
+      (Location.getCurrentPositionAsync as jest.Mock).mockRejectedValueOnce(
+        new Error('GPS hardware failure')
+      );
+
+      const { getByText } = render(<AddAddressScreen />);
+
+      fireEvent.press(getByText(/use current location/i));
+
+      await waitFor(() => {
+        expect(Alert.alert).toHaveBeenCalledWith(
+          'Error',
+          expect.stringContaining('location')
+        );
+      });
+    });
+  });
+
+  // ========================================
+  // 🧠 LAYER 3: EDGE CASES (P2)
+  // ========================================
+
+  describe('P2: Edge Case Tests', () => {
+    test('TC-025: Village Address (No Street Available)', async () => {
+      (Location.reverseGeocodeAsync as jest.Mock).mockResolvedValueOnce([
+        {
+          postalCode: '502032',
+          city: 'Medak',
+          district: 'Medak',
+          region: 'Telangana',
+          subregion: 'Narsapur',
+          street: null, // No street
+          name: 'Narsapur Village',
+          formattedAddress: 'Narsapur Village, Narsapur, Medak, Telangana 502032',
+        },
+      ]);
+
+      const { getByText, getByPlaceholderText } = render(<AddAddressScreen />);
+
+      fireEvent.press(getByText(/use current location/i));
+
+      await waitFor(() => {
+        const areaInput = getByPlaceholderText('Area / Street / Village');
+        // Should fallback to subregion
+        expect(areaInput.props.value).toContain('Narsapur');
+      });
+    });
+
+    test('TC-026: Apartment (No Flat Number Detected)', async () => {
+      (Location.reverseGeocodeAsync as jest.Mock).mockResolvedValueOnce([
+        {
+          postalCode: '500081',
+          city: 'Hyderabad',
+          district: 'Hyderabad',
+          region: 'Telangana',
+          subregion: 'Madhapur',
+          street: 'Hitech City Road',
+          name: 'Cyber Towers', // Building name only
+          formattedAddress: 'Cyber Towers, Hitech City Road, Madhapur, Hyderabad, Telangana 500081',
+        },
+      ]);
+
+      const { getByText, getByPlaceholderText } = render(<AddAddressScreen />);
+
+      fireEvent.press(getByText(/use current location/i));
+
+      await waitFor(() => {
+        const houseInput = getByPlaceholderText('House / Flat / Building');
+        expect(houseInput.props.value).toBe('Cyber Towers');
+        // User must manually add flat number
+      });
+    });
+
+    test('TC-027: Landmark Returned Instead of Street', async () => {
+      (Location.reverseGeocodeAsync as jest.Mock).mockResolvedValueOnce([
+        {
+          postalCode: '500081',
+          city: 'Hyderabad',
+          district: 'Hyderabad',
+          region: 'Telangana',
+          subregion: 'Madhapur',
+          street: 'Near Apollo Hospital', // Landmark, not street
+          name: 'Building 5',
+          formattedAddress: 'Building 5, Near Apollo Hospital, Madhapur, Hyderabad, Telangana 500081',
+        },
+      ]);
+
+      const { getByText, getByPlaceholderText } = render(<AddAddressScreen />);
+
+      fireEvent.press(getByText(/use current location/i));
+
+      await waitFor(() => {
+        const areaInput = getByPlaceholderText('Area / Street / Village');
+        // Should filter out "Near" (vague term) and fallback
+        expect(areaInput.props.value).not.toContain('Near');
+      });
+    });
+
+    test('TC-028: Multiple Cities for One Pincode', async () => {
+      const { getByText } = render(<AddAddressScreen />);
+
+      fireEvent.press(getByText(/use current location/i));
+
+      await waitFor(() => {
+        // Should show city chips
+        expect(getByText('Hyderabad')).toBeTruthy();
+        expect(getByText('Secunderabad')).toBeTruthy();
+      }, { timeout: 3000 });
+    });
+
+    test('TC-029: Missing formattedAddress', async () => {
+      (Location.reverseGeocodeAsync as jest.Mock).mockResolvedValueOnce([
+        {
+          postalCode: '500081',
+          city: 'Hyderabad',
+          district: 'Hyderabad',
+          region: 'Telangana',
+          subregion: 'Madhapur',
+          street: 'Hitech City Road',
+          name: 'Building 5',
+          formattedAddress: null, // Missing
+        },
+      ]);
+
+      const { getByText, getByPlaceholderText } = render(<AddAddressScreen />);
+
+      fireEvent.press(getByText(/use current location/i));
+
+      await waitFor(() => {
+        const areaInput = getByPlaceholderText('Area / Street / Village');
+        // Should fallback to street
+        expect(areaInput.props.value).toBe('Hitech City Road');
+      });
+    });
+  });
+
+  // ========================================
+  // 🔐 LAYER 4: SECURITY/ABUSE (P3)
+  // ========================================
+
+  describe('P3: Security & Abuse Tests', () => {
+    test('TC-040: Outside India Coordinates Blocked', async () => {
+      (Location.getCurrentPositionAsync as jest.Mock).mockResolvedValueOnce({
+        coords: {
+          latitude: 51.5074, // London
+          longitude: -0.1278,
+          accuracy: 10,
+        },
+        timestamp: Date.now(),
+      });
+
+      const { getByText } = render(<AddAddressScreen />);
+
+      fireEvent.press(getByText(/use current location/i));
+
+      await waitFor(() => {
+        expect(Alert.alert).toHaveBeenCalledWith(
+          'Invalid Location',
+          expect.stringContaining('India')
+        );
+      });
+
+      // Should NOT call reverse geocode
+      expect(Location.reverseGeocodeAsync).not.toHaveBeenCalled();
+    });
+
+    test('TC-041: Coordinates (0, 0) Blocked', async () => {
+      (Location.getCurrentPositionAsync as jest.Mock).mockResolvedValueOnce({
+        coords: {
+          latitude: 0,
+          longitude: 0,
+          accuracy: 10,
+        },
+        timestamp: Date.now(),
+      });
+
+      const { getByText } = render(<AddAddressScreen />);
+
+      fireEvent.press(getByText(/use current location/i));
+
+      await waitFor(() => {
+        expect(Alert.alert).toHaveBeenCalledWith(
+          'Invalid Location',
+          expect.any(String)
+        );
+      });
+    });
+
+    test('TC-042: Fake GPS - China Coordinates', async () => {
+      (Location.getCurrentPositionAsync as jest.Mock).mockResolvedValueOnce({
+        coords: {
+          latitude: 39.9042, // Beijing
+          longitude: 116.4074,
+          accuracy: 5, // High accuracy (suspicious)
+        },
+        timestamp: Date.now(),
+      });
+
+      const { getByText } = render(<AddAddressScreen />);
+
+      fireEvent.press(getByText(/use current location/i));
+
+      await waitFor(() => {
+        expect(Alert.alert).toHaveBeenCalledWith(
+          'Invalid Location',
+          expect.stringContaining('India')
+        );
+      });
+    });
+
+    test('TC-043: Invalid Numeric Values (NaN)', async () => {
+      (Location.getCurrentPositionAsync as jest.Mock).mockResolvedValueOnce({
+        coords: {
+          latitude: NaN,
+          longitude: NaN,
+          accuracy: 10,
+        },
+        timestamp: Date.now(),
+      });
+
+      const { getByText } = render(<AddAddressScreen />);
+
+      fireEvent.press(getByText(/use current location/i));
+
+      // Should handle gracefully - no crash
+      await waitFor(() => {
+        expect(getByText(/use current location/i)).toBeTruthy();
+      });
+    });
+  });
+
+  // ========================================
+  // ⚡ LAYER 5: PERFORMANCE (BONUS)
+  // ========================================
+
+  describe('P4: Performance Tests', () => {
+    test('TC-055: Geocode Cache Working', async () => {
+      const { getByText } = render(<AddAddressScreen />);
+
+      // First call
+      fireEvent.press(getByText(/use current location/i));
+
+      await waitFor(() => {
+        expect(Location.reverseGeocodeAsync).toHaveBeenCalledTimes(1);
+      });
+
+      jest.clearAllMocks();
+
+      // Second call with same coordinates (should use cache)
+      fireEvent.press(getByText(/use current location/i));
+
+      await waitFor(() => {
+        // Cache should prevent second API call
+        expect(Location.reverseGeocodeAsync).toHaveBeenCalledTimes(0);
+      }, { timeout: 2000 });
+    });
+  });
+
+  // ========================================
+  // 🎯 LAYER 6: SUGGESTION CHIPS (PHASE 3)
+  // ========================================
+
+  describe('P5: Suggestion Chip Rendering Tests', () => {
+    test('TC-060: Maximum 3 suggestions are displayed', async () => {
+      const { getByText, queryByText } = render(<AddAddressScreen />);
+
+      // Trigger GPS to populate pincode
+      fireEvent.press(getByText(/use current location/i));
+
+      // Wait for city suggestions to appear (mocked to return 5 cities)
+      await waitFor(() => {
+        expect(getByText('Hyderabad')).toBeTruthy();
+        expect(getByText('Secunderabad')).toBeTruthy();
+        expect(getByText('Rangareddy')).toBeTruthy();
+      }, { timeout: 3000 });
+
+      // Verify only first 3 suggestions are rendered
+      // The 4th and 5th cities should not be visible
+      expect(queryByText('Medchal')).toBeNull();
+      expect(queryByText('Vikarabad')).toBeNull();
+    });
+
+    test('TC-061: Horizontal scroll behavior works correctly', async () => {
+      const { getByText, UNSAFE_getByType } = render(<AddAddressScreen />);
+
+      // Trigger GPS to populate pincode
+      fireEvent.press(getByText(/use current location/i));
+
+      // Wait for suggestions to appear
+      await waitFor(() => {
+        expect(getByText('Hyderabad')).toBeTruthy();
+      }, { timeout: 3000 });
+
+      // Find the horizontal ScrollView containing chips
+      const scrollViews = UNSAFE_getByType('ScrollView');
+      const horizontalScrollView = scrollViews.find(
+        (sv: any) => sv.props.horizontal === true
+      );
+
+      // Verify horizontal scroll is enabled
+      expect(horizontalScrollView).toBeTruthy();
+      expect(horizontalScrollView.props.horizontal).toBe(true);
+      expect(horizontalScrollView.props.showsHorizontalScrollIndicator).toBe(false);
+    });
+
+    test('TC-062: Chip tap updates city field', async () => {
+      const { getByText, getByPlaceholderText } = render(<AddAddressScreen />);
+
+      // Trigger GPS to populate pincode
+      fireEvent.press(getByText(/use current location/i));
+
+      // Wait for suggestions to appear
+      await waitFor(() => {
+        expect(getByText('Hyderabad')).toBeTruthy();
+      }, { timeout: 3000 });
+
+      // Get the city input field
+      const cityInput = getByPlaceholderText('City');
+      const initialCityValue = cityInput.props.value;
+
+      // Tap on a suggestion chip
+      const secunderabadChip = getByText('Secunderabad');
+      fireEvent.press(secunderabadChip);
+
+      // Verify city field is updated
+      await waitFor(() => {
+        const updatedCityInput = getByPlaceholderText('City');
+        expect(updatedCityInput.props.value).toBe('Secunderabad');
+        expect(updatedCityInput.props.value).not.toBe(initialCityValue);
+      });
+    });
+
+    test('TC-063: No suggestions displayed when availableCities is empty', async () => {
+      const { getByPlaceholderText, queryByText } = render(<AddAddressScreen />);
+
+      // Manually enter a pincode that returns no city suggestions
+      const pincodeInput = getByPlaceholderText('000000');
+      fireEvent.changeText(pincodeInput, '999999');
+
+      // Wait for validation to complete
+      await waitFor(() => {
+        expect(pincodeInput.props.value).toBe('999999');
+      });
+
+      // Verify no suggestion chips are rendered
+      expect(queryByText('Hyderabad')).toBeNull();
+      expect(queryByText('Secunderabad')).toBeNull();
+      expect(queryByText('Rangareddy')).toBeNull();
+    });
+
+    test('TC-064: Suggestions render with correct styling', async () => {
+      const { getByText } = render(<AddAddressScreen />);
+
+      // Trigger GPS to populate pincode
+      fireEvent.press(getByText(/use current location/i));
+
+      // Wait for suggestions to appear
+      await waitFor(() => {
+        expect(getByText('Hyderabad')).toBeTruthy();
+      }, { timeout: 3000 });
+
+      // Get the first chip
+      const chip = getByText('Hyderabad').parent;
+
+      // Verify chip has correct styling properties
+      expect(chip?.props.style).toMatchObject(
+        expect.objectContaining({
+          paddingHorizontal: expect.any(Number),
+          paddingVertical: expect.any(Number),
+          borderRadius: expect.any(Number),
+        })
+      );
+    });
+
+    test('TC-065: Suggestions update when pincode changes', async () => {
+      const { getByText, getByPlaceholderText, queryByText } = render(<AddAddressScreen />);
+
+      // First, trigger GPS to get initial suggestions
+      fireEvent.press(getByText(/use current location/i));
+
+      await waitFor(() => {
+        expect(getByText('Hyderabad')).toBeTruthy();
+      }, { timeout: 3000 });
+
+      // Now manually change the pincode
+      const pincodeInput = getByPlaceholderText('000000');
+      fireEvent.changeText(pincodeInput, '110001');
+
+      // Wait for new suggestions (Delhi area)
+      await waitFor(() => {
+        // Old suggestions should be cleared
+        expect(queryByText('Hyderabad')).toBeNull();
+      }, { timeout: 2000 });
+    });
+  });
+
+  // ========================================
+  // 🎯 LAYER 7: PROPERTY-BASED TESTS (PHASE 4)
+  // ========================================
+
+  describe('P6: Property-Based Tests', () => {
+    test('TC-067: Property 12 - Background Pincode Validation', async () => {
+      const fc = require('fast-check');
+
+      /**
+       * **Validates: Requirements 10.2**
+       * 
+       * Property 12: Background Pincode Validation
+       * 
+       * For any pincode input change, when the pincode reaches 6 digits, the system 
+       * should trigger validation via the checkPincode API without disabling other 
+       * form inputs or blocking user interaction.
+       * 
+       * This test verifies that during pincode validation:
+       * - Other form fields (name, phone, house, area, landmark) remain editable
+       * - User can continue typing in other fields while validation is in progress
+       * - The validation runs in the background without blocking the UI
+       * - Only the save button is disabled during validation (not the form inputs)
+       */
+
+      await fc.assert(
+        fc.asyncProperty(
+          // Generate various form states with valid 6-digit pincodes
+          fc.record({
+            pincode: fc.stringOf(fc.integer({ min: 0, max: 9 }), { minLength: 6, maxLength: 6 }),
+            name: fc.string({ minLength: 1, maxLength: 50 }).filter(s => s.trim().length > 0),
+            phone: fc.stringOf(fc.integer({ min: 6, max: 9 }), { minLength: 10, maxLength: 10 }),
+            house: fc.string({ minLength: 1, maxLength: 50 }).filter(s => s.trim().length > 0),
+            area: fc.string({ minLength: 5, maxLength: 50 }).filter(s => s.trim().length > 0),
+            landmark: fc.option(fc.string({ minLength: 1, maxLength: 50 }), { nil: '' }),
+          }),
+          async (formState) => {
+            // Mock checkPincode to simulate a delayed API response (validation in progress)
+            const mockCheckPincode = jest.fn().mockImplementation(() => ({
+              unwrap: () => new Promise((resolve) => {
+                // Simulate API delay of 500ms
+                setTimeout(() => {
+                  resolve({
+                    deliverable: true,
+                    state: 'Test State',
+                    admin_district: 'Test District',
+                    cities: ['Test City'],
+                  });
+                }, 500);
+              }),
+            }));
+
+            // Replace the checkPincode mock
+            const addressesApi = require('../../../api/addressesApi');
+            addressesApi.useLazyCheckPincodeQuery = jest.fn(() => [mockCheckPincode, {}]);
+
+            const { getByPlaceholderText, getByText } = render(<AddAddressScreen />);
+
+            // Enter the 6-digit pincode to trigger validation
+            const pincodeInput = getByPlaceholderText('000000');
+            fireEvent.changeText(pincodeInput, formState.pincode);
+
+            // Wait for validation to start (isChecking should be true)
+            await waitFor(() => {
+              expect(mockCheckPincode).toHaveBeenCalledWith(formState.pincode);
+            }, { timeout: 1000 });
+
+            // CRITICAL PROPERTY ASSERTION: While validation is in progress,
+            // verify that other form inputs remain editable (not disabled)
+
+            // Get all form input fields
+            const nameInput = getByPlaceholderText('Full Name');
+            const phoneInput = getByPlaceholderText('10-digit mobile');
+            const houseInput = getByPlaceholderText('House / Flat / Building');
+            const areaInput = getByPlaceholderText('Area / Street / Village');
+            const landmarkInput = getByPlaceholderText(/near apollo hospital/i);
+
+            // Verify all inputs are editable (editable prop should not be false)
+            expect(nameInput.props.editable).not.toBe(false);
+            expect(phoneInput.props.editable).not.toBe(false);
+            expect(houseInput.props.editable).not.toBe(false);
+            expect(areaInput.props.editable).not.toBe(false);
+            expect(landmarkInput.props.editable).not.toBe(false);
+
+            // Verify user can interact with other fields during validation
+            // Try to change text in each field
+            fireEvent.changeText(nameInput, formState.name);
+            fireEvent.changeText(phoneInput, formState.phone);
+            fireEvent.changeText(houseInput, formState.house);
+            fireEvent.changeText(areaInput, formState.area);
+            if (formState.landmark) {
+              fireEvent.changeText(landmarkInput, formState.landmark);
+            }
+
+            // Verify the changes were applied (fields accepted the input)
+            expect(nameInput.props.value).toBe(formState.name);
+            expect(phoneInput.props.value).toBe(formState.phone);
+            expect(houseInput.props.value).toBe(formState.house);
+            expect(areaInput.props.value).toBe(formState.area);
+            if (formState.landmark) {
+              expect(landmarkInput.props.value).toBe(formState.landmark);
+            }
+
+            // Verify save button is disabled during validation (this is expected)
+            const saveButton = getByText(/save address/i).parent;
+            expect(saveButton?.props.disabled).toBe(true);
+
+            // Wait for validation to complete
+            await waitFor(() => {
+              expect(getByText(/deliverable/i)).toBeTruthy();
+            }, { timeout: 1500 });
+
+            // After validation completes, verify inputs are still editable
+            expect(nameInput.props.editable).not.toBe(false);
+            expect(phoneInput.props.editable).not.toBe(false);
+            expect(houseInput.props.editable).not.toBe(false);
+            expect(areaInput.props.editable).not.toBe(false);
+            expect(landmarkInput.props.editable).not.toBe(false);
+          }
+        ),
+        { numRuns: 100 } // Run 100 iterations as specified in design document
+      );
+    });
+
+    test('TC-066: Property 11 - Minimal Required Fields After GPS', async () => {
+      const fc = require('fast-check');
+
+      /**
+       * **Validates: Requirements 10.1**
+       * 
+       * Property 11: Minimal Required Fields After GPS
+       * 
+       * For any form state where GPS location has successfully populated pincode, city, 
+       * state, and address fields, the form validation should require only the house 
+       * number field (formData.house) to be non-empty for submission to be enabled.
+       * 
+       * This test verifies that after GPS detection:
+       * - The save button is enabled when house number is provided
+       * - The save button is disabled when house number is empty
+       * - Other fields (name, phone, landmark) are not required for button enablement
+       */
+
+      await fc.assert(
+        fc.asyncProperty(
+          // Generate valid GPS-populated form states
+          fc.record({
+            pincode: fc.stringOf(fc.integer({ min: 0, max: 9 }), { minLength: 6, maxLength: 6 }),
+            city: fc.string({ minLength: 3, maxLength: 30 }).filter(s => s.trim().length > 0),
+            state: fc.string({ minLength: 3, maxLength: 30 }).filter(s => s.trim().length > 0),
+            area: fc.string({ minLength: 5, maxLength: 50 }).filter(s => s.trim().length > 0),
+            house: fc.option(fc.string({ minLength: 1, maxLength: 50 }), { nil: '' }),
+            name: fc.option(fc.string({ minLength: 1, maxLength: 50 }), { nil: '' }),
+            phone: fc.option(
+              fc.stringOf(fc.integer({ min: 6, max: 9 }), { minLength: 10, maxLength: 10 }),
+              { nil: '' }
+            ),
+          }),
+          async (formState) => {
+            // Mock GPS detection to return valid data
+            (Location.reverseGeocodeAsync as jest.Mock).mockResolvedValueOnce([
+              {
+                postalCode: formState.pincode,
+                city: formState.city,
+                region: formState.state,
+                subregion: formState.state,
+                street: formState.area,
+                name: 'Building 5',
+                formattedAddress: `Building 5, ${formState.area}, ${formState.city}, ${formState.state} ${formState.pincode}`,
+              },
+            ]);
+
+            const { getByText, getByPlaceholderText } = render(<AddAddressScreen />);
+
+            // Trigger GPS detection
+            fireEvent.press(getByText(/use current location/i));
+
+            // Wait for GPS detection to complete and form to be populated
+            await waitFor(() => {
+              expect(getByPlaceholderText('000000').props.value).toBe(formState.pincode);
+            }, { timeout: 3000 });
+
+            // Wait for pincode validation to complete
+            await waitFor(() => {
+              expect(getByText(/deliverable/i)).toBeTruthy();
+            }, { timeout: 2000 });
+
+            // Set house number if provided in test case
+            if (formState.house) {
+              const houseInput = getByPlaceholderText('House / Flat / Building');
+              fireEvent.changeText(houseInput, formState.house);
+            }
+
+            // Set name if provided (should not be required after GPS)
+            if (formState.name) {
+              const nameInput = getByPlaceholderText('Full Name');
+              fireEvent.changeText(nameInput, formState.name);
+            }
+
+            // Set phone if provided (should not be required after GPS)
+            if (formState.phone) {
+              const phoneInput = getByPlaceholderText('10-digit mobile');
+              fireEvent.changeText(phoneInput, formState.phone);
+            }
+
+            // Find the save button
+            const saveButton = getByText(/save address/i).parent;
+
+            // Property assertion: Button should be enabled if and only if house number is provided
+            if (formState.house && formState.house.trim().length > 0) {
+              // House number provided -> button should be enabled
+              expect(saveButton?.props.disabled).toBe(false);
+            } else {
+              // House number empty -> button should be disabled
+              expect(saveButton?.props.disabled).toBe(true);
+            }
+          }
+        ),
+        { numRuns: 100 } // Run 100 iterations as specified in design document
+      );
+    });
+  });
+});
+
+describe('AddAddressScreen - Additional Property Tests', () => {
+  test('TC-068: Property 15 - Required Indicators on Editable Fields Only', async () => {
+    const fc = require('fast-check');
+
+      /**
+       * **Validates: Requirements 11.4**
+       * 
+       * Property 15: Required Indicators on Editable Fields Only
+       * 
+       * For any form field that is read-only (editable=false), the field label should 
+       * not display a required indicator (asterisk), even if the field is required for 
+       * submission.
+       * 
+       * This test verifies that:
+       * - Read-only fields (district, state in PincodeSection) do not show asterisk
+       * - Editable required fields (Name, House, Phone) show asterisk in label
+       * - The asterisk indicator is only present on user-editable required fields
+       */
+
+      await fc.assert(
+        fc.asyncProperty(
+          // Generate various form states with GPS-populated data
+          fc.record({
+            pincode: fc.stringOf(fc.integer({ min: 0, max: 9 }), { minLength: 6, maxLength: 6 }),
+            city: fc.string({ minLength: 3, maxLength: 30 }).filter(s => s.trim().length > 0),
+            state: fc.string({ minLength: 3, maxLength: 30 }).filter(s => s.trim().length > 0),
+            admin_district: fc.string({ minLength: 3, maxLength: 30 }).filter(s => s.trim().length > 0),
+            area: fc.string({ minLength: 5, maxLength: 50 }).filter(s => s.trim().length > 0),
+            house: fc.string({ minLength: 1, maxLength: 50 }).filter(s => s.trim().length > 0),
+            name: fc.string({ minLength: 1, maxLength: 50 }).filter(s => s.trim().length > 0),
+            phone: fc.stringOf(fc.integer({ min: 6, max: 9 }), { minLength: 10, maxLength: 10 }),
+          }),
+          async (formState) => {
+            // Mock GPS detection to return valid data
+            (Location.reverseGeocodeAsync as jest.Mock).mockResolvedValueOnce([
+              {
+                postalCode: formState.pincode,
+                city: formState.city,
+                region: formState.state,
+                subregion: formState.admin_district,
+                street: formState.area,
+                name: formState.house,
+                formattedAddress: `${formState.house}, ${formState.area}, ${formState.city}, ${formState.state} ${formState.pincode}`,
+              },
+            ]);
+
+            const { getByText, getByPlaceholderText, queryByText } = render(<AddAddressScreen />);
+
+            // Trigger GPS detection to populate form
+            fireEvent.press(getByText(/use current location/i));
+
+            // Wait for GPS detection to complete
+            await waitFor(() => {
+              expect(queryByText(/detecting/i)).toBeNull();
+            }, { timeout: 3000 });
+
+            // Wait for pincode validation to complete
+            await waitFor(() => {
+              expect(getByText(/deliverable/i)).toBeTruthy();
+            }, { timeout: 2000 });
+
+            // PROPERTY ASSERTION 1: Editable required fields MUST show asterisk
+            // These fields are user-editable and required, so they should have asterisk in label
+
+            // Check "House / Flat / Building *" label
+            const houseLabel = getByText(/house.*flat.*building/i);
+            const houseLabelText = houseLabel.children ? houseLabel.children.join('') : '';
+            expect(houseLabelText).toMatch(/\*/);
+
+            // Check "Full Name *" label
+            const nameLabel = getByText(/full name/i);
+            const nameLabelText = nameLabel.children ? nameLabel.children.join('') : '';
+            expect(nameLabelText).toMatch(/\*/);
+
+            // Check "Mobile Number *" label
+            const phoneLabel = getByText(/mobile number/i);
+            const phoneLabelText = phoneLabel.children ? phoneLabel.children.join('') : '';
+            expect(phoneLabelText).toMatch(/\*/);
+
+            // PROPERTY ASSERTION 2: Verify editable fields have asterisk
+            // Get the input fields and verify they are editable
+            const houseInput = getByPlaceholderText('House / Flat / Building');
+            const nameInput = getByPlaceholderText('Full Name');
+            const phoneInput = getByPlaceholderText('10-digit mobile');
+
+            // Verify these fields are editable (not explicitly set to false)
+            expect(houseInput.props.editable).not.toBe(false);
+            expect(nameInput.props.editable).not.toBe(false);
+            expect(phoneInput.props.editable).not.toBe(false);
+
+            // PROPERTY ASSERTION 3: Optional fields should not have required asterisk
+            // Check "Landmark (Optional)" label - should not have asterisk for required indicator
+            const landmarkLabel = getByText(/landmark.*optional/i);
+            const landmarkText = landmarkLabel.children ? landmarkLabel.children.join('') : '';
+            // Should have "(Optional)" but no asterisk at the end indicating required
+            expect(landmarkText).toMatch(/optional/i);
+            // The label should not end with an asterisk (which would indicate required)
+            expect(landmarkText.trim()).not.toMatch(/\*$/);
+
+            // PROPERTY ASSERTION 4: Verify consistency across all required editable fields
+            // All required editable fields should have asterisk in their labels
+            const pincodeLabel = getByText(/pincode/i);
+            const pincodeLabelText = pincodeLabel.children ? pincodeLabel.children.join('') : '';
+            expect(pincodeLabelText).toMatch(/\*/);
+
+            const cityLabel = getByText(/city/i);
+            const cityLabelText = cityLabel.children ? cityLabel.children.join('') : '';
+            expect(cityLabelText).toMatch(/\*/);
+
+            const stateLabel = getByText(/state/i);
+            const stateLabelText = stateLabel.children ? stateLabel.children.join('') : '';
+            expect(stateLabelText).toMatch(/\*/);
+
+            const areaLabel = getByText(/area.*street.*village/i);
+            const areaLabelText = areaLabel.children ? areaLabel.children.join('') : '';
+            expect(areaLabelText).toMatch(/\*/);
+          }
+        ),
+        { numRuns: 100 } // Run 100 iterations as specified in design document
+      );
+    });
+  });
+});

@@ -28,13 +28,13 @@ function logCategoryError(message: string, meta?: Record<string, any>) {
   
   // Future-ready: Plug into monitoring system
   // This will automatically work when Sentry/Datadog is configured
-  if (typeof global !== 'undefined' && (global as any).reportError) {
-    (global as any).reportError(message, meta);
+  if (typeof globalThis !== 'undefined' && (globalThis as any).reportError) {
+    (globalThis as any).reportError(message, meta);
   }
   
   // Alternative: Direct Sentry integration (if available)
-  if (typeof global !== 'undefined' && (global as any).Sentry) {
-    (global as any).Sentry.captureMessage(message, {
+  if (typeof globalThis !== 'undefined' && (globalThis as any).Sentry) {
+    (globalThis as any).Sentry.captureMessage(message, {
       level: 'warning',
       extra: meta,
       tags: { domain: 'category_mapping' },

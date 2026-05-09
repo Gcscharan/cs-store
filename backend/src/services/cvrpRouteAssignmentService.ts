@@ -1,62 +1,42 @@
 /**
- * CVRP Route Assignment Service
- * 
- * Production-grade route assignment engine for warehouse-based delivery dispatch.
- * Implements a deterministic 4-layer pipeline for Capacitated Vehicle Routing Problem (CVRP).
- * 
- * Algorithm Overview:
- * 1. Angular Sweep Clustering - Groups orders by direction from warehouse
- * 2. Capacity & Distance Route Formation - Creates routes respecting AUTO capacity (20-30 orders) and max distance
- * 3. Intra-Route Optimization - Optimizes each route using Nearest Neighbor + 2-opt
- * 4. Operational Fixups - Ensures locality constraints and boundary rebalancing
- * 
- * Usage:
- * Admin calls computeRoutes() with pending orders to get optimized route assignments.
- * Routes are then manually assigned to delivery boys via admin dashboard.
- * 
+ * Route Assignment Service — Single-Cluster Mode
+ *
+ * Simplified routing for single-driver delivery.
+ * All orders → ONE route → assigned to ONE delivery boy.
+ *
+ * Pipeline:
+ *   All Orders → Nearest Neighbor → 2-opt → Quality Check
+ *
+ * No clustering, no splitting — admin assigns the full route to one driver.
+ *
  * @module cvrpRouteAssignmentService
  */
 
 import { calculateHaversineDistance } from "../utils/routeUtils";
+import { logger } from "../utils/logger";
 
 // ============================================================================
 // CONSTANTS & CONFIGURATION
 // ============================================================================
 
-/**
- * Warehouse (Depot) location - configurable via environment variables
- * Defaults to Tiruvuru, Andhra Pradesh (Pincode: 521235)
- */
 const WAREHOUSE_DEPOT = {
   lat: parseFloat(process.env.WAREHOUSE_LAT || '17.094'),
   lng: parseFloat(process.env.WAREHOUSE_LNG || '80.598'),
   pincode: parseInt(process.env.WAREHOUSE_PINCODE || '521235'),
 };
 
-/**
- * Vehicle constraints for AUTO rickshaw - configurable via environment
- */
-const AUTO_CAPACITY_MIN = parseInt(process.env.ROUTE_CAPACITY_MIN || '20');
-const AUTO_CAPACITY_MAX = parseInt(process.env.ROUTE_CAPACITY_MAX || '30');
-const MAX_AUTO_ROUTE_DISTANCE_KM = parseFloat(process.env.ROUTE_MAX_DISTANCE_KM || '35');
-const TWO_OPT_MAX_ITERATIONS = parseInt(process.env.ROUTE_TWO_OPT_ITERATIONS || '80');
 const VEHICLE_TYPE_REQUIRED = "AUTO";
-
-/**
- * Average AUTO speed for time estimation (km/h)
- */
 const AVG_AUTO_SPEED_KMH = parseFloat(process.env.ROUTE_AVG_SPEED_KMH || '30');
 const STOP_TIME_PER_ORDER_MIN = parseFloat(process.env.ROUTE_STOP_TIME_MIN || '5');
-
-/**
- * Performance guard - max computation time in milliseconds
- */
 const MAX_COMPUTE_MS = parseInt(process.env.ROUTE_MAX_COMPUTE_MS || '8000');
+const TWO_OPT_MAX_ITERATIONS = parseInt(process.env.ROUTE_TWO_OPT_ITERATIONS || '80');
 
-/**
- * Locality constraint radius for Layer 4 fixups
- */
-const LOCALITY_RADIUS_KM = 0.5;
+// Soft limits — log warnings but don't split
+const SOFT_LIMIT_DISTANCE_KM = 60;
+const SOFT_LIMIT_ORDER_COUNT = 40;
+
+export const PREVIEW_CAPACITY = 1; // not used anymore, kept for API compat
+export const PREVIEW_MAX_DISTANCE_KM = 999999; // not used anymore
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -170,51 +150,119 @@ function validateInputs(
 }
 
 // ============================================================================
-// LAYER 1: ANGULAR SWEEP CLUSTERING
+// LAYER 1: GREEDY DISTANCE-BASED CLUSTERING
+// (Replaces Angular Sweep — produces tight geographic clusters)
+//
+// Algorithm:
+//   1. Sort all orders by distance from warehouse (deterministic seed order)
+//   2. Pick the nearest unassigned order as cluster seed
+//   3. Greedily add nearest orders to the cluster while:
+//      - cluster size < maxOrders
+//      - order is within CLUSTER_RADIUS_KM of cluster centroid
+//   4. Repeat until all orders are assigned
+//
+// Result: Each cluster is a tight geographic group, not a directional sweep.
 // ============================================================================
 
-/**
- * Computes polar angle and distance for each order relative to warehouse
- * Sorts orders by (angle, distance, orderId) for deterministic clustering
- */
-function computeAngularSweep(
-  orders: OrderInput[]
-): OrderWithMetadata[] {
-  const ordersWithMetadata: OrderWithMetadata[] = orders.map((order) => {
-    // Compute angle using atan2 (returns -π to π, normalize to 0-2π)
-    const deltaLat = order.lat - WAREHOUSE_DEPOT.lat;
-    const deltaLng = order.lng - WAREHOUSE_DEPOT.lng;
-    let angle = Math.atan2(deltaLat, deltaLng);
-    
-    // Normalize to 0-2π range
-    if (angle < 0) {
-      angle += 2 * Math.PI;
-    }
+function computeGreedyClusters(
+  orders: OrderInput[],
+  maxOrders: number,
+  maxDistanceKm: number
+): OrderWithMetadata[][] {
+  // Attach haversine distance from warehouse to each order
+  const withMeta: OrderWithMetadata[] = orders.map((o) => ({
+    ...o,
+    angle: 0, // unused in greedy mode
+    distance: calculateHaversineDistance(WAREHOUSE_DEPOT, { lat: o.lat, lng: o.lng }),
+  }));
 
-    // Compute haversine distance
-    const distance = calculateHaversineDistance(
-      WAREHOUSE_DEPOT,
-      { lat: order.lat, lng: order.lng }
-    );
-
-    return {
-      ...order,
-      angle,
-      distance,
-    };
-  });
-
-  // Deterministic sort: angle → distance → orderId
-  ordersWithMetadata.sort((a, b) => {
-    if (Math.abs(a.angle - b.angle) > 0.0001) {
-      return a.angle - b.angle;
-    }
-    if (Math.abs(a.distance - b.distance) > 0.001) {
-      return a.distance - b.distance;
-    }
+  // Deterministic seed order: nearest to warehouse first, then by orderId
+  withMeta.sort((a, b) => {
+    if (Math.abs(a.distance - b.distance) > 0.001) return a.distance - b.distance;
     return a.orderId.localeCompare(b.orderId);
   });
 
+  const unassigned = new Set<OrderWithMetadata>(withMeta);
+  const clusters: OrderWithMetadata[][] = [];
+
+  while (unassigned.size > 0) {
+    // Seed: pick the nearest unassigned order to warehouse
+    const seed = Array.from(unassigned).reduce((best, o) =>
+      o.distance < best.distance ? o : best
+    );
+
+    const cluster: OrderWithMetadata[] = [seed];
+    unassigned.delete(seed);
+
+    // Grow cluster: add nearest orders within radius and capacity
+    while (cluster.length < maxOrders && unassigned.size > 0) {
+      // Compute current centroid
+      const centroid = {
+        lat: cluster.reduce((s, o) => s + o.lat, 0) / cluster.length,
+        lng: cluster.reduce((s, o) => s + o.lng, 0) / cluster.length,
+      };
+
+      // Find nearest unassigned order to centroid within radius
+      let bestOrder: OrderWithMetadata | null = null;
+      let bestDist = Infinity;
+
+      for (const candidate of unassigned) {
+        const d = calculateHaversineDistance(centroid, { lat: candidate.lat, lng: candidate.lng });
+        if (d <= CLUSTER_RADIUS_KM && d < bestDist) {
+          bestDist = d;
+          bestOrder = candidate;
+        }
+      }
+
+      if (!bestOrder) break; // No more orders within radius
+
+      // Check if adding this order would exceed max route distance
+      // Estimate: current route distance + distance from last order to candidate
+      const lastOrder = cluster[cluster.length - 1];
+      const addedDist = calculateHaversineDistance(
+        { lat: lastOrder.lat, lng: lastOrder.lng },
+        { lat: bestOrder.lat, lng: bestOrder.lng }
+      );
+      const estimatedNewDist = cluster.reduce((sum, o, i) => {
+        if (i === 0) return sum + o.distance;
+        return sum + calculateHaversineDistance(
+          { lat: cluster[i - 1].lat, lng: cluster[i - 1].lng },
+          { lat: o.lat, lng: o.lng }
+        );
+      }, 0) + addedDist;
+
+      if (estimatedNewDist > maxDistanceKm) break;
+
+      cluster.push(bestOrder);
+      unassigned.delete(bestOrder);
+    }
+
+    clusters.push(cluster);
+  }
+
+  logger.info(`[CLUSTER_DISTANCE_MODE] greedy_radius | clusters=${clusters.length} | orders=${orders.length} | radius=${CLUSTER_RADIUS_KM}km`);
+
+  return clusters;
+}
+
+/**
+ * Legacy: kept for reference but no longer called in main pipeline.
+ * @deprecated Use computeGreedyClusters instead.
+ */
+function computeAngularSweep(orders: OrderInput[]): OrderWithMetadata[] {
+  const ordersWithMetadata: OrderWithMetadata[] = orders.map((order) => {
+    const deltaLat = order.lat - WAREHOUSE_DEPOT.lat;
+    const deltaLng = order.lng - WAREHOUSE_DEPOT.lng;
+    let angle = Math.atan2(deltaLat, deltaLng);
+    if (angle < 0) angle += 2 * Math.PI;
+    const distance = calculateHaversineDistance(WAREHOUSE_DEPOT, { lat: order.lat, lng: order.lng });
+    return { ...order, angle, distance };
+  });
+  ordersWithMetadata.sort((a, b) => {
+    if (Math.abs(a.angle - b.angle) > 0.0001) return a.angle - b.angle;
+    if (Math.abs(a.distance - b.distance) > 0.001) return a.distance - b.distance;
+    return a.orderId.localeCompare(b.orderId);
+  });
   return ordersWithMetadata;
 }
 
@@ -651,18 +699,18 @@ function estimateRouteTime(
 // ============================================================================
 
 /**
- * Applies operational fixups:
- * - Keeps orders in same locality/pincode together
- * - Boundary rebalancing between adjacent routes
+ * Phase 2 fix: Locality fixups now run AFTER 2-opt on final Route[].
+ * Passes orderCoordMap so enforceLocalityConstraints has coordinate data.
  */
 function applyOperationalFixups(
-  routes: Route[]
+  routes: Route[],
+  orderCoordMap: Map<string, { lat: number; lng: number }>
 ): Route[] {
-  // Fixup 1: Locality locking (ensure same pincode orders stay together)
-  let fixedRoutes = enforceLocalityConstraints(routes);
+  // Locality fix runs AFTER 2-opt (Phase 2 fix — was previously a no-op)
+  const fixedRoutes = enforceLocalityConstraints(routes, orderCoordMap);
 
-  // Fixup 2: Boundary rebalancing
-  fixedRoutes = rebalanceBoundaryOrders(fixedRoutes);
+  // Quality metrics logging (Phase 4)
+  logRouteQuality(fixedRoutes, orderCoordMap);
 
   return fixedRoutes;
 }
@@ -734,14 +782,97 @@ function enforceLocalityConstraintsOnProvisional(routes: ProvisionalRoute[]): Pr
 }
 
 /**
- * Wrapper for Layer 4 that works on Route[] (final output format)
- * Note: This is a no-op on Route[] since metadata is lost; actual fixups
- * happen on ProvisionalRoute[] before conversion to Route[]
+ * Phase 2 fix: Locality constraints now run on FINAL Route[] AFTER 2-opt.
+ * Removes orders that are geographic outliers from the route centroid.
+ * Requires orderCoordMap to look up coordinates by orderId.
  */
-function enforceLocalityConstraints(routes: Route[]): Route[] {
-  // This operates on Route[] which lacks coordinate metadata
-  // Actual locality fixups happen in enforceLocalityConstraintsOnProvisional
-  return routes;
+function enforceLocalityConstraints(
+  routes: Route[],
+  orderCoordMap?: Map<string, { lat: number; lng: number }>
+): Route[] {
+  if (!orderCoordMap || orderCoordMap.size === 0) return routes; // no-op if no coords
+
+  const OUTLIER_CENTROID_THRESHOLD_KM = 10;
+
+  return routes.map((route) => {
+    const coords = route.orders
+      .map((id) => orderCoordMap!.get(id))
+      .filter((c): c is { lat: number; lng: number } => !!c);
+
+    if (coords.length < 3) return route;
+
+    const centroid = {
+      lat: coords.reduce((s, c) => s + c.lat, 0) / coords.length,
+      lng: coords.reduce((s, c) => s + c.lng, 0) / coords.length,
+    };
+
+    const filtered = route.orders.filter((id) => {
+      const c = orderCoordMap!.get(id);
+      if (!c) return true;
+      const d = calculateHaversineDistance(centroid, c);
+      if (d > OUTLIER_CENTROID_THRESHOLD_KM) {
+        logger.info(`[LOCALITY_FIX] Outlier removed from ${route.routeId}: order=${id} dist=${d.toFixed(1)}km from centroid`);
+        return false;
+      }
+      return true;
+    });
+
+    if (filtered.length === route.orders.length) return route;
+
+    return {
+      ...route,
+      orders: filtered,
+      orderCount: filtered.length,
+      routePath: ['WAREHOUSE', ...filtered],
+    };
+  });
+}
+
+/**
+ * Phase 4: Route quality metrics — logs and flags bad clusters.
+ */
+function logRouteQuality(
+  routes: Route[],
+  orderCoordMap: Map<string, { lat: number; lng: number }>
+): void {
+  for (const route of routes) {
+    const coords = route.orders
+      .map((id) => orderCoordMap.get(id))
+      .filter((c): c is { lat: number; lng: number } => !!c);
+
+    const avgDistPerOrder = coords.length > 0
+      ? route.totalDistanceKm / coords.length
+      : 0;
+
+    let maxDistFromCentroid = 0;
+    if (coords.length >= 2) {
+      const centroid = {
+        lat: coords.reduce((s, c) => s + c.lat, 0) / coords.length,
+        lng: coords.reduce((s, c) => s + c.lng, 0) / coords.length,
+      };
+      maxDistFromCentroid = Math.max(
+        ...coords.map((c) => calculateHaversineDistance(centroid, c))
+      );
+    }
+
+    const isBad = avgDistPerOrder > QUALITY_AVG_DIST_THRESHOLD_KM;
+
+    logger.info(
+      `[ROUTE_QUALITY] routeId=${route.routeId} orders=${route.orderCount} ` +
+      `totalDist=${route.totalDistanceKm.toFixed(1)}km ` +
+      `avgPerOrder=${avgDistPerOrder.toFixed(1)}km ` +
+      `spread=${maxDistFromCentroid.toFixed(1)}km ` +
+      `eta=${route.estimatedTimeMin}min ` +
+      `${isBad ? '⚠️ BAD_CLUSTER' : '✅ OK'}`
+    );
+
+    if (isBad) {
+      logger.warn(
+        `[ROUTE_QUALITY] ⚠️ Bad cluster detected: ${route.routeId} — ` +
+        `avgDistPerOrder=${avgDistPerOrder.toFixed(1)}km > threshold=${QUALITY_AVG_DIST_THRESHOLD_KM}km`
+      );
+    }
+  }
 }
 
 /**
@@ -823,12 +954,9 @@ function rebalanceBoundaryOrders(routes: Route[]): Route[] {
 
 export class CVRPRouteAssignmentService {
   /**
-   * Main entry point: Computes optimized routes for given orders
-   * 
-   * @param orders Array of orders with lat/lng coordinates
-   * @param vehicle Vehicle configuration (must be AUTO)
-   * @returns RouteAssignmentResult with optimized routes
-   * @throws Error if constraints are violated
+   * Computes a SINGLE optimized route for all orders.
+   * All orders → one route → assigned to one delivery boy.
+   * No clustering, no splitting.
    */
   computeRoutes(
     orders: OrderInput[],
@@ -836,116 +964,80 @@ export class CVRPRouteAssignmentService {
   ): RouteAssignmentResult {
     const startTime = Date.now();
 
-    // Performance warning for large order volumes
-    if (orders.length > 1000) {
-      console.warn(`[CVRP] Large order batch: ${orders.length} orders. Consider batching for better performance.`);
-    }
-
-    const minOrdersPerRoute =
-      typeof vehicle.capacity === "number" && vehicle.capacity > 0
-        ? Math.floor(vehicle.capacity)
-        : AUTO_CAPACITY_MIN;
-
-    const maxDistanceKm =
-      typeof vehicle.maxDistanceKm === "number" && vehicle.maxDistanceKm > 0
-        ? vehicle.maxDistanceKm
-        : MAX_AUTO_ROUTE_DISTANCE_KM;
-
-    // Layer 0: Validation
-    validateInputs(orders, vehicle);
-
-    // Layer 1: Angular Sweep
-    const sortedOrders = computeAngularSweep(orders);
-
-    // Layer 2: Capacity-Constrained Route Formation
-    let provisionalRoutes = formCapacityConstrainedRoutes(sortedOrders, maxDistanceKm);
-
-    // Layer 4 (Part A): Apply fixups on ProvisionalRoute[] with full metadata
-    provisionalRoutes = enforceLocalityConstraintsOnProvisional(provisionalRoutes);
-    provisionalRoutes = rebalanceBoundaryOrdersOnProvisional(provisionalRoutes);
-
-    // Outlier Detection: Extract far orders into mini-routes
-    const { cleanRoutes, outlierRoutes } = detectAndExtractOutliers(provisionalRoutes);
-    provisionalRoutes = [...cleanRoutes, ...outlierRoutes];
-
-    // Validate provisional routes meet minimum capacity (relaxed for outlier routes)
-    for (let i = 0; i < provisionalRoutes.length; i++) {
-      const route = provisionalRoutes[i];
-      // Skip minimum capacity check for outlier routes
-      if (route.isOutlierRoute) continue;
-      
-      if (route.orders.length < minOrdersPerRoute) {
-        throw new Error(
-          `Route ${i + 1} has ${route.orders.length} orders, minimum ${minOrdersPerRoute} required`
-        );
-      }
-      if (route.orders.length > AUTO_CAPACITY_MAX) {
-        throw new Error(
-          `Route ${i + 1} has ${route.orders.length} orders, maximum ${AUTO_CAPACITY_MAX} allowed`
-        );
-      }
-    }
-
-    // Layer 3: Intra-Route Optimization (with timeout)
-    const optimizedRoutes: Route[] = provisionalRoutes.map((route, idx) => {
-      const { optimizedOrders, totalDistanceKm } = optimizeRoute(route, startTime);
-
-      // Validate optimized route distance (skip for outlier routes)
-      if (!route.isOutlierRoute && totalDistanceKm > maxDistanceKm) {
-        throw new Error(
-          `Route ${idx + 1} distance ${totalDistanceKm.toFixed(2)} km exceeds maximum ${maxDistanceKm} km`
-        );
-      }
-
-      const estimatedTimeMin = estimateRouteTime(
-        totalDistanceKm,
-        optimizedOrders.length
-      );
-
+    if (orders.length === 0) {
       return {
-        routeId: `AUTO-R-${String(idx + 1).padStart(2, "0")}`,
-        deliveryBoyId: null, // Admin assigns later
-        orderCount: optimizedOrders.length,
-        totalDistanceKm: Math.round(totalDistanceKm * 10) / 10, // Round to 1 decimal
-        estimatedTimeMin,
-        orders: optimizedOrders.map((o) => o.orderId),
-        routePath: [
-          "WAREHOUSE",
-          ...optimizedOrders.map((o) => o.orderId),
-        ],
-        // Hub & Spoke fields (default to warehouse)
-        hubId: 'warehouse',
-        hubName: 'Warehouse (Local)',
-        tier: 'local',
-        depotLat: WAREHOUSE_DEPOT.lat,
-        depotLng: WAREHOUSE_DEPOT.lng,
-        // Outlier fields
-        isOutlierRoute: route.isOutlierRoute || false,
-        outlierReason: route.outlierReason,
+        warehouse: { lat: WAREHOUSE_DEPOT.lat, lng: WAREHOUSE_DEPOT.lng, pincode: WAREHOUSE_DEPOT.pincode },
+        vehicleType: VEHICLE_TYPE_REQUIRED,
+        routes: [],
+        metadata: { totalOrders: 0, totalRoutes: 0, averageOrdersPerRoute: 0, computationTimeMs: 0 },
       };
-    });
+    }
 
-    // Layer 4 (Part B): Final fixups on Route[] (no-op, already done on ProvisionalRoute[])
-    const finalRoutes = applyOperationalFixups(optimizedRoutes);
+    // Validate vehicle type only — no capacity/distance hard limits
+    if (vehicle.type !== VEHICLE_TYPE_REQUIRED) {
+      throw new Error(`Vehicle type must be ${VEHICLE_TYPE_REQUIRED}, got ${vehicle.type}`);
+    }
+
+    for (const order of orders) {
+      if (!Number.isFinite(order.lat) || !Number.isFinite(order.lng)) {
+        throw new Error(`Order ${order.orderId} missing valid lat/lng coordinates`);
+      }
+    }
+
+    // Attach distance from warehouse to each order
+    const ordersWithMeta: OrderWithMetadata[] = orders.map(o => ({
+      ...o,
+      angle: 0,
+      distance: calculateHaversineDistance(WAREHOUSE_DEPOT, { lat: o.lat, lng: o.lng }),
+    }));
+
+    // Single provisional route = ALL orders
+    const singleRoute: ProvisionalRoute = {
+      orders: ordersWithMeta,
+      totalDistance: 0, // will be computed by optimizeRoute
+    };
+
+    // Nearest Neighbor + 2-opt on the single route
+    const { optimizedOrders, totalDistanceKm } = optimizeRoute(singleRoute, startTime);
+    const estimatedTimeMin = estimateRouteTime(totalDistanceKm, optimizedOrders.length);
+
+    // Soft limit warnings — log but never split
+    if (totalDistanceKm > SOFT_LIMIT_DISTANCE_KM || optimizedOrders.length > SOFT_LIMIT_ORDER_COUNT) {
+      logger.warn(
+        `[ROUTE_WARNING] large_route orders=${optimizedOrders.length} distanceKm=${totalDistanceKm.toFixed(1)}`
+      );
+    }
+
+    logger.info(
+      `[ORDER_SEQUENCE] path=WAREHOUSE→${optimizedOrders.map(o => o.orderId.slice(-4)).join('→')}`
+    );
+
+    const route: Route = {
+      routeId: 'AUTO-R-01',
+      deliveryBoyId: null,
+      orderCount: optimizedOrders.length,
+      totalDistanceKm: Math.round(totalDistanceKm * 10) / 10,
+      estimatedTimeMin,
+      orders: optimizedOrders.map(o => o.orderId),
+      routePath: ['WAREHOUSE', ...optimizedOrders.map(o => o.orderId)],
+      hubId: 'warehouse',
+      hubName: 'Warehouse (Local)',
+      tier: 'local',
+      depotLat: WAREHOUSE_DEPOT.lat,
+      depotLng: WAREHOUSE_DEPOT.lng,
+      isOutlierRoute: false,
+    };
 
     const computationTimeMs = Date.now() - startTime;
-    const totalOrders = orders.length;
-    const totalRoutes = finalRoutes.length;
-    const averageOrdersPerRoute =
-      totalRoutes > 0 ? totalOrders / totalRoutes : 0;
 
     return {
-      warehouse: {
-        lat: WAREHOUSE_DEPOT.lat,
-        lng: WAREHOUSE_DEPOT.lng,
-        pincode: WAREHOUSE_DEPOT.pincode,
-      },
+      warehouse: { lat: WAREHOUSE_DEPOT.lat, lng: WAREHOUSE_DEPOT.lng, pincode: WAREHOUSE_DEPOT.pincode },
       vehicleType: VEHICLE_TYPE_REQUIRED,
-      routes: finalRoutes,
+      routes: [route],
       metadata: {
-        totalOrders,
-        totalRoutes,
-        averageOrdersPerRoute: Math.round(averageOrdersPerRoute * 10) / 10,
+        totalOrders: orders.length,
+        totalRoutes: 1,
+        averageOrdersPerRoute: orders.length,
         computationTimeMs,
       },
     };

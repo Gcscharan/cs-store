@@ -17,6 +17,7 @@ import {
   CheckCircle,
   Trash2,
   AlertTriangle,
+  Download,
 } from "lucide-react";
 
 function canonicalizeOrderStatus(raw: string): string {
@@ -117,6 +118,27 @@ const AdminOrdersPage: React.FC = () => {
 
   const handleClusterOrders = () => {
     navigate("/admin/routes/preview");
+  };
+
+  const handleExportCsv = async (format: 'csv' | 'labels' = 'csv') => {
+    try {
+      const params = new URLSearchParams({ format });
+      if (selectedStatus) params.set('status', selectedStatus);
+      const response = await fetch(toApiUrl(`/admin/orders/export?${params}`), {
+        headers: { Authorization: `Bearer ${tokens?.accessToken}` },
+      });
+      if (!response.ok) throw new Error('Export failed');
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `orders-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Orders exported successfully');
+    } catch (err: any) {
+      toast.error(err.message || 'Export failed');
+    }
   };
 
   const handleRecentClusters = () => {
@@ -564,6 +586,15 @@ const AdminOrdersPage: React.FC = () => {
             >
               <Trash2 className="h-4 w-4" />
               Delete Orders
+            </button>
+
+            <button
+              onClick={() => handleExportCsv('csv')}
+              title="Export orders as CSV"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg transition-colors bg-gray-700 text-white hover:bg-gray-800"
+            >
+              <Download className="h-4 w-4" />
+              Export CSV
             </button>
           </div>
         </div>

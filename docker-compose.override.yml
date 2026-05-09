@@ -1,37 +1,19 @@
-version: '3.8'
-
-# Development overrides for docker-compose.yml
-# This file is automatically loaded by docker-compose
+# Development overrides — automatically merged with docker-compose.yml
+# Removes the stale `target: development` reference and aligns with Dockerfile.dev
 
 services:
   backend:
     build:
-      target: development
+      context: ./backend
+      dockerfile: Dockerfile.dev
+      # No multi-stage target — Dockerfile.dev is a single-stage dev image
     environment:
       NODE_ENV: development
-      DEBUG: cps-store:*
-    volumes:
-      - ./backend:/app
-      - /app/node_modules
-      - /app/dist
-    command: npm run dev
+      DEBUG: "cps-store:*"
     stdin_open: true
     tty: true
 
-  frontend:
-    build:
-      target: development
-    environment:
-      NODE_ENV: development
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-      - /app/dist
-    command: npm run dev
-    stdin_open: true
-    tty: true
-
-  # Disable nginx in development
+  # Disable nginx in development (no SSL needed locally)
   nginx:
     profiles:
       - production

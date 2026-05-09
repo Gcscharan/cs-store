@@ -9,7 +9,7 @@ interface ConnectivityStatus {
   retryCount: number;
 }
 
-const INITIAL_TIMEOUT = 4000; // 4s timeout for faster app loading
+const INITIAL_TIMEOUT = 8000; // 8s timeout — local network can be slow on first connect
 const RETRY_INTERVAL = 45000; // 45s between automatic retries
 
 /**
@@ -33,6 +33,7 @@ export const useConnectivityCheck = () => {
 
     const checkConnectivity = async (isBackgroundRetry = false) => {
       try {
+        // BASE_URL ends with /api, so this hits /api/health
         const healthUrl = `${BASE_URL}/health`;
         console.log(
           isBackgroundRetry 
@@ -44,15 +45,30 @@ export const useConnectivityCheck = () => {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), INITIAL_TIMEOUT);
 
-        const response = await fetch(healthUrl, {
-          method: 'GET',
-          signal: controller.signal,
-          headers: {
-            'Accept': 'application/json',
-            'Cache-Control': 'no-cache',
-            'ngrok-skip-browser-warning': 'true'
-          }
-        });
+        let response: Response;
+        try {
+          response = await fetch(healthUrl, {
+            method: 'GET',
+            signal: controller.signal,
+            headers: {
+              'Accept': 'application/json',
+              'Cache-Control': 'no-cache',
+              'ngrok-skip-browser-warning': 'true'
+            }
+          });
+        } catch (fetchErr: any) {
+          // If /api/health fails, try the root /health endpoint
+          clearTimeout(timeoutId);
+          const rootHealthUrl = BASE_URL.replace(/\/api$/, '') + '/health';
+          const controller2 = new AbortController();
+          const timeoutId2 = setTimeout(() => controller2.abort(), INITIAL_TIMEOUT);
+          response = await fetch(rootHealthUrl, {
+            method: 'GET',
+            signal: controller2.signal,
+            headers: { 'Accept': 'application/json', 'Cache-Control': 'no-cache' }
+          });
+          clearTimeout(timeoutId2);
+        }
 
         clearTimeout(timeoutId);
 

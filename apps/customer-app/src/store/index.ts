@@ -63,4 +63,13 @@ export const persistor = persistStore(store);
 setupListeners(store.dispatch);
 
 export type RootState = ReturnType<typeof store.getState>;
-export type AppDispatch = typeof store.dispatch;
+// AppDispatch: typed to accept RTK Query thunks (updateQueryData, invalidateTags, etc.)
+//
+// Why `any` for the state parameter:
+// RTK Query generates thunks typed against its own internal RootState<Definitions>,
+// which is structurally incompatible with our redux-persist wrapped state (requires _persist).
+// This is a known limitation of redux-persist + RTK Query — the state shapes cannot be
+// reconciled without `any`. The `any` is scoped only to the state parameter of ThunkDispatch,
+// preserving action type safety (UnknownAction) and return type safety.
+// See: https://redux-toolkit.js.org/usage/usage-with-typescript#getting-the-dispatch-type
+export type AppDispatch = import('@reduxjs/toolkit').ThunkDispatch<any, unknown, import('redux').UnknownAction>;

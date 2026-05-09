@@ -1,3 +1,4 @@
+import 'expo-dev-client';
 import './src/utils/sentryPolyfill';
 import 'react-native-gesture-handler';
 import { registerRootComponent } from 'expo';

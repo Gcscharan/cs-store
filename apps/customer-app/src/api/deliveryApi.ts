@@ -86,7 +86,23 @@ export const deliveryApi = baseApi.injectEndpoints({
         method: 'POST',
         body: { status, failureReason, failureNotes },
       }),
-      // No invalidatesTags — cache is updated optimistically from the response body in the mutation handler
+      // Invalidate on success — backend transitions order to FAILED, removing it from
+      // the active orders list. Matches web app's fetchOrders() call after confirmCancellation().
+      invalidatesTags: ['DeliveryOrders'],
+    }),
+
+    // Escalation — signals backend for reassignment when max attempts reached
+    escalateOrder: builder.mutation<
+      { success: boolean; message: string },
+      { orderId: string; reason: string; notes?: string; idempotencyKey: string }
+    >({
+      query: ({ orderId, reason, notes, idempotencyKey }) => ({
+        url: `/delivery/orders/${orderId}/escalate`,
+        method: 'POST',
+        body: { reason, notes },
+        headers: { 'Idempotency-Key': idempotencyKey },
+      }),
+      invalidatesTags: ['DeliveryOrders'],
     }),
 
     // COD Collection
@@ -183,6 +199,7 @@ export const {
   useDeliverAttemptMutation,
   useVerifyDeliveryOtpMutation,
   useRecordDeliveryAttemptMutation,
+  useEscalateOrderMutation,
   useGetCodCollectionQuery,
   useCreateCodCollectionMutation,
   useUpdateLocationMutation,

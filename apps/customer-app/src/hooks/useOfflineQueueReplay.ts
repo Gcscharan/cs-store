@@ -49,12 +49,12 @@ async function replayEntry(
 
     case 'verifyDeliveryOtp':
       return dispatch(
-        deliveryApi.endpoints.verifyDeliveryOtp.initiate({ orderId, ...args }),
+        deliveryApi.endpoints.verifyDeliveryOtp.initiate({ orderId, otp: (args as any)[0] || '', ...args }),
       ).then(unwrapMutationResult);
 
     case 'recordDeliveryAttempt':
       return dispatch(
-        deliveryApi.endpoints.recordDeliveryAttempt.initiate({ orderId, ...args }),
+        deliveryApi.endpoints.recordDeliveryAttempt.initiate({ orderId, status: (args as any)[0] || 'FAILED', ...args }),
       ).then(unwrapMutationResult);
 
     case 'acceptOrder':

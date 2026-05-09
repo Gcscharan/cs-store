@@ -3,6 +3,7 @@
     "name": "VyaparSetu",
     "slug": "vyaparsetu-monorepo",
     "scheme": "vyaparsetu-customer",
+    "entryPoint": "./apps/customer-app/index.ts",
     "extra": {
       "eas": {
         "projectId": "4fdb021f-e1f7-420f-a095-dd646ee20186"

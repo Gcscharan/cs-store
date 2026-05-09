@@ -9,6 +9,8 @@
  *   - order_status_updated   → invalidates Orders/Order cache
  *   - delivery_location_updated → dispatched to order tracking subscribers
  *   - payment_status_updated → invalidates Orders cache + triggers payment recovery
+ *   - order:status:changed   → admin order status updates with complete order object
+ *   - order:assigned         → admin order assignment events with delivery partner info
  */
 
 import { io, Socket } from 'socket.io-client';
@@ -37,7 +39,27 @@ type DeliveryLocationData = {
   timestamp: string;
 };
 
+type OrderStatusChangedData = {
+  orderId: string;
+  from: string;
+  to: string;
+  actorRole: 'CUSTOMER' | 'DELIVERY_PARTNER' | 'ADMIN';
+  actorId: string;
+  timestamp: string;
+  order?: any; // Complete order object
+};
+
+type OrderAssignedData = {
+  orderId: string;
+  deliveryPartnerId: string;
+  deliveryPartner?: any;
+  timestamp: string;
+  order?: any; // Complete order object
+};
+
 type LocationListener = (data: DeliveryLocationData) => void;
+type OrderStatusListener = (data: OrderStatusChangedData) => void;
+type OrderAssignedListener = (data: OrderAssignedData) => void;
 
 class SocketClient {
   private socket: Socket | null = null;
@@ -141,6 +163,36 @@ class SocketClient {
     };
   }
 
+  // ── Admin Event Subscriptions ──
+
+  /**
+   * Subscribe to order status change events for admin screens.
+   * Returns unsubscribe function.
+   */
+  subscribeToOrderStatusChanges(listener: OrderStatusListener): () => void {
+    if (!this.socket) return () => {};
+    
+    this.socket.on('order:status:changed', listener);
+    
+    return () => {
+      this.socket?.off('order:status:changed', listener);
+    };
+  }
+
+  /**
+   * Subscribe to order assignment events for admin screens.
+   * Returns unsubscribe function.
+   */
+  subscribeToOrderAssignments(listener: OrderAssignedListener): () => void {
+    if (!this.socket) return () => {};
+    
+    this.socket.on('order:assigned', listener);
+    
+    return () => {
+      this.socket?.off('order:assigned', listener);
+    };
+  }
+
   // ── Private ──
 
   private setupEventHandlers() {
@@ -186,6 +238,28 @@ class SocketClient {
       this.dispatch?.(baseApi.util.invalidateTags(['Orders', 'Order']));
     });
 
+    // ── Admin Events ──
+
+    this.socket.on('order:status:changed', (data: OrderStatusChangedData) => {
+      logEvent('admin_order_status_changed', { 
+        orderId: data.orderId, 
+        from: data.from, 
+        to: data.to,
+        actorRole: data.actorRole 
+      });
+      // Invalidate RTK Query cache so admin screens refetch
+      this.dispatch?.(baseApi.util.invalidateTags(['Orders', 'Order']));
+    });
+
+    this.socket.on('order:assigned', (data: OrderAssignedData) => {
+      logEvent('admin_order_assigned', { 
+        orderId: data.orderId, 
+        deliveryPartnerId: data.deliveryPartnerId 
+      });
+      // Invalidate RTK Query cache so admin screens refetch
+      this.dispatch?.(baseApi.util.invalidateTags(['Orders', 'Order']));
+    });
+
     this.socket.on('payment_status_updated', (data: { orderId: string; status: string }) => {
       // Backward compat: also listen for old event name
       this.handlePaymentUpdate(data);
@@ -211,3 +285,6 @@ class SocketClient {
 
 // Singleton — import this everywhere
 export const socketClient = new SocketClient();
+
+// Export types for use in admin screens
+export type { OrderStatusChangedData, OrderAssignedData, OrderStatusListener, OrderAssignedListener };

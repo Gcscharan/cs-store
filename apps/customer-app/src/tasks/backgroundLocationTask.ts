@@ -65,12 +65,27 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
       lastSentTime = now;
       console.log('[TaskManager] Background location sent successfully');
     } catch (err: any) {
+      const status = err?.response?.status || err?.status;
+      
+      // 422 = Invalid/missing route - stop tracking instead of queuing
+      if (status === 422) {
+        console.error('[TaskManager] Invalid route (422) - clearing activeRouteId and stopping location updates');
+        await storage.removeItem('activeRouteId');
+        // Stop location updates to prevent repeated 422 errors
+        try {
+          await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
+        } catch (stopErr) {
+          console.error('[TaskManager] Error stopping location updates:', stopErr);
+        }
+        return;
+      }
+      
       console.error('[TaskManager] Failed to sync background location, queuing offline:', err.message);
       
       const activeRouteId = await storage.getItem('activeRouteId');
       if (!activeRouteId) return;
 
-      // Retry on Location Send Failure
+      // Retry on Location Send Failure (network errors, 5xx, etc.)
       offlineQueue.enqueue('LOCATION_UPDATE', {
         lat: loc.coords.latitude,
         lng: loc.coords.longitude,

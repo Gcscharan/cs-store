@@ -50,17 +50,18 @@ export default function LoginScreen({ navigation }: any) {
       console.log('✅ OTP sent successfully:', result);
       
       // DEVELOPMENT ONLY: Show OTP in console and alert if available
-      if (result.devMode && result.otp) {
+      const devResult = result as any;
+      if (devResult.devMode && devResult.otp) {
         console.log('\n' + '='.repeat(50));
         console.log('🔑 DEVELOPMENT MODE - OTP RECEIVED');
         console.log('📱 Phone:', phone);
-        console.log('🔢 OTP:', result.otp);
-        console.log('⏰ Expires in:', result.expiresIn, 'seconds');
+        console.log('🔢 OTP:', devResult.otp);
+        console.log('⏰ Expires in:', devResult.expiresIn, 'seconds');
         console.log('='.repeat(50) + '\n');
         
         Alert.alert(
           '🔑 Development OTP',
-          `Your OTP is: ${result.otp}\n\n(This alert only appears in development mode)`,
+          `Your OTP is: ${devResult.otp}\n\n(This alert only appears in development mode)`,
           [{ text: 'OK' }]
         );
       }
@@ -102,7 +103,7 @@ export default function LoginScreen({ navigation }: any) {
       const result = await verifyOtp({ phone, otp }).unwrap(); // Removed mode parameter
       
       // Check if user needs onboarding
-      if (result.requiresOnboarding) {
+      if ('requiresOnboarding' in result && result.requiresOnboarding) {
         logEvent('new_user_onboarding_required');
         // Navigate to onboarding screen
         navigation.navigate('Onboarding', { phone });
@@ -110,9 +111,10 @@ export default function LoginScreen({ navigation }: any) {
       }
 
       // Existing user - complete login
-      await SecureStore.setItemAsync('accessToken', result.accessToken); 
-      if (result.refreshToken) { 
-        await SecureStore.setItemAsync('refreshToken', result.refreshToken); 
+      const authResult = result as import('../../api/authApi').AuthResponse;
+      await SecureStore.setItemAsync('accessToken', authResult.accessToken); 
+      if (authResult.refreshToken) { 
+        await SecureStore.setItemAsync('refreshToken', authResult.refreshToken); 
       } 
       
       logEvent('otp_verified_success');
@@ -120,12 +122,12 @@ export default function LoginScreen({ navigation }: any) {
       Vibration.vibrate(50);
 
       dispatch(setTokens({ 
-        accessToken: result.accessToken, 
-        refreshToken: result.refreshToken, 
+        accessToken: authResult.accessToken, 
+        refreshToken: authResult.refreshToken, 
       })); 
-      dispatch(setUser(result.user)); 
+      dispatch(setUser(authResult.user)); 
       dispatch(setStatus('ACTIVE'));
-      console.log("🔐 LOGIN COMPLETE", {userId: result.user?.id, time: Date.now()});
+      console.log("🔐 LOGIN COMPLETE", {userId: authResult.user?.id, time: Date.now()});
 
     } catch (err: any) { 
       logEvent('otp_verification_failed');

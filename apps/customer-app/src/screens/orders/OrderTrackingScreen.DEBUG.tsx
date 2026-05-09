@@ -26,8 +26,9 @@ const { width, height } = Dimensions.get('window');
 
 // 🔥 DEBUG MODE ENABLED - COMPREHENSIVE LOGGING
 const DEBUG = true;
-const log = (...args: any[]) => {
+const log = (...args: any[]): null => {
   if (DEBUG) console.log('[🔍 ORDER_TRACKING]', ...args);
+  return null;
 };
 const logError = (...args: any[]) => {
   console.error('[🔥 ORDER_TRACKING ERROR]', ...args);
@@ -593,7 +594,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: Colors.backgroundDark,
+    backgroundColor: Colors.inputBackground,
     justifyContent: 'center',
     alignItems: 'center',
   },

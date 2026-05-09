@@ -287,4 +287,7 @@ const s = StyleSheet.create({
   confirmBtn: { flex: 1, backgroundColor: Colors.success, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
   confirmBtnDisabled: { opacity: 0.5 },
   confirmBtnText: { fontSize: 14, fontWeight: '600', color: Colors.white },
+  historyBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: Colors.inputBackground },
+  historyBtnText: { fontSize: 13, color: Colors.textSecondary, fontWeight: '600' },
+  content: { flex: 1 },
 });

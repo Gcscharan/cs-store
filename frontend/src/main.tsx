@@ -9,7 +9,15 @@ initializeSentry();
 
 // Disable service worker during dev to avoid cached 404s
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
+  if (import.meta.env.PROD) {
+    // Register service worker in production for PWA offline support
+    navigator.serviceWorker.register('/sw.js').catch(() => {
+      // SW registration failed — app still works, just no offline support
+    });
+  } else {
+    // Unregister any stale SW in development
+    navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
+  }
 }
 
 function injectLinkOnce(rel: string, href: string, extra?: (link: HTMLLinkElement) => void) {

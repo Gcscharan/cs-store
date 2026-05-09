@@ -25,7 +25,9 @@ import {
   getGstReportHandler,
   getRouteOverview,
 } from "../controllers/adminController";
+import { createProduct } from "../domains/catalog/controllers/productController";
 import { assignDeliveryBoyToOrder } from "../controllers/orderAssignmentController";
+import { assignOrderToAdminController } from "../domains/operations/controllers/adminAssignmentController";
 import { authenticateToken, requireRole } from "../middleware/auth";
 import { auditLog } from "../middleware/auditLog";
 import jwt from "jsonwebtoken";
@@ -34,8 +36,42 @@ import { OrderStatus } from "../domains/orders/enums/OrderStatus";
 import { enqueueAutoAssignment } from "../domains/delivery/services/autoAssignmentRunner";
 import { getAdminCodCollection, getAdminOrderAttempt } from "../domains/operations/controllers/deliveryOrderController";
 import { UserAccountService } from "../domains/user/services/UserAccountService";
+import multer from "multer";
+import { v2 as cloudinary } from "cloudinary";
 
 const router = express.Router();
+const upload = multer({ storage: multer.memoryStorage() });
+
+// Mobile video upload alias: POST /api/admin/upload/video
+router.post(
+  "/upload/video",
+  authenticateToken,
+  requireRole(["admin"]),
+  upload.single("video") as any,
+  async (req: any, res: any) => {
+    try {
+      const file = req.file as Express.Multer.File;
+      if (!file) return res.status(400).json({ message: "No video provided" });
+
+      const result = await new Promise<any>((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { folder: "products/videos", resource_type: "video" },
+          (err, result) => { if (err || !result) return reject(err); resolve(result); }
+        );
+        stream.end(file.buffer);
+      });
+
+      res.json({
+        url: result.secure_url,
+        publicId: result.public_id,
+        thumbnail: cloudinary.url(result.public_id, { resource_type: "video", format: "jpg", transformation: [{ start_offset: "0" }] }),
+        duration: result.duration || 0,
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  }
+);
 
 // Admin routes
 router.get("/stats", authenticateToken, requireRole(["admin"]), auditLog, getStats);
@@ -84,11 +120,117 @@ router.get(
   requireRole(["admin"]),
   getAdminProducts
 );
+// Mobile-friendly: accepts JSON with pre-uploaded image URLs
+router.post(
+  "/products",
+  authenticateToken,
+  requireRole(["admin"]),
+  async (req: any, res: any) => {
+    try {
+      const { Product } = require("../models/Product");
+      const { name, description, category, price, pricePerUnit, mrp, stock, weight, tags, sku, images, video, status } = req.body;
+
+      if (!name || !price || !category || stock === undefined) {
+        return res.status(400).json({ message: "Missing required fields", required: ["name", "price", "category", "stock"] });
+      }
+
+      // Build image docs from pre-uploaded URLs
+      const imageDocs = Array.isArray(images) ? images.map((url: string) => ({
+        publicId: url.split('/').pop()?.split('.')[0] || `img-${Date.now()}`,
+        variants: { original: url, medium: url, small: url, thumb: url, micro: url },
+      })) : [];
+
+      const product = new Product({
+        name,
+        description,
+        category,
+        price: Number(price),
+        pricePerUnit: pricePerUnit ? Number(pricePerUnit) : Number(price),
+        mrp: mrp ? Number(mrp) : undefined,
+        stock: Number(stock),
+        weight: weight ? Number(weight) : undefined,
+        tags: tags ? (Array.isArray(tags) ? tags : [tags]) : [],
+        sku,
+        images: imageDocs,
+        status: status || 'draft',
+        isActive: status === 'published',
+        isSellable: status === 'published',
+        ...(video ? { video } : {}),
+      });
+
+      const saved = await product.save();
+
+      // Emit real-time event
+      try {
+        const io = req.app.get("io");
+        if (io) {
+          const { ProductSocketEmitter } = require("../domains/products/services/productSocketEmitter");
+          new ProductSocketEmitter(io).emitProductCreated(saved.toObject ? saved.toObject() : saved);
+        }
+      } catch (e) { /* non-blocking */ }
+
+      return res.status(201).json({ success: true, product: saved, productId: saved._id, status: saved.status });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  }
+);
 router.put(
   "/products/:id",
   authenticateToken,
   requireRole(["admin"]),
   updateProduct
+);
+router.patch(
+  "/products/:id",
+  authenticateToken,
+  requireRole(["admin"]),
+  async (req: any, res: any) => {
+    try {
+      const { Product } = require("../models/Product");
+      const { name, description, category, price, pricePerUnit, mrp, stock, weight, tags, sku, images, video, status } = req.body;
+
+      const updateData: any = {};
+      if (name !== undefined) updateData.name = name;
+      if (description !== undefined) updateData.description = description;
+      if (category !== undefined) updateData.category = category;
+      if (price !== undefined) updateData.price = Number(price);
+      if (pricePerUnit !== undefined) updateData.pricePerUnit = Number(pricePerUnit);
+      if (mrp !== undefined) updateData.mrp = Number(mrp);
+      if (stock !== undefined) updateData.stock = Number(stock);
+      if (weight !== undefined) updateData.weight = Number(weight);
+      if (tags !== undefined) updateData.tags = Array.isArray(tags) ? tags : [tags];
+      if (sku !== undefined) updateData.sku = sku;
+      if (status !== undefined) { 
+        updateData.status = status; 
+        updateData.isActive = status === 'published'; 
+        updateData.isSellable = status === 'published';
+      }
+      if (video !== undefined) updateData.video = video;
+      if (images !== undefined && Array.isArray(images)) {
+        updateData.images = images.map((url: string) => ({
+          publicId: url.split('/').pop()?.split('.')[0] || `img-${Date.now()}`,
+          variants: { original: url, medium: url, small: url, thumb: url, micro: url },
+        }));
+      }
+
+      const product = await Product.findByIdAndUpdate(req.params.id, { $set: updateData }, { new: true });
+      if (!product) return res.status(404).json({ message: "Product not found" });
+
+      // Emit real-time event
+      try {
+        const io = req.app.get("io");
+        if (io) {
+          const { ProductSocketEmitter } = require("../domains/products/services/productSocketEmitter");
+          new ProductSocketEmitter(io).emitProductUpdated(product.toObject ? product.toObject() : product);
+        }
+      } catch (e) { /* non-blocking */ }
+
+      res.json({ success: true, product });
+    } catch (err: any) {
+      res.status(500).json({ error: "Failed to update product", message: err.message });
+    }
+  }
 );
 router.delete(
   "/products/:id",
@@ -96,6 +238,93 @@ router.delete(
   requireRole(["admin"]),
   deleteProduct
 );
+// Publish product (mark as published)
+router.post(
+  "/products/:id/publish",
+  authenticateToken,
+  requireRole(["admin"]),
+  async (req: any, res: any) => {
+    try {
+      const { Product } = require("../models/Product");
+      const product = await Product.findByIdAndUpdate(
+        req.params.id,
+        { status: "published", isActive: true, isSellable: true },
+        { new: true }
+      );
+      if (!product) return res.status(404).json({ message: "Product not found" });
+
+      // Emit real-time event
+      try {
+        const io = req.app.get("io");
+        if (io) {
+          const { ProductSocketEmitter } = require("../domains/products/services/productSocketEmitter");
+          new ProductSocketEmitter(io).emitProductUpdated(product.toObject ? product.toObject() : product);
+        }
+      } catch (e) { /* non-blocking */ }
+
+      res.json({ message: "Product published", product });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  }
+);
+// Version history stubs (returns empty for now)
+router.get("/products/:id/versions", authenticateToken, requireRole(["admin"]), (_req: any, res: any) => {
+  res.json({ versions: [], total: 0 });
+});
+
+// Bulk product upload — POST /api/admin/products/bulk
+router.post(
+  "/products/bulk",
+  authenticateToken,
+  requireRole(["admin"]),
+  async (req: any, res: any) => {
+    try {
+      const { products } = req.body;
+      if (!Array.isArray(products) || products.length === 0) {
+        return res.status(400).json({ message: "products array is required" });
+      }
+      if (products.length > 200) {
+        return res.status(400).json({ message: "Maximum 200 products per upload" });
+      }
+
+      const { Product } = require("../models/Product");
+      let created = 0;
+      let failed = 0;
+      const errors: string[] = [];
+
+      for (const p of products) {
+        try {
+          if (!p.name || !p.price || !p.category) {
+            failed++;
+            errors.push(`Skipped: missing required fields for "${p.name || 'unknown'}"`);
+            continue;
+          }
+          await Product.create({
+            name: String(p.name).trim(),
+            description: String(p.description || '').trim(),
+            price: Number(p.price),
+            mrp: p.mrp ? Number(p.mrp) : undefined,
+            category: String(p.category).trim(),
+            stock: Number(p.stock || 0),
+            weight: p.weight ? Number(p.weight) : undefined,
+            images: [],
+            isActive: true,
+          });
+          created++;
+        } catch (err: any) {
+          failed++;
+          errors.push(`Failed "${p.name}": ${err.message}`);
+        }
+      }
+
+      res.json({ success: true, created, failed, errors: errors.slice(0, 10) });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Bulk upload failed" });
+    }
+  }
+);
+
 router.get(
   "/orders",
   authenticateToken,
@@ -123,6 +352,17 @@ router.get(
 // router.patch("/orders/:orderId", authenticateToken, requireRole(["admin"]), updateOrderStatus);
 // router.post("/orders/:orderId/accept", authenticateToken, requireRole(["admin"]), acceptOrder);
 // router.post("/orders/:orderId/decline", authenticateToken, requireRole(["admin"]), declineOrder);
+
+// Admin assignment endpoint - marks order as assigned to admin system
+// Primarily used via ORDER_CREATED events, but available for manual assignment
+router.post(
+  "/orders/:orderId/assign-admin",
+  authenticateToken,
+  requireRole(["admin"]),
+  assignOrderToAdminController
+);
+
+// Delivery partner assignment endpoint
 router.patch(
   "/orders/:orderId/assign",
   authenticateToken,
@@ -148,6 +388,12 @@ router.get(
   authenticateToken,
   requireRole(["admin"]),
   getAdminDeliveryBoys // Using getAdminDeliveryBoys instead of getDeliveryBoysList
+);
+router.get(
+  "/delivery-partners/available",
+  authenticateToken,
+  requireRole(["admin"]),
+  getAdminDeliveryBoys // Reuse same controller for available delivery partners
 );
 router.put(
   "/delivery-boys/:id/approve",

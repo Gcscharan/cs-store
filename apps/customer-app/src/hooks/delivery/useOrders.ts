@@ -1,6 +1,9 @@
 import { useGetDeliveryOrdersQuery } from '../../api/deliveryApi';
 import { Order } from '../../utils/deliveryUtils';
 
+// Re-export Order type for convenience
+export type { Order } from '../../utils/deliveryUtils';
+
 export interface DeliveryBoy {
   _id?: string;
   name?: string;

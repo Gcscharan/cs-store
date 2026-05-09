@@ -5,6 +5,7 @@ import mongoose from "mongoose";
 import { WebhookEventInbox } from "../models/WebhookEventInbox";
 import { PaymentIntent } from "../models/PaymentIntent";
 import { Order } from "../../../models/Order";
+import { InventoryReservation } from "../../../models/InventoryReservation";
 import { RazorpayAdapter } from "../adapters/RazorpayAdapter";
 import { appendLedgerEntry } from "./ledgerService";
 import * as paymentIntentStateMachine from "./paymentIntentStateMachine";
@@ -13,28 +14,31 @@ import { inventoryReservationService } from "../../orders/services/inventoryRese
 import { incCounterWithLabels } from "../../../ops/opsMetrics";
 import { capturePaymentError } from "../../../utils/logger";
 import { generateInvoiceForOrder } from "../../invoice/services/invoiceService";
+import { paymentMetricsService } from "./paymentMetricsService";
 
 export async function processRazorpayWebhook(args: {
   rawBody: Buffer;
   headers: Record<string, any>;
   io?: any;
 }): Promise<{ ok: true } | { ok: false; statusCode: number; message: string }>{
-  console.info("[WEBHOOK][RECEIVED]", {
-    gateway: "RAZORPAY",
+  // NFR-004: Log webhook received with details
+  logger.info('[Webhook] Processing Razorpay webhook', {
+    gateway: 'RAZORPAY',
     hasRawBody: Buffer.isBuffer(args.rawBody),
     rawBodySize: Buffer.isBuffer(args.rawBody) ? args.rawBody.length : 0,
-  });
-
-  console.info("[BACKEND][WEBHOOK_RECEIVED]", {
-    gateway: "RAZORPAY",
-    hasRawBody: Buffer.isBuffer(args.rawBody),
-    rawBodySize: Buffer.isBuffer(args.rawBody) ? args.rawBody.length : 0,
+    timestamp: new Date().toISOString(),
   });
 
   const adapter = new RazorpayAdapter();
 
   const sig = adapter.verifyWebhookSignature({ rawBody: args.rawBody, headers: args.headers });
   if (!sig.ok) {
+    // NFR-004: Log signature verification failure
+    logger.error('[Webhook] Signature verification failed', {
+      gateway: 'RAZORPAY',
+      reason: sig.reason,
+    });
+    
     incCounterWithLabels(
       "payment_events_total",
       { gateway: "RAZORPAY", type: "webhook", event: "SIGNATURE", result: "invalid" },
@@ -43,24 +47,26 @@ export async function processRazorpayWebhook(args: {
     return { ok: false, statusCode: 401, message: sig.reason };
   }
 
-  console.info("[WEBHOOK][SIGNATURE_OK]", {
-    gateway: "RAZORPAY",
+  // NFR-004: Log successful signature verification
+  logger.info('[Webhook] Signature verified successfully', {
+    gateway: 'RAZORPAY',
   });
 
   const event = adapter.parseWebhook({ rawBody: args.rawBody });
 
-  console.info("[WEBHOOK][EVENT_TYPE]", {
-    gateway: "RAZORPAY",
-    type: String((event as any)?.type || ""),
-    gatewayEventId: String((event as any)?.gatewayEventId || ""),
-    gatewayOrderId: String((event as any)?.gatewayOrderId || ""),
+  // NFR-004: Log webhook event type and IDs
+  logger.info('[Webhook] Webhook event parsed', {
+    gateway: 'RAZORPAY',
+    eventType: String((event as any)?.type || ''),
+    gatewayEventId: String((event as any)?.gatewayEventId || ''),
+    gatewayOrderId: String((event as any)?.gatewayOrderId || ''),
   });
 
-  console.info("[BACKEND][WEBHOOK_RECEIVED]", {
-    gateway: "RAZORPAY",
-    type: String((event as any)?.type || ""),
-    gatewayEventId: String((event as any)?.gatewayEventId || ""),
-    gatewayOrderId: String((event as any)?.gatewayOrderId || ""),
+  // Track webhook received
+  paymentMetricsService.trackWebhookReceived({
+    eventType: String((event as any)?.type || ''),
+    razorpayOrderId: String((event as any)?.gatewayOrderId || ''),
+    razorpayPaymentId: String((event as any)?.gatewayEventId || ''),
   });
 
   if (event.type !== "PAYMENT_CAPTURED" && event.type !== "PAYMENT_FAILED") {
@@ -106,7 +112,11 @@ export async function processRazorpayWebhook(args: {
 
   const intent = await PaymentIntent.findOne({ gateway: "RAZORPAY", gatewayOrderId });
   if (!intent) {
-    // Fallback path: if intent is missing, attempt to derive DB orderId from gateway notes.
+    // Fallback path: PaymentIntent not found for this gatewayOrderId.
+    // Since orderBuilder.ts now always creates a PaymentIntent at checkout,
+    // reaching here means the intent row is genuinely missing (data inconsistency).
+    // Log as a critical alert for ops visibility — do NOT finalize payment.
+    // This prevents a missing-intent from silently bypassing the active-attempt guard.
     const raw: any = (event as any).rawEvent || {};
     const derivedOrderId = String(
       raw?.payload?.payment?.entity?.notes?.orderId ||
@@ -114,65 +124,19 @@ export async function processRazorpayWebhook(args: {
         ""
     ).trim();
 
-    if (!derivedOrderId) {
-      await WebhookEventInbox.updateOne(
-        { dedupeKey },
-        { $set: { status: "FAILED", error: "PaymentIntent not found" } }
-      );
-      return { ok: false, statusCode: 404, message: "PaymentIntent not found" };
-    }
+    logger.error("[WEBHOOK][INTENT_MISSING] PaymentIntent not found — will NOT finalize payment", {
+      gatewayOrderId,
+      gatewayEventId,
+      eventType: event.type,
+      derivedOrderId: derivedOrderId || "(none)",
+      note: "orderBuilder should always create PaymentIntent at checkout — investigate missing row",
+    });
 
-    // If we can map it to a DB order, finalize idempotently.
-    const session = await mongoose.startSession();
-    try {
-      await session.withTransaction(async () => {
-        const order = await Order.findById(derivedOrderId).select("paymentStatus").session(session);
-        if (!order) {
-          await WebhookEventInbox.updateOne(
-            { dedupeKey },
-            { $set: { status: "FAILED", error: "Order not found" } },
-            { session }
-          );
-          return;
-        }
-
-        const ps = String((order as any).paymentStatus || "").toUpperCase();
-        if (ps !== "PAID" && event.type === "PAYMENT_CAPTURED") {
-          console.info("[WEBHOOK][PAYMENT_CAPTURED]", {
-            gateway: "RAZORPAY",
-            orderId: String((order as any)._id),
-            gatewayOrderId,
-            gatewayEventId,
-          });
-
-          const out = await finalizeOrderOnCapturedPayment({
-            orderId: String((order as any)._id),
-            razorpayOrderId: gatewayOrderId,
-            razorpayPaymentId: gatewayEventId,
-            capturedAt: event.occurredAt,
-            session,
-          });
-
-          if (out.updated) {
-            console.info("[ORDER][MARKED_PAID]", {
-              orderId: String((order as any)._id),
-              gateway: "RAZORPAY",
-              gatewayOrderId,
-              gatewayEventId,
-            });
-          }
-        }
-
-        await WebhookEventInbox.updateOne(
-          { dedupeKey },
-          { $set: { status: "PROCESSED", processedAt: new Date() } },
-          { session }
-        );
-      });
-    } finally {
-      session.endSession();
-    }
-
+    await WebhookEventInbox.updateOne(
+      { dedupeKey },
+      { $set: { status: "FAILED", error: "PaymentIntent not found — finalization skipped for safety" } }
+    );
+    // Return ok: true so Razorpay does not retry — the missing intent is a data problem, not a transient one.
     return { ok: true };
   }
 
@@ -224,6 +188,21 @@ export async function processRazorpayWebhook(args: {
       }
 
       if (event.type === "PAYMENT_FAILED") {
+        // NFR-004: Log payment failed event
+        logger.info('[Webhook] Payment failed event received', {
+          gateway: 'RAZORPAY',
+          orderId: String((freshIntent as any).orderId),
+          gatewayOrderId,
+          gatewayEventId,
+        });
+
+        // Track metrics: payment failure
+        paymentMetricsService.trackPaymentFailure({
+          orderId: String((freshIntent as any).orderId),
+          razorpayOrderId: gatewayOrderId,
+          reason: 'payment_failed_webhook',
+        });
+
         const from = String((freshIntent as any).status) as any;
         if (String(from).toUpperCase() !== "FAILED") {
           try {
@@ -235,9 +214,21 @@ export async function processRazorpayWebhook(args: {
             err.statusCode = 400;
             throw err;
           }
-          (freshIntent as any).status = "FAILED" as any;
-          (freshIntent as any).paymentState = "FAILED" as any;
-          await (freshIntent as any).save({ session });
+          // Optimistic lock: only write if version hasn't changed since we read freshIntent
+          const failRes = await PaymentIntent.updateOne(
+            { _id: freshIntent._id, version: (freshIntent as any).version ?? 0 },
+            {
+              $set: { status: "FAILED" as any, paymentState: "FAILED" as any },
+              $inc: { version: 1 },
+            },
+            { session }
+          );
+          if (Number((failRes as any).modifiedCount) === 0) {
+            // Another worker already transitioned this intent — idempotent, continue
+            logger.info('[Webhook] PaymentIntent already transitioned by concurrent worker (FAILED)', {
+              intentId: String(freshIntent._id),
+            });
+          }
         }
 
         // Release ACTIVE reservations early on payment failure (timeout sweeper is the fallback).
@@ -246,18 +237,13 @@ export async function processRazorpayWebhook(args: {
           orderId: new mongoose.Types.ObjectId(String((freshIntent as any).orderId)),
         });
       } else {
-        console.info("[WEBHOOK][PAYMENT_CAPTURED]", {
-          gateway: "RAZORPAY",
+        // NFR-004: Log payment captured event
+        logger.info('[Webhook] Payment captured event received', {
+          gateway: 'RAZORPAY',
           orderId: String((freshIntent as any).orderId),
           gatewayOrderId,
           gatewayEventId,
-        });
-
-        console.info("[BACKEND][PAYMENT_CAPTURED]", {
-          gateway: "RAZORPAY",
-          orderId: String((freshIntent as any).orderId),
-          gatewayOrderId,
-          gatewayEventId,
+          verificationMethod: 'webhook',
         });
 
         const from = String((freshIntent as any).status) as any;
@@ -271,42 +257,163 @@ export async function processRazorpayWebhook(args: {
             err.statusCode = 400;
             throw err;
           }
-          (freshIntent as any).status = "CAPTURED" as any;
-          (freshIntent as any).paymentState = "PAID" as any;
-          await (freshIntent as any).save({ session });
+          // Optimistic lock: only write if version hasn't changed since we read freshIntent
+          const captureRes = await PaymentIntent.updateOne(
+            { _id: freshIntent._id, version: (freshIntent as any).version ?? 0 },
+            {
+              $set: { status: "CAPTURED" as any, paymentState: "PAID" as any },
+              $inc: { version: 1 },
+            },
+            { session }
+          );
+          if (Number((captureRes as any).modifiedCount) === 0) {
+            // Another worker already transitioned — idempotent, continue to order finalization
+            logger.info('[Webhook] PaymentIntent already transitioned by concurrent worker (CAPTURED)', {
+              intentId: String(freshIntent._id),
+            });
+          }
         }
 
         // Idempotency: if the order is already PAID (e.g. verified via client-side signature
         // before the webhook arrived), acknowledge without failing/retrying.
         const existingOrder = await Order.findById(String((freshIntent as any).orderId))
-          .select("paymentStatus")
+          .select("paymentStatus totalAmount activePaymentIntentId")
           .session(session);
+
+        // Active intent guard: only the current active attempt may mark the order PAID.
+        // If the order was retried after this attempt was created, a newer intent is now
+        // active and this webhook is for a stale attempt — ignore it.
+        const activeIntentId = String((existingOrder as any)?.activePaymentIntentId || '');
+        const thisIntentId = String((freshIntent as any)._id || '');
+        if (activeIntentId && thisIntentId && activeIntentId !== thisIntentId) {
+          logger.warn('[Webhook] Stale payment intent — ignoring PAYMENT_CAPTURED for old attempt', {
+            orderId: String((freshIntent as any).orderId),
+            activePaymentIntentId: activeIntentId,
+            webhookIntentId: thisIntentId,
+            gatewayOrderId,
+          });
+          await WebhookEventInbox.updateOne(
+            { dedupeKey },
+            { $set: { status: "PROCESSED", processedAt: new Date() } },
+            { session }
+          );
+          return;
+        }
 
         const ps = String((existingOrder as any)?.paymentStatus || "").toUpperCase();
         if (ps !== "PAID") {
+          // 🚨 CRITICAL SECURITY FIX #3: AMOUNT VALIDATION (ANTI-FRAUD)
+          // Verify payment amount matches order total before marking as PAID
+          const orderTotal = Number((existingOrder as any)?.totalAmount || 0);
+          const paymentAmount = Number(event.amount || 0);
+          const expectedAmountPaise = Math.round(orderTotal * 100);
+          
+          if (paymentAmount !== expectedAmountPaise) {
+            logger.error("[WEBHOOK][AMOUNT_MISMATCH] Payment amount does not match order total", {
+              orderId: String((existingOrder as any)?._id),
+              orderTotal,
+              expectedAmountPaise,
+              paymentAmount,
+              difference: paymentAmount - expectedAmountPaise,
+            });
+            
+            await WebhookEventInbox.updateOne(
+              { dedupeKey },
+              { 
+                $set: { 
+                  status: "FAILED", 
+                  error: `Amount mismatch: expected ${expectedAmountPaise} paise, got ${paymentAmount} paise` 
+                } 
+              },
+              { session }
+            );
+            
+            const err: any = new Error("Amount mismatch - possible fraud attempt");
+            err.statusCode = 400;
+            throw err;
+          }
+          
+          // CRITICAL: Commit inventory BEFORE finalization
+          // Inventory locking invariant: Never set Order.paymentStatus=PAID unless inventory is committed
+          const orderItems = Array.isArray((existingOrder as any)?.items) ? ((existingOrder as any).items as any[]) : [];
+          const items = orderItems.map((it: any) => ({
+            productId: it.productId,
+            qty: Number(it.qty ?? it.quantity ?? 0),
+          }));
+
+          if (items.length > 0) {
+            await inventoryReservationService.reserveForOrder({
+              session,
+              orderId: new mongoose.Types.ObjectId(String((freshIntent as any).orderId)),
+              ttlMs: 30 * 60_000,
+              items,
+            });
+
+            const res = await inventoryReservationService.commitReservationsForOrder({
+              session,
+              orderId: new mongoose.Types.ObjectId(String((freshIntent as any).orderId)),
+            });
+
+            if (!res.committed) {
+              // Either already committed, or missing reservations. Refuse to mark paid if nothing was committed
+              // and there is no evidence of a previous commit.
+              const committedCount = await InventoryReservation.countDocuments({
+                orderId: new mongoose.Types.ObjectId(String((freshIntent as any).orderId)),
+                status: "COMMITTED",
+              }).session(session);
+              if (Number(committedCount || 0) === 0) {
+                const err: any = new Error("Inventory commit missing for paid order");
+                err.statusCode = 409;
+                throw err;
+              }
+            }
+          }
+          
           // Finalize order ONLY from ledger CAPTURE.
-          // This call enforces: Order.paymentStatus=PAID implies inventory committed.
+          // Inventory commit happens BEFORE this call (above).
           const out = await finalizeOrderOnCapturedPayment({
             orderId: String((freshIntent as any).orderId),
             razorpayOrderId: gatewayOrderId,
             razorpayPaymentId: gatewayEventId,
             capturedAt: event.occurredAt,
+            confirmedBy: 'WEBHOOK',
             session,
           });
 
           if (out.updated) {
-            console.info("[ORDER][MARKED_PAID]", {
+            logger.info("[ORDER][MARKED_PAID]", {
               orderId: String((freshIntent as any).orderId),
               gateway: "RAZORPAY",
               gatewayOrderId,
               gatewayEventId,
+              verificationMethod: "webhook",
             });
 
-            console.info("[BACKEND][ORDER_MARKED_PAID]", {
+            // Track metrics: payment success via webhook
+            // Calculate verification time from order creation to webhook
+            const order = await Order.findById(String((freshIntent as any).orderId))
+              .select('createdAt')
+              .session(session);
+            const verificationTimeMs = order 
+              ? Date.now() - new Date(order.createdAt).getTime()
+              : 0;
+
+            paymentMetricsService.trackPaymentSuccess({
+              orderId: String((freshIntent as any).orderId),
+              razorpayOrderId: gatewayOrderId,
+              razorpayPaymentId: gatewayEventId,
+              verificationTimeMs,
+              verificationMethod: 'webhook',
+            });
+          } else {
+            // Order already finalized by another worker (webhook retry or concurrent polling)
+            logger.info("[ORDER][ALREADY_FINALIZED]", {
               orderId: String((freshIntent as any).orderId),
               gateway: "RAZORPAY",
               gatewayOrderId,
               gatewayEventId,
+              verificationMethod: "webhook",
+              note: "Another worker already finalized this order (idempotent)",
             });
           }
         }

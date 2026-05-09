@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
   troubleshootingTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: Colors.text,
+    color: Colors.textPrimary,
     marginBottom: 16,
   },
   stepContainer: {
@@ -149,7 +149,7 @@ const styles = StyleSheet.create({
   stepText: {
     flex: 1,
     fontSize: 15,
-    color: Colors.text,
+    color: Colors.textPrimary,
     lineHeight: 22,
   },
   retryButton: {

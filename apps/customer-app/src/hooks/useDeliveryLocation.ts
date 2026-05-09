@@ -19,7 +19,7 @@ export function useDeliveryLocation(isOnDuty: boolean, enabled: boolean = true) 
   const [updateLocation] = useUpdateLocationMutation();
   const { data: routeData } = useGetCurrentRouteQuery(undefined, {
     skip: !isOnDuty || !enabled,
-    pollingInterval: 10000,
+    // Removed pollingInterval - rely on socket events for real-time updates
   });
 
   const routeId = routeData?.route?.routeId || null;
@@ -39,8 +39,27 @@ export function useDeliveryLocation(isOnDuty: boolean, enabled: boolean = true) 
     setIsTracking(false);
   }, []);
 
+  /** Returns true if the error is a known harmless Android lifecycle / background error */
+  const isHarmlessLocationError = (err: any): boolean => {
+    const msg = String(err?.message || err || '');
+    return (
+      msg.includes('ExpoKeepAwake') ||
+      msg.includes('activity is no longer available') ||
+      msg.includes("Couldn't start the foreground service") ||
+      msg.includes('Foreground service cannot be started when the application is in the background') ||
+      msg.includes('Call to function') ||
+      msg.includes('has been rejected') ||
+      msg.includes('no longer available')
+    );
+  };
+
   const startTracking = useCallback(async () => {
-    let mounted = true;
+    // Hard gate: never attempt foreground service when not in foreground
+    if (AppState.currentState !== 'active') {
+      console.log('[DeliveryLocation] Skipping startTracking — app not active');
+      return;
+    }
+
     try {
       const servicesEnabled = await Location.hasServicesEnabledAsync();
       if (!servicesEnabled) {
@@ -57,70 +76,107 @@ export function useDeliveryLocation(isOnDuty: boolean, enabled: boolean = true) 
       const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
       if (bgStatus !== 'granted') {
         console.warn('Background location permission denied');
-        // We still continue, but tracking will be foreground-only
+        // Continue — foreground-only tracking
       }
 
-      // 1. Android Permission Race Condition Fix
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      if (!mounted) return;
+      // Android permission race condition fix
+      await new Promise<void>(resolve => setTimeout(() => resolve(), 300));
 
-      // 2. Clean up ghost watchers FIRST
+      // Re-check after async gap
+      if (AppState.currentState !== 'active') {
+        console.log('[DeliveryLocation] App went background during permission flow, aborting');
+        return;
+      }
+
+      // Check if already tracking the same route
+      const currentActiveRouteId = await storage.getItem('activeRouteId');
+      const alreadyHasTask = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
+      
+      if (alreadyHasTask && currentActiveRouteId === routeIdRef.current) {
+        console.log('[DeliveryLocation] Already tracking current route, skipping restart');
+        setIsTracking(true);
+        return;
+      }
+
+      // Clean up any ghost watchers
       await stopTracking();
+
+      // Don't start tracking if there's no route
+      if (!routeIdRef.current) {
+        console.log('[DeliveryLocation] No active route - skipping location tracking');
+        setIsTracking(false);
+        return;
+      }
 
       setError(null);
       setIsTracking(true);
 
-      // Persist routeId for background tasks during cold boots
       if (routeIdRef.current) {
         await storage.setItem('activeRouteId', routeIdRef.current);
       }
 
-      // 3. True background tracking using TaskManager (Prevent Deduplication)
-      const hasStarted = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
-      if (!hasStarted) {
+      // Final foreground check right before native call
+      if (AppState.currentState !== 'active') {
+        console.log('[DeliveryLocation] App went background before startLocationUpdatesAsync, aborting');
+        setIsTracking(false);
+        return;
+      }
+
+      const isAlreadyStarted = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
+      if (!isAlreadyStarted) {
         await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-          accuracy: Location.Accuracy.Balanced, // Battery optimization
-          distanceInterval: 20, // Only fire when moved 20 meters
-          timeInterval: 3000, 
+          accuracy: Location.Accuracy.Balanced,
+          distanceInterval: 20,
+          timeInterval: 3000,
           showsBackgroundLocationIndicator: true,
           foregroundService: {
-            notificationTitle: "Delivery in progress",
+            notificationTitle: 'Delivery in progress',
             notificationBody: "Live tracking active while you're on a route",
-            notificationColor: "#f97316",
+            notificationColor: '#f97316',
           },
         });
         console.log('[DeliveryLocation] Started BACKGROUND tracking');
       }
-    } catch (err) {
-      console.error('[DeliveryLocation] Error starting tracking:', err);
-      setError('Failed to start location tracking');
+    } catch (err: any) {
+      if (isHarmlessLocationError(err)) {
+        console.warn('[DeliveryLocation] Suppressed harmless lifecycle error:', err?.message);
+        setIsTracking(false);
+      } else {
+        console.error('[DeliveryLocation] Error starting tracking:', err);
+        setError('Failed to start location tracking');
+      }
     }
-
-    return () => {
-      mounted = false;
-    };
   }, [stopTracking]);
 
   useEffect(() => {
-    // 5. AppState recovery logic
+    // 5. AppState recovery logic — only restart when app comes to foreground
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active' && enabled && isOnDuty && routeId) {
-        startTracking(); // restart clean
+        // Delay to let the Android activity fully resume before starting foreground service
+        setTimeout(() => {
+          if (AppState.currentState === 'active') {
+            startTracking().catch((err) => {
+              console.warn('[DeliveryLocation] startTracking rejected (AppState recovery):', err);
+            });
+          }
+        }, 500);
       }
     });
 
     if (enabled && isOnDuty && routeId) {
-      startTracking();
+      // Only start if not already tracking the same route
+      startTracking().catch((err) => {
+        console.warn('[DeliveryLocation] startTracking rejected (effect):', err);
+      });
     } else {
       stopTracking();
     }
 
     return () => {
       sub.remove();
-      stopTracking();
+      // Only stop if the component is actually unmounting or duty/enabled changed
     };
-  }, [enabled, isOnDuty, !!routeId, startTracking, stopTracking]);
+  }, [enabled, isOnDuty, routeId, startTracking, stopTracking]);
 
   return {
     isTracking,

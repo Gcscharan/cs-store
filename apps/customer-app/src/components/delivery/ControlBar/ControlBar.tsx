@@ -1,6 +1,8 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import {
   DELIVERY_COLORS,
   DELIVERY_TYPOGRAPHY,
@@ -10,7 +12,7 @@ import {
 
 interface ControlBarProps {
   isOnline: boolean;
-  earnings: number;           // show only when > 0
+  earnings: number;
   onToggleOnline: () => void;
   isToggling: boolean;
 }
@@ -22,6 +24,7 @@ export const ControlBar: React.FC<ControlBarProps> = ({
   isToggling,
 }) => {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<any>();
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + DELIVERY_SPACING.sm }]}>
@@ -33,6 +36,16 @@ export const ControlBar: React.FC<ControlBarProps> = ({
             <Text style={styles.earningsValue}>₹{earnings}</Text>
           </View>
         )}
+
+        {/* My Route button */}
+        <TouchableOpacity
+          style={styles.routeBtn}
+          onPress={() => navigation.navigate('DeliveryRoute')}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="map" size={14} color={DELIVERY_COLORS.primary} />
+          <Text style={styles.routeBtnText}>My Route</Text>
+        </TouchableOpacity>
 
         {/* Online/Offline toggle chip */}
         <Pressable
@@ -81,6 +94,24 @@ const styles = StyleSheet.create({
     fontSize: DELIVERY_TYPOGRAPHY.md,
     color: DELIVERY_COLORS.earnings,
     fontWeight: '700',
+  },
+  routeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: DELIVERY_SPACING.md,
+    paddingVertical: DELIVERY_SPACING.sm,
+    borderRadius: DELIVERY_RADIUS.full,
+    borderWidth: 1.5,
+    borderColor: DELIVERY_COLORS.primary,
+    backgroundColor: DELIVERY_COLORS.primary + '12',
+    minHeight: 36,
+  },
+  routeBtnText: {
+    fontSize: DELIVERY_TYPOGRAPHY.xs,
+    fontWeight: '700',
+    color: DELIVERY_COLORS.primary,
+    letterSpacing: 0.3,
   },
   onlineChip: {
     flexDirection: 'row',

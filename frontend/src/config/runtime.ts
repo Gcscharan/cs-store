@@ -23,9 +23,11 @@ const normalizedApiBaseUrl =
 
 export const API_BASE_URL =
   import.meta.env.DEV &&
-  (normalizedApiBaseUrl === "http://localhost:5000" ||
+  (normalizedApiBaseUrl === "http://localhost:5002" ||
+    normalizedApiBaseUrl === "http://127.0.0.1:5002" ||
+    normalizedApiBaseUrl === "http://localhost:5000" ||
     normalizedApiBaseUrl === "http://127.0.0.1:5000")
-    ? "http://localhost:5001"
+    ? "http://localhost:5002"
     : normalizedApiBaseUrl;
 
 if (!API_BASE_URL && !import.meta.env.DEV) {

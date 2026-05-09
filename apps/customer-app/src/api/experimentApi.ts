@@ -4,7 +4,7 @@
  * Fetches A/B testing experiment configuration from backend
  */
 
-import { api } from './index';
+import { baseApi } from './baseApi';
 
 export interface ExperimentConfig {
   experimentName: string;
@@ -15,7 +15,7 @@ export interface ExperimentConfig {
   };
 }
 
-export const experimentApi = api.injectEndpoints({
+export const experimentApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     getExperimentConfig: builder.query<ExperimentConfig | null, string>({
       query: (userId) => `/experiments/config?userId=${userId}`,

@@ -41,7 +41,7 @@ export function createApp(config: AppConfig = {}): Application {
 
   const allowedCorsOrigins = process.env.CORS_ORIGIN
     ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
-    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:5000', 'http://localhost:5001'];
+    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:5002', 'http://localhost:5001'];
 
   app.use(
     cors({
@@ -212,6 +212,7 @@ export function createApp(config: AppConfig = {}): Application {
   const upiRoutes = require("./routes/upi").default;
   const paymentRoutes = require("./domains/finance/routes/paymentRoutes").default;
   const featureFlagsRoutes = require("./routes/featureFlagsApi").default;
+  const couponsRoutes = require("./routes/coupons").default;
 
   const metricsApiRoutes = require("./routes/metricsApi").default;
 
@@ -219,6 +220,7 @@ export function createApp(config: AppConfig = {}): Application {
   const paymentIntentsRoutes = require("./domains/payments/routes/paymentIntents.routes").default;
   const paymentWebhooksRoutes = require("./domains/payments/routes/webhooks.routes").default;
   const paymentStatusRoutes = require("./domains/payments/routes/paymentStatus.routes").default;
+  const paymentsRoutes = require("./domains/payments/routes/payments.routes").default;
 
   // Invoice
   const invoiceRoutes = require("./domains/invoice/routes/invoice.routes").default;
@@ -281,6 +283,7 @@ export function createApp(config: AppConfig = {}): Application {
   apiRouter.use("/payment", paymentRoutes);
   apiRouter.use("/payment-intents", paymentIntentsRoutes);
   apiRouter.use("/payment-status", paymentStatusRoutes);
+  apiRouter.use("/payments", paymentsRoutes);
   apiRouter.use("/webhooks", paymentWebhooksRoutes);
   apiRouter.use("/admin/tracking", adminTrackingRoutes);
   apiRouter.use("/admin/tracking/learning", adminTrackingLearningRoutes);
@@ -299,6 +302,7 @@ export function createApp(config: AppConfig = {}): Application {
   apiRouter.use("/internal", metricsApiRoutes);
 
   apiRouter.use("/debug", debugDbTestRoutes);
+  apiRouter.use("/coupons", couponsRoutes);
   apiRouter.use("/", featureFlagsRoutes);
 
   app.use("/api", apiRouter);

@@ -38,7 +38,7 @@ export function generateOpenApiSpec(app: Application) {
         title: "VyaparSetu API",
         version: "0.0.0",
       },
-      servers: [{ url: "http://localhost:5001" }],
+      servers: [{ url: "http://localhost:5002" }],
       paths,
     },
     apis: [],

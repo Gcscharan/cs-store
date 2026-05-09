@@ -62,10 +62,10 @@ export function createAsyncMutation<TArgs, TResult>(
  */
 export function sendBeacon(url: string, data: any): boolean {
   // Check if sendBeacon is available (web only, not React Native)
-  if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+  if (typeof (globalThis as any).navigator !== 'undefined' && (globalThis as any).navigator.sendBeacon) {
     try {
-      const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
-      return navigator.sendBeacon(url, blob);
+      const blob = new Blob([JSON.stringify(data)], { type: 'application/json' } as any);
+      return (globalThis as any).navigator.sendBeacon(url, blob);
     } catch (error) {
       console.warn('[Beacon] sendBeacon failed, falling back to fetch:', error);
     }

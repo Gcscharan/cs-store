@@ -16,6 +16,8 @@ import {
   cvrpRouteAssignmentService,
   OrderInput,
   VehicleInput,
+  PREVIEW_CAPACITY,
+  PREVIEW_MAX_DISTANCE_KM,
 } from "../services/cvrpRouteAssignmentService";
 import { getGstReport } from "../domains/finance/services/gstReportService";
 
@@ -256,19 +258,12 @@ export const assignRoute = async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Delivery boy not found" });
     }
 
-    const vt = String((deliveryBoy as any).vehicleType || "");
-    const vtUpper = vt.trim().toUpperCase();
-    const allowedVehicleTypes = new Set(["AUTO", "CAR"]);
-    if (!allowedVehicleTypes.has(vtUpper)) {
-      return res.status(400).json({
-        error: "Delivery boy vehicleType not allowed",
-        message: `vehicleType must be one of ${Array.from(allowedVehicleTypes).join(", ")}, got ${vt}`,
-      });
-    }
-
-    if (!(deliveryBoy as any).isActive) {
-      return res.status(400).json({ error: "Delivery boy is not active" });
-    }
+    // Admin has full control - can assign to any delivery partner
+    // Just log the details for tracking
+    const vt = String((deliveryBoy as any).vehicleType || "UNKNOWN");
+    const isActive = (deliveryBoy as any).isActive;
+    
+    logger.info(`Admin assigning route: deliveryBoyId=${deliveryBoyId}, vehicleType=${vt}, isActive=${isActive}`);
 
     const existingActive = await PersistedRoute.findOne({
       deliveryBoyId: (deliveryBoy as any)._id,
@@ -695,13 +690,13 @@ export const getAdminProducts = async (req: Request, res: Response) => {
 
     // Category filter
     const categoryFilter = req.query.category;
-    const query: any = { deletedAt: null, isSellable: { $ne: false } };
+    const query: any = { deletedAt: null };
     if (categoryFilter) query.category = categoryFilter;
 
     const [products, total] = await Promise.all([
       Product.find(query)
         .select(
-          "name price pricePerUnit stock category weight images description createdAt updatedAt"
+          "name price pricePerUnit mrp stock category weight images description status isActive isSellable sku tags createdAt updatedAt"
         )
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -753,9 +748,9 @@ export const getAdminOrders = async (req: Request, res: Response) => {
     // Use .lean() and field projection for performance
     const [orders, total] = await Promise.all([
       Order.find(query)
-        .select("orderStatus paymentStatus totalAmount createdAt userId deliveryBoyId items payment")
+        .select("orderStatus paymentStatus totalAmount createdAt userId deliveryBoyId items payment address orderNumber paymentMethod paymentReceivedAt")
         .populate("userId", "name email phone")
-        .populate("deliveryBoyId", "name phone")
+        .populate("deliveryBoyId", "name phone vehicleType")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -763,8 +758,31 @@ export const getAdminOrders = async (req: Request, res: Response) => {
       Order.countDocuments(query),
     ]);
 
+    // Compute allowedActions dynamically based on orderStatus
+    // (allowedActions is not stored on the Order model — it is derived at query time)
+    const getAllowedActions = (status: string): string[] => {
+      switch (String(status || "").toUpperCase()) {
+        case "CREATED":
+        case "PENDING_PAYMENT":
+          return ["CONFIRM", "CANCEL"];
+        case "CONFIRMED":
+          return ["PACK", "CANCEL"];
+        case "PACKED":
+          return ["ASSIGN"];
+        case "ASSIGNED":
+          return ["UNASSIGN"];
+        default:
+          return [];
+      }
+    };
+
+    const ordersWithActions = orders.map((order: any) => ({
+      ...order,
+      allowedActions: getAllowedActions(order.orderStatus),
+    }));
+
     return res.json({
-      orders,
+      orders: ordersWithActions,
       pagination: {
         page,
         limit,
@@ -1147,8 +1165,9 @@ export const getDashboardStats = async (
         .json({ error: "Access denied. Admin role required." });
     }
 
-    // Get basic counts
-    const totalProducts = await Product.countDocuments();
+    // Get basic counts — same filter as products listing for consistency
+    const PRODUCT_BASE_FILTER = { deletedAt: null };
+    const totalProducts = await Product.countDocuments(PRODUCT_BASE_FILTER);
     const totalUsers = await User.countDocuments();
     const totalOrders = await Order.countDocuments();
     const totalDeliveryBoys = await DeliveryBoy.countDocuments();
@@ -1239,7 +1258,7 @@ export const updateProduct = async (
     }
 
     // Find and update product
-    const product = await Product.findOneAndUpdate({ _id: id, deletedAt: null, isSellable: { $ne: false } }, updateData, {
+    const product = await Product.findOneAndUpdate({ _id: id, deletedAt: null }, updateData, {
       new: true,
       runValidators: true,
     });
@@ -1420,8 +1439,11 @@ export const computeRoutes = async (req: Request, res: Response) => {
     }
 
     if (isPreview) {
-      (vehicleInput as any).capacity = 1;
-      (vehicleInput as any).maxDistanceKm = 1000000;
+      // Phase 6 fix: Use realistic constraints in preview so clusters look like production.
+      // OLD: capacity=1, maxDistance=1,000,000 → unrealistic giant clusters
+      // NEW: capacity=PREVIEW_CAPACITY (5), maxDistance=35km → realistic preview
+      (vehicleInput as any).capacity = PREVIEW_CAPACITY;
+      (vehicleInput as any).maxDistanceKm = PREVIEW_MAX_DISTANCE_KM;
     }
 
     // Fetch orders - ALWAYS exclude already-assigned orders and orders in active routes
@@ -1694,21 +1716,13 @@ export const assignComputedCluster = async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Delivery boy not found" });
     }
 
-    const vt = String((deliveryBoy as any).vehicleType || "");
-    const vtUpper = vt.trim().toUpperCase();
-    const allowedVehicleTypes = new Set(["AUTO", "CAR"]);
-    if (!allowedVehicleTypes.has(vtUpper)) {
-      return res.status(400).json({
-        error: "Delivery boy vehicleType not allowed",
-        message: `vehicleType must be one of ${Array.from(allowedVehicleTypes).join(", ")}, got ${vt}`,
-      });
-    }
-    if (!(deliveryBoy as any).isActive) {
-      return res.status(400).json({ error: "Delivery boy is not active" });
-    }
-    if (String((deliveryBoy as any).availability || "").toLowerCase() !== "available") {
-      return res.status(409).json({ error: "Delivery boy is not available" });
-    }
+    // Admin has full control - can assign to any delivery partner
+    // Just log the details for tracking
+    const vt = String((deliveryBoy as any).vehicleType || "UNKNOWN");
+    const isActive = (deliveryBoy as any).isActive;
+    const availability = String((deliveryBoy as any).availability || "").toLowerCase();
+    
+    logger.info(`Admin assigning cluster: deliveryBoyId=${deliveryBoyId}, vehicleType=${vt}, isActive=${isActive}, availability=${availability}`);
 
     const existingActive = await PersistedRoute.findOne({
       deliveryBoyId: (deliveryBoy as any)._id,

@@ -36,9 +36,11 @@ const razorpay = new Razorpay({
 // Helper function to format cart items with type safety
 const formatCartItem = (item: any) => {
   const productId = item.productId;
-  // Check if productId is populated (has product properties)
   if (productId && typeof productId === 'object' && 'name' in productId) {
     const populatedProduct = productId as PopulatedProduct;
+    const stock = Number((populatedProduct as any).stock || 0);
+    const reservedStock = Number((populatedProduct as any).reservedStock || 0);
+    const availableStock = Math.max(0, stock - reservedStock);
     return {
       productId: populatedProduct._id.toString(),
       name: populatedProduct.name,
@@ -51,16 +53,21 @@ const formatCartItem = (item: any) => {
           || (populatedProduct.images?.[0] as any)?.variants?.original
           || "",
       quantity: item.quantity,
+      stock: availableStock,
+      isOutOfStock: availableStock <= 0,
+      hasInsufficientStock: item.quantity > availableStock,
     };
   } else {
     const rawProductId = (item as any)?._doc?.productId ?? (item as any)?.productId;
-    // Fallback for non-populated productId
     return {
       productId: rawProductId ? String(rawProductId) : "",
       name: "",
       price: 0,
       image: "",
       quantity: item.quantity,
+      stock: 0,
+      isOutOfStock: true,
+      hasInsufficientStock: true,
     };
   }
 };
@@ -127,25 +134,31 @@ export const addToCart = async (
     const stock = Number((product as any).stock || 0);
     const reservedStock = Number((product as any).reservedStock || 0);
     const availableStock = stock - reservedStock;
-    if (availableStock < quantity) {
-      return res.status(400).json({ message: "Insufficient stock" });
+    if (availableStock <= 0) {
+      return res.status(400).json({ message: "Product is out of stock", outOfStock: true });
     }
 
     // Get or create cart
     let cart = await Cart.findOne({ userId });
     if (!cart) {
-      cart = new Cart({
-        userId,
-        items: [],
-        total: 0,
-        itemCount: 0,
-      });
+      cart = new Cart({ userId, items: [], total: 0, itemCount: 0 });
     }
 
     // Check if item already exists in cart
     const existingItemIndex = cart.items.findIndex(
       (item) => item.productId.toString() === productId
     );
+
+    const existingQty = existingItemIndex > -1 ? cart.items[existingItemIndex].quantity : 0;
+    const totalQty = existingQty + quantity;
+
+    if (totalQty > availableStock) {
+      return res.status(400).json({
+        message: `Only ${availableStock} item(s) available. You already have ${existingQty} in cart.`,
+        availableStock,
+        existingQty,
+      });
+    }
 
     if (existingItemIndex > -1) {
       // Update quantity
@@ -238,8 +251,14 @@ export const updateCartItem = async (
       const stock = Number((product as any).stock || 0);
       const reservedStock = Number((product as any).reservedStock || 0);
       const availableStock = stock - reservedStock;
-      if (availableStock < quantity) {
-        return res.status(400).json({ message: "Insufficient stock" });
+      if (availableStock <= 0) {
+        return res.status(400).json({ message: "Product is out of stock", outOfStock: true });
+      }
+      if (quantity > availableStock) {
+        return res.status(400).json({
+          message: `Only ${availableStock} item(s) available`,
+          availableStock,
+        });
       }
     }
 

@@ -207,46 +207,6 @@ async function seedProducts() {
         await Product.insertMany(batch);
         logger.info(`✅ Seeded batch ${Math.floor(i / batchSize) + 1} (${i + batch.length}/${productsToCreate})`);
       }
-        } catch (error: any) {
-          logger.error(`❌ Failed to generate media for product ${index}:`, error.message);
-          stats.failed++;
-          
-          // Create product with fallback image
-          const productData: any = {
-            name,
-            description: `High quality ${name} from our curated ${category} collection.`,
-            category,
-            price,
-            pricePerUnit,
-            mrp: price + Math.floor(Math.random() * 50),
-            stock: Math.floor(Math.random() * 200) + 20,
-            weight: Math.floor(Math.random() * 1000) + 100,
-            images: [
-              {
-                publicId: `seed-${category}-${index}-fallback`,
-                variants: {
-                  original: 'https://picsum.photos/400',
-                  medium: 'https://picsum.photos/400',
-                  small: 'https://picsum.photos/400',
-                  thumb: 'https://picsum.photos/400',
-                  micro: 'https://picsum.photos/400',
-                },
-              },
-            ],
-            tags: [category, 'premium'],
-            sku: `SKU-${category.toUpperCase()}-${String(index).padStart(4, '0')}`,
-          };
-
-          batch.push(productData);
-          stats.fallbackUsed++;
-        }
-      }
-
-      // Insert batch
-      if (batch.length > 0) {
-        await Product.insertMany(batch);
-        logger.info(`✅ Seeded batch ${Math.floor(i / batchSize) + 1} (${i + batch.length}/${productsToCreate})`);
-      }
 
       // Small delay between batches to avoid overwhelming network
       await new Promise((resolve) => setTimeout(resolve, 500));

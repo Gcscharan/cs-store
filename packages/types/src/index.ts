@@ -27,6 +27,11 @@ export interface Product {
   isBestseller?: boolean;
   isTrending?: boolean;
   isSponsored?: boolean;
+  video?: {
+    url: string;
+    thumbnail?: string;
+    duration?: number;
+  };
 }
 
 export interface ProductVariant {
@@ -58,6 +63,7 @@ export interface Order {
   deliveryBoy?: DeliveryBoy;
   estimatedDelivery?: string;
   tracking?: OrderTracking;
+  allowedActions?: string[];
 }
 
 export type OrderStatus =

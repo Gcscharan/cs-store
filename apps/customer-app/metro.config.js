@@ -2,14 +2,14 @@ const { getDefaultConfig } = require('expo/metro-config');
 const path = require('path');
 
 // Find the project and workspace directories
-const projectRoot = __dirname;
-// This can be replaced with `find-yarn-workspace-root`
-const workspaceRoot = path.resolve(projectRoot, '../..');
+const projectRoot = path.resolve(__dirname); // apps/customer-app
+const workspaceRoot = path.resolve(projectRoot, '../..'); // Dream/
 
 const config = getDefaultConfig(projectRoot);
 
 // 1. Watch all files in the monorepo
 config.watchFolders = [
+  workspaceRoot,
   path.resolve(workspaceRoot, 'packages/types'),
   path.resolve(workspaceRoot, 'packages/shared-utils'),
   path.resolve(workspaceRoot, 'packages/i18n'),

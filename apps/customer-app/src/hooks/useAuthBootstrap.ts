@@ -1,11 +1,12 @@
 import { useEffect } from 'react';
 import { useDispatch } from 'react-redux';
+import { AppDispatch } from '../store';
 import { storage } from '../utils/storage';
 import { setStatus, setUser, setTokens } from '../store/slices/authSlice';
 import { BASE_URL } from '../api/baseApi';
 
 export const useAuthBootstrap = () => {
-  const dispatch = useDispatch();
+  const dispatch = useDispatch<AppDispatch>();
 
   useEffect(() => {
     let cancelled = false;
@@ -47,12 +48,18 @@ export const useAuthBootstrap = () => {
             dispatch(setUser(data.user));
             dispatch(setStatus('ACTIVE'));
           } else {
+            await storage.removeItem('accessToken');
+            await storage.removeItem('refreshToken');
             dispatch(setStatus('UNAUTHENTICATED'));
           }
         } else {
+          await storage.removeItem('accessToken');
+          await storage.removeItem('refreshToken');
           dispatch(setStatus('UNAUTHENTICATED'));
         }
       } catch (error) {
+        await storage.removeItem('accessToken');
+        await storage.removeItem('refreshToken');
         dispatch(setStatus('UNAUTHENTICATED'));
       }
     };

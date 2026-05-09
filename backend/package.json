@@ -16,8 +16,9 @@
     "ci": "npm run ci:check-finalizer-authority && npm run ci:check-paymentstatus-canonical && npm run ci:check-paid-writes && npm run ci:check-reservedstock-underflow && npm run ci:check-paymentintent-transitions && npm run ci:check-legacy-payment-lock && npm run ci:check-webhook-safety && npm run ci:check-no-raw-vpa-logs && npm run ci:check-upi-verify-safety && npm run test:ci",
     "build": "npm run ci:check-finalizer-authority && npm run ci:check-paymentstatus-canonical && npm run ci:check-paid-writes && npm run ci:check-reservedstock-underflow && npm run ci:check-paymentintent-transitions && npm run ci:check-legacy-payment-lock && npm run ci:check-webhook-safety && npm run ci:check-no-raw-vpa-logs && npm run ci:check-upi-verify-safety && tsc -p tsconfig.json",
     "start": "node dist/index.js",
-    "dev": "sh -c \"if [ '$SKIP_CI_CHECKS' = 'true' ]; then tsc -p tsconfig.json && node dist/index.js; else npm run build && node dist/index.js; fi\"",
-    "dev:fast": "tsc -p tsconfig.json && NODE_ENV=development DEV_LOW_POWER=true node dist/index.js",
+    "dev": "ts-node-dev --respawn --transpile-only --watch src src/index.ts",
+    "dev:fast": "NODE_ENV=development DEV_LOW_POWER=true ts-node-dev --respawn --transpile-only --watch src src/index.ts",
+    "dev:docker": "NODE_ENV=development SKIP_CI_CHECKS=true ts-node-dev --respawn --transpile-only --watch src src/index.ts",
     "test:stress:inventory": "ts-node tests/stress/inventoryConcurrency.test.ts",
     "audit:cluster-route": "ts-node src/scripts/clusterRouteAudit.ts",
     "import-pincodes": "ts-node src/scripts/importPincodes.ts",
@@ -47,7 +48,6 @@
     "test:property:isolated": "jest -c jest.property.config.js --runInBand",
     "test:unit": "jest tests/unit --runInBand --forceExit",
     "test:integration": "NODE_ENV=test jest tests/integration --runInBand --forceExit",
-    "test:property": "jest tests/property --runInBand",
     "test:integration:reliability": "NODE_ENV=test OUTBOX_DISPATCHER_ENABLED_IN_TEST=true jest tests/integration/reliability.spec.ts --runInBand",
     "test:security": "jest tests/security --runInBand",
     "test:generated": "jest tests/generated --runInBand --forceExit --passWithNoTests",
@@ -76,7 +76,15 @@
     "test:report": "allure generate test-results --clean -o test-dashboard",
     "test:open-dashboard": "allure open test-dashboard",
     "test:dashboard": "npm run test:report && npm run test:open-dashboard",
-    "lint": "eslint src --ext .ts,.tsx --fix"
+    "lint": "eslint src --ext .ts,.tsx --fix",
+    "verify:idempotency": "node scripts/verify-idempotency-deployment.js",
+    "verify:duplicates": "node scripts/verify-no-duplicate-orders.js",
+    "verify:finalization": "node scripts/verify-atomic-finalization.js",
+    "verify:gateway": "node scripts/verify-gateway-creation.js",
+    "verify:admin": "node scripts/verify-admin-assignment.js",
+    "verify:performance": "node scripts/verify-performance.js --baseline-file=baseline-metrics.json",
+    "verify:daily": "node scripts/daily-verification.js",
+    "collect:baseline": "node scripts/collect-baseline-metrics.js --output=baseline-metrics.json"
   },
   "keywords": [
     "ecommerce",
@@ -173,6 +181,7 @@
     "supertest": "^7.1.4",
     "ts-jest": "^29.4.4",
     "ts-node": "^10.9.1",
+    "ts-node-dev": "^2.0.0",
     "typescript": "^5.3.3"
   }
 }

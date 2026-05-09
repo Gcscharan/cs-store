@@ -50,6 +50,7 @@ import ReferEarnScreen from '../screens/info/ReferEarnScreen';
  
 import AdminNavigator from './AdminNavigator';
 import DeliveryNavigator from './DeliveryNavigator';
+import OTPScreen from '../screens/auth/OTPScreen';
 import OnboardingScreen from '../screens/auth/OnboardingScreen';
 import LoadingScreen from '../screens/common/LoadingScreen';
 import DeliveryLoginScreen from '../screens/auth/DeliveryLoginScreen';
@@ -216,6 +217,8 @@ export function RootNavigator() {
             <Stack.Screen name="Login" component={LoginScreen} 
               options={{ gestureEnabled: false }} /> 
             <Stack.Screen name="Signup" component={SignupScreen} />
+            <Stack.Screen name="OTP" component={OTPScreen} />
+            <Stack.Screen name="Onboarding" component={OnboardingScreen} />
             <Stack.Screen name="DeliveryLogin" component={DeliveryLoginScreen} />
             <Stack.Screen name="DeliverySignup" component={DeliverySignupScreen} /> 
           </> 

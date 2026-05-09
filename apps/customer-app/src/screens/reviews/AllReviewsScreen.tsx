@@ -90,7 +90,7 @@ const rb = StyleSheet.create({
   track: {
     flex: 1,
     height: 6,
-    backgroundColor: Colors.backgroundDark,
+    backgroundColor: Colors.inputBackground,
     borderRadius: 3,
     overflow: 'hidden',
   },

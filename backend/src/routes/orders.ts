@@ -76,40 +76,27 @@ router.get("/:id/tracking", authenticateToken, async (req, res) => {
 router.get("/:orderId/payment-status", authenticateToken, getPaymentStatus);
 router.put("/:orderId/payment-status", authenticateToken, updatePaymentStatus);
 
-// UPI payment callback route (no auth required for external callbacks)
+// 🚨 CRITICAL SECURITY FIX #1: DANGEROUS ENDPOINT REMOVED
+// This endpoint was a P0 security vulnerability that allowed unauthenticated
+// callers to mark any order as PAID by sending { status: 'SUCCESS' }.
+// 
+// ❌ OLD BEHAVIOR: Anyone could call POST /api/orders/:orderId/payment-callback
+//    and get free orders by bypassing payment verification.
+//
+// ✅ NEW BEHAVIOR: This endpoint is permanently disabled (410 Gone).
+//    Payment verification ONLY happens via:
+//    1. Razorpay webhook (POST /api/webhooks/razorpay) with signature verification
+//    2. Backend polling verification (GET /api/payments/verify/:orderId) with Razorpay API
+//
+// This route is kept as a 410 response to document the security fix and prevent
+// accidental re-introduction. If you need to re-enable it for legacy reasons,
+// you MUST add authentication + Razorpay signature verification.
 router.post("/:orderId/payment-callback", async (req, res) => {
-  try {
-    const { orderId } = req.params;
-    const { status, transactionId } = req.body;
-
-    if (!mongoose.Types.ObjectId.isValid(orderId)) {
-      return res.status(400).json({ error: "Invalid order ID" });
-    }
-
-    const order = await Order.findById(orderId);
-    if (!order) {
-      return res.status(404).json({ error: "Order not found" });
-    }
-
-    // Update payment status for UPI payments
-    if (status === 'SUCCESS') {
-      await Order.findByIdAndUpdate(
-        orderId,
-        {
-          paymentStatus: 'PAID',
-          'paymentIntent.status': 'completed',
-          'paymentIntent.updatedAt': new Date(),
-        },
-        { 
-          context: { paymentStatusSource: "WEBHOOK_PAYMENT_CAPTURED" } 
-        } as any
-      );
-    }
-
-    res.json({ success: true, message: "Payment callback processed" });
-  } catch (error) {
-    res.status(500).json({ error: "Failed to process payment callback" });
-  }
+  return res.status(410).json({ 
+    error: "LEGACY_PAYMENT_PATH_DISABLED",
+    message: "This endpoint has been permanently disabled for security reasons. Use Razorpay webhooks or polling verification instead.",
+    documentation: "See .kiro/specs/upi-razorpay-verification/ for the secure payment flow."
+  });
 });
 
 // Payment intent routes

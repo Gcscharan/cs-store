@@ -68,6 +68,15 @@ export class ExpoPushNotificationService {
 
   static async saveTokenToBackend(token: string) {
     try {
+      // Check if user is authenticated before attempting to save
+      const state = store.getState() as any;
+      const isAuthenticated = state.auth?.status === 'ACTIVE';
+      
+      if (!isAuthenticated) {
+        console.log('Skipping push token save: User not authenticated');
+        return;
+      }
+
       // Use the profileApi to update the token
       // We use store.dispatch because this is called outside a React component
       await store.dispatch(

@@ -88,12 +88,10 @@ const OTPScreen: React.FC = () => {
         await verifyOtp({ 
           phone: phone.replace('+91', ''), 
           otp,
-          mode: 'signup'
         }).unwrap();
 
         const signupRes = await signup({
           name: name!,
-          email: signupEmail!,
           phone: phone.replace('+91', ''),
         }).unwrap();
 
@@ -103,10 +101,10 @@ const OTPScreen: React.FC = () => {
         const res = await verifyOtp({
           phone: phone.replace('+91', ''),
           otp,
-          mode: 'login'
         }).unwrap();
-        finalTokens = { accessToken: res.accessToken, refreshToken: res.refreshToken };
-        finalUser = res.user;
+        const authRes = res as import('../../api/authApi').AuthResponse;
+        finalTokens = { accessToken: authRes.accessToken, refreshToken: authRes.refreshToken };
+        finalUser = authRes.user;
       }
 
       logEvent('otp_verified_success');

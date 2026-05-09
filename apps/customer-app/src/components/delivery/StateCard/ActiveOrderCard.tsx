@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { Order } from '../../../hooks/delivery/useOrders';
 import { getStatusConfig } from '../../../utils/deliveryUtils';
 import {
@@ -20,13 +21,24 @@ import {
   DELIVERY_RADIUS,
   DELIVERY_SHADOW,
 } from '../../../constants/deliveryTheme';
+import { DELIVERY_CONFIG } from '../../../constants/deliveryConfig';
+import { RouteProgressHeader } from '../RouteProgressHeader';
+import { useDistanceEta } from '../../../hooks/delivery/useDistanceEta';
+import { AttemptState } from '../../../hooks/delivery/useAttemptTracker';
+import { AttemptBadge } from '../AttemptBadge/AttemptBadge';
+import {
+  UX_COLORS,
+  UX_TYPOGRAPHY,
+  UX_SPACING,
+} from '../../../delivery/constants/UXDesignSystem';
+import { useNetworkStatus } from '../../../hooks/delivery/useNetworkStatus';
 
 // ─── Canonical Failure Reasons ────────────────────────────────────────────────
 
 export const FAILURE_REASONS = [
-  { key: 'CUSTOMER_NOT_AVAILABLE', label: 'Customer Not Available' },
-  { key: 'ADDRESS_ISSUE',          label: 'Address Issue' },
-  { key: 'CUSTOMER_REJECTED',      label: 'Customer Rejected' },
+  { key: 'CUSTOMER_NOT_AVAILABLE', label: 'Customer not reachable' },
+  { key: 'ADDRESS_ISSUE',          label: 'Address incorrect' },
+  { key: 'CUSTOMER_REJECTED',      label: 'Customer refused delivery' },
 ] as const;
 
 export type FailureReasonKey = typeof FAILURE_REASONS[number]['key'];
@@ -57,10 +69,29 @@ interface ActiveOrderCardProps {
   onCollectCOD: (orderId: string, mode: 'CASH' | 'UPI') => void;
   onFailDelivery: (orderId: string, reason: FailureReasonKey, notes?: string) => void;
   onRefetch?: () => void;
+  // Route arrangement props
+  canArrangeRoute?: boolean;
+  isArranging?: boolean;
+  isArranged?: boolean;
+  onArrangeRoute?: () => void;
+  onResetRoute?: () => void;
+  isOrderLocked?: (orderId: string) => boolean;
+  isOrderCurrent?: (orderId: string) => boolean;
+  sortedOrderIds?: string[];
+  driverLocation?: { lat: number; lng: number } | null;
+  // Attempt tracker props
+  getAttemptState?: (orderId: string) => AttemptState | null;
+  isOrderRetryLocked?: (orderId: string) => boolean;
+  getOrderRemainingSeconds?: (orderId: string) => number;
 }
 
 interface SingleOrderCardProps extends Omit<ActiveOrderCardProps, 'activeOrders'> {
   order: Order;
+  isLocked?: boolean;
+  isCurrent?: boolean;
+  stopIndex?: number;   // 1-based position in route
+  totalStops?: number;
+  isOffline?: boolean;
 }
 
 // ─── Progress Bar ─────────────────────────────────────────────────────────────
@@ -87,10 +118,19 @@ const getPaymentBadge = (paymentStatus: string) => {
 
 // ─── Navigation ───────────────────────────────────────────────────────────────
 
+const validCoords = (lat?: number, lng?: number): boolean => {
+  if (lat == null || lng == null) return false;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+  if (lat === 0 && lng === 0) return false;
+  if (lat < -90 || lat > 90) return false;
+  if (lng < -180 || lng > 180) return false;
+  return true;
+};
+
 const openNavigation = (order: Order) => {
   const lat = order.address?.lat;
   const lng = order.address?.lng;
-  if (lat && lng) {
+  if (validCoords(lat, lng)) {
     Linking.openURL(`https://maps.google.com/?q=${lat},${lng}`);
   } else {
     Alert.alert('Error', 'Location not available for this order');
@@ -99,12 +139,81 @@ const openNavigation = (order: Order) => {
 
 // ─── Syncing Skeleton ─────────────────────────────────────────────────────────
 
-const SyncingSkeleton: React.FC = () => (
-  <View style={styles.syncingContainer}>
-    <ActivityIndicator size="small" color={DELIVERY_COLORS.primary} />
-    <Text style={styles.syncingText}>Syncing state...</Text>
-  </View>
-);
+/**
+ * Shown when allowedActions is absent from the server response.
+ * Fix #23: 10s timeout → Refresh button.
+ * Fix 3: after GIVE_UP_RETRIES refreshes, shows stronger message.
+ * Fix 5: shows elapsed time to reduce driver anxiety ("Still syncing… 12s").
+ */
+const SYNCING_TIMEOUT_MS = 10_000;
+const GIVE_UP_RETRIES    = 2;
+
+const SyncingSkeleton: React.FC<{ onRefetch?: () => void }> = ({ onRefetch }) => {
+  const [timedOut, setTimedOut]       = React.useState(false);
+  const [retryCount, setRetryCount]   = React.useState(0);
+  const [elapsedSec, setElapsedSec]   = React.useState(0);
+  const startTimeRef                  = React.useRef(Date.now());
+
+  // Tick elapsed seconds while waiting
+  React.useEffect(() => {
+    const ticker = setInterval(() => {
+      setElapsedSec(Math.floor((Date.now() - startTimeRef.current) / 1000));
+    }, 1_000);
+    return () => clearInterval(ticker);
+  }, []);
+
+  // Timeout timer — re-armed on each retry
+  React.useEffect(() => {
+    const timer = setTimeout(() => setTimedOut(true), SYNCING_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [retryCount]); // re-run when retryCount changes (retry re-arms timer)
+
+  const handleRetry = React.useCallback(() => {
+    startTimeRef.current = Date.now();
+    setElapsedSec(0);
+    setTimedOut(false);
+    setRetryCount(c => c + 1);
+    onRefetch?.();
+  }, [onRefetch]);
+
+  if (timedOut) {
+    const isGivenUp = retryCount >= GIVE_UP_RETRIES;
+    return (
+      <View style={styles.syncingContainer}>
+        <Ionicons
+          name={isGivenUp ? 'alert-circle-outline' : 'warning-outline'}
+          size={16}
+          color={isGivenUp ? DELIVERY_COLORS.danger : DELIVERY_COLORS.warning}
+        />
+        <Text style={styles.syncingText}>
+          {isGivenUp
+            ? "Something's wrong. Pull to refresh or restart the app."
+            : 'Actions unavailable'}
+        </Text>
+        {!isGivenUp && onRefetch && (
+          <TouchableOpacity
+            onPress={handleRetry}
+            style={styles.syncingRefreshBtn}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="refresh" size={14} color={DELIVERY_COLORS.primary} />
+            <Text style={styles.syncingRefreshText}>Refresh</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.syncingContainer}>
+      <ActivityIndicator size="small" color={DELIVERY_COLORS.primary} />
+      {/* Fix 5 — show elapsed time to reduce driver anxiety */}
+      <Text style={styles.syncingText}>
+        {elapsedSec > 0 ? `Still syncing… (${elapsedSec}s)` : 'Syncing state…'}
+      </Text>
+    </View>
+  );
+};
 
 // ─── Single Order Card ────────────────────────────────────────────────────────
 
@@ -122,6 +231,15 @@ const SingleOrderCard: React.FC<SingleOrderCardProps> = ({
   onCollectCOD,
   onFailDelivery,
   onRefetch,
+  isLocked = false,
+  isCurrent = false,
+  stopIndex,
+  totalStops,
+  driverLocation,
+  getAttemptState,
+  isOrderRetryLocked,
+  getOrderRemainingSeconds,
+  isOffline = false,
 }) => {
   const status = order.orderStatus.toLowerCase();
   const isCod = order.paymentMethod?.toLowerCase() === 'cod';
@@ -133,23 +251,47 @@ const SingleOrderCard: React.FC<SingleOrderCardProps> = ({
   const allowedActions: string[] | undefined = order.allowedActions;
   const actionsAbsent = allowedActions === undefined;
 
-  // ── Auto-refetch when allowedActions is absent ────────────────────────────
-  const refetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    if (actionsAbsent && onRefetch) {
-      refetchTimerRef.current = setTimeout(() => {
-        onRefetch();
-      }, 1500);
-    }
-    return () => {
-      if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current);
-    };
-  }, [actionsAbsent, onRefetch]);
+  // ── Removed auto-refetch timer - rely on socket events for real-time updates ──
 
   // ── Failure reason modal state ────────────────────────────────────────────
   const [failModalVisible, setFailModalVisible] = useState(false);
   const [selectedReason, setSelectedReason] = useState<FailureReasonKey | ''>('');
   const [failNotes, setFailNotes] = useState('');
+
+  // ── OTP verification state (Task 9.3) ─────────────────────────────────────
+  // Tracks whether OTP was submitted offline (queued) or verified/incorrect
+  const [otpStatus, setOtpStatus] = useState<
+    'idle' | 'verified' | 'incorrect' | 'queued'
+  >('idle');
+  // Auto-submit ref to prevent double-submission
+  const otpSubmittedRef = useRef(false);
+
+  // ── COD confirmation state (Task 9.2) ─────────────────────────────────────
+  // Tracks whether COD confirmation modal is visible
+  const [codConfirmVisible, setCodConfirmVisible] = useState(false);
+  const [pendingCodMode, setPendingCodMode] = useState<'CASH' | 'UPI' | null>(null);
+  const [codStatus, setCodStatus] = useState<'idle' | 'collected' | 'queued'>('idle');
+
+  // ── Attempt state + countdown timer (Task 8.1) ────────────────────────────
+  const attemptState = getAttemptState?.(order._id) ?? null;
+  const isRetryLocked = isOrderRetryLocked?.(order._id) ?? false;
+  const attemptCount = attemptState?.attemptCount ?? 0;
+
+  const [currentTime, setCurrentTime] = useState(Date.now());
+
+  useEffect(() => {
+    if (!isRetryLocked) return;
+
+    const interval = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, DELIVERY_CONFIG.COUNTDOWN_UPDATE_INTERVAL);
+
+    return () => clearInterval(interval);
+  }, [isRetryLocked]);
+
+  const remainingSeconds = isRetryLocked && attemptState
+    ? Math.max(0, Math.ceil((attemptState.retryAvailableAt - currentTime) / 1000))
+    : 0;
 
   const handleOpenFailModal = () => {
     setSelectedReason('');
@@ -159,7 +301,7 @@ const SingleOrderCard: React.FC<SingleOrderCardProps> = ({
 
   const handleConfirmFail = () => {
     if (!selectedReason) {
-      Alert.alert('Error', 'Please select a reason');
+      Alert.alert('Error', 'Please select a cancellation reason');
       return;
     }
     setFailModalVisible(false);
@@ -168,6 +310,12 @@ const SingleOrderCard: React.FC<SingleOrderCardProps> = ({
 
   const statusConfig = getStatusConfig(status);
   const paymentBadge = getPaymentBadge(order.paymentStatus ?? '');
+
+  // ── Distance + ETA from driver to this stop ───────────────────────────────
+  const { distanceKm, formattedDistance, formattedEta } = useDistanceEta({
+    driverLocation,
+    address: order.address,
+  });
 
   // ── Progress Bar ─────────────────────────────────────────────────────────
   const renderProgressBar = () => (
@@ -221,16 +369,6 @@ const SingleOrderCard: React.FC<SingleOrderCardProps> = ({
             .join(', ')}
         </Text>
       </View>
-      {allowedActions?.includes('NAVIGATE') ? (
-        <TouchableOpacity
-          style={styles.navigateBtn}
-          onPress={() => openNavigation(order)}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="navigate" size={16} color={DELIVERY_COLORS.white} />
-          <Text style={styles.navigateBtnText}>Navigate</Text>
-        </TouchableOpacity>
-      ) : null}
     </View>
   );
 
@@ -242,7 +380,7 @@ const SingleOrderCard: React.FC<SingleOrderCardProps> = ({
       if (isCod && codCollection) {
         return (
           <View style={styles.codCollectedBanner}>
-            <Ionicons name="checkmark-circle" size={16} color={DELIVERY_COLORS.success} />
+            <Ionicons name="checkmark-circle" size={20} color={UX_COLORS.synced} />
             <Text style={styles.codCollectedText}>
               Payment Collected ({codCollection.mode === 'CASH' ? 'Cash' : 'UPI'})
             </Text>
@@ -251,32 +389,132 @@ const SingleOrderCard: React.FC<SingleOrderCardProps> = ({
       }
       return null;
     }
+
+    // ── Offline queued state ───────────────────────────────────────────────
+    if (codStatus === 'queued') {
+      return (
+        <View style={styles.codQueuedBanner}>
+          <Ionicons name="cloud-upload-outline" size={20} color={UX_COLORS.queued} />
+          <Text style={styles.codQueuedText}>
+            Payment recorded — will confirm when back online
+          </Text>
+        </View>
+      );
+    }
+
+    // ── Already collected (local confirmation) ────────────────────────────
+    if (codStatus === 'collected') {
+      return (
+        <View style={styles.codCollectedBanner}>
+          <Ionicons name="checkmark-circle" size={20} color={UX_COLORS.synced} />
+          <Text style={styles.codCollectedText}>Payment Collected</Text>
+        </View>
+      );
+    }
+
+    // ── COD collection prompt ─────────────────────────────────────────────
     return (
-      <View style={styles.codBanner}>
-        <View style={styles.codBannerHeader}>
-          <Ionicons name="warning" size={16} color={DELIVERY_COLORS.warning} />
-          <Text style={styles.codBannerTitle}>Collect Payment Before Delivery</Text>
+      <>
+        <View style={styles.codBanner}>
+          <View style={styles.codBannerHeader}>
+            <Ionicons name="warning" size={18} color={DELIVERY_COLORS.warning} />
+            <Text style={styles.codBannerTitle}>Collect Payment Before Delivery</Text>
+          </View>
+          {/* 24sp bold COD amount — Requirement 9.5 */}
+          <Text style={styles.codAmountLarge}>
+            Collect ₹{order.totalAmount.toLocaleString('en-IN')}
+          </Text>
+          <View style={styles.codBtnRow}>
+            <TouchableOpacity
+              style={[styles.codMethodBtn, styles.codCashBtn]}
+              onPress={() => {
+                setPendingCodMode('CASH');
+                setCodConfirmVisible(true);
+              }}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={`Collect cash payment of ₹${order.totalAmount.toLocaleString('en-IN')}`}
+            >
+              <Ionicons name="cash" size={18} color={DELIVERY_COLORS.success} />
+              <Text style={styles.codMethodText}>Collect Cash</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.codMethodBtn, styles.codUpiBtn]}
+              onPress={() => {
+                setPendingCodMode('UPI');
+                setCodConfirmVisible(true);
+              }}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={`Collect UPI payment of ₹${order.totalAmount.toLocaleString('en-IN')}`}
+            >
+              <Ionicons name="phone-portrait" size={18} color={DELIVERY_COLORS.info} />
+              <Text style={styles.codMethodText}>Collect UPI</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-        <Text style={styles.codAmount}>Amount: ₹{order.totalAmount.toLocaleString('en-IN')}</Text>
-        <View style={styles.codBtnRow}>
-          <TouchableOpacity
-            style={[styles.codMethodBtn, styles.codCashBtn]}
-            onPress={() => onCollectCOD(order._id, 'CASH')}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="cash" size={16} color={DELIVERY_COLORS.success} />
-            <Text style={styles.codMethodText}>Collect Cash</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.codMethodBtn, styles.codUpiBtn]}
-            onPress={() => onCollectCOD(order._id, 'UPI')}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="phone-portrait" size={16} color={DELIVERY_COLORS.info} />
-            <Text style={styles.codMethodText}>Collect UPI</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+
+        {/* COD Confirmation Modal — Requirement 9.2 */}
+        <Modal visible={codConfirmVisible} transparent animationType="fade">
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Confirm Payment Collection</Text>
+              <Text style={styles.codConfirmSubtitle}>
+                {pendingCodMode === 'CASH' ? 'Cash' : 'UPI'} payment from customer
+              </Text>
+              {/* Large amount display — Requirement 9.5 */}
+              <Text style={styles.codConfirmAmount}>
+                ₹{order.totalAmount.toLocaleString('en-IN')}
+              </Text>
+              {isOffline && (
+                <View style={styles.codOfflineNote}>
+                  <Ionicons name="cloud-upload-outline" size={14} color={UX_COLORS.queued} />
+                  <Text style={styles.codOfflineNoteText}>
+                    You are offline — payment will be confirmed when you reconnect
+                  </Text>
+                </View>
+              )}
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalCancelBtn, { marginRight: DELIVERY_SPACING.sm }]}
+                  onPress={() => {
+                    setCodConfirmVisible(false);
+                    setPendingCodMode(null);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Cancel payment collection"
+                >
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.codConfirmBtn}
+                  onPress={async () => {
+                    if (!pendingCodMode) return;
+                    setCodConfirmVisible(false);
+                    // Haptic feedback for critical action — Requirement 15.6
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+                    if (isOffline) {
+                      // Offline — queue for later sync (Requirement 9.6)
+                      setCodStatus('queued');
+                      onCollectCOD(order._id, pendingCodMode);
+                    } else {
+                      // Online — collect immediately
+                      onCollectCOD(order._id, pendingCodMode);
+                      setCodStatus('collected');
+                    }
+                    setPendingCodMode(null);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Confirm payment collection"
+                >
+                  <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
+                  <Text style={styles.codConfirmBtnText}>Confirm Collection</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      </>
     );
   };
 
@@ -285,74 +523,212 @@ const SingleOrderCard: React.FC<SingleOrderCardProps> = ({
     if (!allowedActions?.includes('VERIFY_OTP') && !isDeliveryAttempted) return null;
     const otpValue = otpInputs[order._id] ?? '';
     const isComplete = otpValue.length === 4;
+
+    // ── OTP Queued (offline) state — Requirement 10.5, 10.7 ──────────────
+    if (otpStatus === 'queued') {
+      return (
+        <View style={styles.otpContainer}>
+          <View style={styles.otpStatusBanner}>
+            <Ionicons name="cloud-upload-outline" size={18} color={UX_COLORS.queued} />
+            <Text style={styles.otpQueuedText}>
+              OTP submitted — will verify when back online
+            </Text>
+          </View>
+        </View>
+      );
+    }
+
+    // ── OTP Verified state — Requirement 10.3 ────────────────────────────
+    if (otpStatus === 'verified') {
+      return (
+        <View style={styles.otpContainer}>
+          <View style={styles.otpStatusBanner}>
+            <Ionicons name="checkmark-circle" size={18} color={UX_COLORS.synced} />
+            <Text style={styles.otpVerifiedText}>OTP Verified</Text>
+          </View>
+        </View>
+      );
+    }
+
     return (
       <View style={styles.otpContainer}>
-        <Text style={styles.otpTitle}>Enter OTP sent to customer</Text>
+        <Text style={styles.otpTitle}>Enter OTP</Text>
+
+        {/* Incorrect OTP feedback — Requirement 10.4 */}
+        {otpStatus === 'incorrect' && (
+          <View style={styles.otpErrorBanner}>
+            <Ionicons name="close-circle" size={16} color={UX_COLORS.failed} />
+            <Text style={styles.otpErrorText}>Incorrect OTP — try again</Text>
+          </View>
+        )}
+
+        {/* Numeric keyboard, 4-digit input — Requirement 10.6 */}
         <TextInput
-          style={styles.otpInput}
+          style={[
+            styles.otpInput,
+            otpStatus === 'incorrect' && styles.otpInputError,
+          ]}
           value={otpValue}
-          onChangeText={(val) => onOtpChange(order._id, val.replace(/\D/g, ''))}
+          onChangeText={(val) => {
+            const digits = val.replace(/\D/g, '');
+            onOtpChange(order._id, digits);
+            // Reset error state when user starts typing again
+            if (otpStatus === 'incorrect') setOtpStatus('idle');
+            // Auto-submit when 4 digits entered — Requirement 10.2
+            if (digits.length === 4 && !otpSubmittedRef.current) {
+              otpSubmittedRef.current = true;
+              // Haptic feedback — Requirement 15.6
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+              if (isOffline) {
+                // Offline — queue for later sync — Requirement 10.7
+                setOtpStatus('queued');
+                onVerifyOtp(order._id, digits);
+              } else {
+                // Online — submit immediately
+                // The parent handler will call Alert on success/failure.
+                // We track local state for immediate feedback.
+                onVerifyOtp(order._id, digits);
+                // Reset ref after a short delay to allow re-entry if needed
+                setTimeout(() => { otpSubmittedRef.current = false; }, 1000);
+              }
+            }
+          }}
           keyboardType="numeric"
           maxLength={4}
-          placeholder="4-digit OTP"
+          placeholder="_ _ _ _"
           placeholderTextColor={DELIVERY_COLORS.textMuted}
           textAlign="center"
+          accessibilityLabel="Enter 4-digit OTP"
+          accessibilityHint="OTP will be submitted automatically when 4 digits are entered"
         />
-        <TouchableOpacity
-          style={[styles.verifyBtn, !isComplete && styles.verifyBtnDisabled]}
-          disabled={!isComplete}
-          onPress={() => onVerifyOtp(order._id, otpValue)}
-          activeOpacity={0.85}
-        >
-          <Ionicons name="checkmark-circle" size={18} color={DELIVERY_COLORS.white} />
-          <Text style={styles.verifyBtnText}>Verify OTP &amp; Complete Delivery</Text>
-        </TouchableOpacity>
+
+        {isOffline && (
+          <Text style={styles.otpOfflineHint}>
+            Offline — OTP will be verified when you reconnect
+          </Text>
+        )}
       </View>
     );
   };
 
   // ── Action Buttons ────────────────────────────────────────────────────────
   const renderActionButtons = () => {
+    /*
+    console.log('[ACTION_BUTTONS_RENDER]', {
+      orderId: order._id.slice(-6),
+      isCancelled,
+      actionsAbsent,
+      allowedActions,
+      status,
+    });
+    */
+
     if (isCancelled) return null;
 
-    // If allowedActions is absent, show syncing skeleton (task 10.3)
+    // If allowedActions is absent, show syncing skeleton with timeout fallback (Fix #23)
     if (actionsAbsent) {
-      return <SyncingSkeleton />;
+      return <SyncingSkeleton onRefetch={onRefetch} />;
     }
 
     const actions = allowedActions!;
+    // console.log('[ACTION_BUTTONS] Rendering buttons for actions:', actions);
+
+    // Show persistent Navigate button after pickup (replaces START_DELIVERY button)
+    // Show for: picked_up, in_transit, out_for_delivery, arrived
+    const showPersistentNavigate = ['picked_up', 'in_transit', 'out_for_delivery', 'arrived'].includes(status);
 
     return (
       <View style={styles.actionsContainer}>
         {actions.includes('PICKUP') && (
-          <TouchableOpacity style={styles.primaryBtn} onPress={() => onPickup(order._id)} activeOpacity={0.85}>
-            <Ionicons name="cube" size={18} color={DELIVERY_COLORS.white} />
+          <TouchableOpacity
+            style={[styles.primaryBtn, isLocked && styles.primaryBtnDisabled]}
+            onPress={() => {
+              if (isLocked) return;
+              onPickup(order._id);
+            }}
+            activeOpacity={isLocked ? 1 : 0.85}
+            disabled={isLocked}
+            accessibilityRole="button"
+            accessibilityLabel="Mark as picked up"
+            accessibilityHint="Confirms you have collected the order from the warehouse"
+            accessibilityState={{ disabled: isLocked }}
+          >
+            <Ionicons name="cube" size={20} color="#FFFFFF" />
             <Text style={styles.primaryBtnText}>Mark as Picked Up</Text>
           </TouchableOpacity>
         )}
-        {actions.includes('START_DELIVERY') && (
-          <TouchableOpacity style={styles.primaryBtn} onPress={() => onStartDelivery(order._id)} activeOpacity={0.85}>
-            <Ionicons name="navigate" size={18} color={DELIVERY_COLORS.white} />
-            <Text style={styles.primaryBtnText}>Start Delivery</Text>
+
+        {/* Persistent Navigate Button - Replaces "Start Delivery" button after pickup */}
+        {showPersistentNavigate && validCoords(order.address.lat, order.address.lng) && (
+          <TouchableOpacity
+            style={[styles.navigateBtn, isLocked && styles.navigateBtnDisabled]}
+            onPress={() => {
+              if (isLocked) return;
+              if (actions.includes('START_DELIVERY')) {
+                onStartDelivery(order._id);
+              }
+              openNavigation(order);
+            }}
+            activeOpacity={isLocked ? 1 : 0.85}
+            disabled={isLocked}
+            accessibilityRole="button"
+            accessibilityLabel="Navigate to customer"
+            accessibilityHint="Opens navigation to the customer delivery address"
+            accessibilityState={{ disabled: isLocked }}
+          >
+            <Ionicons name="navigate" size={20} color="#FFFFFF" />
+            <Text style={styles.navigateBtnText}>Navigate to Customer</Text>
           </TouchableOpacity>
         )}
+
         {actions.includes('MARK_ARRIVED') && (
-          <TouchableOpacity style={styles.primaryBtn} onPress={() => onMarkArrived(order._id)} activeOpacity={0.85}>
-            <Ionicons name="location" size={18} color={DELIVERY_COLORS.white} />
+          <TouchableOpacity
+            style={[styles.primaryBtn, isLocked && styles.primaryBtnDisabled]}
+            onPress={() => {
+              if (isLocked) return;
+              onMarkArrived(order._id);
+            }}
+            activeOpacity={isLocked ? 1 : 0.85}
+            disabled={isLocked}
+            accessibilityRole="button"
+            accessibilityLabel="Mark as arrived"
+            accessibilityHint="Confirms you have arrived at the customer location"
+            accessibilityState={{ disabled: isLocked }}
+          >
+            <Ionicons name="location" size={20} color="#FFFFFF" />
             <Text style={styles.primaryBtnText}>Mark as Arrived</Text>
           </TouchableOpacity>
         )}
         {actions.includes('SEND_OTP') && !isDeliveryAttempted && (
-          <TouchableOpacity style={styles.primaryBtn} onPress={() => onStartDeliveryAttempt(order._id)} activeOpacity={0.85}>
-            <Ionicons name="send" size={18} color={DELIVERY_COLORS.white} />
+          <TouchableOpacity
+            style={[styles.primaryBtn, isLocked && styles.primaryBtnDisabled]}
+            onPress={() => {
+              if (isLocked) return;
+              onStartDeliveryAttempt(order._id);
+            }}
+            activeOpacity={isLocked ? 1 : 0.85}
+            disabled={isLocked}
+            accessibilityRole="button"
+            accessibilityLabel="Start delivery attempt"
+            accessibilityHint="Sends OTP to the customer to verify delivery"
+            accessibilityState={{ disabled: isLocked }}
+          >
+            <Ionicons name="send" size={20} color="#FFFFFF" />
             <Text style={styles.primaryBtnText}>Start Delivery Attempt</Text>
           </TouchableOpacity>
         )}
-        {(actions.includes('VERIFY_OTP') || isDeliveryAttempted) && renderOtpSection()}
-        {actions.includes('CUSTOMER_NOT_AVAILABLE') && (
-          <TouchableOpacity style={styles.failBtn} onPress={handleOpenFailModal} activeOpacity={0.85}>
-            <Ionicons name="close-circle" size={18} color={DELIVERY_COLORS.white} />
-            <Text style={styles.failBtnText}>Customer Not Available</Text>
+        {(actions.includes('VERIFY_OTP') || isDeliveryAttempted) && !isLocked && renderOtpSection()}
+        {actions.includes('CUSTOMER_NOT_AVAILABLE') && !isLocked && (
+          <TouchableOpacity
+            style={styles.failBtn}
+            onPress={handleOpenFailModal}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Cancel delivery"
+            accessibilityHint="Opens options to record a failed delivery attempt"
+          >
+            <Ionicons name="close-circle" size={20} color="#FFFFFF" />
+            <Text style={styles.failBtnText}>Cancel Delivery</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -371,10 +747,70 @@ const SingleOrderCard: React.FC<SingleOrderCardProps> = ({
   );
 
   return (
-    <View style={styles.card}>
+    <View pointerEvents={(isLocked || isRetryLocked) ? 'none' : 'auto'}>
+      <View style={[
+        styles.card,
+        isCurrent && styles.cardCurrent,
+        isLocked && styles.cardLocked,
+        isRetryLocked && styles.cardRetryLocked,
+      ]}>
+        {/* CURRENT indicator strip */}
+        {isCurrent && !isLocked && (
+          <View style={styles.currentStrip}>
+            <Ionicons name="navigate-circle" size={14} color={DELIVERY_COLORS.white} />
+            <Text style={styles.currentStripText}>
+              DELIVERING NOW
+              {stopIndex != null && totalStops != null
+                ? `  ·  Stop ${stopIndex} of ${totalStops}`
+                : ''}
+            </Text>
+            {distanceKm !== null && formattedDistance && formattedEta && (
+              <Text style={styles.currentStripEta}>
+                {formattedDistance} · {formattedEta}
+              </Text>
+            )}
+          </View>
+        )}
+
+      {/* NEXT indicator strip */}
+      {!isCurrent && !isLocked && stopIndex != null && stopIndex === 2 && (
+        <View style={styles.nextStrip}>
+          <Ionicons name="arrow-forward-circle" size={13} color={DELIVERY_COLORS.warning} />
+          <Text style={styles.nextStripText}>UP NEXT</Text>
+          {distanceKm !== null && formattedDistance && (
+            <Text style={styles.nextStripDist}>{formattedDistance}</Text>
+          )}
+        </View>
+      )}
+
       {/* Header */}
       <View style={styles.cardHeader}>
-        <Text style={styles.orderId}>Order #{order._id.slice(-6).toUpperCase()}</Text>
+        <View style={styles.orderIdRow}>
+          <Text style={[styles.orderId, isLocked && styles.orderIdLocked]}>
+            Order #{order._id.slice(-6).toUpperCase()}
+          </Text>
+          {isCurrent && (
+            <View style={styles.currentBadge}>
+              <Text style={styles.currentBadgeText}>CURRENT</Text>
+            </View>
+          )}
+          {isLocked && (
+            <View style={styles.lockedBadge}>
+              <Ionicons name="lock-closed" size={12} color={DELIVERY_COLORS.textMuted} />
+              <Text style={styles.lockedBadgeText}>
+                {stopIndex != null ? `STOP ${stopIndex}` : 'LOCKED'}
+              </Text>
+            </View>
+          )}
+          {attemptCount > 0 && (
+            <AttemptBadge
+              attemptCount={attemptCount}
+              maxAttempts={DELIVERY_CONFIG.MAX_DELIVERY_ATTEMPTS}
+              isRetryLocked={isRetryLocked}
+              remainingSeconds={remainingSeconds}
+            />
+          )}
+        </View>
         <View style={[styles.statusBadge, { backgroundColor: statusConfig.bgColor }]}>
           <Text style={[styles.statusBadgeText, { color: statusConfig.color }]}>{statusConfig.label}</Text>
         </View>
@@ -431,6 +867,14 @@ const SingleOrderCard: React.FC<SingleOrderCardProps> = ({
               maxLength={200}
               multiline
             />
+            {attemptCount === DELIVERY_CONFIG.MAX_DELIVERY_ATTEMPTS - 1 && (
+              <View style={styles.finalAttemptWarning}>
+                <Ionicons name="warning" size={16} color={DELIVERY_COLORS.danger} />
+                <Text style={styles.finalAttemptWarningText}>
+                  This is your final attempt. Confirming will escalate this order for reassignment.
+                </Text>
+              </View>
+            )}
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={[styles.modalCancelBtn, { marginRight: DELIVERY_SPACING.sm }]}
@@ -450,29 +894,243 @@ const SingleOrderCard: React.FC<SingleOrderCardProps> = ({
         </View>
       </Modal>
     </View>
+    </View>
   );
 };
 
 // ─── Main Export ──────────────────────────────────────────────────────────────
 
-export const ActiveOrderCard: React.FC<ActiveOrderCardProps> = ({ activeOrders, ...props }) => (
-  <View>
-    {activeOrders.map(order => (
-      <SingleOrderCard key={order._id} order={order} {...props} />
-    ))}
-  </View>
-);
+export const ActiveOrderCard: React.FC<ActiveOrderCardProps> = ({ 
+  activeOrders, 
+  canArrangeRoute = false,
+  isArranging = false,
+  isArranged = false,
+  onArrangeRoute,
+  onResetRoute,
+  isOrderLocked,
+  isOrderCurrent,
+  sortedOrderIds = [],
+  driverLocation,
+  ...props 
+}) => {
+  // Sort orders if route is arranged
+  const displayOrders = isArranged && sortedOrderIds.length > 0
+    ? sortedOrderIds
+        .map(id => activeOrders.find(o => o._id === id))
+        .filter((o): o is Order => o !== undefined)
+    : activeOrders;
+
+  const totalStops = displayOrders.length;
+  const currentIndex = displayOrders.findIndex(o => isOrderCurrent?.(o._id));
+  const completedCount = currentIndex >= 0 ? currentIndex : 0;
+  const remainingCount = totalStops - completedCount;
+
+  // Derive offline status for child cards (Task 9.1, 9.2, 9.3)
+  const { isOnline } = useNetworkStatus();
+  const isOffline = !isOnline;
+
+  return (
+    <View>
+      {/* Arrange Route Button */}
+      {canArrangeRoute && (
+        <View style={styles.arrangeRouteContainer}>
+          {!isArranged ? (
+            <TouchableOpacity 
+              style={[styles.arrangeRouteBtn, isArranging && styles.arrangeRouteBtnDisabled]} 
+              onPress={onArrangeRoute}
+              disabled={isArranging}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="map" size={18} color={DELIVERY_COLORS.white} />
+              <Text style={styles.arrangeRouteBtnText}>
+                {isArranging ? 'Arranging Route...' : 'Arrange Route by Distance'}
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.arrangeRouteActiveRow}>
+              <View style={styles.arrangeRouteActiveBadge}>
+                <Ionicons name="checkmark-circle" size={16} color={DELIVERY_COLORS.success} />
+                <Text style={styles.arrangeRouteActiveText}>Route Arranged</Text>
+              </View>
+              <TouchableOpacity 
+                style={styles.resetRouteBtn}
+                onPress={onResetRoute}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="refresh" size={14} color={DELIVERY_COLORS.textSecondary} />
+                <Text style={styles.resetRouteBtnText}>Reset</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* Route Progress Header — shown when route is arranged */}
+      {isArranged && totalStops > 0 && (
+        <RouteProgressHeader
+          completedCount={completedCount}
+          remainingCount={remainingCount}
+          totalStops={totalStops}
+          orders={displayOrders}
+          isOrderCurrent={isOrderCurrent ?? (() => false)}
+          currentIndex={currentIndex}
+        />
+      )}
+
+      {/* Order Cards */}
+      {displayOrders.map((order, index) => (
+        <SingleOrderCard 
+          key={order._id} 
+          order={order} 
+          isLocked={isOrderLocked?.(order._id) ?? false}
+          isCurrent={isOrderCurrent?.(order._id) ?? false}
+          stopIndex={isArranged ? index + 1 : undefined}
+          totalStops={isArranged ? totalStops : undefined}
+          driverLocation={driverLocation}
+          isOffline={isOffline}
+          {...props} 
+        />
+      ))}
+    </View>
+  );
+};
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+  arrangeRouteContainer: {
+    paddingHorizontal: DELIVERY_SPACING.lg,
+    paddingVertical: DELIVERY_SPACING.sm,
+  },
+  arrangeRouteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: DELIVERY_SPACING.sm,
+    backgroundColor: DELIVERY_COLORS.info,
+    borderRadius: DELIVERY_RADIUS.md,
+    paddingVertical: DELIVERY_SPACING.md,
+    borderWidth: 2,
+    borderColor: DELIVERY_COLORS.info,
+  },
+  arrangeRouteBtnDisabled: {
+    backgroundColor: DELIVERY_COLORS.border,
+    borderColor: DELIVERY_COLORS.border,
+  },
+  arrangeRouteBtnText: {
+    fontSize: DELIVERY_TYPOGRAPHY.base,
+    color: DELIVERY_COLORS.white,
+    fontWeight: '700',
+  },
+  arrangeRouteActiveRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: DELIVERY_COLORS.successBg,
+    borderRadius: DELIVERY_RADIUS.md,
+    borderWidth: 1,
+    borderColor: DELIVERY_COLORS.success,
+    paddingHorizontal: DELIVERY_SPACING.md,
+    paddingVertical: DELIVERY_SPACING.sm,
+  },
+  arrangeRouteActiveBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: DELIVERY_SPACING.xs,
+  },
+  arrangeRouteActiveText: {
+    fontSize: DELIVERY_TYPOGRAPHY.sm,
+    color: DELIVERY_COLORS.success,
+    fontWeight: '700',
+  },
+  resetRouteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: DELIVERY_SPACING.sm,
+    paddingVertical: DELIVERY_SPACING.xs,
+    borderRadius: DELIVERY_RADIUS.sm,
+    borderWidth: 1,
+    borderColor: DELIVERY_COLORS.border,
+    backgroundColor: DELIVERY_COLORS.card,
+  },
+  resetRouteBtnText: {
+    fontSize: DELIVERY_TYPOGRAPHY.xs,
+    color: DELIVERY_COLORS.textSecondary,
+    fontWeight: '600',
+  },
+  // ── Card variants ──────────────────────────────────────────────────────────
   card: {
     backgroundColor: DELIVERY_COLORS.card,
     borderRadius: DELIVERY_RADIUS.lg,
     padding: DELIVERY_SPACING.lg,
-    marginHorizontal: DELIVERY_SPACING.lg,
+    marginHorizontal: UX_SPACING.edgePadding, // 16dp edge padding — Requirement 5.6
     marginVertical: DELIVERY_SPACING.sm,
     ...DELIVERY_SHADOW.card,
+  },
+  cardCurrent: {
+    borderWidth: 2,
+    borderColor: DELIVERY_COLORS.primary,
+    ...DELIVERY_SHADOW.elevated,
+  },
+  cardLocked: {
+    opacity: 0.55,
+  },
+  cardRetryLocked: {
+    opacity: 0.6,
+    borderWidth: 1,
+    borderColor: DELIVERY_COLORS.warning,
+  },
+  // ── CURRENT strip ──────────────────────────────────────────────────────────
+  currentStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: DELIVERY_SPACING.xs,
+    backgroundColor: DELIVERY_COLORS.primary,
+    borderRadius: DELIVERY_RADIUS.sm,
+    paddingHorizontal: DELIVERY_SPACING.sm,
+    paddingVertical: DELIVERY_SPACING.xs,
+    marginBottom: DELIVERY_SPACING.sm,
+    flexWrap: 'wrap',
+  },
+  currentStripText: {
+    fontSize: DELIVERY_TYPOGRAPHY.xs,
+    color: DELIVERY_COLORS.white,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    flex: 1,
+  },
+  currentStripEta: {
+    fontSize: DELIVERY_TYPOGRAPHY.xs,
+    color: 'rgba(255,255,255,0.85)',
+    fontWeight: '600',
+  },
+  // ── NEXT strip ─────────────────────────────────────────────────────────────
+  nextStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: DELIVERY_SPACING.xs,
+    backgroundColor: DELIVERY_COLORS.warningBg,
+    borderRadius: DELIVERY_RADIUS.sm,
+    paddingHorizontal: DELIVERY_SPACING.sm,
+    paddingVertical: DELIVERY_SPACING.xs,
+    marginBottom: DELIVERY_SPACING.sm,
+    borderWidth: 1,
+    borderColor: DELIVERY_COLORS.warning,
+  },
+  nextStripText: {
+    fontSize: DELIVERY_TYPOGRAPHY.xs,
+    color: DELIVERY_COLORS.warning,
+    fontWeight: '700',
+    flex: 1,
+  },
+  nextStripDist: {
+    fontSize: DELIVERY_TYPOGRAPHY.xs,
+    color: DELIVERY_COLORS.warning,
+    fontWeight: '600',
+  },
+  orderIdLocked: {
+    color: DELIVERY_COLORS.textMuted,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -480,10 +1138,41 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: DELIVERY_SPACING.sm,
   },
+  orderIdRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: DELIVERY_SPACING.xs,
+    flex: 1,
+  },
   orderId: {
     fontSize: DELIVERY_TYPOGRAPHY.sm,
     color: DELIVERY_COLORS.textSecondary,
     fontWeight: '600',
+  },
+  currentBadge: {
+    paddingHorizontal: DELIVERY_SPACING.xs,
+    paddingVertical: 2,
+    borderRadius: DELIVERY_RADIUS.sm,
+    backgroundColor: DELIVERY_COLORS.success,
+  },
+  currentBadgeText: {
+    fontSize: 10,
+    color: DELIVERY_COLORS.white,
+    fontWeight: '700',
+  },
+  lockedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: DELIVERY_SPACING.xs,
+    paddingVertical: 2,
+    borderRadius: DELIVERY_RADIUS.sm,
+    backgroundColor: DELIVERY_COLORS.cardElevated,
+  },
+  lockedBadgeText: {
+    fontSize: 10,
+    color: DELIVERY_COLORS.textMuted,
+    fontWeight: '700',
   },
   statusBadge: {
     paddingHorizontal: DELIVERY_SPACING.sm,
@@ -591,9 +1280,10 @@ const styles = StyleSheet.create({
     marginBottom: DELIVERY_SPACING.xs,
   },
   customerName: {
-    fontSize: DELIVERY_TYPOGRAPHY.base,
+    fontSize: UX_TYPOGRAPHY.critical.fontSize,   // 16sp minimum — Requirement 5.3
+    lineHeight: UX_TYPOGRAPHY.critical.lineHeight,
     color: DELIVERY_COLORS.textPrimary,
-    fontWeight: '600',
+    fontWeight: UX_TYPOGRAPHY.critical.fontWeight,
   },
   customerPhone: {
     fontSize: DELIVERY_TYPOGRAPHY.sm,
@@ -602,24 +1292,9 @@ const styles = StyleSheet.create({
     marginBottom: DELIVERY_SPACING.xs,
   },
   addressText: {
-    fontSize: DELIVERY_TYPOGRAPHY.sm,
+    fontSize: UX_TYPOGRAPHY.critical.fontSize,   // 16sp minimum — Requirement 5.3
     color: DELIVERY_COLORS.textSecondary,
-    lineHeight: 18,
-  },
-  navigateBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: DELIVERY_SPACING.xs,
-    backgroundColor: DELIVERY_COLORS.primary,
-    borderRadius: DELIVERY_RADIUS.sm,
-    paddingHorizontal: DELIVERY_SPACING.sm,
-    paddingVertical: DELIVERY_SPACING.xs,
-    alignSelf: 'flex-start',
-  },
-  navigateBtnText: {
-    fontSize: DELIVERY_TYPOGRAPHY.xs,
-    color: DELIVERY_COLORS.white,
-    fontWeight: '600',
+    lineHeight: UX_TYPOGRAPHY.critical.lineHeight,
   },
   codBanner: {
     backgroundColor: DELIVERY_COLORS.warningBg,
@@ -636,10 +1311,20 @@ const styles = StyleSheet.create({
     marginBottom: DELIVERY_SPACING.xs,
   },
   codBannerTitle: {
-    fontSize: DELIVERY_TYPOGRAPHY.sm,
+    fontSize: UX_TYPOGRAPHY.critical.fontSize,  // 16sp — Requirement 5.3
     color: DELIVERY_COLORS.warning,
     fontWeight: '700',
   },
+  // 24sp bold COD amount — Requirement 9.5
+  codAmountLarge: {
+    fontSize: UX_TYPOGRAPHY.codAmount.fontSize,   // 24sp
+    lineHeight: UX_TYPOGRAPHY.codAmount.lineHeight,
+    fontWeight: UX_TYPOGRAPHY.codAmount.fontWeight,
+    color: UX_COLORS.textHighContrast,
+    marginBottom: DELIVERY_SPACING.md,
+    textAlign: 'center',
+  },
+  // Legacy codAmount kept for backward compat
   codAmount: {
     fontSize: DELIVERY_TYPOGRAPHY.sm,
     color: DELIVERY_COLORS.textPrimary,
@@ -659,6 +1344,7 @@ const styles = StyleSheet.create({
     paddingVertical: DELIVERY_SPACING.sm,
     borderRadius: DELIVERY_RADIUS.sm,
     borderWidth: 1.5,
+    minHeight: UX_SPACING.touchTarget,  // 48dp minimum — Requirement 5.1
   },
   codCashBtn: {
     borderColor: DELIVERY_COLORS.success,
@@ -669,9 +1355,9 @@ const styles = StyleSheet.create({
     backgroundColor: DELIVERY_COLORS.card,
   },
   codMethodText: {
-    fontSize: DELIVERY_TYPOGRAPHY.sm,
+    fontSize: UX_TYPOGRAPHY.critical.fontSize,  // 16sp — Requirement 5.3
     color: DELIVERY_COLORS.textPrimary,
-    fontWeight: '600',
+    fontWeight: UX_TYPOGRAPHY.critical.fontWeight,
   },
   codCollectedBanner: {
     flexDirection: 'row',
@@ -691,34 +1377,47 @@ const styles = StyleSheet.create({
   },
   actionsContainer: {
     gap: DELIVERY_SPACING.sm,
+    zIndex: 10,
+    elevation: 10,
   },
   primaryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: DELIVERY_SPACING.sm,
-    backgroundColor: DELIVERY_COLORS.primary,
+    backgroundColor: UX_COLORS.primaryAction,  // High-contrast dark blue — Requirement 5.2
     borderRadius: DELIVERY_RADIUS.md,
     paddingVertical: DELIVERY_SPACING.md,
+    minHeight: UX_SPACING.touchTarget,          // 48dp minimum — Requirement 5.1
+    paddingHorizontal: UX_SPACING.edgePadding,  // 16dp edge padding — Requirement 5.6
+  },
+  primaryBtnDisabled: {
+    backgroundColor: UX_COLORS.locked,          // Distinct disabled state — Requirement 5.7
+    opacity: 0.6,
   },
   primaryBtnText: {
-    fontSize: DELIVERY_TYPOGRAPHY.base,
-    color: DELIVERY_COLORS.white,
-    fontWeight: '700',
+    fontSize: UX_TYPOGRAPHY.critical.fontSize,  // 16sp — Requirement 5.3
+    lineHeight: UX_TYPOGRAPHY.critical.lineHeight,
+    color: '#FFFFFF',
+    fontWeight: UX_TYPOGRAPHY.critical.fontWeight,
   },
-  failBtn: {
+  navigateBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: DELIVERY_SPACING.sm,
-    backgroundColor: DELIVERY_COLORS.danger,
+    backgroundColor: DELIVERY_COLORS.info,
     borderRadius: DELIVERY_RADIUS.md,
     paddingVertical: DELIVERY_SPACING.md,
+    minHeight: UX_SPACING.touchTarget,          // 48dp minimum — Requirement 5.1
+    paddingHorizontal: UX_SPACING.edgePadding,
+    borderWidth: 2,
+    borderColor: DELIVERY_COLORS.info,
   },
-  failBtnText: {
-    fontSize: DELIVERY_TYPOGRAPHY.base,
-    color: DELIVERY_COLORS.white,
-    fontWeight: '700',
+  navigateBtnText: {
+    fontSize: UX_TYPOGRAPHY.critical.fontSize,  // 16sp — Requirement 5.3
+    color: '#FFFFFF',
+    fontWeight: UX_TYPOGRAPHY.critical.fontWeight,
   },
   otpContainer: {
     backgroundColor: DELIVERY_COLORS.cardElevated,
@@ -727,9 +1426,9 @@ const styles = StyleSheet.create({
     gap: DELIVERY_SPACING.sm,
   },
   otpTitle: {
-    fontSize: DELIVERY_TYPOGRAPHY.sm,
+    fontSize: UX_TYPOGRAPHY.critical.fontSize,  // 16sp — Requirement 5.3
     color: DELIVERY_COLORS.textSecondary,
-    fontWeight: '600',
+    fontWeight: UX_TYPOGRAPHY.critical.fontWeight,
   },
   otpInput: {
     backgroundColor: DELIVERY_COLORS.card,
@@ -741,7 +1440,50 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     paddingVertical: DELIVERY_SPACING.sm,
     letterSpacing: 8,
+    minHeight: UX_SPACING.touchTarget,  // 48dp minimum — Requirement 5.1
   },
+  otpInputError: {
+    borderColor: UX_COLORS.failed,
+    backgroundColor: '#FFF5F5',
+  },
+  otpStatusBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: DELIVERY_SPACING.xs,
+    paddingVertical: DELIVERY_SPACING.sm,
+  },
+  otpVerifiedText: {
+    fontSize: UX_TYPOGRAPHY.critical.fontSize,
+    color: UX_COLORS.synced,
+    fontWeight: UX_TYPOGRAPHY.critical.fontWeight,
+  },
+  otpQueuedText: {
+    fontSize: UX_TYPOGRAPHY.critical.fontSize,
+    color: UX_COLORS.queued,
+    fontWeight: UX_TYPOGRAPHY.critical.fontWeight,
+    flex: 1,
+  },
+  otpErrorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: DELIVERY_SPACING.xs,
+    backgroundColor: '#FFF5F5',
+    borderRadius: DELIVERY_RADIUS.sm,
+    padding: DELIVERY_SPACING.xs,
+  },
+  otpErrorText: {
+    fontSize: DELIVERY_TYPOGRAPHY.sm,
+    color: UX_COLORS.failed,
+    fontWeight: '600',
+    flex: 1,
+  },
+  otpOfflineHint: {
+    fontSize: DELIVERY_TYPOGRAPHY.sm,
+    color: UX_COLORS.queued,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  // Legacy verifyBtn kept for backward compat (no longer rendered but avoids TS errors)
   verifyBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -750,14 +1492,78 @@ const styles = StyleSheet.create({
     backgroundColor: DELIVERY_COLORS.success,
     borderRadius: DELIVERY_RADIUS.md,
     paddingVertical: DELIVERY_SPACING.md,
+    minHeight: UX_SPACING.touchTarget,
   },
   verifyBtnDisabled: {
     backgroundColor: DELIVERY_COLORS.border,
   },
   verifyBtnText: {
-    fontSize: DELIVERY_TYPOGRAPHY.base,
+    fontSize: UX_TYPOGRAPHY.critical.fontSize,
     color: DELIVERY_COLORS.white,
-    fontWeight: '700',
+    fontWeight: UX_TYPOGRAPHY.critical.fontWeight,
+  },
+  // ── COD Queued / Confirm styles (Task 9.2) ───────────────────────────────
+  codQueuedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: DELIVERY_SPACING.xs,
+    backgroundColor: '#FEEBC8',
+    borderRadius: DELIVERY_RADIUS.md,
+    borderWidth: 1,
+    borderColor: UX_COLORS.queued,
+    padding: DELIVERY_SPACING.md,
+    marginBottom: DELIVERY_SPACING.md,
+  },
+  codQueuedText: {
+    fontSize: UX_TYPOGRAPHY.critical.fontSize,
+    color: '#744210',
+    fontWeight: UX_TYPOGRAPHY.critical.fontWeight,
+    flex: 1,
+  },
+  codConfirmSubtitle: {
+    fontSize: DELIVERY_TYPOGRAPHY.sm,
+    color: DELIVERY_COLORS.textSecondary,
+    textAlign: 'center',
+    marginBottom: DELIVERY_SPACING.xs,
+  },
+  codConfirmAmount: {
+    fontSize: UX_TYPOGRAPHY.codAmount.fontSize,   // 24sp — Requirement 9.5
+    lineHeight: UX_TYPOGRAPHY.codAmount.lineHeight,
+    fontWeight: UX_TYPOGRAPHY.codAmount.fontWeight,
+    color: UX_COLORS.textHighContrast,
+    textAlign: 'center',
+    marginBottom: DELIVERY_SPACING.md,
+  },
+  codOfflineNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: DELIVERY_SPACING.xs,
+    backgroundColor: '#FEEBC8',
+    borderRadius: DELIVERY_RADIUS.sm,
+    padding: DELIVERY_SPACING.sm,
+    marginBottom: DELIVERY_SPACING.sm,
+  },
+  codOfflineNoteText: {
+    fontSize: DELIVERY_TYPOGRAPHY.sm,
+    color: '#744210',
+    fontWeight: '500',
+    flex: 1,
+  },
+  codConfirmBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: DELIVERY_SPACING.xs,
+    paddingVertical: DELIVERY_SPACING.sm,
+    paddingHorizontal: DELIVERY_SPACING.md,
+    borderRadius: DELIVERY_RADIUS.sm,
+    backgroundColor: UX_COLORS.synced,
+    minHeight: UX_SPACING.touchTarget,  // 48dp — Requirement 5.1
+  },
+  codConfirmBtnText: {
+    fontSize: UX_TYPOGRAPHY.critical.fontSize,
+    color: '#FFFFFF',
+    fontWeight: UX_TYPOGRAPHY.critical.fontWeight,
   },
   cancelledBanner: {
     flexDirection: 'row',
@@ -795,6 +1601,21 @@ const styles = StyleSheet.create({
     fontSize: DELIVERY_TYPOGRAPHY.sm,
     color: DELIVERY_COLORS.textSecondary,
     fontWeight: '500',
+  },
+  syncingRefreshBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: DELIVERY_SPACING.sm,
+    paddingVertical: 4,
+    borderRadius: DELIVERY_RADIUS.sm,
+    borderWidth: 1,
+    borderColor: DELIVERY_COLORS.primary,
+  },
+  syncingRefreshText: {
+    fontSize: DELIVERY_TYPOGRAPHY.xs,
+    color: DELIVERY_COLORS.primary,
+    fontWeight: '600',
   },
   // ── Failure Reason Modal ──────────────────────────────────────────────────
   modalOverlay: {
@@ -878,6 +1699,23 @@ const styles = StyleSheet.create({
     fontSize: DELIVERY_TYPOGRAPHY.sm,
     color: DELIVERY_COLORS.white,
     fontWeight: '700',
+  },
+  finalAttemptWarning: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: DELIVERY_SPACING.xs,
+    backgroundColor: DELIVERY_COLORS.dangerBg,
+    borderRadius: DELIVERY_RADIUS.sm,
+    borderWidth: 1,
+    borderColor: DELIVERY_COLORS.danger,
+    padding: DELIVERY_SPACING.sm,
+    marginBottom: DELIVERY_SPACING.sm,
+  },
+  finalAttemptWarningText: {
+    flex: 1,
+    fontSize: DELIVERY_TYPOGRAPHY.sm,
+    color: DELIVERY_COLORS.danger,
+    fontWeight: '600',
   },
 });
 
