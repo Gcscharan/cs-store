@@ -1,6 +1,10 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+import { useSelector } from "react-redux";
+import { RootState } from "../store";
+import { useCreateSupportRequestMutation } from "../store/api";
+import { useToast } from "../components/AccessibleToast";
 import {
   Phone,
   Mail,
@@ -20,6 +24,10 @@ import {
 
 const CustomerCarePage: React.FC = () => {
   const navigate = useNavigate();
+  const auth = useSelector((state: RootState) => state.auth);
+  const { success, error: showError } = useToast();
+  const [createSupportRequest, { isLoading: isSubmitting }] =
+    useCreateSupportRequestMutation();
   const [activeTab, setActiveTab] = useState("contact");
   const [formData, setFormData] = useState({
     name: "",
@@ -41,13 +49,68 @@ const CustomerCarePage: React.FC = () => {
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle form submission
-    console.log("Form submitted:", formData);
-    alert(
-      "Thank you for contacting us! We'll get back to you within 24 hours."
-    );
+
+    if (!auth.isAuthenticated) {
+      showError(
+        "Please log in to submit",
+        "Log in to raise a request, or reach us by phone/email above."
+      );
+      navigate("/login");
+      return;
+    }
+
+    const message = formData.message.trim();
+    if (message.length < 3) {
+      showError("Please describe your issue", "Add a few more details.");
+      return;
+    }
+    const phone = formData.phone.trim();
+    if (phone && !/^\d{10}$/.test(phone)) {
+      showError("Invalid phone", "Phone number must be 10 digits.");
+      return;
+    }
+
+    // Fold the contact name/email into the message so admins see them in the inbox.
+    const contextLines = [
+      formData.name.trim() ? `Name: ${formData.name.trim()}` : "",
+      formData.email.trim() ? `Email: ${formData.email.trim()}` : "",
+    ].filter(Boolean);
+    const fullMessage = contextLines.length
+      ? `${message}\n\n---\n${contextLines.join("\n")}`
+      : message;
+
+    try {
+      await createSupportRequest({
+        category: formData.category,
+        subject: formData.subject.trim() || undefined,
+        message: fullMessage,
+        contactPhone: phone || undefined,
+      }).unwrap();
+      success(
+        "Message sent",
+        "Thanks for contacting us. We'll get back to you within 24 hours."
+      );
+      setFormData({
+        name: "",
+        email: "",
+        phone: "",
+        subject: "",
+        message: "",
+        category: "general",
+      });
+    } catch (err: any) {
+      console.error("Customer care submit failed:", err);
+      if (err?.status === 401) {
+        navigate("/login");
+      } else {
+        showError(
+          "Could not send message",
+          err?.data?.error || "Please try again."
+        );
+      }
+    }
   };
 
   const contactMethods = [
@@ -116,26 +179,36 @@ const CustomerCarePage: React.FC = () => {
       title: "Order & Delivery",
       description: "Track orders, delivery issues, returns",
       color: "text-blue-600",
+      category: "order",
     },
     {
       icon: CreditCard,
       title: "Payment & Billing",
       description: "Payment issues, refunds, billing",
       color: "text-green-600",
+      category: "billing",
     },
     {
       icon: RefreshCw,
       title: "Returns & Exchanges",
       description: "Return products, exchange items",
       color: "text-orange-600",
+      category: "return",
     },
     {
       icon: Gift,
       title: "Account & Rewards",
       description: "Account issues, loyalty points",
       color: "text-purple-600",
+      category: "general",
     },
   ];
+
+  const handleCategoryHelp = (category: string) => {
+    setFormData((prev) => ({ ...prev, category }));
+    setActiveTab("contact");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -362,9 +435,10 @@ const CustomerCarePage: React.FC = () => {
                 </div>
                 <button
                   type="submit"
-                  className="w-full bg-orange-500 text-white py-3 px-6 rounded-lg font-medium hover:bg-orange-600 transition-colors duration-300 flex items-center justify-center gap-2"
+                  disabled={isSubmitting}
+                  className="w-full bg-orange-500 text-white py-3 px-6 rounded-lg font-medium hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-300 flex items-center justify-center gap-2"
                 >
-                  Send Message
+                  {isSubmitting ? "Sending..." : "Send Message"}
                   <ArrowRight className="h-5 w-5" />
                 </button>
               </form>
@@ -423,7 +497,10 @@ const CustomerCarePage: React.FC = () => {
                       <p className="text-gray-600 mb-4">
                         {category.description}
                       </p>
-                      <button className="text-orange-500 font-medium hover:text-orange-600 transition-colors duration-300 flex items-center gap-1">
+                      <button
+                        onClick={() => handleCategoryHelp(category.category)}
+                        className="text-orange-500 font-medium hover:text-orange-600 transition-colors duration-300 flex items-center gap-1"
+                      >
                         Get Help
                         <ArrowRight className="h-4 w-4" />
                       </button>
