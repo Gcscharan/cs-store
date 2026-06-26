@@ -4,6 +4,8 @@ import Razorpay from "razorpay";
 import type {
   GatewayCreateOrderInput,
   GatewayCreateOrderResult,
+  GatewayRefundInput,
+  GatewayRefundResult,
   NormalizedWebhookEvent,
   PaymentGatewayAdapter,
 } from "./PaymentGatewayAdapter";
@@ -167,11 +169,81 @@ export class RazorpayAdapter implements PaymentGatewayAdapter {
       };
     }
 
+    if (event === "refund.processed" || event === "refund.created") {
+      const refund = body?.payload?.refund?.entity;
+      const refundId = String(refund?.id || "");
+      const paymentId = String(refund?.payment_id || "");
+      const amountPaise = Number(refund?.amount || 0);
+      const currency = String(refund?.currency || "INR");
+      // We stamp our RefundRequest id into refund notes when executing, so a
+      // duplicated/out-of-order webhook can be matched back to the exact request.
+      const refundRequestId = String(refund?.notes?.refundRequestId || "");
+      const occurredAt = refund?.created_at
+        ? new Date(Number(refund.created_at) * 1000)
+        : undefined;
+
+      return {
+        gateway: this.gateway,
+        type: "REFUND_PROCESSED",
+        gatewayEventId: refundId || paymentId || "unknown",
+        gatewayPaymentId: paymentId || undefined,
+        gatewayRefundId: refundId || undefined,
+        refundRequestId: refundRequestId || undefined,
+        amount: Number.isFinite(amountPaise) ? amountPaise / 100 : undefined,
+        currency,
+        occurredAt,
+        rawEvent: body,
+      };
+    }
+
     return {
       gateway: this.gateway,
       type: "UNKNOWN",
       gatewayEventId: String(body?.id || body?.event || "unknown"),
       rawEvent: body,
+    };
+  }
+
+  /**
+   * Executes a refund against Razorpay.
+   *
+   * Idempotency: passes an `Idempotency-Key` header so Razorpay dedupes
+   * duplicate refund attempts at the provider level (a retry with the same key
+   * returns the same refund instead of creating a second one). We also stamp
+   * our RefundRequest id into `notes.refundRequestId` so the refund webhook can
+   * be matched back to the exact request.
+   */
+  async refundPayment(input: GatewayRefundInput): Promise<GatewayRefundResult> {
+    if (!input.gatewayPaymentId) {
+      throw new Error("gatewayPaymentId is required for refund");
+    }
+    if (!Number.isFinite(input.amount) || input.amount <= 0) {
+      throw new Error("Invalid refund amount");
+    }
+
+    const amountInPaise = Math.round(input.amount * 100);
+
+    const opts: any = {
+      amount: amountInPaise,
+      speed: "normal",
+      notes: input.notes || {},
+    };
+
+    const requestOptions = input.idempotencyKey
+      ? { "Idempotency-Key": input.idempotencyKey }
+      : undefined;
+
+    const refund: any = await (this.razorpay.payments as any).refund(
+      input.gatewayPaymentId,
+      opts,
+      requestOptions
+    );
+
+    return {
+      gatewayRefundId: String(refund?.id || ""),
+      status: String(refund?.status || "pending"),
+      amount: Number(refund?.amount || amountInPaise) / 100,
+      raw: refund,
     };
   }
 }

@@ -17,6 +17,25 @@ export interface IActiveRoute {
   estimatedArrival?: Date;
 }
 
+export type KycStatus = "NOT_STARTED" | "PENDING" | "VERIFIED" | "REJECTED";
+export type KycDocType = "aadhaar_front" | "aadhaar_back" | "pan_card" | "selfie";
+
+export interface IKycDocument {
+  docType: KycDocType;
+  url: string;
+  publicId?: string;
+  uploadedAt: Date;
+}
+
+export interface IKyc {
+  status: KycStatus;
+  documents: IKycDocument[];
+  submittedAt?: Date;
+  reviewedAt?: Date;
+  reviewedBy?: mongoose.Types.ObjectId;
+  rejectionReason?: string;
+}
+
 export interface IDeliveryBoy extends Document {
   _id: mongoose.Types.ObjectId;
   name: string;
@@ -35,6 +54,7 @@ export interface IDeliveryBoy extends Document {
   rejectionsToday?: number;
   lastAssignedAt?: Date;
   selfieUrl?: string;
+  kyc?: IKyc;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -55,6 +75,36 @@ const ActiveRouteSchema = new Schema<IActiveRoute>({
   startedAt: { type: Date, default: Date.now },
   estimatedArrival: { type: Date },
 });
+
+const KycDocumentSchema = new Schema<IKycDocument>(
+  {
+    docType: {
+      type: String,
+      enum: ["aadhaar_front", "aadhaar_back", "pan_card", "selfie"],
+      required: true,
+    },
+    url: { type: String, required: true },
+    publicId: { type: String },
+    uploadedAt: { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
+
+const KycSchema = new Schema<IKyc>(
+  {
+    status: {
+      type: String,
+      enum: ["NOT_STARTED", "PENDING", "VERIFIED", "REJECTED"],
+      default: "NOT_STARTED",
+    },
+    documents: { type: [KycDocumentSchema], default: [] },
+    submittedAt: { type: Date },
+    reviewedAt: { type: Date },
+    reviewedBy: { type: Schema.Types.ObjectId, ref: "User" },
+    rejectionReason: { type: String, trim: true },
+  },
+  { _id: false }
+);
 
 const DeliveryBoySchema = new Schema<IDeliveryBoy>(
   {
@@ -127,6 +177,10 @@ const DeliveryBoySchema = new Schema<IDeliveryBoy>(
     selfieUrl: {
       type: String,
       trim: true,
+    },
+    kyc: {
+      type: KycSchema,
+      default: () => ({ status: "NOT_STARTED", documents: [] }),
     },
   },
   {

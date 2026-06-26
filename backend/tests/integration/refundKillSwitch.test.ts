@@ -71,7 +71,7 @@ describe("Refund execution kill switch (REFUND_EXECUTION_ENABLED)", () => {
     const order = await (global as any).createTestPaidOrder(u);
 
     const res = await request(app)
-      .get(`/internal/refunds/${String(order._id)}`)
+      .get(`/api/internal/refunds/${String(order._id)}`)
       .set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(200);

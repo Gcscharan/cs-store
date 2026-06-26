@@ -176,6 +176,27 @@ class Logger {
     });
   }
 
+  // Operational alert — for dead-letter / exhausted-retry / undeliverable
+  // conditions that require ops attention. Always captured to Sentry so it can
+  // page/notify, with a stable `type` tag for alert routing.
+  opsAlert(message: string, data?: any) {
+    this.setContext({ component: "ops-alert" });
+    // Log at error level for visibility (no Sentry exception capture here —
+    // we send a single structured captureMessage below to avoid duplicates).
+    const formatted = this.formatMessage("ERROR", `[OPS_ALERT] ${message}`, data);
+    if (formatted) console.error(formatted);
+
+    Sentry.captureMessage(message, {
+      level: "error",
+      tags: {
+        component: "ops-alert",
+        type: "OPS_ALERT",
+        ...this.context,
+      },
+      extra: data,
+    });
+  }
+
   // Performance logging
   performance(operation: string, duration: number, data?: any) {
     this.setContext({ component: "performance" });

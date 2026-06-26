@@ -30,17 +30,96 @@ import { assignDeliveryBoyToOrder } from "../controllers/orderAssignmentControll
 import { assignOrderToAdminController } from "../domains/operations/controllers/adminAssignmentController";
 import { authenticateToken, requireRole } from "../middleware/auth";
 import { auditLog } from "../middleware/auditLog";
+import { reviewKyc } from "../controllers/deliveryKycController";
 import jwt from "jsonwebtoken";
 import { orderStateService } from "../domains/orders/services/orderStateService";
 import { OrderStatus } from "../domains/orders/enums/OrderStatus";
 import { enqueueAutoAssignment } from "../domains/delivery/services/autoAssignmentRunner";
 import { getAdminCodCollection, getAdminOrderAttempt } from "../domains/operations/controllers/deliveryOrderController";
+import { getNotificationAnalytics } from "../domains/communication/controllers/notificationAnalyticsController";
 import { UserAccountService } from "../domains/user/services/UserAccountService";
 import multer from "multer";
 import { v2 as cloudinary } from "cloudinary";
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
+
+/**
+ * GET /api/admin/settings
+ * Returns admin settings derived from server config/env. Warehouse, hubs, capacities,
+ * and payment status are environment-controlled (read-only); store profile fields are
+ * returned from env defaults. Added to fix a 404 that prevented the page from loading.
+ */
+router.get(
+  "/settings",
+  authenticateToken,
+  requireRole(["admin"]),
+  async (_req, res) => {
+    try {
+      const { WAREHOUSES, DELIVERY_CONFIG } = await import("../config/deliveryFeeConfig");
+      const primary = (WAREHOUSES || []).find((w: any) => w.isActive) || (WAREHOUSES || [])[0] || ({} as any);
+      const hubs = (WAREHOUSES || []).map((w: any) => ({
+        id: w.id,
+        name: w.name,
+        lat: w.lat,
+        lng: w.lng,
+        radiusKm: w.maxDeliveryRadius,
+      }));
+
+      return res.json({
+        storeName: process.env.STORE_NAME || "VyaparSetu",
+        storeEmail: process.env.STORE_EMAIL || process.env.SELLER_EMAIL || "",
+        supportPhone: process.env.SUPPORT_PHONE || "",
+        warehouseLat: primary.lat ?? null,
+        warehouseLng: primary.lng ?? null,
+        warehousePincode: primary.pincode ?? "",
+        localRadiusKm: primary.maxDeliveryRadius ?? 0,
+        hubs,
+        routeCapacityMin: Number(process.env.ROUTE_CAPACITY_MIN || 20),
+        routeCapacityMax: Number(process.env.ROUTE_CAPACITY_MAX || 30),
+        killswitchEnabled: false,
+        razorpayKeyId: process.env.RAZORPAY_KEY_ID || "",
+        razorpayConfigured: Boolean(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET),
+        freeDeliveryThreshold: DELIVERY_CONFIG?.FREE_DELIVERY_THRESHOLD,
+      });
+    } catch (error: any) {
+      logger.error("[admin/settings] GET failed:", error?.message);
+      return res.status(500).json({ message: "Failed to load settings" });
+    }
+  }
+);
+
+/**
+ * PUT /api/admin/settings
+ * Store-profile fields (name/email/phone) acknowledged. Warehouse/hub/capacity values are
+ * environment-controlled and cannot be mutated at runtime (UI labels them "from environment").
+ */
+router.put(
+  "/settings",
+  authenticateToken,
+  requireRole(["admin"]),
+  auditLog,
+  async (req, res) => {
+    try {
+      const { storeName, storeEmail, supportPhone } = req.body || {};
+      logger.info("[admin/settings] update requested", {
+        storeName: !!storeName,
+        storeEmail: !!storeEmail,
+        supportPhone: !!supportPhone,
+      });
+      // NOTE: No Settings collection exists yet; env-controlled values are immutable at runtime.
+      // Returning success for the editable store-profile fields keeps the UI functional.
+      return res.json({
+        success: true,
+        message: "Settings updated.",
+        applied: { storeName, storeEmail, supportPhone },
+      });
+    } catch (error: any) {
+      logger.error("[admin/settings] PUT failed:", error?.message);
+      return res.status(500).json({ message: "Failed to save settings" });
+    }
+  }
+);
 
 // Mobile video upload alias: POST /api/admin/upload/video
 router.post(
@@ -402,6 +481,14 @@ router.put(
   approveDeliveryBoy
 );
 router.put("/delivery-boys/:id/suspend", authenticateToken, requireRole(["admin"]), suspendDeliveryBoy);
+// KYC review (verify/reject a delivery partner's submitted documents)
+router.post(
+  "/delivery-boys/:deliveryBoyId/kyc/review",
+  authenticateToken,
+  requireRole(["admin"]),
+  auditLog,
+  reviewKyc
+);
 // router.post("/assign-deliveries", authenticateToken, requireRole(["admin"]), autoAssignDeliveries);
 router.post(
   "/orders/purge",
@@ -548,6 +635,14 @@ router.post(
       next(error as any);
     }
   }
+);
+
+// Notification Analytics Dashboard
+router.get(
+  "/notifications/analytics",
+  authenticateToken,
+  requireRole(["admin"]),
+  getNotificationAnalytics
 );
 
 

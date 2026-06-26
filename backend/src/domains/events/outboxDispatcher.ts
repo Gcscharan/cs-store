@@ -116,7 +116,7 @@ export function initializeOutboxDispatcher(params?: {
     // If this event has been delivered too many times, move to DEAD_LETTER
     // instead of retrying indefinitely.
     if (deliveryAttempts > DEAD_LETTER_THRESHOLD) {
-      logger.error("[OUTBOX_DELIVERY] Moving event to DEAD_LETTER — too many delivery attempts", {
+      logger.opsAlert("[OUTBOX_DELIVERY] Event moved to DEAD_LETTER — too many delivery attempts", {
         eventId: baseEvent.eventId,
         eventType: baseEvent.eventType,
         deliveryAttempts,

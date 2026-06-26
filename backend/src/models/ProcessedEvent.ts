@@ -11,12 +11,10 @@ const ProcessedEventSchema = new Schema<IProcessedEvent>(
     eventId: {
       type: String,
       required: true,
-      index: true,
     },
     consumerName: {
       type: String,
       required: true,
-      index: true,
     },
     processedAt: {
       type: Date,

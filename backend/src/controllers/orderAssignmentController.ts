@@ -270,17 +270,18 @@ export const assignDeliveryBoyToOrder = async (
       });
       io.to("admin_room").emit("refresh_orders");
 
-      // Emit to delivery boy's personal room (standardized format)
-      io.to(`delivery:${String(deliveryBoyId)}`).emit("order_assigned", {
+      // P0 FIX #2: Use deliveryPartnerId (User._id) for room name, matching mobile's delivery:${userId}
+      const riderUserId = String(transitionedOrder?.deliveryPartnerId || deliveryBoyId);
+      io.to(`delivery:${riderUserId}`).emit("order_assigned", {
         orderId: String(orderId),
         deliveryBoyId: String(deliveryBoyId),
       });
-      io.to(`delivery:${String(deliveryBoyId)}`).emit("order:assigned", {
+      io.to(`delivery:${riderUserId}`).emit("order:assigned", {
         orderId: String(orderId),
         deliveryBoyId: String(deliveryBoyId),
         message: "New order assigned to you",
       });
-      io.to(`delivery:${String(deliveryBoyId)}`).emit("refresh_orders");
+      io.to(`delivery:${riderUserId}`).emit("refresh_orders");
     }
 
     res.json({

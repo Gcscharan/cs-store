@@ -23,6 +23,7 @@ export interface StatusChangedPayload {
   version: number;
   eventId: string;
   timestamp: string;
+  arrivedAt?: string | null; // P1 FIX #5: Include arrivedAt for COD/OTP UI rendering
 }
 
 export interface AssignedPayload {
@@ -170,15 +171,19 @@ export class DeliverySocketEmitter {
       version,
       eventId,
       timestamp,
+      // P1 FIX #5: Include arrivedAt so mobile can render COD/OTP buttons correctly
+      arrivedAt: order.arrivedAt ? new Date(order.arrivedAt).toISOString() : null,
     };
 
     // 4. Determine rooms, skipping nulls
     const rooms: string[] = [];
 
-    if (order.deliveryBoyId) {
-      rooms.push(`delivery:${String(order.deliveryBoyId)}`);
+    // P0 FIX #2: Use deliveryPartnerId (User._id) for room name, matching mobile's delivery:${userId}
+    const riderUserId = order.deliveryPartnerId ? String(order.deliveryPartnerId) : null;
+    if (riderUserId) {
+      rooms.push(`delivery:${riderUserId}`);
     } else {
-      logger.warn("[DeliverySocketEmitter] emitStatusChanged: deliveryBoyId is null, skipping delivery room", {
+      logger.warn("[DeliverySocketEmitter] emitStatusChanged: deliveryPartnerId is null, skipping delivery room", {
         orderId,
       });
     }
@@ -269,12 +274,13 @@ export class DeliverySocketEmitter {
       version,
     };
 
-    const riderId = order.deliveryBoyId ? String(order.deliveryBoyId) : null;
+    // P0 FIX #2: Use deliveryPartnerId (User._id) for room name, matching mobile's delivery:${userId}
+    const riderId = order.deliveryPartnerId ? String(order.deliveryPartnerId) : null;
 
     if (riderId) {
       await emitWithRetry(this.io, `delivery:${riderId}`, "order:assigned", payload);
     } else {
-      logger.warn("[DeliverySocketEmitter] emitOrderAssigned: riderId is null, skipping delivery room", {
+      logger.warn("[DeliverySocketEmitter] emitOrderAssigned: riderId (deliveryPartnerId) is null, skipping delivery room", {
         orderId: String(order._id),
       });
     }

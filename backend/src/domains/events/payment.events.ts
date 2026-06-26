@@ -4,6 +4,7 @@ import { BaseEvent } from "./BaseEvent";
 export type PaymentEventType =
   | "PAYMENT_PENDING"
   | "PAYMENT_SUCCESS"
+  | "PAYMENT_FAILED"
   | "REFUND_INITIATED"
   | "REFUND_COMPLETED";
 
@@ -115,4 +116,19 @@ export function createRefundCompletedEvent(params: {
   body?: string;
 }): PaymentEvent {
   return createPaymentEvent({ eventType: "REFUND_COMPLETED", ...params });
+}
+
+export function createPaymentFailedEvent(params: {
+  source: string;
+  actor: BaseEvent["actor"];
+  eventId?: string;
+  occurredAt?: string;
+  userId: string;
+  orderId?: string;
+  paymentId?: string;
+  amount?: number;
+  title?: string;
+  body?: string;
+}): PaymentEvent {
+  return createPaymentEvent({ eventType: "PAYMENT_FAILED", ...params });
 }

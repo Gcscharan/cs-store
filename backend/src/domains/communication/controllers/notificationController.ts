@@ -4,6 +4,18 @@ import mongoose from "mongoose";
 import Notification from "../../../models/Notification";
 import { AuthRequest } from "../../../middleware/auth";
 import { dispatchNotification, NotificationEvent } from "../services/notificationService";
+import { createSocketEmitter } from "../services/socketEmitter";
+import {
+  getUnreadCountCached,
+  decrementUnreadCount,
+  resetUnreadCount,
+} from "../services/unreadCountCache";
+import {
+  updateLifecycleStatus,
+  getDeliveryMetrics,
+  TrackingEvent,
+  LifecycleChannel,
+} from "../services/deliveryTracker";
 
 type NotificationCategory = "order" | "delivery" | "payment" | "account" | "promo";
 type NotificationPriority = "high" | "normal" | "low";
@@ -277,8 +289,31 @@ export const markAsRead = async (
       return;
     }
 
+    // Only decrement cache if notification was previously unread
+    const wasUnread = !notification.isRead;
+
     notification.isRead = true;
     await notification.save();
+
+    // Invalidate Redis cache for unread count (decrement on read)
+    if (wasUnread) {
+      const userId = user._id.toString();
+      await decrementUnreadCount(userId);
+    }
+
+    // Emit socket events for real-time multi-device sync
+    try {
+      const userId = user._id.toString();
+      const socketEmitter = createSocketEmitter(req.app);
+      socketEmitter.emitNotificationRead(userId, notificationId);
+
+      // Emit updated unread count from cache
+      const unreadCount = await getUnreadCountCached(userId);
+      socketEmitter.emitUnreadCount(userId, unreadCount);
+    } catch (socketError) {
+      // Socket emission is non-critical — log and continue
+      logger.error("Error emitting socket event for markAsRead:", socketError);
+    }
 
     res.json({
       success: true,
@@ -313,6 +348,20 @@ export const markAllAsRead = async (
       },
       { $set: { isRead: true } }
     );
+
+    // Reset Redis cached unread count to 0
+    const userId = user._id.toString();
+    await resetUnreadCount(userId);
+
+    // Emit socket events for real-time multi-device sync
+    try {
+      const socketEmitter = createSocketEmitter(req.app);
+      socketEmitter.emitNotificationReadAll(userId);
+      socketEmitter.emitUnreadCount(userId, 0);
+    } catch (socketError) {
+      // Socket emission is non-critical — log and continue
+      logger.error("Error emitting socket event for markAllAsRead:", socketError);
+    }
 
     res.json({
       success: true,
@@ -364,6 +413,9 @@ export const deleteNotification = async (
 /**
  * Get unread notification count
  * GET /api/notifications/unread/count
+ *
+ * Uses Redis cache for <100ms response time at 95th percentile.
+ * Falls back to MongoDB on cache miss.
  */
 export const getUnreadCount = async (
   req: AuthRequest,
@@ -376,10 +428,8 @@ export const getUnreadCount = async (
       return;
     }
 
-    const count = await Notification.countDocuments({
-      userId: user._id,
-      isRead: false,
-    });
+    const userId = user._id.toString();
+    const count = await getUnreadCountCached(userId);
 
     res.json({
       success: true,
@@ -464,5 +514,115 @@ export const sendTestNotificationsAllChannels = async (
     res
       .status(500)
       .json({ error: "Failed to dispatch multi-channel test notifications" });
+  }
+};
+
+/**
+ * Track client-side notification events (opened, clicked)
+ * POST /api/notifications/:notificationId/track
+ *
+ * Body: { event: "opened" | "clicked", channel?: "push" | "inApp" }
+ */
+export const trackNotificationEvent = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const user = req.user;
+    if (!user) {
+      res.status(401).json({ error: "Authentication required" });
+      return;
+    }
+
+    const { notificationId } = req.params;
+    const { event, channel } = req.body as { event?: string; channel?: string };
+
+    // Validate notificationId
+    if (!notificationId || !mongoose.Types.ObjectId.isValid(notificationId)) {
+      res.status(400).json({ error: "Invalid notification ID" });
+      return;
+    }
+
+    // Validate event
+    const validEvents: TrackingEvent[] = ["opened", "clicked"];
+    if (!event || !validEvents.includes(event as TrackingEvent)) {
+      res.status(400).json({ error: "Invalid event. Must be 'opened' or 'clicked'" });
+      return;
+    }
+
+    // Validate channel (default to 'inApp' if not provided)
+    const validChannels: LifecycleChannel[] = ["push", "socket", "inApp"];
+    const targetChannel: LifecycleChannel = (channel && validChannels.includes(channel as LifecycleChannel))
+      ? (channel as LifecycleChannel)
+      : "inApp";
+
+    // Verify the notification belongs to this user
+    const notification = await Notification.findOne({
+      _id: notificationId,
+      userId: user._id,
+    }).lean();
+
+    if (!notification) {
+      res.status(404).json({ error: "Notification not found" });
+      return;
+    }
+
+    // Update lifecycle status
+    await updateLifecycleStatus(notificationId, targetChannel, event as TrackingEvent);
+
+    res.json({
+      success: true,
+      message: `Notification ${event} event tracked`,
+      notificationId,
+      channel: targetChannel,
+      event,
+    });
+  } catch (error) {
+    logger.error("Error tracking notification event:", error);
+    res.status(500).json({ error: "Failed to track notification event" });
+  }
+};
+
+/**
+ * Get delivery metrics for notifications
+ * GET /api/notifications/metrics
+ *
+ * Query params: ?eventType=ORDER_CREATED&period=day
+ */
+export const getNotificationMetrics = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const user = req.user;
+    if (!user) {
+      res.status(401).json({ error: "Authentication required" });
+      return;
+    }
+
+    const { eventType, period } = req.query as {
+      eventType?: string;
+      period?: string;
+    };
+
+    const validPeriods = ["hour", "day", "week", "month"];
+    const effectivePeriod = period && validPeriods.includes(period) ? period : "day";
+
+    const metrics = await getDeliveryMetrics({
+      eventType: eventType || undefined,
+      period: effectivePeriod as "hour" | "day" | "week" | "month",
+    });
+
+    res.json({
+      success: true,
+      metrics,
+      query: {
+        eventType: eventType || "all",
+        period: effectivePeriod,
+      },
+    });
+  } catch (error) {
+    logger.error("Error fetching notification metrics:", error);
+    res.status(500).json({ error: "Failed to fetch notification metrics" });
   }
 };

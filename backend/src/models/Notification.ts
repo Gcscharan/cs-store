@@ -1,5 +1,19 @@
 import mongoose, { Document, Schema } from "mongoose";
 
+export type LifecycleStatus = "sent" | "delivered" | "opened" | "clicked" | "failed";
+
+export interface IChannelLifecycle {
+  status: LifecycleStatus;
+  updatedAt: Date;
+  error?: string;
+}
+
+export interface INotificationLifecycle {
+  push?: IChannelLifecycle;
+  socket?: IChannelLifecycle;
+  inApp?: IChannelLifecycle;
+}
+
 export interface INotification extends Document {
   userId: mongoose.Types.ObjectId;
   title: string;
@@ -7,12 +21,13 @@ export interface INotification extends Document {
   body?: string;
   eventType?: string;
   meta?: Record<string, any>;
-  type?: "info" | "delivery_otp" | "order_update" | "general";
+  type?: "info" | "delivery_otp" | "delivery_arrived" | "delivery_earning" | "order_update" | "general";
   category?: "order" | "delivery" | "payment" | "account" | "promo";
   priority?: "high" | "normal" | "low";
   isRead: boolean;
   orderId?: mongoose.Types.ObjectId;
   deepLink?: string;
+  lifecycle?: INotificationLifecycle;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -45,7 +60,7 @@ const NotificationSchema = new Schema<INotification>(
     },
     type: {
       type: String,
-      enum: ["info", "delivery_otp", "order_update", "general"],
+      enum: ["info", "delivery_otp", "delivery_arrived", "delivery_earning", "order_update", "general"],
       default: "general",
     },
     category: {
@@ -67,6 +82,26 @@ const NotificationSchema = new Schema<INotification>(
     deepLink: {
       type: String,
       trim: true,
+    },
+    lifecycle: {
+      type: {
+        push: {
+          status: { type: String, enum: ["sent", "delivered", "opened", "clicked", "failed"] },
+          updatedAt: { type: Date },
+          error: { type: String },
+        },
+        socket: {
+          status: { type: String, enum: ["sent", "delivered", "opened", "clicked", "failed"] },
+          updatedAt: { type: Date },
+          error: { type: String },
+        },
+        inApp: {
+          status: { type: String, enum: ["sent", "delivered", "opened", "clicked", "failed"] },
+          updatedAt: { type: Date },
+          error: { type: String },
+        },
+      },
+      default: undefined,
     },
   },
   {

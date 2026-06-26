@@ -13,6 +13,7 @@ import {
   updateNotificationPreferences,
   markMobileAsVerified,
   updatePushToken,
+  removePushToken,
   getUserReferral,
   getUserReferralStats,
 } from "../controllers/userController";
@@ -23,6 +24,7 @@ const router = express.Router();
 router.get("/profile", authenticateToken, getUserProfile);
 router.put("/profile", authenticateToken, updateUserProfile);
 router.post("/push-token", authenticateToken, updatePushToken);
+router.delete("/push-token", authenticateToken, removePushToken);
 
 // Referral routes
 router.get("/referral", authenticateToken, getUserReferral);

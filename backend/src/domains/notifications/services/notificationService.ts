@@ -1,5 +1,8 @@
-// Mock Notification Service for Firebase Cloud Messaging
-// In a real production environment, this would use firebase-admin
+// Notification Service — delegates to the Expo push transport.
+// Uses the existing PushNotificationService (Expo) which reads the user's
+// expoPushToken and notification preferences before sending.
+import { PushNotificationService } from "../../../utils/PushNotificationService";
+import { logger } from "../../../utils/logger";
 
 export const sendPushNotification = async (
   userId: string,
@@ -7,23 +10,11 @@ export const sendPushNotification = async (
   body: string,
   data?: any
 ) => {
-  console.log(`[PUSH NOTIFICATION] To User: ${userId}`);
-  console.log(`[PUSH NOTIFICATION] Title: ${title}`);
-  console.log(`[PUSH NOTIFICATION] Body: ${body}`);
-  if (data) {
-    console.log(`[PUSH NOTIFICATION] Data:`, data);
+  try {
+    await PushNotificationService.sendToUser(userId, title, body, data);
+  } catch (error) {
+    logger.error(`[notificationService] Failed to send push to user ${userId}:`, error);
   }
-  
-  // TODO: Fetch user's FCM token from DB
-  // const user = await User.findById(userId);
-  // if (!user?.fcmToken) return;
-  
-  // TODO: Send via firebase-admin
-  // await admin.messaging().send({
-  //   token: user.fcmToken,
-  //   notification: { title, body },
-  //   data,
-  // });
 };
 
 export const triggerCartAbandonmentNotification = async (userId: string) => {

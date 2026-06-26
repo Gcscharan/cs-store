@@ -799,7 +799,7 @@ export const updatePushToken = async (
       return;
     }
 
-    const { pushToken } = req.body;
+    const { pushToken, platform } = req.body;
 
     if (!pushToken) {
       res.status(400).json({ error: "Push token is required" });
@@ -807,12 +807,39 @@ export const updatePushToken = async (
     }
 
     const userProfileService = new UserProfileService();
-    await userProfileService.updatePushToken(userId, pushToken);
+    await userProfileService.updatePushToken(userId, pushToken, platform);
 
     res.status(200).json({ success: true, message: "Push token updated successfully" });
   } catch (error) {
     logger.error("Error updating push token:", error);
     res.status(500).json({ error: "Failed to update push token" });
+  }
+};
+
+// Remove a user push token (e.g. on logout, so a shared device stops receiving
+// this user's notifications). If no token is supplied, all of the user's tokens
+// are removed.
+export const removePushToken = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const userId = (req as any).userId || (req as any).user?._id;
+
+    if (!userId) {
+      res.status(401).json({ error: "User not authenticated" });
+      return;
+    }
+
+    const { pushToken } = req.body || {};
+
+    const userProfileService = new UserProfileService();
+    await userProfileService.removePushToken(userId, pushToken);
+
+    res.status(200).json({ success: true, message: "Push token removed successfully" });
+  } catch (error) {
+    logger.error("Error removing push token:", error);
+    res.status(500).json({ error: "Failed to remove push token" });
   }
 };
 

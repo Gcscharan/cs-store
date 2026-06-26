@@ -205,9 +205,12 @@ export function createApp(config: AppConfig = {}): Application {
   const internalFinanceReportsRoutes = require("./routes/internalFinanceReports").default;
   const internalPaymentsVerificationRoutes = require("./domains/payments/routes/internalPaymentsVerification").default;
   const internalRefundsRoutes = require("./routes/internalRefunds").default;
+  const internalNotificationHealthRoutes = require("./routes/internalNotificationHealth").default;
+  const internalPaymentHealthRoutes = require("./routes/internalPaymentHealth").default;
   const otpRoutes = require("./domains/security/routes/otpRoutes").default;
   const notificationRoutes = require("./domains/communication/routes/notifications").default;
   const devNotificationRoutes = require("./domains/communication/routes/devNotifications").default;
+  const bulkNotificationRoutes = require("./domains/communication/routes/bulkNotifications").default;
   const uploadRoutes = require("./domains/uploads/routes/uploads").default;
   const upiRoutes = require("./routes/upi").default;
   const paymentRoutes = require("./domains/finance/routes/paymentRoutes").default;
@@ -277,7 +280,10 @@ export function createApp(config: AppConfig = {}): Application {
   apiRouter.use("/admin/ops", adminOpsRoutes);
   apiRouter.use("/otp", otpRoutes);
   apiRouter.use("/notifications", notificationRoutes);
-  apiRouter.use("/dev/notifications", devNotificationRoutes);
+  if (process.env.NODE_ENV !== "production") {
+    apiRouter.use("/dev/notifications", devNotificationRoutes);
+  }
+  apiRouter.use("/admin/notifications/bulk", bulkNotificationRoutes);
   apiRouter.use("/uploads", uploadRoutes);
   apiRouter.use("/upi", upiRoutes);
   apiRouter.use("/payment", paymentRoutes);
@@ -299,9 +305,14 @@ export function createApp(config: AppConfig = {}): Application {
   apiRouter.use("/internal/payments", internalPaymentRecoveryExecuteRoutes);
   apiRouter.use("/internal/finance", internalFinanceReportsRoutes);
   apiRouter.use("/internal", internalRefundsRoutes);
+  apiRouter.use("/internal", internalNotificationHealthRoutes);
+  apiRouter.use("/internal", internalPaymentHealthRoutes);
   apiRouter.use("/internal", metricsApiRoutes);
 
-  apiRouter.use("/debug", debugDbTestRoutes);
+  // Debug routes expose unauthenticated DB writes and user PII — never mount in production.
+  if (process.env.NODE_ENV !== "production") {
+    apiRouter.use("/debug", debugDbTestRoutes);
+  }
   apiRouter.use("/coupons", couponsRoutes);
   apiRouter.use("/", featureFlagsRoutes);
 

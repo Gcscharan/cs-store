@@ -22,20 +22,32 @@ g.__resetRedisMockStore = () => {
 };
 
 // Mock external services before any imports
+// NOTE: jest.mock is hoisted, so `createClient` may run before the runtime code
+// that initializes `g.__redisKv`. We use dynamic access `(globalThis as any).__redisKv`
+// inside each function to avoid capturing `undefined` references at factory time.
 jest.mock("redis", () => ({
   createClient: jest.fn(() => {
     const gAny = globalThis as any;
     if (gAny.__redisMockClient) return gAny.__redisMockClient;
 
-    const __redisKv: Map<string, string> = gAny.__redisKv;
-    const __redisExpiries: Map<string, number> = gAny.__redisExpiries;
+    // Helper that lazily initializes and returns the KV store
+    const getKv = (): Map<string, string> => {
+      if (!gAny.__redisKv) gAny.__redisKv = new Map<string, string>();
+      return gAny.__redisKv;
+    };
+    const getExpiries = (): Map<string, number> => {
+      if (!gAny.__redisExpiries) gAny.__redisExpiries = new Map<string, number>();
+      return gAny.__redisExpiries;
+    };
 
     const isExpired = (key: string): boolean => {
-      const exp = __redisExpiries.get(key);
+      const expiries = getExpiries();
+      const kv = getKv();
+      const exp = expiries.get(key);
       if (!exp) return false;
       if (Date.now() <= exp) return false;
-      __redisKv.delete(key);
-      __redisExpiries.delete(key);
+      kv.delete(key);
+      expiries.delete(key);
       return true;
     };
 
@@ -55,28 +67,34 @@ jest.mock("redis", () => ({
       get: jest.fn(async (key: string) => {
         const k = String(key);
         isExpired(k);
-        return __redisKv.has(k) ? __redisKv.get(k) : null;
+        const kv = getKv();
+        return kv.has(k) ? kv.get(k) : null;
       }),
       set: jest.fn(async (key: string, value: string, opts?: any) => {
         const k = String(key);
-        __redisKv.set(k, String(value));
+        const kv = getKv();
+        const expiries = getExpiries();
+        kv.set(k, String(value));
         if (opts && typeof opts === "object" && Number.isFinite(Number((opts as any).EX))) {
-          __redisExpiries.set(k, Date.now() + Number((opts as any).EX) * 1000);
+          expiries.set(k, Date.now() + Number((opts as any).EX) * 1000);
         } else {
-          __redisExpiries.delete(k);
+          expiries.delete(k);
         }
         return true;
       }),
       del: jest.fn(async (key: string) => {
         const k = String(key);
-        const existed = __redisKv.delete(k);
-        __redisExpiries.delete(k);
+        const kv = getKv();
+        const expiries = getExpiries();
+        const existed = kv.delete(k);
+        expiries.delete(k);
         return existed ? 1 : 0;
       }),
       exists: jest.fn(async (key: string) => {
         const k = String(key);
         isExpired(k);
-        return __redisKv.has(k) ? 1 : 0;
+        const kv = getKv();
+        return kv.has(k) ? 1 : 0;
       }),
       zAdd: jest.fn(async () => 1),
       zRange: jest.fn(async () => []),
@@ -89,46 +107,62 @@ jest.mock("redis", () => ({
       incr: jest.fn(async (key: string) => {
         const k = String(key);
         isExpired(k);
-        const cur = Number(__redisKv.get(k) || 0);
+        const kv = getKv();
+        const cur = Number(kv.get(k) || 0);
         const next = Number.isFinite(cur) ? cur + 1 : 1;
-        __redisKv.set(k, String(next));
+        kv.set(k, String(next));
         return next;
       }),
       incrBy: jest.fn(async (key: string, by: number) => {
         const k = String(key);
         isExpired(k);
-        const cur = Number(__redisKv.get(k) || 0);
+        const kv = getKv();
+        const cur = Number(kv.get(k) || 0);
         const inc = Number(by || 0);
         const next = (Number.isFinite(cur) ? cur : 0) + inc;
-        __redisKv.set(k, String(next));
+        kv.set(k, String(next));
         return next;
       }),
+      decr: jest.fn(async (key: string) => {
+        const k = String(key);
+        isExpired(k);
+        const kv = getKv();
+        const cur = Number(kv.get(k) || 0);
+        const next = (Number.isFinite(cur) ? cur : 0) - 1;
+        kv.set(k, String(next));
+        return next;
+      }),
+      ping: jest.fn(async () => "PONG"),
       expire: jest.fn(async (key: string, seconds: number) => {
         const k = String(key);
-        if (!__redisKv.has(k)) return false;
+        const kv = getKv();
+        const expiries = getExpiries();
+        if (!kv.has(k)) return false;
         const s = Math.max(1, Number(seconds || 1));
-        __redisExpiries.set(k, Date.now() + s * 1000);
+        expiries.set(k, Date.now() + s * 1000);
         return true;
       }),
       ttl: jest.fn(async (key: string) => {
         const k = String(key);
         isExpired(k);
-        const exp = __redisExpiries.get(k);
-        if (!__redisKv.has(k)) return -2;
+        const kv = getKv();
+        const expiries = getExpiries();
+        if (!kv.has(k)) return -2;
+        const exp = expiries.get(k);
         if (!exp) return -1;
         return Math.max(0, Math.floor((exp - Date.now()) / 1000));
       }),
       flushAll: jest.fn(async () => {
-        __redisKv.clear();
-        __redisExpiries.clear();
+        getKv().clear();
+        getExpiries().clear();
         return true;
       }),
       on: jest.fn(),
       once: jest.fn(),
       emit: jest.fn(),
       quit: jest.fn(async () => true),
-      __kv: __redisKv,
-      __expiries: __redisExpiries,
+      get __kv() { return getKv(); },
+      get __expiries() { return getExpiries(); },
     };
 
     gAny.__redisMockClient = client;

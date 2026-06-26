@@ -15,6 +15,7 @@ import {
   serializePaginatedNotifications,
 } from '../utils/notificationSerializer';
 import { logger } from '../utils/logger';
+import DeviceToken from '../models/DeviceToken';
 
 // AuthRequest type from auth middleware
 interface AuthRequest extends Request {
@@ -218,25 +219,17 @@ export const registerDevice = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // TODO: Phase 4 - Integrate with push notification service
-    // await pushNotificationService.registerDeviceToken(adminId, deviceToken, platform);
-    
-    logger.info('[NotificationController] Device token registration (placeholder)', {
-      adminId,
-      platform,
-      message: 'Push notification service not yet implemented - Phase 4',
-    });
+    // Persist (upsert) the device token for this admin
+    const registeredToken = await DeviceToken.findOneAndUpdate(
+      { adminId, deviceToken },
+      { adminId, deviceToken, platform, lastActiveAt: new Date() },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    ).lean();
 
-    // Return placeholder response with 200 status
-    // Simulating the expected response structure
-    const registeredToken = {
-      _id: 'placeholder-id',
+    logger.info('[NotificationController] Device token registered', {
       adminId,
-      deviceToken,
       platform,
-      lastActiveAt: new Date().toISOString(),
-      createdAt: new Date().toISOString(),
-    };
+    });
 
     res.status(200).json(registeredToken);
   } catch (error: any) {
@@ -272,12 +265,11 @@ export const unregisterDevice = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // TODO: Phase 4 - Integrate with push notification service
-    // await pushNotificationService.unregisterDeviceToken(adminId);
-    
-    logger.info('[NotificationController] Device token unregistration (placeholder)', {
+    // Remove all device tokens for this admin
+    await DeviceToken.deleteMany({ adminId });
+
+    logger.info('[NotificationController] Device token(s) unregistered', {
       adminId,
-      message: 'Push notification service not yet implemented - Phase 4',
     });
 
     // Return 204 status on success

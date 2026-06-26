@@ -257,16 +257,6 @@ export const createOrder = async (req: Request, res: Response) => {
       });
     }
 
-    // Validate format: UUID v4 (recommended format)
-    // Pattern: 8-4-4-4-12 hex digits with version 4 indicator
-    const uuidV4Regex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    if (!uuidV4Regex.test(idempotencyKey)) {
-      return res.status(400).json({
-        error: 'INVALID_IDEMPOTENCY_KEY',
-        message: 'x-idempotency-key must be a valid UUID v4'
-      });
-    }
-
     const { order, created } = await createOrderFromCart({
       userId,
       paymentMethod: paymentMethod as any,
@@ -274,7 +264,6 @@ export const createOrder = async (req: Request, res: Response) => {
       idempotencyKey,
     });
 
-    // Return appropriate status code based on whether order was created or returned from idempotency
     const statusCode = created ? 201 : 200;
 
     if (paymentMethod === "cod") {
@@ -343,16 +332,6 @@ export const placeOrderCOD = async (req: Request, res: Response) => {
       return res.status(400).json({
         error: 'IDEMPOTENCY_KEY_REQUIRED',
         message: 'x-idempotency-key header is required'
-      });
-    }
-
-    // Validate format: UUID v4 (recommended format)
-    // Pattern: 8-4-4-4-12 hex digits with version 4 indicator
-    const uuidV4Regex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    if (!uuidV4Regex.test(idempotencyKey)) {
-      return res.status(400).json({
-        error: 'INVALID_IDEMPOTENCY_KEY',
-        message: 'x-idempotency-key must be a valid UUID v4'
       });
     }
 

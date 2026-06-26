@@ -3,6 +3,7 @@ import Notification from "../../../models/Notification";
 import ProcessedEvent from "../../../models/ProcessedEvent";
 import { BaseEvent } from "../../events/BaseEvent";
 import { subscribe } from "../../events/eventBus";
+import { logger } from "../../../utils/logger";
 
 let initialized = false;
 

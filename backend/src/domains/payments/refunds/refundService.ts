@@ -5,6 +5,10 @@ import { RefundRequest, type RefundRequestStatus } from "../models/RefundRequest
 import { PaymentIntent } from "../models/PaymentIntent";
 import { LedgerEntry } from "../models/LedgerEntry";
 import { appendLedgerEntry } from "../services/ledgerService";
+import { RazorpayAdapter } from "../adapters/RazorpayAdapter";
+import { isProviderUnavailableError } from "../types";
+import { isRefundExecutionEnabled } from "../config/killSwitches";
+import { logger } from "../../../utils/logger";
 
 const MIN_REASON_LEN = 5;
 
@@ -380,9 +384,264 @@ export async function markRefundFailed(args: {
   return { updated: true, status: "FAILED" };
 }
 
+/**
+ * Executes a previously-created RefundRequest against the payment gateway.
+ *
+ * Idempotency / safety:
+ * - Atomically claims the REQUESTED→PROCESSING transition (compare-and-set on
+ *   status) so concurrent executors can't both call the gateway.
+ * - Passes a stable gateway Idempotency-Key (the RefundRequest id) so even if
+ *   the claim were bypassed, Razorpay dedupes the refund at the provider level.
+ * - Stamps refundRequestId into gateway notes so the refund webhook can match
+ *   back to this exact request and call markRefundCompleted.
+ * - The ledger REFUND entry is written by markRefundCompleted (on the
+ *   refund.processed webhook), NOT here — execution only moves money + records
+ *   the gateway refund id. This keeps the ledger driven by confirmed events.
+ *
+ * Returns the gateway refund id; completion is finalized asynchronously by the
+ * refund webhook (or, for gateways that return terminal status synchronously,
+ * may be completed immediately when status === "processed").
+ */
+export async function executeRefund(args: {
+  refundRequestId: string;
+}): Promise<{ executed: boolean; gatewayRefundId: string; status: RefundRequestStatus }> {
+  const rrObjectId = assertObjectId(args.refundRequestId);
+
+  // Load the request + the payment id to refund.
+  const rr = await RefundRequest.findById(rrObjectId)
+    .select("_id orderId paymentIntentId amount currency status")
+    .lean();
+  if (!rr) {
+    throw Object.assign(new Error("NOT_FOUND"), { statusCode: 404 });
+  }
+
+  // Already-terminal/idempotent short-circuits.
+  const currentStatus = String((rr as any).status) as RefundRequestStatus;
+  if (currentStatus === "COMPLETED") {
+    return { executed: false, gatewayRefundId: "", status: "COMPLETED" };
+  }
+  if (currentStatus === "FAILED") {
+    throw Object.assign(new Error("REFUND_ALREADY_FAILED"), { statusCode: 409 });
+  }
+
+  // Resolve the Razorpay payment id from the order (set at capture finalization).
+  const order = await Order.findById((rr as any).orderId)
+    .select("razorpayPaymentId paymentStatus")
+    .lean();
+  const gatewayPaymentId = String((order as any)?.razorpayPaymentId || "").trim();
+  if (!gatewayPaymentId) {
+    throw Object.assign(new Error("NO_GATEWAY_PAYMENT_ID"), { statusCode: 409 });
+  }
+
+  // Atomic claim: only one executor may move REQUESTED → PROCESSING.
+  const claim = await RefundRequest.updateOne(
+    { _id: rrObjectId, status: "REQUESTED" },
+    { $set: { status: "PROCESSING" } }
+  );
+  if (Number((claim as any).modifiedCount) === 0) {
+    // Another executor already claimed it (or it's not in REQUESTED). Re-read.
+    const fresh = await RefundRequest.findById(rrObjectId).select("status").lean();
+    const st = String((fresh as any)?.status || "") as RefundRequestStatus;
+    // PROCESSING means another worker owns it / gateway call in flight — treat as idempotent no-op.
+    return { executed: false, gatewayRefundId: "", status: st };
+  }
+
+  try {
+    const adapter = new RazorpayAdapter();
+    const result = await adapter.refundPayment({
+      gatewayPaymentId,
+      amount: Number((rr as any).amount || 0),
+      // Provider-level idempotency: same key → same refund, never a second one.
+      idempotencyKey: `refund:${String(rrObjectId)}`,
+      notes: { refundRequestId: String(rrObjectId), orderId: String((rr as any).orderId) },
+    });
+
+    if (!result.gatewayRefundId) {
+      throw Object.assign(new Error("GATEWAY_NO_REFUND_ID"), { statusCode: 502 });
+    }
+
+    logger.info("[Refund] Gateway refund executed", {
+      refundRequestId: String(rrObjectId),
+      gatewayRefundId: result.gatewayRefundId,
+      status: result.status,
+    });
+
+    // If the gateway already reports terminal success, complete now (the webhook
+    // is still the authoritative path and is idempotent via dedupeKey, so a
+    // later refund.processed webhook is a safe no-op).
+    if (String(result.status).toLowerCase() === "processed") {
+      try {
+        await markRefundCompleted({
+          refundRequestId: String(rrObjectId),
+          gatewayRefundId: result.gatewayRefundId,
+          occurredAt: new Date(),
+          raw: result.raw,
+        });
+        return { executed: true, gatewayRefundId: result.gatewayRefundId, status: "COMPLETED" };
+      } catch (e) {
+        // Completion will be retried by the webhook — leave as PROCESSING.
+        logger.warn("[Refund] Synchronous completion failed; awaiting webhook", {
+          refundRequestId: String(rrObjectId),
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+    }
+
+    return { executed: true, gatewayRefundId: result.gatewayRefundId, status: "PROCESSING" };
+  } catch (e: any) {
+    // Distinguish AMBIGUOUS failures (timeout/network — the gateway may have
+    // actually processed the refund) from DEFINITE pre-send failures.
+    //
+    //  - Ambiguous  → LEAVE status=PROCESSING. We do NOT know if money moved.
+    //                 The refund reconciliation scanner will query Razorpay and
+    //                 finalize. Reverting here would risk a second executor
+    //                 (provider idempotency key still protects, but semantics
+    //                 should reflect reality: "we don't know yet").
+    //  - Definite   → revert PROCESSING → REQUESTED so it can be safely retried.
+    const ambiguous = isProviderUnavailableError(e);
+
+    if (ambiguous) {
+      logger.opsAlert("[Refund] Gateway call ambiguous (timeout/network) — left PROCESSING for reconciliation", {
+        refundRequestId: String(rrObjectId),
+        error: e instanceof Error ? e.message : String(e),
+      });
+      // Surface as a 503 so the caller knows it's in-flight, not failed.
+      const err: any = new Error("REFUND_GATEWAY_AMBIGUOUS");
+      err.statusCode = 503;
+      throw err;
+    }
+
+    // Definite failure before money could move — safe to revert for retry.
+    await RefundRequest.updateOne(
+      { _id: rrObjectId, status: "PROCESSING" },
+      { $set: { status: "REQUESTED" } }
+    ).catch(() => {});
+
+    logger.error("[Refund] Gateway refund execution failed (definite); reverted to REQUESTED", {
+      refundRequestId: String(rrObjectId),
+      error: e instanceof Error ? e.message : String(e),
+    });
+    throw e;
+  }
+}
+
 export const __private__ = {
   assertAllowedRefundTransition,
   sumCapturedAmount,
   sumRefundedAmountFromLedger,
   sumReservedRefundAmountFromRequests,
 };
+
+/**
+ * Auto-refund a PAID order that is being cancelled (customer/admin cancel, or a
+ * failed delivery that won't be reattempted).
+ *
+ * Design goals (Journey 5 invariants):
+ *  - EXACTLY ONE refund per order: idempotency key `cancel_refund:{orderId}`.
+ *  - Never throws back into the cancellation flow — a refund hiccup must not
+ *    leave the order stuck in a non-terminal state. Ambiguous gateway outcomes
+ *    are left PROCESSING for the refund reconciliation scanner to finalize.
+ *  - Refunds the full captured amount for the order's captured PaymentIntent.
+ *  - No-op (idempotent) if the order isn't PAID, has no capture, or a
+ *    cancel-refund was already created.
+ *
+ * Returns a summary for logging/telemetry; callers should treat it as advisory.
+ */
+export async function refundPaidOrderOnCancellation(args: {
+  orderId: string;
+  reason?: string;
+}): Promise<{ refundCreated: boolean; refundRequestId?: string; status?: RefundRequestStatus; skipped?: string }> {
+  try {
+    const orderObjectId = assertObjectId(args.orderId);
+
+    const order = await Order.findById(orderObjectId)
+      .select("_id paymentStatus razorpayPaymentId")
+      .lean();
+    if (!order) {
+      return { refundCreated: false, skipped: "ORDER_NOT_FOUND" };
+    }
+
+    // Only paid orders need a money refund. COD / unpaid cancellations are no-ops.
+    if (!isPaidOrderStatus((order as any).paymentStatus)) {
+      return { refundCreated: false, skipped: "ORDER_NOT_PAID" };
+    }
+
+    // Find the captured PaymentIntent for this order.
+    const intent = await PaymentIntent.findOne({
+      orderId: orderObjectId,
+      status: "CAPTURED",
+    })
+      .select("_id amount currency")
+      .lean();
+
+    if (!intent) {
+      logger.opsAlert("[CancelRefund] PAID order has no captured PaymentIntent — manual review", {
+        orderId: String(orderObjectId),
+      });
+      return { refundCreated: false, skipped: "NO_CAPTURED_INTENT" };
+    }
+
+    const capturedTotal = await sumCapturedAmount({
+      orderId: orderObjectId,
+      paymentIntentId: (intent as any)._id,
+    });
+
+    if (!Number.isFinite(capturedTotal) || capturedTotal <= 0) {
+      logger.opsAlert("[CancelRefund] PAID order has no CAPTURE ledger entry — manual review", {
+        orderId: String(orderObjectId),
+      });
+      return { refundCreated: false, skipped: "NO_CAPTURE" };
+    }
+
+    // Idempotent: stable key ensures exactly one cancel-refund per order.
+    const idempotencyKey = `cancel_refund:${String(orderObjectId)}`;
+
+    const created = await createRefundRequestInternal({
+      orderId: String(orderObjectId),
+      paymentIntentId: String((intent as any)._id),
+      amount: capturedTotal,
+      currency: String((intent as any).currency || "INR"),
+      reason: args.reason && args.reason.length >= MIN_REASON_LEN ? args.reason : "Order cancelled — auto refund",
+      idempotencyKey,
+    });
+
+    logger.info("[CancelRefund] Refund request ensured for cancelled order", {
+      orderId: String(orderObjectId),
+      refundRequestId: created.refundRequestId,
+      created: created.created,
+      status: created.status,
+    });
+
+    // Execute against the gateway when enabled. Leave to reconciliation if
+    // ambiguous (timeout/network) — never throw back into cancellation.
+    if (isRefundExecutionEnabled() && created.status === "REQUESTED") {
+      try {
+        const exec = await executeRefund({ refundRequestId: created.refundRequestId });
+        return {
+          refundCreated: created.created,
+          refundRequestId: created.refundRequestId,
+          status: exec.status,
+        };
+      } catch (e: any) {
+        logger.warn("[CancelRefund] Gateway execution deferred to reconciliation", {
+          orderId: String(orderObjectId),
+          refundRequestId: created.refundRequestId,
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+    }
+
+    return {
+      refundCreated: created.created,
+      refundRequestId: created.refundRequestId,
+      status: created.status,
+    };
+  } catch (e: any) {
+    // Absolutely never break cancellation because of a refund problem.
+    logger.error("[CancelRefund] Failed to ensure auto-refund on cancellation", {
+      orderId: args.orderId,
+      error: e instanceof Error ? e.message : String(e),
+    });
+    return { refundCreated: false, skipped: "ERROR" };
+  }
+}

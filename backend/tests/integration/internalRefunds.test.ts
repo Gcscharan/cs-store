@@ -66,7 +66,7 @@ describe("Internal refunds (admin-only)", () => {
     expect(res2.body.refundRequestId).toBe(res1.body.refundRequestId);
 
     const history = await request(app)
-      .get(`/internal/refunds/${String(order._id)}`)
+      .get(`/api/internal/refunds/${String(order._id)}`)
       .set("Authorization", `Bearer ${token}`);
 
     expect(history.status).toBe(200);

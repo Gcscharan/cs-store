@@ -20,6 +20,7 @@ import {
   getCodCollection,
   createCodCollection,
   deliverAttempt,
+  resendDeliveryOtp,
   verifyDeliveryOtp,
   completeDelivery,
   failDelivery,
@@ -30,8 +31,20 @@ import {
   getEarnings,
 } from "../domains/operations/controllers/deliveryOrderController";
 import { authenticateToken, requireDeliveryRole } from "../middleware/auth";
+import multer from "multer";
+import {
+  getKycStatus,
+  uploadKycDocument,
+  submitKyc,
+} from "../controllers/deliveryKycController";
 
 const router = express.Router();
+
+// KYC document upload (multipart) — 10 MB raw cap; images only.
+const kycUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
 
 // Public delivery auth routes
 router.post("/auth/signup", deliverySignup);
@@ -67,6 +80,7 @@ router.post("/orders/:orderId/arrived", authenticateToken, requireDeliveryRole, 
 router.get("/orders/:orderId/cod-collection", authenticateToken, requireDeliveryRole, getCodCollection);
 router.post("/orders/:orderId/cod-collection", authenticateToken, requireDeliveryRole, createCodCollection);
 router.post("/orders/:orderId/deliver", authenticateToken, requireDeliveryRole, deliverAttempt);
+router.post("/orders/:orderId/resend-otp", authenticateToken, requireDeliveryRole, resendDeliveryOtp);
 router.post("/orders/:orderId/verify-otp", authenticateToken, requireDeliveryRole, verifyDeliveryOtp);
 router.post("/orders/:orderId/complete", authenticateToken, requireDeliveryRole, completeDelivery);
 router.post("/orders/:orderId/fail", authenticateToken, requireDeliveryRole, failDelivery);
@@ -78,5 +92,16 @@ router.put("/status", authenticateToken, requireDeliveryRole, toggleStatus);
 
 // Earnings
 router.get("/earnings", authenticateToken, requireDeliveryRole, getEarnings);
+
+// KYC verification
+router.get("/kyc/status", authenticateToken, requireDeliveryRole, getKycStatus);
+router.post(
+  "/kyc/upload",
+  authenticateToken,
+  requireDeliveryRole,
+  kycUpload.single("document") as any,
+  uploadKycDocument
+);
+router.post("/kyc/submit", authenticateToken, requireDeliveryRole, submitKyc);
 
 export default router;

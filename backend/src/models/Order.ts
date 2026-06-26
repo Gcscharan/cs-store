@@ -194,6 +194,11 @@ export interface IOrder extends Document {
   paymentConfirmedBy?: 'WEBHOOK' | 'POLLING' | 'RECONCILIATION';
   finalizedAt?: Date; // Set exactly once when order is finalized — hard boundary for exactly-once writes
   activePaymentIntentId?: mongoose.Types.ObjectId;
+  // INV-1: payment captured but inventory could not be committed (sold out during a
+  // slow capture). The order is NOT marked PAID; a refund is auto-initiated and the
+  // customer/merchant are notified. This is a terminal, deterministic outcome.
+  capturedNoStock?: boolean;
+  capturedNoStockAt?: Date;
   deliveryProof?: IDeliveryProof;
   deliveryOtp?: string; // 4-digit OTP for verification
   deliveryOtpGeneratedAt?: Date;
@@ -529,6 +534,9 @@ const OrderSchema = new Schema<IOrder>(
     paymentConfirmedBy: { type: String, enum: ['WEBHOOK', 'POLLING', 'RECONCILIATION'] },
     finalizedAt: { type: Date }, // Exactly-once finalization boundary — set once, never overwritten
     activePaymentIntentId: { type: Schema.Types.ObjectId, ref: "PaymentIntent" },
+    // INV-1: captured-but-out-of-stock terminal marker (see IOrder).
+    capturedNoStock: { type: Boolean },
+    capturedNoStockAt: { type: Date },
     deliveryProof: DeliveryProofSchema,
     deliveryOtp: {
       type: String,

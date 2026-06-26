@@ -1088,14 +1088,16 @@ export const sendAuthOTP = async (
       console.log("🔑 USE THIS OTP:", otp);
       console.log("🧪".repeat(15) + "\n");
       
-      return res.json({
+      const mockResponse: any = {
         message: "OTP sent successfully (mock mode)",
         expiresIn: 600,
         sentTo: "phone",
         isNewUser: !user, // Indicate if this is a new user
-        // DO NOT expose OTP in response - security risk
-        // Check server console logs for OTP in development
-      });
+      };
+      if (process.env.NODE_ENV === "development") {
+        mockResponse.otp = otp;
+      }
+      return res.json(mockResponse);
     }
 
     // Send OTP via SMS

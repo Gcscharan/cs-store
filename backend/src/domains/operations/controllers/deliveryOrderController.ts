@@ -20,6 +20,10 @@ import { updateRouteAfterOrderStatusChange } from "../../routes/routeLifecycleSe
 import { liveLocationStore } from "../../../services/liveLocationStore";
 import { safeDoc } from "../../../utils/safeDoc";
 import { computeAllowedActions } from "../../delivery/utils/allowedActions";
+import { createDeliveryEarning } from "../../../services/deliveryEarningService";
+import { PushNotificationService } from "../../../utils/PushNotificationService";
+import { publish } from "../../events/eventBus";
+import { createDeliveryCompletedEvent, createEarningsCreditedEvent } from "../../events/delivery.events";
 
 const getApprovedDeliveryBoy = async (user: any): Promise<any | null> => {
   if (!user || user.role !== "delivery") return null;
@@ -741,8 +745,14 @@ export const updateLocation = async (
       return;
     }
 
-    if (accuracyNum > 50) {
-      res.status(400).json({ error: "GPS accuracy too low" });
+    if (accuracyNum > 500) {
+      res.status(400).json({ error: "GPS accuracy too low (>500m)" });
+      return;
+    }
+
+    // Reject zero coordinates (common GPS spoof pattern)
+    if (latNum === 0 && lngNum === 0) {
+      res.status(400).json({ error: "Invalid coordinates (0,0)" });
       return;
     }
 
@@ -1181,6 +1191,20 @@ export const markArrived = async (
         orderId: String(orderId),
         deliveryBoyId: String((deliveryBoy as any)._id),
       });
+
+      // P1 FIX #5: Emit to rider's room so mobile app updates arrivedAt and shows COD/OTP buttons
+      const riderUserId = (order as any).deliveryPartnerId 
+        ? String((order as any).deliveryPartnerId) 
+        : null;
+      if (riderUserId) {
+        io.to(`delivery:${riderUserId}`).emit("order:status:changed", {
+          orderId: String(orderId),
+          orderStatus: String((order as any).orderStatus || ""),
+          deliveryStatus: String((order as any).deliveryStatus || ""),
+          arrivedAt: (order as any).arrivedAt ? new Date((order as any).arrivedAt).toISOString() : null,
+          timestamp: new Date().toISOString(),
+        });
+      }
     }
 
     res.json({ success: true, order });
@@ -1556,6 +1580,133 @@ export const deliverAttempt = async (req: AuthRequest, res: Response): Promise<v
   }
 };
 
+/**
+ * Resend delivery OTP
+ * POST /api/delivery/orders/:orderId/resend-otp
+ * Throttled: max 1 resend per 30 seconds, max 3 resends total
+ */
+export const resendDeliveryOtp = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { orderId } = req.params;
+    const user = req.user;
+    if (!user) {
+      res.status(401).json({ error: "Authentication required" });
+      return;
+    }
+
+    const deliveryBoy = await getApprovedDeliveryBoy(user);
+    if (!deliveryBoy) {
+      res.status(403).json({ error: "Account not approved or delivery profile not active" });
+      return;
+    }
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+      res.status(404).json({ error: "Order not found" });
+      return;
+    }
+
+    const status = String((order as any).orderStatus || "").toUpperCase();
+    const deliveryStatusLower = String((order as any).deliveryStatus || "").toLowerCase();
+    if (status === "CANCELLED" || deliveryStatusLower === "cancelled") {
+      res.status(409).json({ error: `Cannot resend OTP for cancelled order (orderStatus=${status})` });
+      return;
+    }
+
+    const okToResend = status === "IN_TRANSIT" || status === "OUT_FOR_DELIVERY";
+    if (!okToResend) {
+      res.status(409).json({
+        error: "Invalid order status for OTP resend",
+        message: `Cannot resend OTP when orderStatus=${status}`,
+      });
+      return;
+    }
+
+    // Throttle: check last OTP generation time
+    const lastGeneratedAt = (order as any).deliveryOtpGeneratedAt;
+    const resendCount = (order as any).deliveryOtpResendCount || 0;
+    const now = new Date();
+
+    if (!lastGeneratedAt) {
+      res.status(409).json({ error: "OTP not yet generated. Start delivery attempt first." });
+      return;
+    }
+
+    // Max 3 resends total
+    if (resendCount >= 3) {
+      res.status(429).json({ error: "Maximum resend limit reached (3). Please contact support." });
+      return;
+    }
+
+    // Max 1 resend per 30 seconds
+    const timeSinceLastResend = now.getTime() - new Date(lastGeneratedAt).getTime();
+    if (timeSinceLastResend < 30_000) {
+      const secondsRemaining = Math.ceil((30_000 - timeSinceLastResend) / 1000);
+      res.status(429).json({ error: `Please wait ${secondsRemaining} seconds before resending OTP.` });
+      return;
+    }
+
+    // Generate new OTP
+    const otp = Math.floor(1000 + Math.random() * 9000).toString();
+    (order as any).deliveryOtp = otp;
+    (order as any).deliveryOtpExpiresAt = new Date(Date.now() + 5 * 60 * 1000);
+    (order as any).deliveryOtpGeneratedAt = now;
+    (order as any).deliveryOtpResendCount = resendCount + 1;
+    await order.save();
+
+    // Send SMS/email (same logic as deliverAttempt)
+    const customer = (order as any).userId as any;
+    const otpToSend = String((order as any).deliveryOtp || "").trim();
+
+    let smsSent = false;
+    let emailSent = false;
+
+    if (customer?.phone) {
+      const smsMessage = `<#> Your VyaparSetu OTP is ${otpToSend}\nFA+9qCX9VSu`;
+      try {
+        await sendSMS(String(customer.phone), smsMessage);
+        smsSent = true;
+      } catch (e) {
+        logger.error("Failed to resend delivery OTP via SMS:", e);
+      }
+    }
+
+    if (customer?.email) {
+      try {
+        await sendDeliveryOtpEmail(String(customer.email), otpToSend, String(orderId));
+        emailSent = true;
+      } catch (e) {
+        logger.error("Failed to resend delivery OTP via email:", e);
+      }
+    }
+
+    logger.info("[Resend OTP] OTP resent successfully", {
+      orderId,
+      deliveryBoyId: (deliveryBoy as any)._id,
+      resendCount: resendCount + 1,
+      smsSent,
+      emailSent,
+    });
+
+    res.json({
+      success: true,
+      otpExpiresAt: (order as any).deliveryOtpExpiresAt,
+      otpSentTo: {
+        sms: smsSent,
+        email: emailSent,
+      },
+      resendCount: resendCount + 1,
+    });
+  } catch (error: any) {
+    logger.error("Resend OTP error:", error);
+    const statusCode = Number(error?.statusCode) || 500;
+    res.status(statusCode).json({ error: error?.message || "Failed to resend OTP" });
+  }
+};
+
 export const verifyDeliveryOtp = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { orderId } = req.params;
@@ -1573,10 +1724,25 @@ export const verifyDeliveryOtp = async (req: AuthRequest, res: Response): Promis
     }
 
     const orderDoc = await Order.findById(orderId).select(
-      "_id userId orderStatus deliveryStatus deliveryOtpExpiresAt deliveryOtpIssuedTo"
+      "_id userId orderStatus deliveryStatus deliveryOtpExpiresAt deliveryOtpIssuedTo deliveryOtpFailedAttempts deliveryOtpLockedUntil"
     );
     if (!orderDoc) {
       res.status(404).json({ error: "Order not found" });
+      return;
+    }
+
+    // ── OTP Rate Limiting (Security hardening) ──────────────────────────────
+    const MAX_OTP_ATTEMPTS = 5;
+    const OTP_LOCKOUT_SECONDS = 300; // 5 minutes
+
+    const failedAttempts = Number((orderDoc as any).deliveryOtpFailedAttempts || 0);
+    const lockedUntil = (orderDoc as any).deliveryOtpLockedUntil as Date | undefined;
+
+    if (lockedUntil && new Date(lockedUntil).getTime() > Date.now()) {
+      const secondsRemaining = Math.ceil((new Date(lockedUntil).getTime() - Date.now()) / 1000);
+      res.status(429).json({
+        error: `Too many failed OTP attempts. Please wait ${secondsRemaining} seconds before trying again.`,
+      });
       return;
     }
 
@@ -1619,10 +1785,37 @@ export const verifyDeliveryOtp = async (req: AuthRequest, res: Response): Promis
 
     try {
       await Order.findByIdAndUpdate(orderId, {
-        $unset: { deliveryOtp: 1, deliveryOtpExpiresAt: 1 },
+        $unset: { deliveryOtp: 1, deliveryOtpExpiresAt: 1, deliveryOtpFailedAttempts: 1, deliveryOtpLockedUntil: 1 },
       });
     } catch (e) {
       logger.error("Failed to invalidate delivery OTP after verification:", e);
+    }
+
+    // ── Clean assignedOrders array (BUG-008 fix) ─────────────────────────────
+    // Remove this order from the delivery partner's assignedOrders and decrement load
+    try {
+      await DeliveryBoy.findByIdAndUpdate(
+        (deliveryBoy as any)._id,
+        {
+          $pull: { assignedOrders: new mongoose.Types.ObjectId(String(orderId)) },
+          $inc: { currentLoad: -1, completedOrdersCount: 1 },
+        }
+      );
+      // Ensure currentLoad doesn't go negative
+      await DeliveryBoy.updateOne(
+        { _id: (deliveryBoy as any)._id, currentLoad: { $lt: 0 } },
+        { $set: { currentLoad: 0 } }
+      );
+      // If no more assigned orders, set availability back to available
+      const updatedBoy = await DeliveryBoy.findById((deliveryBoy as any)._id).select("assignedOrders").lean();
+      if (updatedBoy && Array.isArray((updatedBoy as any).assignedOrders) && (updatedBoy as any).assignedOrders.length === 0) {
+        await DeliveryBoy.updateOne(
+          { _id: (deliveryBoy as any)._id },
+          { $set: { availability: "available" }, $unset: { activeRoute: 1 } }
+        );
+      }
+    } catch (e) {
+      logger.error("Failed to clean assignedOrders after delivery:", e);
     }
 
     try {
@@ -1650,8 +1843,120 @@ export const verifyDeliveryOtp = async (req: AuthRequest, res: Response): Promis
       }
     }
 
+    // ── Delivery Earnings Pipeline (backend = source of truth) ────────────
+    const shortId = String(orderId).slice(-6).toUpperCase();
+    const riderUserId = String((user as any)?._id || "");
+
+    try {
+      // STEP 1: Create earning record (idempotent — unique index on orderId+deliveryBoyId)
+      const deliveryFee = Number((order as any)?.earnings?.deliveryFee || (order as any)?.deliveryFee || 0);
+      const tip = Number((order as any)?.earnings?.tip || 0);
+
+      const earningResult = await createDeliveryEarning({
+        deliveryBoyId: String((deliveryBoy as any)._id),
+        orderId: String(orderId),
+        deliveryFee,
+        tip,
+      });
+
+      // STEP 2: Emit socket event to rider (delivery:earning:credited)
+      if (io && riderUserId) {
+        io.to(`delivery:${riderUserId}`).emit("delivery:earning:credited", {
+          orderId: String(orderId),
+          amount: earningResult.earning?.amount ?? 0,
+          totalEarnings: earningResult.totalEarnings,
+          timestamp: new Date().toISOString(),
+          alreadyExisted: earningResult.alreadyExisted,
+        });
+      }
+
+      // STEP 3: Push notification to rider (feature-flagged)
+      // When NOTIFICATION_ORCHESTRATOR_ENABLED is true, the orchestrator handles
+      // push notifications via event consumption — skip direct calls.
+      const orchestratorEnabled = process.env.NOTIFICATION_ORCHESTRATOR_ENABLED === "true";
+
+      if (!orchestratorEnabled && riderUserId && !earningResult.alreadyExisted && earningResult.earning) {
+        const earnedAmount = earningResult.earning.amount;
+        await PushNotificationService.sendToUser(
+          riderUserId,
+          "Order Delivered 🎉",
+          `Order #${shortId} completed. ₹${earnedAmount} added to your earnings.`,
+          { type: "delivery_earning", orderId: String(orderId), amount: earnedAmount }
+        );
+      }
+
+      // STEP 4: In-app notification for rider (feature-flagged)
+      if (!orchestratorEnabled && !earningResult.alreadyExisted && earningResult.earning) {
+        try {
+          await Notification.create({
+            userId: new mongoose.Types.ObjectId(riderUserId),
+            title: "Delivery Completed 🎉",
+            message: `Order #${shortId} completed. ₹${earningResult.earning.amount} added to your earnings.`,
+            body: `Order #${shortId} completed. ₹${earningResult.earning.amount} added to your earnings.`,
+            type: "delivery_earning",
+            category: "delivery",
+            isRead: false,
+            orderId: new mongoose.Types.ObjectId(String(orderId)),
+            deepLink: "/delivery/earnings",
+          });
+        } catch (notifErr) {
+          logger.error("Failed to create rider earning notification:", notifErr);
+        }
+      }
+
+      // STEP 5: Publish domain events to EventBus for orchestrator consumption
+      if (riderUserId && !earningResult.alreadyExisted && earningResult.earning) {
+        try {
+          await publish(createDeliveryCompletedEvent({
+            source: "deliveryOrderController",
+            actor: { type: "delivery", id: riderUserId },
+            userId: riderUserId,
+            orderId: String(orderId),
+            amount: earningResult.earning.amount,
+            totalEarnings: earningResult.totalEarnings,
+          }));
+
+          await publish(createEarningsCreditedEvent({
+            source: "deliveryOrderController",
+            actor: { type: "delivery", id: riderUserId },
+            userId: riderUserId,
+            orderId: String(orderId),
+            amount: earningResult.earning.amount,
+            totalEarnings: earningResult.totalEarnings,
+          }));
+        } catch (publishErr) {
+          logger.error("Failed to publish delivery events (non-blocking):", publishErr);
+        }
+      }
+    } catch (earningErr) {
+      // Earning creation failure is non-blocking — order is already delivered
+      logger.error("Delivery earning pipeline failed (non-blocking):", earningErr);
+    }
+
     res.json({ success: true, order });
   } catch (error: any) {
+    // ── OTP Rate Limiting: Track failed attempts ──────────────────────────
+    if (error?.name === "OtpVerificationError") {
+      try {
+        const newFailedAttempts = (Number((await Order.findById(req.params.orderId).select("deliveryOtpFailedAttempts").lean() as any)?.deliveryOtpFailedAttempts) || 0) + 1;
+        const updateFields: any = { deliveryOtpFailedAttempts: newFailedAttempts };
+
+        if (newFailedAttempts >= 5) {
+          // Lock for 5 minutes after 5 failed attempts
+          updateFields.deliveryOtpLockedUntil = new Date(Date.now() + 300 * 1000);
+          logger.warn("[OTP_RATE_LIMIT] Locked OTP verification for order", {
+            orderId: req.params.orderId,
+            failedAttempts: newFailedAttempts,
+            lockedUntil: updateFields.deliveryOtpLockedUntil,
+          });
+        }
+
+        await Order.findByIdAndUpdate(req.params.orderId, { $set: updateFields });
+      } catch (rateLimitErr) {
+        logger.error("[OTP_RATE_LIMIT] Failed to update attempt counter:", rateLimitErr);
+      }
+    }
+
     logger.error("Verify OTP error:", error);
     const statusCode = Number(error?.statusCode) || 500;
     res.status(statusCode).json({ error: error?.message || "Failed to verify OTP" });

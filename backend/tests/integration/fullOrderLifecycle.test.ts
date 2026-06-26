@@ -198,6 +198,7 @@ describe("Full Order Lifecycle - Integration", () => {
     const orderCreateRes = await request(app)
       .post("/api/orders")
       .set(customerHeaders)
+      .set("x-idempotency-key", `order_${runId}`)
       .send({ paymentMethod: "razorpay" })
       .expect(201);
 
@@ -222,6 +223,11 @@ describe("Full Order Lifecycle - Integration", () => {
     const piDoc = await PaymentIntent.findById(paymentIntentId).lean();
     const gatewayOrderId = String((piDoc as any)?.gatewayOrderId || "order_mock_full_lifecycle");
 
+    // The webhook capture amount MUST match the real order total (anti-fraud guard).
+    const orderForAmount: any = await Order.findById(orderId).select("totalAmount").lean();
+    const orderTotalRupees = Number(orderForAmount?.totalAmount || 0);
+    const capturedAmountPaise = Math.round(orderTotalRupees * 100);
+
     // 7) Simulate PAYMENT_CAPTURED webhook
     const gatewayPaymentId = `pay_lifecycle_${runId}`;
     const payload = {
@@ -231,7 +237,7 @@ describe("Full Order Lifecycle - Integration", () => {
           entity: {
             id: gatewayPaymentId,
             order_id: gatewayOrderId,
-            amount: 10000,
+            amount: capturedAmountPaise,
             currency: "INR",
             created_at: Math.floor(Date.now() / 1000),
           },

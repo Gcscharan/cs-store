@@ -3,6 +3,7 @@ import { Server as SocketIOServer, Socket } from "socket.io";
 import { Server as HTTPServer } from "http";
 import jwt from "jsonwebtoken";
 import { User } from "../models/User";
+import Notification from "../models/Notification";
 
 interface AuthenticatedSocket extends Socket {
   userId?: string;
@@ -93,6 +94,59 @@ class SocketService {
       socket.on("get_payment_status", (data: any) => {
         logger.info("Payment status request:", data);
         // This will be handled by the payment controller
+      });
+
+      // Handle notification sync requests (offline recovery)
+      socket.on("notification:request_sync", async (data: { lastSeenTimestamp?: string }) => {
+        if (!userId) return;
+
+        try {
+          const lastSeen = data?.lastSeenTimestamp
+            ? new Date(data.lastSeenTimestamp)
+            : new Date(0);
+
+          logger.info(`📱 Notification sync requested by user ${userId} since ${lastSeen.toISOString()}`);
+
+          // Query notifications created after the provided timestamp for this user (limit 50)
+          const missedNotifications = await Notification.find({
+            userId,
+            createdAt: { $gt: lastSeen },
+          })
+            .sort({ createdAt: -1 })
+            .limit(50)
+            .lean();
+
+          // Get current unread count
+          const totalUnread = await Notification.countDocuments({
+            userId,
+            isRead: false,
+          });
+
+          // Map to DTO format
+          const notificationDTOs = missedNotifications.map((n: any) => ({
+            id: n._id.toString(),
+            _id: n._id.toString(),
+            title: n.title,
+            body: n.body || n.message || '',
+            category: n.category || 'order',
+            priority: n.priority || 'normal',
+            deepLink: n.deepLink,
+            createdAt: n.createdAt?.toISOString?.() || new Date().toISOString(),
+            eventType: n.eventType,
+            meta: n.meta,
+            isRead: n.isRead,
+          }));
+
+          // Emit sync response to the requesting client
+          socket.emit("notification:sync", {
+            notifications: notificationDTOs,
+            totalUnread,
+          });
+
+          logger.info(`📱 Notification sync sent to user ${userId}: ${notificationDTOs.length} notifications, ${totalUnread} unread`);
+        } catch (error) {
+          logger.error(`Failed to process notification:request_sync for user ${userId}:`, error);
+        }
       });
     });
   }

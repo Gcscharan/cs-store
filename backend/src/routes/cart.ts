@@ -12,11 +12,13 @@ import { IUser } from "../models/User";
 
 const router = express.Router();
 
-// Test endpoint to verify route is working
-router.get("/test", (req, res) => {
-  logger.info('[CartRoute] Test endpoint called');
-  res.json({ message: "Cart route is working!" });
-});
+// Health/test endpoint — non-production only
+if (process.env.NODE_ENV !== "production") {
+  router.get("/test", (req, res) => {
+    logger.info('[CartRoute] Test endpoint called');
+    res.json({ message: "Cart route is working!" });
+  });
+}
 
 // Middleware to ensure only customers can access cart
 const customerOnly = requireRole(["customer"]);

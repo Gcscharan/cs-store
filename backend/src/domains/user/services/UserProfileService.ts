@@ -1,5 +1,7 @@
 import { logger } from '../../../utils/logger';
 import { UserRepository } from "../repositories/UserRepository";
+import UserDeviceToken from "../../../models/UserDeviceToken";
+import mongoose from "mongoose";
 
 export interface UserProfileData {
   id: string;
@@ -83,13 +85,46 @@ export class UserProfileService {
     }
   }
 
-  async updatePushToken(userId: string, pushToken: string): Promise<void> {
+  async updatePushToken(userId: string, pushToken: string, platform?: string): Promise<void> {
     try {
-      // For Expo, we store it in expoPushToken. 
-      // If it's a generic token, we store it in pushToken.
-      // Expo tokens usually look like ExponentPushToken[xxx]
-      const isExpoToken = pushToken.includes('ExponentPushToken') || pushToken.includes('ExpoPushToken');
-      
+      const isExpoToken =
+        pushToken.includes("ExponentPushToken") || pushToken.includes("ExpoPushToken");
+
+      // ── Multi-device registry (source of truth) ──
+      // Upsert keyed on the globally-unique token. If the same physical device
+      // re-registers (same token) we just refresh ownership + lastActiveAt.
+      // If the token previously belonged to another user, ownership transfers
+      // to the current user (device handed over / account switch).
+      const normalizedPlatform =
+        platform === "ios" || platform === "android" || platform === "web"
+          ? platform
+          : "unknown";
+
+      try {
+        await UserDeviceToken.findOneAndUpdate(
+          { token: pushToken },
+          {
+            $set: {
+              userId: new mongoose.Types.ObjectId(userId),
+              token: pushToken,
+              platform: normalizedPlatform,
+              lastActiveAt: new Date(),
+            },
+          },
+          { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
+      } catch (e: any) {
+        // Concurrent upsert race on the unique token index — safe to ignore,
+        // the row exists with the latest data.
+        if (!(e?.code === 11000 || String(e?.message || "").includes("E11000"))) {
+          throw e;
+        }
+      }
+
+      // ── Legacy single-token field (kept in sync for backward compatibility) ──
+      // Other read paths (analytics, legacy PushNotificationService) still read
+      // User.expoPushToken. Keep writing the most-recent token here until those
+      // are migrated to the registry.
       const updateObj: any = {};
       if (isExpoToken) {
         updateObj.expoPushToken = pushToken;
@@ -98,10 +133,33 @@ export class UserProfileService {
       }
 
       await this.userRepository.findByIdAndUpdate(userId, updateObj, { new: true });
-       logger.info(`Push token updated for user ${userId}`);
+      logger.info(`Push token registered for user ${userId} (multi-device)`);
     } catch (error) {
       logger.error(`Error updating push token for user ${userId}:`, error);
       throw error;
+    }
+  }
+
+  /**
+   * Removes a specific device token (e.g. on logout) so a shared device stops
+   * receiving this user's notifications. If no token is given, all of the user's
+   * device tokens are removed.
+   */
+  async removePushToken(userId: string, pushToken?: string): Promise<void> {
+    try {
+      if (pushToken) {
+        await UserDeviceToken.deleteOne({ userId: new mongoose.Types.ObjectId(userId), token: pushToken });
+        // Clear the legacy single-token field only if it matches the removed token.
+        await this.userRepository
+          .findByIdAndUpdate(userId, { $unset: { expoPushToken: 1 } } as any, { new: true })
+          .catch(() => {});
+      } else {
+        await UserDeviceToken.deleteMany({ userId: new mongoose.Types.ObjectId(userId) });
+      }
+      logger.info(`Push token(s) removed for user ${userId}`);
+    } catch (error) {
+      logger.error(`Error removing push token for user ${userId}:`, error);
+      // Non-fatal — logout should not fail because of token cleanup.
     }
   }
 }

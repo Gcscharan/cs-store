@@ -3,6 +3,7 @@ import type { Request, Response } from "express";
 import {
   createRefundRequestInternal,
   getRefundHistoryForOrderInternal,
+  executeRefund,
 } from "../refunds/refundService";
 import { isRefundExecutionEnabled } from "../config/killSwitches";
 
@@ -51,6 +52,35 @@ export async function postInternalRefunds(req: Request, res: Response) {
     if (status === 404) return res.status(404).json({ error: "NOT_FOUND" });
     if (status === 409) return res.status(409).json({ error: code });
 
+    return res.status(500).json({ error: "INTERNAL_ERROR" });
+  }
+}
+
+/**
+ * Executes a previously-created refund against the gateway (admin-only).
+ * Idempotent and kill-switch gated.
+ */
+export async function postInternalRefundExecute(req: Request, res: Response) {
+  if (!isRefundExecutionEnabled()) {
+    return res.status(503).json({ error: "REFUND_EXECUTION_DISABLED" });
+  }
+
+  const refundRequestId =
+    nonEmpty((req.body as any)?.refundRequestId) || nonEmpty((req.params as any)?.refundRequestId);
+  if (!refundRequestId) {
+    return res.status(400).json({ error: "INVALID_INPUT" });
+  }
+
+  try {
+    const out = await executeRefund({ refundRequestId });
+    return res.status(200).json(out);
+  } catch (e: any) {
+    const status = Number(e?.statusCode || 500);
+    const code = String(e?.message || "INTERNAL_ERROR");
+    if (status === 400) return res.status(400).json({ error: "INVALID_INPUT" });
+    if (status === 404) return res.status(404).json({ error: "NOT_FOUND" });
+    if (status === 409) return res.status(409).json({ error: code });
+    if (status === 502 || status === 503) return res.status(status).json({ error: code });
     return res.status(500).json({ error: "INTERNAL_ERROR" });
   }
 }

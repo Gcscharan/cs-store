@@ -370,8 +370,15 @@ export const orderStateService = {
             let inventoryRestored = false;
             if (
               to === OrderStatus.CANCELLED &&
-              (fromCanonical === OrderStatus.CREATED || fromCanonical === OrderStatus.CONFIRMED)
+              (fromCanonical === OrderStatus.CREATED ||
+                fromCanonical === OrderStatus.CONFIRMED ||
+                fromCanonical === OrderStatus.PACKED ||
+                fromCanonical === OrderStatus.ASSIGNED)
             ) {
+              // Release any still-ACTIVE reservations (unpaid/abandoned attempts)
+              // AND restore COMMITTED stock (paid orders that reduced stock at
+              // capture). restoreCommittedReservationsOnce is idempotent, so a
+              // cancel from any pre-pickup state restores inventory exactly once.
               await inventoryReservationService.releaseActiveReservationsForOrder({
                 session,
                 orderId: (order as any)._id,
@@ -500,6 +507,10 @@ export const orderStateService = {
 
           const shortOrderId = orderId.slice(-6).toUpperCase();
 
+          // When NOTIFICATION_ORCHESTRATOR_ENABLED is true, the orchestrator handles
+          // push notifications via event consumption — skip direct calls.
+          const orchestratorEnabled = process.env.NOTIFICATION_ORCHESTRATOR_ENABLED === "true";
+
           switch (toStatus) {
             case OrderStatus.CONFIRMED:
               await publishWithSession(
@@ -515,11 +526,13 @@ export const orderStateService = {
                   primaryProductName,
                 })
               );
-              await PushNotificationService.sendToUser(
-                userId,
-                "Order Confirmed ✅",
-                `Your order #${shortOrderId} for ${primaryProductName || 'items'} has been confirmed!`
-              );
+              if (!orchestratorEnabled) {
+                await PushNotificationService.sendToUser(
+                  userId,
+                  "Order Confirmed ✅",
+                  `Your order #${shortOrderId} for ${primaryProductName || 'items'} has been confirmed!`
+                );
+              }
               break;
             case OrderStatus.PACKED:
               await publishWithSession(
@@ -535,11 +548,13 @@ export const orderStateService = {
                   primaryProductName,
                 })
               );
-              await PushNotificationService.sendToUser(
-                userId,
-                "Order Packed 📦",
-                `Your order #${shortOrderId} is packed and ready for delivery!`
-              );
+              if (!orchestratorEnabled) {
+                await PushNotificationService.sendToUser(
+                  userId,
+                  "Order Packed 📦",
+                  `Your order #${shortOrderId} is packed and ready for delivery!`
+                );
+              }
               break;
             case OrderStatus.ASSIGNED:
               await publishWithSession(
@@ -586,11 +601,13 @@ export const orderStateService = {
                   primaryProductName,
                 })
               );
-              await PushNotificationService.sendToUser(
-                userId,
-                "Order Out for Delivery 🚚",
-                `Your order #${shortOrderId} is on its way to you!`
-              );
+              if (!orchestratorEnabled) {
+                await PushNotificationService.sendToUser(
+                  userId,
+                  "Order Out for Delivery 🚚",
+                  `Your order #${shortOrderId} is on its way to you!`
+                );
+              }
               break;
             case OrderStatus.DELIVERED:
               await publishWithSession(
@@ -606,11 +623,13 @@ export const orderStateService = {
                   primaryProductName,
                 })
               );
-              await PushNotificationService.sendToUser(
-                userId,
-                "Order Delivered 🎉",
-                `Your order #${shortOrderId} has been delivered. Enjoy!`
-              );
+              if (!orchestratorEnabled) {
+                await PushNotificationService.sendToUser(
+                  userId,
+                  "Order Delivered 🎉",
+                  `Your order #${shortOrderId} has been delivered. Enjoy!`
+                );
+              }
               break;
             case OrderStatus.FAILED:
               await publishWithSession(
@@ -626,11 +645,13 @@ export const orderStateService = {
                   primaryProductName,
                 })
               );
-              await PushNotificationService.sendToUser(
-                userId,
-                "Delivery Failed ❌",
-                `We couldn't deliver your order #${shortOrderId}. Please check the app for details.`
-              );
+              if (!orchestratorEnabled) {
+                await PushNotificationService.sendToUser(
+                  userId,
+                  "Delivery Failed ❌",
+                  `We couldn't deliver your order #${shortOrderId}. Please check the app for details.`
+                );
+              }
               break;
             case OrderStatus.CANCELLED:
               await publishWithSession(
@@ -646,11 +667,27 @@ export const orderStateService = {
                   primaryProductName,
                 })
               );
-              await PushNotificationService.sendToUser(
-                userId,
-                "Order Cancelled 🛑",
-                `Your order #${shortOrderId} has been cancelled.`
-              );
+              if (!orchestratorEnabled) {
+                await PushNotificationService.sendToUser(
+                  userId,
+                  "Order Cancelled 🛑",
+                  `Your order #${shortOrderId} has been cancelled.`
+                );
+              }
+              // Journey 5: a cancelled PAID order must be refunded. This is a
+              // post-commit, idempotent, non-throwing call — the order is already
+              // durably CANCELLED with inventory restored; the refund money path
+              // (and reconciliation for ambiguous gateway outcomes) runs here.
+              {
+                const cancelReason =
+                  typeof metaFromInput?.reason === "string" && metaFromInput.reason.trim()
+                    ? String(metaFromInput.reason)
+                    : "Order cancelled — auto refund";
+                const { refundPaidOrderOnCancellation } = await import(
+                  "../../payments/refunds/refundService"
+                );
+                await refundPaidOrderOnCancellation({ orderId, reason: cancelReason });
+              }
               break;
             default:
               break;

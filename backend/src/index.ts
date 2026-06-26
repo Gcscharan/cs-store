@@ -240,16 +240,23 @@ import { User } from "./models/User";
 import { Order } from "./models/Order";
 import { deliveryPartnerLoadService } from "./domains/operations/services/deliveryPartnerLoadService";
 import { OrderEventBroadcaster } from "./domains/orders/services/orderEventBroadcaster";
-import { initializeNotificationWriter } from "./domains/communication/services/notificationWriter";
+import { initializeNotificationOrchestrator } from "./domains/communication/services/notificationOrchestrator";
+import { initializePushRetryWorker } from "./domains/communication/services/pushRetryWorker";
+import { initializePushReceiptWorker } from "./domains/communication/services/pushReceiptWorker";
+import { initializeNotificationRecoveryManager } from "./domains/communication/services/notificationRecoveryManager";
+import { attachSocketRedisAdapter } from "./config/socketRedisAdapter";
 import { initializeAdminAssignmentConsumer } from "./domains/operations/services/adminAssignmentConsumer";
 import { initializeOutboxDispatcher } from "./domains/events/outboxDispatcher";
 import { initializeInventoryReservationSweeper } from "./domains/orders/services/inventoryReservationSweeper";
 import { startStuckPaymentScanner } from "./domains/payments/services/stuckPaymentScanner";
 import { initializePaymentReconciliation } from "./domains/payments/services/paymentReconciliationService";
+import { initializeRefundReconciliation } from "./domains/payments/services/refundReconciliationService";
 import { startReconciliationSystem } from "./domains/payments/services/reconciliation";
 import { calculateETA } from "./domains/tracking/services/etaCalculator";
 import { startRankingJob } from "./jobs/rankingJob";
 import { startExperimentMonitor, stopExperimentMonitor } from "./jobs/experimentMonitorJob";
+import { startDeliveryResetJob } from "./jobs/deliveryResetJob";
+import { startPromoNotificationJob, stopPromoNotificationJob } from "./jobs/promoNotificationJob";
 import { buildProductDictionary, startDictionaryRefresh, stopDictionaryRefresh } from "./services/voiceCorrectionService";
 import { queueManager } from "./queues/queueManager";
 import { workerManager } from "./queues/workerManager";
@@ -683,10 +690,17 @@ const startServer = async () => {
 
     // Skip background pollers in test environment to prevent open handles
     if (NODE_ENV !== "test") {
+      // Attach Socket.IO Redis adapter for multi-instance real-time delivery.
+      // Safe no-op fallback to single-instance mode if Redis/adapter is unavailable.
+      await attachSocketRedisAdapter(io);
+
       // Start in-memory live location store timers (flush + TTL cleanup)
       liveLocationStore.start();
 
-      initializeNotificationWriter();
+      initializeNotificationOrchestrator(app);
+      initializePushRetryWorker();
+      initializePushReceiptWorker();
+      initializeNotificationRecoveryManager();
       initializeAdminAssignmentConsumer();
       initializeOutboxDispatcher();
       initializeInventoryReservationSweeper();
@@ -695,6 +709,9 @@ const startServer = async () => {
 
       // Initialize payment reconciliation service (reconciles captured payments missed by webhook)
       initializePaymentReconciliation();
+
+      // Reconcile refunds whose completion webhook was lost/delayed (PROCESSING → COMPLETED)
+      initializeRefundReconciliation();
 
       // Start payment reconciliation system (scheduled runs + recovery of abandoned runs)
       await startReconciliationSystem();
@@ -729,6 +746,16 @@ const startServer = async () => {
       // Start voice AI ranking job (precomputes product popularity scores)
       logger.info("🎤 Starting voice AI ranking job...");
       startRankingJob();
+
+      // 🚚 Start delivery daily reset job (resets rejectionsToday + cleans stale assignedOrders)
+      logger.info("🚚 Starting delivery daily reset job...");
+      startDeliveryResetJob();
+      logger.info("✅ Delivery reset job started");
+
+      // 📢 Start promotional notification job (coupon expiry reminders + promo automation)
+      logger.info("📢 Starting promo notification job...");
+      startPromoNotificationJob();
+      logger.info("✅ Promo notification job started");
 
       // 🧪 NEW: Start experiment monitor (auto-stop + auto-deploy)
       logger.info("🧪 Starting experiment monitor...");
@@ -872,6 +899,10 @@ process.on("SIGTERM", async () => {
   logger.info("Stopping experiment monitor...");
   stopExperimentMonitor();
   
+  // Stop promo notification job
+  logger.info("Stopping promo notification job...");
+  stopPromoNotificationJob();
+  
   // Stop alert monitoring
   logger.info("Stopping alert monitoring...");
   alertMonitor.stop();
@@ -907,6 +938,10 @@ process.on("SIGINT", async () => {
   // Stop experiment monitoring
   logger.info("Stopping experiment monitor...");
   stopExperimentMonitor();
+  
+  // Stop promo notification job
+  logger.info("Stopping promo notification job...");
+  stopPromoNotificationJob();
   
   // Stop alert monitoring
   logger.info("Stopping alert monitoring...");

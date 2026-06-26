@@ -8,6 +8,7 @@
 import { queueManager } from './queueManager';
 import { workerManager } from './workerManager';
 import { logger } from '../utils/logger';
+import fetch from 'node-fetch';
 
 /**
  * Alert severity levels
@@ -286,8 +287,38 @@ export class AlertManager {
     }
 
     try {
-      // TODO: Implement Slack webhook call
-      logger.info('[AlertManager] Would send to Slack:', alert.title);
+      const color =
+        alert.severity === AlertSeverity.CRITICAL ? '#E01E5A'
+        : alert.severity === AlertSeverity.WARNING ? '#ECB22E'
+        : '#36C5F0';
+
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          attachments: [
+            {
+              color,
+              title: `[${String(alert.severity).toUpperCase()}] ${alert.title}`,
+              text: alert.message,
+              ts: Math.floor(alert.timestamp.getTime() / 1000),
+              fields: alert.metadata
+                ? Object.entries(alert.metadata).map(([k, v]) => ({
+                    title: k,
+                    value: String(v),
+                    short: true,
+                  }))
+                : [],
+            },
+          ],
+        }),
+      });
+
+      if (!response.ok) {
+        logger.error('[AlertManager] Slack webhook returned non-OK status:', response.status);
+      } else {
+        logger.info('[AlertManager] Sent alert to Slack:', alert.title);
+      }
     } catch (error: any) {
       logger.error('[AlertManager] Failed to send to Slack:', error.message);
     }
@@ -307,8 +338,28 @@ export class AlertManager {
     }
 
     try {
-      // TODO: Implement PagerDuty API call
-      logger.info('[AlertManager] Would send to PagerDuty:', alert.title);
+      const response = await fetch('https://events.pagerduty.com/v2/enqueue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          routing_key: apiKey,
+          event_action: 'trigger',
+          payload: {
+            summary: `${alert.title}: ${alert.message}`,
+            source: 'vyaparsetu-backend',
+            severity:
+              alert.severity === AlertSeverity.CRITICAL ? 'critical' : 'warning',
+            timestamp: alert.timestamp.toISOString(),
+            custom_details: alert.metadata || {},
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        logger.error('[AlertManager] PagerDuty returned non-OK status:', response.status);
+      } else {
+        logger.info('[AlertManager] Sent alert to PagerDuty:', alert.title);
+      }
     } catch (error: any) {
       logger.error('[AlertManager] Failed to send to PagerDuty:', error.message);
     }

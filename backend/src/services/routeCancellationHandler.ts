@@ -170,11 +170,11 @@ export async function getUnderloadedRoutes(): Promise<any[]> {
 /**
  * Notify delivery boy about order removal via socket
  */
-function notifyDeliveryBoyOfRemoval(
+async function notifyDeliveryBoyOfRemoval(
   route: any,
   orderId: string,
   remainingOrders: number
-): void {
+): Promise<void> {
   try {
     // Socket service is a singleton, get the IO instance from it
     const io = (socketService as any).io;
@@ -189,8 +189,13 @@ function notifyDeliveryBoyOfRemoval(
       return;
     }
 
+    // P0 FIX #2: Look up DeliveryBoy.userId (User._id) for room name, matching mobile's delivery:${userId}
+    const DeliveryBoy = require('../models/DeliveryBoy').DeliveryBoy;
+    const deliveryBoy = await DeliveryBoy.findById(deliveryBoyId).select('userId').lean();
+    const riderUserId = deliveryBoy?.userId ? String(deliveryBoy.userId) : String(deliveryBoyId);
+
     // Emit to delivery boy's room (standardized format)
-    io.to(`delivery:${deliveryBoyId}`).emit('route:order:removed', {
+    io.to(`delivery:${riderUserId}`).emit('route:order:removed', {
       routeId: route.routeId,
       orderId,
       remainingOrders,
@@ -199,7 +204,7 @@ function notifyDeliveryBoyOfRemoval(
     });
 
     logger.info(
-      `[RouteCancellation] Notified delivery boy ${deliveryBoyId} about order ${orderId} removal`
+      `[RouteCancellation] Notified delivery boy ${riderUserId} about order ${orderId} removal`
     );
   } catch (error: any) {
     logger.error('[RouteCancellation] Failed to notify delivery boy:', error);

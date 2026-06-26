@@ -3,6 +3,7 @@ import { User } from "../../../models/User";
 import { Order } from "../../../models/Order";
 import { sendEmail } from "./mailService";
 import { sendSMS } from "../../../utils/sms";
+import { PushNotificationService } from "../../../utils/PushNotificationService";
 import { getInvoiceData } from "../../invoice/services/invoiceService";
 import { generateInvoicePdfBuffer } from "../../invoice/services/pdfGenerator";
 
@@ -394,10 +395,55 @@ export class NotificationService {
     event: NotificationEvent, 
     data: NotificationData
   ): Promise<void> {
-    // TODO: Implement Push notification service
-    const pushPrefs = preferences.push;
-    if (pushPrefs?.enabled) {
-      logger.info(`🔔 Push notification queued for ${event} (not implemented yet)`);
+    try {
+      const pushPrefs = preferences.push;
+      if (!pushPrefs?.enabled) {
+        return;
+      }
+
+      // Check category/subcategory permission (mirrors email/SMS logic)
+      let hasPermission = false;
+      if (subcategory) {
+        const categoryPref = pushPrefs.categories?.[category];
+        hasPermission = categoryPref?.enabled && categoryPref?.subcategories?.[subcategory];
+      } else {
+        hasPermission = pushPrefs.categories?.[category];
+      }
+
+      if (!hasPermission) {
+        logger.info(`🔔 Push not permitted for ${category}${subcategory ? `/${subcategory}` : ''}: ${user._id}`);
+        return;
+      }
+
+      const title = this.generatePushTitle(event);
+      const body = this.generateSMSContent(event, data, user.name);
+
+      await PushNotificationService.sendToUser(
+        String(user._id),
+        title,
+        body,
+        { event, orderId: (data as any)?.orderId }
+      );
+    } catch (error) {
+      logger.error(`🔔 Failed to send push for ${event} to user ${user?._id}:`, error);
+    }
+  }
+
+  private static generatePushTitle(event: NotificationEvent): string {
+    switch (event) {
+      case "PAYMENT_SUCCESS": return "Payment successful ✅";
+      case "PAYMENT_FAILED": return "Payment failed ⚠️";
+      case "ORDER_CONFIRMED": return "Order confirmed 🎉";
+      case "ORDER_SHIPPED": return "Order shipped 📦";
+      case "ORDER_PICKED_UP": return "Order picked up 📦";
+      case "ORDER_IN_TRANSIT": return "Order on the way 🚚";
+      case "ORDER_ARRIVED_AT_DESTINATION": return "Your order has arrived 📍";
+      case "ORDER_DELIVERED": return "Order delivered 🎉";
+      case "ORDER_CANCELLED": return "Order cancelled";
+      case "CART_REMINDER": return "Your items are waiting 🛒";
+      case "PAYMENT_REMINDER": return "Complete your payment";
+      case "FEEDBACK_REQUEST": return "How was your order?";
+      default: return "CS Store";
     }
   }
 

@@ -248,8 +248,11 @@ describe("Preservation Property: All Existing Functionality", () => {
       const backendIndexPath = join(__dirname, "../../src/index.ts");
       const backendIndexContent = readFileSync(backendIndexPath, "utf-8");
 
-      // Verify key background services are initialized
-      const notificationWriter = /initializeNotificationWriter/.test(
+      // Verify key background services are initialized.
+      // Note: the legacy notificationWriter was intentionally removed (dual-writer
+      // fix) and superseded by the notification orchestrator — assert the
+      // orchestrator is wired instead.
+      const notificationOrchestrator = /initializeNotificationOrchestrator/.test(
         backendIndexContent
       );
       const outboxDispatcher = /initializeOutboxDispatcher/.test(
@@ -261,7 +264,7 @@ describe("Preservation Property: All Existing Functionality", () => {
       const paymentScanner = /startStuckPaymentScanner/.test(backendIndexContent);
 
       // Background services must be preserved
-      expect(notificationWriter).toBe(true);
+      expect(notificationOrchestrator).toBe(true);
       expect(outboxDispatcher).toBe(true);
       expect(inventorySweeper).toBe(true);
       expect(paymentScanner).toBe(true);

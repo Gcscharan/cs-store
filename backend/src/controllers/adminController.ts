@@ -825,7 +825,7 @@ export const getAdminDeliveryBoys = async (req: Request, res: Response) => {
     // Use .lean() and limit fields for performance
     const [deliveryBoys, total] = await Promise.all([
       DeliveryBoy.find(query)
-        .select("name phone vehicleType availability isActive earnings completedOrdersCount currentLoad lastAssignedAt currentLocation userId")
+        .select("name phone vehicleType availability isActive earnings completedOrdersCount currentLoad lastAssignedAt currentLocation userId kyc")
         .populate("userId", "name email phone status deliveryProfile createdAt")
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -847,6 +847,60 @@ export const getAdminDeliveryBoys = async (req: Request, res: Response) => {
       : [];
 
     const userByPhone = new Map(additionalUsers.map((u: any) => [u.phone, u]));
+
+    // Active load = in-progress orders on this partner (not stale currentLoad counter)
+    const assigneeToBoyId = new Map<string, string>();
+    const assigneeIds: mongoose.Types.ObjectId[] = [];
+    for (const db of deliveryBoys as any[]) {
+      const boyId = String(db._id);
+      assigneeToBoyId.set(boyId, boyId);
+      assigneeIds.push(db._id);
+      if (db.userId) {
+        const userId = db.userId._id ?? db.userId;
+        assigneeToBoyId.set(String(userId), boyId);
+        assigneeIds.push(userId);
+      }
+    }
+
+    const activeLoadByBoyId = new Map<string, number>();
+    if (assigneeIds.length > 0) {
+      const activeOrders = await Order.find({
+        $or: [
+          { deliveryBoyId: { $in: assigneeIds } },
+          { deliveryPartnerId: { $in: assigneeIds } },
+        ],
+        orderStatus: {
+          $in: [
+            "CONFIRMED",
+            "PACKED",
+            "ASSIGNED",
+            "PICKED_UP",
+            "IN_TRANSIT",
+            "OUT_FOR_DELIVERY",
+            "ARRIVED",
+            "CANCELLED",
+            "confirmed",
+            "packed",
+            "assigned",
+            "picked_up",
+            "in_transit",
+            "out_for_delivery",
+            "arrived",
+            "cancelled",
+          ],
+        },
+        deliveryStatus: { $ne: "unassigned" },
+      })
+        .select("deliveryBoyId deliveryPartnerId")
+        .lean();
+
+      for (const order of activeOrders as any[]) {
+        const assignee = String(order.deliveryBoyId || order.deliveryPartnerId || "");
+        const boyId = assigneeToBoyId.get(assignee);
+        if (!boyId) continue;
+        activeLoadByBoyId.set(boyId, (activeLoadByBoyId.get(boyId) || 0) + 1);
+      }
+    }
 
     const normalizedDeliveryBoys = deliveryBoys.map((deliveryBoy: any) => {
       const userDoc = deliveryBoy.userId || userByPhone.get(deliveryBoy.phone);
@@ -870,9 +924,20 @@ export const getAdminDeliveryBoys = async (req: Request, res: Response) => {
           vehicleType: deliveryBoy.vehicleType,
           earnings: deliveryBoy.earnings,
           completedOrdersCount: deliveryBoy.completedOrdersCount,
-          currentLoad: deliveryBoy.currentLoad,
+          currentLoad: activeLoadByBoyId.get(String(deliveryBoy._id)) ?? 0,
           lastAssignedAt: deliveryBoy.lastAssignedAt,
           currentLocation: deliveryBoy.currentLocation,
+          kyc: {
+            status: deliveryBoy.kyc?.status || "NOT_STARTED",
+            submittedAt: deliveryBoy.kyc?.submittedAt || null,
+            reviewedAt: deliveryBoy.kyc?.reviewedAt || null,
+            rejectionReason: deliveryBoy.kyc?.rejectionReason || "",
+            documents: (deliveryBoy.kyc?.documents || []).map((d: any) => ({
+              docType: d.docType,
+              url: d.url,
+              uploadedAt: d.uploadedAt,
+            })),
+          },
         },
       };
     });

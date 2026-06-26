@@ -8,6 +8,7 @@
 import { Request, Response } from 'express';
 import { registerDevice, unregisterDevice } from '../lowStockNotificationController';
 import { logger } from '../../utils/logger';
+import DeviceToken from '../../models/DeviceToken';
 
 // Mock logger
 jest.mock('../../utils/logger', () => ({
@@ -16,6 +17,20 @@ jest.mock('../../utils/logger', () => ({
     error: jest.fn(),
   },
 }));
+
+// Mock DeviceToken model (real persistence is exercised in integration tests)
+jest.mock('../../models/DeviceToken', () => ({
+  __esModule: true,
+  default: {
+    findOneAndUpdate: jest.fn(),
+    deleteMany: jest.fn(),
+  },
+}));
+
+const mockedDeviceToken = DeviceToken as unknown as {
+  findOneAndUpdate: jest.Mock;
+  deleteMany: jest.Mock;
+};
 
 // AuthRequest type
 interface AuthRequest extends Request {
@@ -46,6 +61,19 @@ describe('Device Token Registration Endpoints (Phase 4 - Placeholder)', () => {
       json: jsonMock,
       send: sendMock,
     };
+
+    // Default model mock behavior: findOneAndUpdate(...).lean() resolves to a doc
+    mockedDeviceToken.findOneAndUpdate.mockReturnValue({
+      lean: jest.fn().mockResolvedValue({
+        _id: 'token-doc-id',
+        adminId: 'admin123',
+        deviceToken: 'ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]',
+        platform: 'ios',
+        lastActiveAt: new Date(),
+        createdAt: new Date(),
+      }),
+    });
+    mockedDeviceToken.deleteMany.mockResolvedValue({ deletedCount: 1 });
   });
 
   describe('registerDevice', () => {
@@ -64,27 +92,42 @@ describe('Device Token Registration Endpoints (Phase 4 - Placeholder)', () => {
       await registerDevice(mockReq as AuthRequest, mockRes as Response);
 
       expect(statusMock).toHaveBeenCalledWith(200);
-      expect(jsonMock).toHaveBeenCalledWith(
+      expect(mockedDeviceToken.findOneAndUpdate).toHaveBeenCalledWith(
+        { adminId: 'admin123', deviceToken: 'ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]' },
         expect.objectContaining({
-          _id: expect.any(String),
           adminId: 'admin123',
           deviceToken: 'ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]',
           platform: 'ios',
-          lastActiveAt: expect.any(String),
-          createdAt: expect.any(String),
+        }),
+        expect.objectContaining({ upsert: true, new: true })
+      );
+      expect(jsonMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          adminId: 'admin123',
+          deviceToken: 'ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]',
+          platform: 'ios',
         })
       );
       expect(logger.info).toHaveBeenCalledWith(
-        '[NotificationController] Device token registration (placeholder)',
+        '[NotificationController] Device token registered',
         expect.objectContaining({
           adminId: 'admin123',
           platform: 'ios',
-          message: 'Push notification service not yet implemented - Phase 4',
         })
       );
     });
 
     it('should accept android platform', async () => {
+      mockedDeviceToken.findOneAndUpdate.mockReturnValueOnce({
+        lean: jest.fn().mockResolvedValue({
+          _id: 'token-doc-id',
+          adminId: 'admin456',
+          deviceToken: 'ExponentPushToken[yyyyyyyyyyyyyyyyyyyyyy]',
+          platform: 'android',
+          lastActiveAt: new Date(),
+          createdAt: new Date(),
+        }),
+      });
       mockReq = {
         body: {
           deviceToken: 'ExponentPushToken[yyyyyyyyyyyyyyyyyyyyyy]',
@@ -230,11 +273,11 @@ describe('Device Token Registration Endpoints (Phase 4 - Placeholder)', () => {
 
       expect(statusMock).toHaveBeenCalledWith(204);
       expect(sendMock).toHaveBeenCalled();
+      expect(mockedDeviceToken.deleteMany).toHaveBeenCalledWith({ adminId: 'admin123' });
       expect(logger.info).toHaveBeenCalledWith(
-        '[NotificationController] Device token unregistration (placeholder)',
+        '[NotificationController] Device token(s) unregistered',
         expect.objectContaining({
           adminId: 'admin123',
-          message: 'Push notification service not yet implemented - Phase 4',
         })
       );
     });
