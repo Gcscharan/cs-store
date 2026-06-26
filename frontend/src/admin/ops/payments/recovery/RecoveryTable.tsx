@@ -1,3 +1,4 @@
+import type { JSX } from "react";
 import type { PaymentsReconciliationItem, PaymentsRecoveryRowEnrichment } from "./types";
 import { formatAgeMinutes, formatIsoDate, maskId } from "./utils";
 

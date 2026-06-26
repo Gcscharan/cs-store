@@ -1,3 +1,5 @@
+import type { JSX } from "react";
+
 const RazorpayCheckout = (props: {
   disabled: boolean;
   label: string;

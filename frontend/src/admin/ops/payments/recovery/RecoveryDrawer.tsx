@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode, JSX } from "react";
 import type { PaymentsReconciliationItem, PaymentsRecoveryRowEnrichment } from "./types";
 import { formatIsoDate, maskId } from "./utils";
 import { useLanguage } from "../../../../contexts/LanguageContext";

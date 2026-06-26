@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode, JSX } from "react";
 import { useMemo, useState } from "react";
 
 import type { RecoveryExecuteAction } from "./types";

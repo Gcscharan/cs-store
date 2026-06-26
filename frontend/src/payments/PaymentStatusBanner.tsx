@@ -1,3 +1,4 @@
+import type { JSX } from "react";
 import { PaymentStates, type PaymentState } from "./paymentStateMachine";
 import type { PaymentSession } from "./paymentSession";
 import { useEffect, useMemo, useState } from "react";
