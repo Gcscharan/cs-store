@@ -1,7 +1,9 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "../store";
+import { useUpdateProfileMutation } from "../store/api";
+import { setUser } from "../store/slices/authSlice";
 import { toApiUrl } from "../config/runtime";
 import {
   ArrowLeft,
@@ -18,11 +20,22 @@ import { useToast } from "../components/AccessibleToast";
 
 const AdminProfilePage: React.FC = () => {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const { user, tokens, status } = useSelector((state: RootState) => state.auth);
   const { success, error } = useToast();
+  const [updateProfile, { isLoading: isSavingProfile }] =
+    useUpdateProfileMutation();
 
   // Loading state
   const isLoading = status === "LOADING" || !user;
+
+  // Edit profile state
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [profileData, setProfileData] = useState({
+    name: "",
+    email: "",
+    phone: "",
+  });
 
   // Password change state
   const [showPasswordForm, setShowPasswordForm] = useState(false);
@@ -43,8 +56,55 @@ const AdminProfilePage: React.FC = () => {
   };
 
   const handleEditProfile = () => {
-    // TODO: Implement edit profile functionality
-    console.log("Edit profile clicked");
+    setProfileData({
+      name: user?.name || "",
+      email: user?.email || "",
+      phone: user?.phone || "",
+    });
+    setShowEditForm(true);
+  };
+
+  const handleProfileFieldChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const { name, value } = e.target;
+    setProfileData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleCancelEditProfile = () => {
+    setShowEditForm(false);
+  };
+
+  const handleProfileSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const name = profileData.name.trim();
+    const email = profileData.email.trim();
+    const phone = profileData.phone.trim();
+
+    if (!name) {
+      error("Name is required");
+      return;
+    }
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      error("Please enter a valid email address");
+      return;
+    }
+    if (phone && !/^\d{10}$/.test(phone)) {
+      error("Phone number must be 10 digits");
+      return;
+    }
+
+    try {
+      const updated = await updateProfile({ name, email, phone }).unwrap();
+      const updatedUser = updated?.user || updated;
+      dispatch(setUser({ ...user, ...updatedUser }));
+      success("Profile updated successfully");
+      setShowEditForm(false);
+    } catch (err: any) {
+      console.error("Profile update error:", err);
+      error(err?.data?.error || "Failed to update profile");
+    }
   };
 
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -237,6 +297,71 @@ const AdminProfilePage: React.FC = () => {
 
           {/* Profile Details */}
           <div className="px-6 py-8">
+            {showEditForm && (
+              <div className="mb-8 bg-gray-50 rounded-lg p-6 border border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  Edit Profile
+                </h3>
+                <form onSubmit={handleProfileSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Full Name
+                    </label>
+                    <input
+                      type="text"
+                      name="name"
+                      value={profileData.name}
+                      onChange={handleProfileFieldChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Enter your full name"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Email Address
+                    </label>
+                    <input
+                      type="email"
+                      name="email"
+                      value={profileData.email}
+                      onChange={handleProfileFieldChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Enter your email address"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Phone Number
+                    </label>
+                    <input
+                      type="tel"
+                      name="phone"
+                      value={profileData.phone}
+                      onChange={handleProfileFieldChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Enter your 10-digit phone number"
+                    />
+                  </div>
+                  <div className="flex space-x-3 pt-2">
+                    <button
+                      type="submit"
+                      disabled={isSavingProfile}
+                      className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {isSavingProfile ? "Saving..." : "Save Changes"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCancelEditProfile}
+                      className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Personal Information */}
               <div className="space-y-6">
