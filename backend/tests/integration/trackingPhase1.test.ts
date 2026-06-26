@@ -33,11 +33,12 @@ describe("Phase 1 tracking (stream + projection)", () => {
     process.env.TRACKING_KILL_SWITCH_MODE = "CUSTOMER_READ_ENABLED";
 
     const customer = await (global as any).createTestUser({ email: "c1@example.com" });
-    const order = await (global as any).createTestOrder(customer);
     const customerToken = await (global as any).getAuthToken(customer);
 
     const rider = await (global as any).createTestUser({ email: "r1@example.com", role: "delivery" });
     const riderToken = await (global as any).getAuthToken(rider);
+
+    const order = await (global as any).createTestOrder(customer, { deliveryPartnerId: rider._id });
 
     const worker = await startTrackingProjectionWorker();
 

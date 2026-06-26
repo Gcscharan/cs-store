@@ -130,4 +130,45 @@ describe("Delivery reassignment: ownership transfers atomically; old rider locke
     expect(String(order.deliveryBoyId)).toBe(String(riderA.boy._id));
     expect(String(order.orderStatus).toUpperCase()).toBe("PICKED_UP");
   });
+
+  it("after reassignment, the old rider can no longer inject customer-facing location", async () => {
+    const prevMode = process.env.TRACKING_KILL_SWITCH_MODE;
+    process.env.TRACKING_KILL_SWITCH_MODE = "INGEST_ONLY";
+    try {
+      const runId = new mongoose.Types.ObjectId().toString();
+      const { orderId, adminId } = await packedPaidOrder(runId);
+      const riderA = await makeRider(runId, "a");
+      const riderB = await makeRider(runId, "b");
+
+      await assignPackedOrderToDeliveryBoy({ orderId, deliveryBoyId: String(riderA.boy._id), actorId: adminId, allowReassign: true });
+
+      // While A owns it, A's location is accepted.
+      const aBefore = await request(app)
+        .post("/api/internal/tracking/location")
+        .set(riderA.headers)
+        .send({ schemaVersion: 1, riderId: String(riderA.user._id), orderId, seq: 1, lat: 17.41, lng: 78.39, accuracyM: 12, speedMps: 2, deviceTs: new Date().toISOString() });
+      expect(aBefore.status).toBe(200);
+
+      // Reassign to B.
+      await assignPackedOrderToDeliveryBoy({ orderId, deliveryBoyId: String(riderB.boy._id), actorId: adminId, allowReassign: true });
+
+      // A (now off the order) is REJECTED — cannot move the customer's map anymore.
+      const aAfter = await request(app)
+        .post("/api/internal/tracking/location")
+        .set(riderA.headers)
+        .send({ schemaVersion: 1, riderId: String(riderA.user._id), orderId, seq: 2, lat: 17.50, lng: 78.50, accuracyM: 12, speedMps: 2, deviceTs: new Date().toISOString() });
+      expect(aAfter.status).toBe(403);
+      expect(aAfter.body.error).toBe("ownership_mismatch");
+
+      // B (the current owner) is accepted.
+      const bAfter = await request(app)
+        .post("/api/internal/tracking/location")
+        .set(riderB.headers)
+        .send({ schemaVersion: 1, riderId: String(riderB.user._id), orderId, seq: 1, lat: 17.42, lng: 78.40, accuracyM: 12, speedMps: 2, deviceTs: new Date().toISOString() });
+      expect(bAfter.status).toBe(200);
+    } finally {
+      if (prevMode === undefined) delete process.env.TRACKING_KILL_SWITCH_MODE;
+      else process.env.TRACKING_KILL_SWITCH_MODE = prevMode;
+    }
+  });
 });

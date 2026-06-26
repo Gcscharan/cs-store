@@ -33,11 +33,12 @@ describe("Phase 2 tracking enrichment (internal-only)", () => {
 
   it("writes Phase-2 enriched projection but does not leak via customer API", async () => {
     const customer = await (global as any).createTestUser({ email: "p2c@example.com" });
-    const order = await (global as any).createTestOrder(customer);
     const customerToken = await (global as any).getAuthToken(customer);
 
     const rider = await (global as any).createTestUser({ email: "p2r@example.com", role: "delivery" });
     const riderToken = await (global as any).getAuthToken(rider);
+
+    const order = await (global as any).createTestOrder(customer, { deliveryPartnerId: rider._id });
 
     const worker = await startTrackingProjectionWorker();
 

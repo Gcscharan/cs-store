@@ -33,6 +33,11 @@ describe("Phase 3 ETA + SLA enrichment (internal-only)", () => {
 
   it("writes ETA/SLA fields in Redis projection but does not leak via customer API", async () => {
     const customer = await (global as any).createTestUser({ email: "p3c@example.com" });
+    const customerToken = await (global as any).getAuthToken(customer);
+
+    const rider = await (global as any).createTestUser({ email: "p3r@example.com", role: "delivery" });
+    const riderToken = await (global as any).getAuthToken(rider);
+
     const order = await (global as any).createTestOrder(customer, {
       estimatedDeliveryWindow: {
         start: new Date(Date.now()),
@@ -41,11 +46,8 @@ describe("Phase 3 ETA + SLA enrichment (internal-only)", () => {
       },
       orderStatus: "in_transit",
       deliveryStatus: "in_transit",
+      deliveryPartnerId: rider._id,
     });
-    const customerToken = await (global as any).getAuthToken(customer);
-
-    const rider = await (global as any).createTestUser({ email: "p3r@example.com", role: "delivery" });
-    const riderToken = await (global as any).getAuthToken(rider);
 
     const worker = await startTrackingProjectionWorker();
 

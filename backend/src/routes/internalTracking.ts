@@ -11,6 +11,7 @@ import { getTrackingEventStream } from "../domains/tracking/stream/trackingEvent
 import { kalmanFilterManager } from "../utils/kalmanFilter";
 import { checkAllGeofences, getGeofenceEventMessage } from "../services/geofenceService";
 import { Order } from "../models/Order";
+import { DeliveryBoy } from "../models/DeliveryBoy";
 import { getAdminAddress } from "../utils/deliveryFeeCalculator";
 
 const router = express.Router();
@@ -117,6 +118,55 @@ router.post("/location", authenticateToken, requireDeliveryRole, ingestRateLimit
   }
 
   const v = parsed.value;
+
+  // ── Ownership validation (Journey audit: distributed-state correctness) ──
+  // The rider may only publish location for an order they CURRENTLY own. Without
+  // this, a rider reassigned off an order (or any authenticated rider) could
+  // inject location into another order's customer-facing tracking projection —
+  // e.g. after an A→B reassignment the customer would keep seeing Rider A move.
+  // Auth (riderId === JWT) is necessary but NOT sufficient; ownership is the
+  // authoritative gate and must be revalidated server-side on every sample.
+  try {
+    const ownerOrder = await Order.findById(v.orderId)
+      .select("deliveryPartnerId deliveryBoyId orderStatus")
+      .lean();
+
+    if (!ownerOrder) {
+      incCounterWithLabels("tracking_ingestion_rejected_total", { reason: "order_not_found" });
+      return res.status(404).json({ error: "order_not_found" });
+    }
+
+    const partnerMatches =
+      !!(ownerOrder as any).deliveryPartnerId &&
+      String((ownerOrder as any).deliveryPartnerId) === String(v.riderId);
+
+    let boyMatches = false;
+    if (!partnerMatches && (ownerOrder as any).deliveryBoyId) {
+      // Legacy/compat path: order references a DeliveryBoy doc; resolve the
+      // rider's DeliveryBoy by userId and compare.
+      const riderBoy = await DeliveryBoy.findOne({ userId: v.riderId }).select("_id").lean();
+      boyMatches =
+        !!riderBoy && String((ownerOrder as any).deliveryBoyId) === String((riderBoy as any)._id);
+    }
+
+    if (!partnerMatches && !boyMatches) {
+      incCounterWithLabels("tracking_ingestion_rejected_total", { reason: "ownership_mismatch" });
+      logger.info(
+        JSON.stringify({
+          type: "tracking_ingestion_ownership_rejected",
+          riderId: v.riderId,
+          orderId: v.orderId,
+          ts: new Date().toISOString(),
+        })
+      );
+      // 403: this rider is not the order's current assigned partner.
+      return res.status(403).json({ error: "ownership_mismatch" });
+    }
+  } catch (e) {
+    incCounter("tracking_ingestion_ownership_check_failures_total");
+    logger.error("[Tracking] ownership validation failed", e as Error);
+    return res.status(500).json({ error: "ownership_check_failed" });
+  }
 
   // Validate GPS accuracy
   const accuracyValidation = validateAccuracy(v.accuracyM);

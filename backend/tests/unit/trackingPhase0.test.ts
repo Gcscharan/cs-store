@@ -74,6 +74,10 @@ describe("Phase 0 live tracking", () => {
     const user = await (global as any).createTestUser({ role: "delivery" });
     const token = await (global as any).getAuthToken(user);
 
+    // Rider must own the order they post location for (ownership-validated ingest).
+    const customer = await (global as any).createTestUser({ email: "p0ingest-cust@example.com" });
+    const order = await (global as any).createTestOrder(customer, { deliveryPartnerId: user._id });
+
     process.env.TRACKING_KILL_SWITCH_MODE = "INGEST_ONLY";
 
     const res = await request(app)
@@ -82,7 +86,7 @@ describe("Phase 0 live tracking", () => {
       .send({
         schemaVersion: 1,
         riderId: String(user._id),
-        orderId: "507f191e810c19729de860ea",
+        orderId: String(order._id),
         seq: 1,
         lat: 17.4123,
         lng: 78.3912,
@@ -94,5 +98,36 @@ describe("Phase 0 live tracking", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("accepted");
+  });
+
+  it("POST /internal/tracking/location rejects when rider does not own the order (403)", async () => {
+    const ownerRider = await (global as any).createTestUser({ email: "p0owner@example.com", role: "delivery" });
+    const otherRider = await (global as any).createTestUser({ email: "p0other@example.com", role: "delivery" });
+    const otherToken = await (global as any).getAuthToken(otherRider);
+
+    const customer = await (global as any).createTestUser({ email: "p0own-cust@example.com" });
+    const order = await (global as any).createTestOrder(customer, { deliveryPartnerId: ownerRider._id });
+
+    process.env.TRACKING_KILL_SWITCH_MODE = "INGEST_ONLY";
+
+    // A different authenticated rider must NOT be able to inject location for this order.
+    const res = await request(app)
+      .post("/api/internal/tracking/location")
+      .set("Authorization", `Bearer ${otherToken}`)
+      .send({
+        schemaVersion: 1,
+        riderId: String(otherRider._id),
+        orderId: String(order._id),
+        seq: 1,
+        lat: 17.4123,
+        lng: 78.3912,
+        accuracyM: 18,
+        speedMps: 6.2,
+        headingDeg: 120,
+        deviceTs: new Date().toISOString(),
+      });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe("ownership_mismatch");
   });
 });
