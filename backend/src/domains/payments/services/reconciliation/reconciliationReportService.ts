@@ -245,7 +245,7 @@ export async function getReconciliationReports(
   const nextCursor = hasMore ? String(results[results.length - 1]._id) : undefined;
 
   return {
-    items: results as IReconciliationReport[],
+    items: results as unknown as IReconciliationReport[],
     nextCursor,
   };
 }
@@ -300,5 +300,5 @@ export async function getAuditLogsForOrder(
     .limit(limit)
     .lean();
 
-  return entries as IReconciliationAuditLog[];
+  return entries as unknown as IReconciliationAuditLog[];
 }

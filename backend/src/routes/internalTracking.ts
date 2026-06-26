@@ -163,7 +163,7 @@ router.post("/location", authenticateToken, requireDeliveryRole, ingestRateLimit
       return res.status(403).json({ error: "ownership_mismatch" });
     }
   } catch (e) {
-    incCounter("tracking_ingestion_ownership_check_failures_total");
+    incCounterWithLabels("tracking_ingestion_rejected_total", { reason: "ownership_check_failed" });
     logger.error("[Tracking] ownership validation failed", e as Error);
     return res.status(500).json({ error: "ownership_check_failed" });
   }

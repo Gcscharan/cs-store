@@ -9,6 +9,8 @@ type CounterName =
   | "outbox_dispatch_errors_total"
   | "outbox_dispatched_total"
   | "outbox_failed_transitions_total"
+  | "outbox_recovered_total"
+  | "outbox_dead_letter_total"
   | "tracking_ingestion_received_total"
   | "tracking_ingestion_accepted_total"
   | "tracking_ingestion_deduped_total"
@@ -30,6 +32,8 @@ const counters: Record<CounterName, number> = {
   outbox_dispatch_errors_total: 0,
   outbox_dispatched_total: 0,
   outbox_failed_transitions_total: 0,
+  outbox_recovered_total: 0,
+  outbox_dead_letter_total: 0,
   tracking_ingestion_received_total: 0,
   tracking_ingestion_accepted_total: 0,
   tracking_ingestion_deduped_total: 0,

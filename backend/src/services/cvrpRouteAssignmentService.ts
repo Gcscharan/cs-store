@@ -35,6 +35,16 @@ const TWO_OPT_MAX_ITERATIONS = parseInt(process.env.ROUTE_TWO_OPT_ITERATIONS || 
 const SOFT_LIMIT_DISTANCE_KM = 60;
 const SOFT_LIMIT_ORDER_COUNT = 40;
 
+// Capacity / distance bounds (recovered from prior implementation). Used by the
+// legacy multi-cluster helpers below; the live single-cluster pipeline ignores
+// capacity but these are required for the deprecated/script code paths to compile.
+const AUTO_CAPACITY_MIN = parseInt(process.env.ROUTE_CAPACITY_MIN || '20');
+const AUTO_CAPACITY_MAX = parseInt(process.env.ROUTE_CAPACITY_MAX || '30');
+const MAX_AUTO_ROUTE_DISTANCE_KM = parseFloat(process.env.ROUTE_MAX_DISTANCE_KM || '35');
+const LOCALITY_RADIUS_KM = parseFloat(process.env.ROUTE_LOCALITY_RADIUS_KM || '0.5');
+const CLUSTER_RADIUS_KM = parseFloat(process.env.ROUTE_CLUSTER_RADIUS_KM || '3');
+const QUALITY_AVG_DIST_THRESHOLD_KM = parseFloat(process.env.ROUTE_QUALITY_AVG_DIST_KM || '5');
+
 export const PREVIEW_CAPACITY = 1; // not used anymore, kept for API compat
 export const PREVIEW_MAX_DISTANCE_KM = 999999; // not used anymore
 

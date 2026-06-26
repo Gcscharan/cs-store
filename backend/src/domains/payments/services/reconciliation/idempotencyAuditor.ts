@@ -126,7 +126,7 @@ async function runMissingKeyScan(
   // We do a separate query for non-empty keys and filter in-memory.
   const ordersWithKeys = await Order.find({
     createdAt: { $gte: lookbackCutoff },
-    idempotencyKey: { $exists: true, $ne: null, $ne: "" },
+    idempotencyKey: { $exists: true, $nin: [null, ""] },
   })
     .select("_id userId idempotencyKey createdAt")
     .limit(MISSING_KEY_BATCH_LIMIT)
@@ -238,7 +238,7 @@ async function runDupKeyScan(
     {
       $match: {
         createdAt: { $gte: lookbackCutoff },
-        idempotencyKey: { $exists: true, $ne: null, $ne: "" },
+        idempotencyKey: { $exists: true, $nin: [null, ""] },
       },
     },
     {
