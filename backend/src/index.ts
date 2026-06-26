@@ -248,6 +248,13 @@ import { attachSocketRedisAdapter } from "./config/socketRedisAdapter";
 import { initializeAdminAssignmentConsumer } from "./domains/operations/services/adminAssignmentConsumer";
 import { initializeOutboxDispatcher } from "./domains/events/outboxDispatcher";
 import { initializeInventoryReservationSweeper } from "./domains/orders/services/inventoryReservationSweeper";
+import {
+  normalizeOrderIds,
+  isTrackableStatus,
+  buildCustomerLocationPayload,
+  customerRoom,
+  CUSTOMER_LOCATION_EVENT,
+} from "./domains/tracking/customerLocationFanout";
 import { startStuckPaymentScanner } from "./domains/payments/services/stuckPaymentScanner";
 import { initializePaymentReconciliation } from "./domains/payments/services/paymentReconciliationService";
 import { initializeRefundReconciliation } from "./domains/payments/services/refundReconciliationService";
@@ -354,21 +361,16 @@ liveLocationEvents.on("location", async (loc: any) => {
     // Emit to customer order rooms (privacy-safe rounded coordinates).
     // The stored location carries the rider's CURRENT route orderIds (plural);
     // fan out to each order's room using the event + payload the customer app
-    // actually consumes (`delivery_location_updated` → { orderId, latitude, longitude }).
-    const orderIds: string[] = Array.isArray(loc?.orderIds)
-      ? loc.orderIds.map((x: any) => String(x)).filter(Boolean)
-      : (loc?.orderId ? [String(loc.orderId)] : []);
+    // actually consumes (`delivery_location_updated`). Logic is unit-tested in
+    // domains/tracking/customerLocationFanout.ts.
+    const orderIds = normalizeOrderIds(loc);
 
     for (const orderId of orderIds) {
       try {
         const order = await Order.findById(orderId).select("orderStatus address deliveryPartnerId").lean();
-        const st = String((order as any)?.orderStatus || "").toUpperCase();
-        if (!order || ["DELIVERED", "CANCELLED", "REFUNDED", "FAILED", "RETURNED"].includes(st)) {
+        if (!order || !isTrackableStatus((order as any)?.orderStatus)) {
           continue;
         }
-
-        const roundedLat = Math.round(Number(loc?.lat) * 1000) / 1000;
-        const roundedLng = Math.round(Number(loc?.lng) * 1000) / 1000;
 
         let etaMinutes = 0;
         let distanceRemainingM = 0;
@@ -389,17 +391,10 @@ liveLocationEvents.on("location", async (loc: any) => {
           }
         }
 
-        // Event + field names MUST match socketClient.subscribeToDeliveryLocation.
-        io.to(`order:${orderId}`).emit("delivery_location_updated", {
-          orderId,
-          latitude: roundedLat,
-          longitude: roundedLng,
-          heading: loc?.heading ?? undefined,
-          speed: loc?.speed ?? undefined,
-          etaMinutes,
-          distanceRemainingM,
-          lastUpdated: payload.lastUpdatedAt,
-        });
+        io.to(customerRoom(orderId)).emit(
+          CUSTOMER_LOCATION_EVENT,
+          buildCustomerLocationPayload(loc, orderId, { etaMinutes, distanceRemainingM })
+        );
       } catch (e) {
         logger.warn("[LiveLocation][customer] fan-out error:", e);
       }
