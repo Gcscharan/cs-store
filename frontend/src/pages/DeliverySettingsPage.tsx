@@ -6,9 +6,6 @@ import {
   Bell,
   Moon,
   Sun,
-  Shield,
-  Clock,
-  ChevronRight,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import DeliveryBottomNav from "../components/DeliveryBottomNav";
@@ -76,48 +73,6 @@ const DeliverySettingsPage: React.FC = () => {
         },
       ],
     },
-    {
-      title: "Location & Safety",
-      icon: Shield,
-      items: [
-        {
-          label: "Location Services",
-          description: "Allow app to access your location for deliveries",
-          type: "navigation",
-          action: () => alert("Location settings coming soon"),
-        },
-        {
-          label: "Emergency Contacts",
-          description: "Manage your emergency contact information",
-          type: "navigation",
-          action: () => alert("Emergency contacts coming soon"),
-        },
-        {
-          label: "Safety Tips",
-          description: "View safety guidelines and tips",
-          type: "navigation",
-          action: () => alert("Safety tips coming soon"),
-        },
-      ],
-    },
-    {
-      title: "Working Hours",
-      icon: Clock,
-      items: [
-        {
-          label: "Set Availability",
-          description: "Configure your working hours and availability",
-          type: "navigation",
-          action: () => alert("Working hours coming soon"),
-        },
-        {
-          label: "Auto-Offline",
-          description: "Automatically go offline after work hours",
-          type: "navigation",
-          action: () => alert("Auto-offline coming soon"),
-        },
-      ],
-    },
   ];
 
   const handleToggle = (
@@ -165,53 +120,28 @@ const DeliverySettingsPage: React.FC = () => {
             <div className="divide-y divide-gray-100">
               {section.items.map((item, itemIndex) => (
                 <div key={itemIndex} className="p-4">
-                  {item.type === "toggle" ? (
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <h4 className="font-medium text-gray-900">
-                          {item.label}
-                        </h4>
-                        <p className="text-sm text-gray-600">
-                          {item.description}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() =>
-                          item.type === 'toggle' && 'onChange' in item && 'value' in item
-                            ? handleToggle(item.onChange, item.value as boolean)
-                            : null
-                        }
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                          item.type === 'toggle' && 'value' in item
-                            ? (item.value as boolean) ? "bg-blue-500" : "bg-gray-300"
-                            : "bg-gray-300"
-                        }`}
-                      >
-                        <span
-                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                            item.type === 'toggle' && 'value' in item
-                              ? (item.value as boolean) ? "translate-x-6" : "translate-x-1"
-                              : "translate-x-1"
-                          }`}
-                        />
-                      </button>
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <h4 className="font-medium text-gray-900">
+                        {item.label}
+                      </h4>
+                      <p className="text-sm text-gray-600">
+                        {item.description}
+                      </p>
                     </div>
-                  ) : (
                     <button
-                      onClick={item.type === 'navigation' && 'action' in item ? item.action : undefined}
-                      className="w-full flex items-center justify-between group hover:bg-gray-50 p-2 -m-2 rounded-lg transition-colors"
+                      onClick={() => handleToggle(item.onChange, item.value)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                        item.value ? "bg-blue-500" : "bg-gray-300"
+                      }`}
                     >
-                      <div className="flex-1 text-left">
-                        <h4 className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
-                          {item.label}
-                        </h4>
-                        <p className="text-sm text-gray-600">
-                          {item.description}
-                        </p>
-                      </div>
-                      <ChevronRight className="h-5 w-5 text-gray-400 group-hover:text-gray-600 transition-colors" />
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          item.value ? "translate-x-6" : "translate-x-1"
+                        }`}
+                      />
                     </button>
-                  )}
+                  </div>
                 </div>
               ))}
             </div>

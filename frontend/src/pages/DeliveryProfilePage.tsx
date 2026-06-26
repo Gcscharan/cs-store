@@ -6,7 +6,6 @@ import {
   ArrowLeft,
   CheckCircle,
   AlertTriangle,
-  CreditCard,
   MessageCircle,
   Headphones,
   Edit3,
@@ -473,8 +472,6 @@ const DeliveryProfilePage: React.FC = () => {
     } else if (option === "Preferred Language") {
       setLanguageType("preferred");
       setIsLanguageModalOpen(true);
-    } else {
-      alert(`${option} feature coming soon!`);
     }
   };
 
@@ -1172,38 +1169,6 @@ const DeliveryProfilePage: React.FC = () => {
           transition={{ delay: 0.2 }}
           className="space-y-0.5"
         >
-          {/* Emergency Details */}
-          <button
-            onClick={() => handleOptionClick("Emergency Details")}
-            className="w-full bg-white rounded-xl shadow-sm border border-gray-100 p-2.5 flex items-center justify-between hover:bg-gray-50 transition-colors"
-          >
-            <div className="flex items-center">
-              <div className="p-1.5 bg-red-100 rounded-lg mr-3">
-                <AlertTriangle className="h-4 w-4 text-red-600" />
-              </div>
-              <span className="font-medium text-gray-900 text-sm">
-                Emergency details
-              </span>
-            </div>
-            <ChevronRight className="h-4 w-4 text-gray-400" />
-          </button>
-
-          {/* Bank Details */}
-          <button
-            onClick={() => handleOptionClick("Bank Details")}
-            className="w-full bg-white rounded-xl shadow-sm border border-gray-100 p-2.5 flex items-center justify-between hover:bg-gray-50 transition-colors"
-          >
-            <div className="flex items-center">
-              <div className="p-1.5 bg-blue-100 rounded-lg mr-3">
-                <CreditCard className="h-4 w-4 text-blue-600" />
-              </div>
-              <span className="font-medium text-gray-900 text-sm">
-                Bank details
-              </span>
-            </div>
-            <ChevronRight className="h-4 w-4 text-gray-400" />
-          </button>
-
           {/* App Language */}
           <button
             onClick={() => handleOptionClick("App Language")}
