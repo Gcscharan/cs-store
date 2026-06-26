@@ -133,7 +133,7 @@ export const useAdminSocket = (): UseAdminSocketReturn => {
 
     socket.on("reconnect", () => {
       // Full state refresh on reconnect — no sync_request for admins
-      dispatch(adminApi.util.invalidateTags(["AdminOrders", "AdminRiders", "Products"]));
+      dispatch(adminApi.util.invalidateTags(["Order", "DeliveryProfile", "Product"]));
     });
 
     // --- Event handlers ---

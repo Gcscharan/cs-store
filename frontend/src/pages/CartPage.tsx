@@ -66,11 +66,14 @@ const CartPage = () => {
       if (defaultAddr) {
         return {
           _id: defaultAddr._id,
+          name: defaultAddr.name || "",
+          phone: defaultAddr.phone || "",
           label: defaultAddr.label || "",
           pincode: defaultAddr.pincode || "",
           city: defaultAddr.city || "",
           state: defaultAddr.state || "",
           addressLine: defaultAddr.addressLine || "",
+          line1: defaultAddr.addressLine || defaultAddr.line1 || "",
           lat: (defaultAddr.location?.lat ?? defaultAddr.lat ?? 0),
           lng: (defaultAddr.location?.lng ?? defaultAddr.lng ?? 0),
           isDefault: true,

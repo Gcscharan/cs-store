@@ -22,7 +22,7 @@ import { logout } from "../store/slices/authSlice";
 import { useOtpModal } from "../contexts/OtpModalContext";
 import { getDisplayName } from "../utils/nameUtils";
 import { formatNotificationCopy } from "../utils/notificationFormatter";
-import toast from "react-hot-toast";
+import toast, { type Toast } from "react-hot-toast";
 import api, {
   useGetSearchSuggestionsQuery,
   useGetAddressesQuery,
@@ -217,7 +217,7 @@ const Layout: React.FC<LayoutProps> = ({
     const deepLink = typeof n?.deepLink === "string" ? n.deepLink : undefined;
 
     toast.custom(
-      (t) => (
+      (t: Toast) => (
         <div
           className={`pointer-events-auto w-full max-w-sm rounded-xl border border-gray-200 bg-white shadow-xl transition-all ${
             t.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"

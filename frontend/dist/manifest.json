@@ -1,19 +1,34 @@
 {
-  "name": "Vyapara Setu - Online Shopping",
-  "short_name": "Vyapara Setu",
-  "description": "Your one-stop destination for online shopping. Discover amazing deals on electronics, fashion, home & garden, and more.",
+  "name": "VyaparSetu - Online Shopping",
+  "short_name": "VyaparSetu",
+  "description": "Shop groceries and daily essentials. Fast delivery, UPI & COD accepted.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#3b82f6",
+  "theme_color": "#f97316",
+  "orientation": "portrait-primary",
   "icons": [
     {
       "src": "/favicon.ico",
       "sizes": "64x64 32x32 24x24 16x16",
       "type": "image/x-icon"
+    },
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ],
-  "categories": ["shopping", "ecommerce", "retail"],
-  "lang": "en",
-  "dir": "ltr"
+  "categories": ["shopping", "food"],
+  "lang": "en-IN",
+  "dir": "ltr",
+  "scope": "/",
+  "prefer_related_applications": false
 }

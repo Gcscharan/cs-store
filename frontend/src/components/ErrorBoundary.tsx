@@ -1,6 +1,6 @@
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
-import { Button } from './ui';
+import { AccessibleButton } from './AccessibleButton';
 
 interface Props {
   children: ReactNode;
@@ -89,21 +89,21 @@ class ErrorBoundary extends Component<Props, State> {
 
             {/* Actions */}
             <div className="flex flex-col gap-3">
-              <Button
+              <AccessibleButton
                 onClick={this.handleReset}
                 variant="primary"
                 className="w-full"
               >
                 Try Again
-              </Button>
-              <Button
+              </AccessibleButton>
+              <AccessibleButton
                 onClick={this.handleReload}
                 variant="secondary"
                 className="w-full"
               >
                 <RefreshCw className="h-4 w-4" />
                 Reload Page
-              </Button>
+              </AccessibleButton>
             </div>
           </div>
         </div>

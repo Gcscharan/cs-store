@@ -7,7 +7,7 @@ interface UseLazyImageOptions {
 }
 
 export function useLazyImage(
-  elementRef: React.RefObject<Element>,
+  elementRef: React.RefObject<Element | null>,
   options: UseLazyImageOptions = {}
 ) {
   const { threshold = 0.1, rootMargin = '200px', priority = false } = options;

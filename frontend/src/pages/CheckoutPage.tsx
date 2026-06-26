@@ -20,7 +20,8 @@ import {
   useGetAddressesQuery,
   useSetDefaultAddressMutation,
 } from "../store/api";
-import { createRazorpayOrder, openRazorpayCheckout, PaymentFailurePayload } from "../utils/razorpay";
+import { createRazorpayOrder, openRazorpayCheckout } from "../utils/razorpay";
+import type { PaymentFailurePayload } from "../utils/razorpayHandler";
 import PaymentStatusBanner from "../payments/PaymentStatusBanner";
 import { toApiUrl } from "../config/runtime";
 import { authFetch } from "../utils/authClient";
@@ -511,7 +512,7 @@ const CheckoutPage = () => {
         onSuccess: async () => {
           safeSetPaymentState(PaymentStates.PAYMENT_PROCESSING);
           toast("Waiting for payment confirmation…");
-          void startReconciliationPolling({ orderId: dbOrderId, accessToken });
+          void startReconciliationPolling({ orderId: args.orderId, accessToken });
         },
         onPaymentFailure: (payload: PaymentFailurePayload) => {
           if (payload.reason === "USER_CANCELLED") {
