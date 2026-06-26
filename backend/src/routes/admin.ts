@@ -31,6 +31,7 @@ import { assignOrderToAdminController } from "../domains/operations/controllers/
 import { authenticateToken, requireRole } from "../middleware/auth";
 import { auditLog } from "../middleware/auditLog";
 import { reviewKyc } from "../controllers/deliveryKycController";
+import { listSupportRequests, updateSupportRequest } from "../controllers/supportRequestController";
 import jwt from "jsonwebtoken";
 import { orderStateService } from "../domains/orders/services/orderStateService";
 import { OrderStatus } from "../domains/orders/enums/OrderStatus";
@@ -488,6 +489,21 @@ router.post(
   requireRole(["admin"]),
   auditLog,
   reviewKyc
+);
+
+// Support request inbox (customer + delivery partner help requests)
+router.get(
+  "/support-requests",
+  authenticateToken,
+  requireRole(["admin"]),
+  listSupportRequests
+);
+router.post(
+  "/support-requests/:id/resolve",
+  authenticateToken,
+  requireRole(["admin"]),
+  auditLog,
+  updateSupportRequest
 );
 // router.post("/assign-deliveries", authenticateToken, requireRole(["admin"]), autoAssignDeliveries);
 router.post(

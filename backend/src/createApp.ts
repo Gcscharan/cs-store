@@ -274,6 +274,7 @@ export function createApp(config: AppConfig = {}): Application {
   apiRouter.use("/delivery-fee-v2", enhancedDeliveryFeeRoutes);
   apiRouter.use("/delivery-personnel", deliveryPersonnelRoutes);
   apiRouter.use("/delivery", deliveryAuthRoutes);
+  apiRouter.use("/support", require("./routes/support").default);
   apiRouter.use("/pincode", pincodeRoutes);
   apiRouter.use("/location", locationRoutes);
   apiRouter.use("/admin", adminRoutes);

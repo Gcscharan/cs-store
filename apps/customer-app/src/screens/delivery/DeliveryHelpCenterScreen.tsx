@@ -1,10 +1,12 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet, Linking, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
 import { logEvent } from '../../utils/analytics';
+import { storage } from '../../utils/storage';
+import { BASE_URL } from '../../api/baseApi';
 
 const ISSUE_OPTIONS = [
   {
@@ -38,18 +40,60 @@ const ISSUE_OPTIONS = [
 ];
 
 export default function DeliveryHelpCenterScreen({ navigation }: any) {
+  const [submitting, setSubmitting] = useState(false);
+
   useEffect(() => {
     logEvent('screen_view', { screen: 'DeliveryHelpCenter' });
   }, []);
+
+  const submitSupportRequest = async (issueId: string, title: string) => {
+    setSubmitting(true);
+    try {
+      const token = await storage.getItem('accessToken');
+      const res = await fetch(`${BASE_URL}/support/requests`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category: issueId,
+          subject: title,
+          message: `Delivery partner raised: ${title}`,
+        }),
+      });
+      if (res.ok) {
+        logEvent('help_issue_submitted', { issueType: issueId });
+        Alert.alert(
+          'Request Submitted',
+          'Our support team has received your request and will reach out shortly. For urgent help you can also call us.',
+          [
+            { text: 'Call Support', onPress: () => Linking.openURL('tel:9391795162') },
+            { text: 'OK', style: 'cancel' },
+          ]
+        );
+      } else {
+        throw new Error('submit failed');
+      }
+    } catch {
+      Alert.alert(
+        'Could not submit',
+        'We couldn’t submit your request right now. Please call our support team for immediate help.',
+        [
+          { text: 'Call Support', onPress: () => Linking.openURL('tel:9391795162') },
+          { text: 'OK', style: 'cancel' },
+        ]
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const handleIssue = (issueId: string, title: string) => {
     logEvent('help_issue_tapped', { issueType: issueId });
     Alert.alert(
       title,
-      'This support form will be available in the next update. For immediate help, please call our support team.',
+      'Submit this issue to our support team? We will review it and get back to you.',
       [
-        { text: 'Call Support', onPress: () => Linking.openURL('tel:9391795162') },
-        { text: 'OK', style: 'cancel' },
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Submit', onPress: () => submitSupportRequest(issueId, title) },
       ]
     );
   };
@@ -74,8 +118,9 @@ export default function DeliveryHelpCenterScreen({ navigation }: any) {
         {ISSUE_OPTIONS.map(issue => (
           <TouchableOpacity
             key={issue.id}
-            style={[s.issueCard, { backgroundColor: issue.color, borderColor: issue.borderColor }]}
+            style={[s.issueCard, { backgroundColor: issue.color, borderColor: issue.borderColor }, submitting && { opacity: 0.6 }]}
             onPress={() => handleIssue(issue.id, issue.title)}
+            disabled={submitting}
             activeOpacity={0.7}
           >
             <Text style={s.issueTitle}>{issue.title}</Text>
