@@ -56,6 +56,7 @@ const HelpSupportPage: React.FC = () => {
       action: t("help.callNumber"),
       color: "text-green-600",
       bgColor: "bg-green-50",
+      kind: "call" as const,
     },
     {
       icon: Mail,
@@ -64,6 +65,7 @@ const HelpSupportPage: React.FC = () => {
       action: "support@csstore.com",
       color: "text-blue-600",
       bgColor: "bg-blue-50",
+      kind: "email" as const,
     },
     {
       icon: MessageCircle,
@@ -72,16 +74,19 @@ const HelpSupportPage: React.FC = () => {
       action: t("help.startChat"),
       color: "text-purple-600",
       bgColor: "bg-purple-50",
+      kind: "message" as const,
     },
   ];
 
-  const handleContactAction = (action: string) => {
-    if (action.startsWith("Call")) {
+  const handleContactAction = (kind: "call" | "email" | "message") => {
+    if (kind === "call") {
       window.location.href = "tel:+918001234567";
-    } else if (action.startsWith("support@")) {
+    } else if (kind === "email") {
       window.location.href = "mailto:support@csstore.com";
     } else {
-      alert(t("help.chatComingSoon"));
+      // Live chat infrastructure isn't available; route to the real support
+      // request form so the user gets an answered, tracked channel.
+      navigate(isDeliveryRoute ? "/delivery/help-center" : "/customer-care");
     }
   };
 
@@ -120,7 +125,7 @@ const HelpSupportPage: React.FC = () => {
             {contactMethods.map((method, index) => (
               <motion.button
                 key={index}
-                onClick={() => handleContactAction(method.action)}
+                onClick={() => handleContactAction(method.kind)}
                 className="w-full p-4 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors text-left group"
                 whileHover={{ x: 4 }}
               >
