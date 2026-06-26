@@ -351,53 +351,55 @@ liveLocationEvents.on("location", async (loc: any) => {
     // Emit to admin room (exact coordinates)
     io.to("admin_room").emit("driver:location:update", payload);
 
-    // Emit to customer order rooms (privacy-safe rounded coordinates)
-    const orderId = String(loc?.orderId || "");
-    if (orderId) {
+    // Emit to customer order rooms (privacy-safe rounded coordinates).
+    // The stored location carries the rider's CURRENT route orderIds (plural);
+    // fan out to each order's room using the event + payload the customer app
+    // actually consumes (`delivery_location_updated` → { orderId, latitude, longitude }).
+    const orderIds: string[] = Array.isArray(loc?.orderIds)
+      ? loc.orderIds.map((x: any) => String(x)).filter(Boolean)
+      : (loc?.orderId ? [String(loc.orderId)] : []);
+
+    for (const orderId of orderIds) {
       try {
-        // Check if order is still in a trackable state
-        const order = await Order.findById(orderId).select("status user deliveryPartnerId").lean();
-        if (order && !["DELIVERED", "CANCELLED", "REFUNDED"].includes(String((order as any).status || "").toUpperCase())) {
-          // Round coordinates to 3 decimal places (~111m accuracy) for privacy
-          const roundedLat = Math.round(Number(loc?.lat) * 1000) / 1000;
-          const roundedLng = Math.round(Number(loc?.lng) * 1000) / 1000;
-
-          // Calculate ETA if we have destination
-          let etaMinutes = 0;
-          let distanceRemainingM = 0;
-          
-          if ((order as any).deliveryPartnerId && loc?.lat && loc?.lng) {
-            // Get order address for ETA calculation
-            const fullOrder = await Order.findById(orderId).select("address").lean();
-            if (fullOrder?.address?.lat && fullOrder?.address?.lng) {
-              try {
-                const etaResult = await calculateETA({
-                  riderLat: Number(loc?.lat),
-                  riderLng: Number(loc?.lng),
-                  destLat: fullOrder.address.lat,
-                  destLng: fullOrder.address.lng,
-                  orderId,
-                  accuracyM: loc?.accuracy,
-                });
-                etaMinutes = etaResult.etaMinutes;
-                distanceRemainingM = etaResult.distanceRemainingM;
-              } catch (e) {
-                logger.warn("[LiveLocation][ETA] calculation failed:", e);
-              }
-            }
-          }
-
-          const customerPayload = {
-            riderLat: roundedLat,
-            riderLng: roundedLng,
-            etaMinutes,
-            distanceRemainingM,
-            lastUpdated: payload.lastUpdatedAt,
-          };
-
-          // Emit to order-specific room
-          io.to(`order:${orderId}`).emit("order:location:update", customerPayload);
+        const order = await Order.findById(orderId).select("orderStatus address deliveryPartnerId").lean();
+        const st = String((order as any)?.orderStatus || "").toUpperCase();
+        if (!order || ["DELIVERED", "CANCELLED", "REFUNDED", "FAILED", "RETURNED"].includes(st)) {
+          continue;
         }
+
+        const roundedLat = Math.round(Number(loc?.lat) * 1000) / 1000;
+        const roundedLng = Math.round(Number(loc?.lng) * 1000) / 1000;
+
+        let etaMinutes = 0;
+        let distanceRemainingM = 0;
+        if ((order as any).address?.lat && (order as any).address?.lng) {
+          try {
+            const etaResult = await calculateETA({
+              riderLat: Number(loc?.lat),
+              riderLng: Number(loc?.lng),
+              destLat: (order as any).address.lat,
+              destLng: (order as any).address.lng,
+              orderId,
+              accuracyM: loc?.accuracy,
+            });
+            etaMinutes = etaResult.etaMinutes;
+            distanceRemainingM = etaResult.distanceRemainingM;
+          } catch (e) {
+            logger.warn("[LiveLocation][ETA] calculation failed:", e);
+          }
+        }
+
+        // Event + field names MUST match socketClient.subscribeToDeliveryLocation.
+        io.to(`order:${orderId}`).emit("delivery_location_updated", {
+          orderId,
+          latitude: roundedLat,
+          longitude: roundedLng,
+          heading: loc?.heading ?? undefined,
+          speed: loc?.speed ?? undefined,
+          etaMinutes,
+          distanceRemainingM,
+          lastUpdated: payload.lastUpdatedAt,
+        });
       } catch (e) {
         logger.warn("[LiveLocation][customer] fan-out error:", e);
       }
@@ -580,13 +582,13 @@ io.on("connection", (socket) => {
       }
 
       // Verify user owns this order
-      const order = await Order.findById(orderIdStr).select("user status").lean();
+      const order = await Order.findById(orderIdStr).select("userId orderStatus").lean();
       if (!order) {
         logger.warn("[Socket] Customer join denied: order not found", { socketId: socket.id, orderId: orderIdStr });
         return;
       }
 
-      if (String((order as any).user) !== userId) {
+      if (String((order as any).userId) !== userId) {
         logger.warn("[Socket] Customer join denied: not order owner", { socketId: socket.id, orderId: orderIdStr, userId });
         return;
       }
@@ -600,6 +602,59 @@ io.on("connection", (socket) => {
     } catch (e) {
       logger.warn("[Socket] Customer join denied: error", e);
     }
+  });
+
+  // Customer: subscribe to live delivery tracking for an order (event used by
+  // the mobile customer app). Ownership-validated: only the order's owner may
+  // join its room and receive `delivery_location_updated` fan-out.
+  const handleTrackingSubscribe = async (data: any) => {
+    const orderIdStr = String(data?.orderId || "").trim();
+    if (!orderIdStr) return;
+    try {
+      const authedUserId = String((socket.data as any)?.userId || "");
+      let userId = authedUserId;
+
+      // Fall back to an explicit token if the socket wasn't authed at handshake.
+      if (!userId) {
+        const provided =
+          (typeof data?.token === "string" && data.token.trim()) ||
+          (typeof (socket.handshake as any)?.auth?.token === "string" && String((socket.handshake as any).auth.token).trim()) ||
+          "";
+        const jwtSecret = process.env.JWT_SECRET;
+        if (provided && jwtSecret) {
+          try {
+            const decoded = jwt.verify(provided, jwtSecret) as any;
+            userId = String(decoded?.userId || "");
+          } catch {
+            userId = "";
+          }
+        }
+      }
+
+      if (!userId) {
+        logger.warn("[Socket] tracking subscribe denied: no auth", { socketId: socket.id, orderId: orderIdStr });
+        return;
+      }
+
+      const order = await Order.findById(orderIdStr).select("userId orderStatus").lean();
+      if (!order || String((order as any).userId) !== userId) {
+        logger.warn("[Socket] tracking subscribe denied: not order owner", { socketId: socket.id, orderId: orderIdStr, userId });
+        return;
+      }
+
+      socket.join(`order:${orderIdStr}`);
+      if (verboseLoggingEnabled) {
+        logger.info(`✅ Customer ${userId} subscribed to tracking ${orderIdStr}`);
+      }
+    } catch (e) {
+      logger.warn("[Socket] tracking subscribe error", e);
+    }
+  };
+
+  socket.on("subscribe_delivery_tracking", handleTrackingSubscribe);
+  socket.on("unsubscribe_delivery_tracking", (data: any) => {
+    const orderIdStr = String(data?.orderId || "").trim();
+    if (orderIdStr) socket.leave(`order:${orderIdStr}`);
   });
 
   // Handle order status updates
