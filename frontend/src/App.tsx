@@ -210,6 +210,11 @@ const FinanceReportsPage = lazy(() =>
     /* webpackChunkName: "page-admin-ops" */ "./admin/ops/finance/FinanceReportsPage"
   )
 );
+const SupportInboxPage = lazy(() =>
+  import(
+    /* webpackChunkName: "page-admin-ops" */ "./admin/support/SupportInboxPage"
+  )
+);
 const DeliveryDashboard = lazy(() =>
   import(
     /* webpackChunkName: "page-delivery" */ "./pages/DeliveryDashboard"
@@ -684,6 +689,14 @@ function AuthRouter() {
         element={
           <AuthGate requireAuth requiredRole="admin">
             <FinanceReportsPage />
+          </AuthGate>
+        }
+      />
+      <Route
+        path="/admin/support"
+        element={
+          <AuthGate requireAuth requiredRole="admin">
+            <SupportInboxPage />
           </AuthGate>
         }
       />

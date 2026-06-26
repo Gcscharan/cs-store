@@ -145,6 +145,7 @@ export const api = createApi({
     "Notification",
     "NotificationUnreadCount",
     "DeliveryProfile",
+    "SupportRequest",
   ],
   endpoints: (builder) => ({
     // ---------- AUTH ----------
@@ -668,6 +669,27 @@ export const api = createApi({
       query: () => ({ url: toApiUrl("/delivery/profile") }),
       providesTags: ["DeliveryProfile"],
     }),
+
+    // ---------- SUPPORT (admin inbox) ----------
+    getSupportRequests: builder.query<any, { status?: string; page?: number; limit?: number } | void>({
+      query: (params) => ({
+        url: toApiUrl("/admin/support-requests"),
+        params: {
+          ...(params?.status ? { status: params.status } : {}),
+          page: params?.page ?? 1,
+          limit: params?.limit ?? 50,
+        },
+      }),
+      providesTags: ["SupportRequest"],
+    }),
+    resolveSupportRequest: builder.mutation<any, { id: string; status?: "IN_PROGRESS" | "RESOLVED"; adminNote?: string }>({
+      query: ({ id, status = "RESOLVED", adminNote }) => ({
+        url: toApiUrl(`/admin/support-requests/${id}/resolve`),
+        method: "POST",
+        body: { status, ...(adminNote ? { adminNote } : {}) },
+      }),
+      invalidatesTags: ["SupportRequest"],
+    }),
   }),
 });
 
@@ -713,6 +735,8 @@ export const {
   useDeleteProductMutation,
   useCheckPincodeQuery,
   useGetDeliveryProfileQuery,
+  useGetSupportRequestsQuery,
+  useResolveSupportRequestMutation,
 } = api;
 
 export default api;

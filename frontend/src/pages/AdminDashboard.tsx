@@ -181,6 +181,15 @@ const AdminDashboard: React.FC = () => {
       hoverColor: "hover:bg-rose-600",
       path: "/admin/notifications/analytics",
     },
+    {
+      id: "support",
+      title: "Support Requests",
+      description: "Review and resolve customer & delivery help requests",
+      icon: Bell,
+      color: "bg-orange-500",
+      hoverColor: "hover:bg-orange-600",
+      path: "/admin/support",
+    },
   ];
 
   return (
