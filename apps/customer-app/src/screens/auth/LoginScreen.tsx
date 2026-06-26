@@ -12,6 +12,7 @@ import * as SecureStore from 'expo-secure-store';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { Colors } from '../../constants/colors';
 import { setUser, setTokens, setStatus } from '../../store/slices/authSlice'; 
+import { enqueueNotificationToast, showNextNotificationToast } from '../../store/slices/uiSlice';
 import RNOtpVerify from 'react-native-otp-verify';
  
 export default function LoginScreen({ navigation }: any) {
@@ -49,21 +50,23 @@ export default function LoginScreen({ navigation }: any) {
       const result = await sendOtp({ phone }).unwrap(); // Removed mode parameter
       console.log('✅ OTP sent successfully:', result);
       
-      // DEVELOPMENT ONLY: Show OTP in console and alert if available
+      // DEVELOPMENT ONLY: surface the OTP as a header toast popup.
+      // The backend returns `otp` in the send-otp response when running in
+      // development / mock mode. Strictly gated to dev builds so the code is
+      // never revealed in production.
+      // DEVELOPMENT ONLY: surface the OTP as a header toast popup.
+      // The backend returns `otp` in the send-otp response in development mode.
+      // Strictly gated behind __DEV__ so the code is never revealed in production.
       const devResult = result as any;
-      if (devResult.devMode && devResult.otp) {
-        console.log('\n' + '='.repeat(50));
-        console.log('🔑 DEVELOPMENT MODE - OTP RECEIVED');
-        console.log('📱 Phone:', phone);
-        console.log('🔢 OTP:', devResult.otp);
-        console.log('⏰ Expires in:', devResult.expiresIn, 'seconds');
-        console.log('='.repeat(50) + '\n');
-        
-        Alert.alert(
-          '🔑 Development OTP',
-          `Your OTP is: ${devResult.otp}\n\n(This alert only appears in development mode)`,
-          [{ text: 'OK' }]
-        );
+      if (__DEV__ && devResult?.otp) {
+        dispatch(enqueueNotificationToast({
+          id: `dev-otp-${Date.now()}`,
+          title: `🔐 Your OTP: ${devResult.otp}`,
+          body: 'Development mode — enter this code to continue.',
+          category: 'account',
+          priority: 'P1',
+        }));
+        dispatch(showNextNotificationToast());
       }
       
       setStep('otp'); 

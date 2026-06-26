@@ -4,10 +4,10 @@ import { useConnectivityState } from '../../../hooks/delivery/useConnectivitySta
 import { useDynamicFontSize } from '../../../hooks/delivery/useDynamicFontSize';
 import { useHighContrastMode } from '../../../hooks/delivery/useHighContrastMode';
 import {
-  UX_COLORS,
-  UX_TYPOGRAPHY,
-  UX_SPACING,
-} from '../../../delivery/constants/UXDesignSystem';
+  DELIVERY_COLORS,
+  DELIVERY_TYPOGRAPHY,
+  DELIVERY_SPACING,
+} from '../../../constants/deliveryTheme';
 
 interface GlobalConnectivityBannerProps {
   onForceSync?: () => void;
@@ -37,8 +37,8 @@ const GlobalConnectivityBannerInner: React.FC<GlobalConnectivityBannerProps> = (
   const connectivityState = useConnectivityState();
 
   // Dynamic font sizing (Requirement 15.2)
-  const bannerFontSize = useDynamicFontSize(UX_TYPOGRAPHY.critical.fontSize);
-  const forceSyncFontSize = useDynamicFontSize(UX_TYPOGRAPHY.secondary.fontSize);
+  const bannerFontSize = useDynamicFontSize(DELIVERY_TYPOGRAPHY.base);
+  const forceSyncFontSize = useDynamicFontSize(DELIVERY_TYPOGRAPHY.sm);
 
   // High contrast mode (Requirement 15.7)
   const isHighContrast = useHighContrastMode();
@@ -60,15 +60,15 @@ const GlobalConnectivityBannerInner: React.FC<GlobalConnectivityBannerProps> = (
   switch (connectivityState.type) {
     case 'offline':
       // Red background — persistent, unmistakable (Requirements 2.1, 6.1)
-      backgroundColor = UX_COLORS.offline;
-      textColor = isHighContrast ? '#FFFFFF' : UX_COLORS.offlineBg;
+      backgroundColor = '#E53E3E';
+      textColor = '#FFFFFF';
       message = 'Offline';
       break;
 
     case 'syncing':
       // Yellow background — syncing state (Requirement 2.2)
-      backgroundColor = UX_COLORS.syncing;
-      textColor = isHighContrast ? UX_COLORS.textHighContrast : UX_COLORS.syncingBg;
+      backgroundColor = DELIVERY_COLORS.warning;
+      textColor = isHighContrast ? DELIVERY_COLORS.textPrimary : DELIVERY_COLORS.warningBg;
       message = `Syncing ${connectivityState.count} action${connectivityState.count !== 1 ? 's' : ''}`;
       // Show Force Sync button when onForceSync is provided (Requirement 7.2)
       showForceSync = !!onForceSync;
@@ -76,15 +76,15 @@ const GlobalConnectivityBannerInner: React.FC<GlobalConnectivityBannerProps> = (
 
     case 'reconnected':
       // Green background — auto-hides after 3s (Requirement 2.3)
-      backgroundColor = UX_COLORS.success;
-      textColor = isHighContrast ? '#FFFFFF' : UX_COLORS.successBg;
+      backgroundColor = DELIVERY_COLORS.success;
+      textColor = isHighContrast ? '#FFFFFF' : DELIVERY_COLORS.successBg;
       message = 'Reconnected';
       break;
 
     case 'replaying':
       // Yellow background — queue replaying (Requirement 2.4)
-      backgroundColor = UX_COLORS.syncing;
-      textColor = isHighContrast ? UX_COLORS.textHighContrast : UX_COLORS.syncingBg;
+      backgroundColor = DELIVERY_COLORS.warning;
+      textColor = isHighContrast ? DELIVERY_COLORS.textPrimary : DELIVERY_COLORS.warningBg;
       message = 'Queue replaying';
       // Show Force Sync button when onForceSync is provided (Requirement 7.2)
       showForceSync = !!onForceSync;
@@ -92,8 +92,8 @@ const GlobalConnectivityBannerInner: React.FC<GlobalConnectivityBannerProps> = (
 
     default:
       // Exhaustive type check — should never reach here
-      backgroundColor = UX_COLORS.syncing;
-      textColor = isHighContrast ? UX_COLORS.textHighContrast : UX_COLORS.syncingBg;
+      backgroundColor = DELIVERY_COLORS.warning;
+      textColor = isHighContrast ? DELIVERY_COLORS.textPrimary : DELIVERY_COLORS.warningBg;
       message = 'Unknown state';
   }
 
@@ -199,8 +199,8 @@ GlobalConnectivityBanner.displayName = 'GlobalConnectivityBanner';
 const styles = StyleSheet.create({
   banner: {
     width: '100%',
-    paddingVertical: UX_SPACING.edgePadding / 2,   // 8dp vertical
-    paddingHorizontal: UX_SPACING.edgePadding,      // 16dp horizontal
+    paddingVertical: DELIVERY_SPACING.lg / 2,   // 8dp vertical
+    paddingHorizontal: DELIVERY_SPACING.lg,      // 16dp horizontal
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -210,23 +210,23 @@ const styles = StyleSheet.create({
   },
   text: {
     textAlign: 'center',
-    fontWeight: UX_TYPOGRAPHY.critical.fontWeight,   // 600
-    lineHeight: UX_TYPOGRAPHY.critical.lineHeight,
+    fontWeight: '700',   // 600
+    lineHeight: 20,
   },
   forceSyncButton: {
-    marginLeft: UX_SPACING.componentGap,             // 12dp
-    paddingVertical: UX_SPACING.componentGap / 2,    // 6dp
-    paddingHorizontal: UX_SPACING.componentGap,      // 12dp
+    marginLeft: DELIVERY_SPACING.md,             // 12dp
+    paddingVertical: DELIVERY_SPACING.md / 2,    // 6dp
+    paddingHorizontal: DELIVERY_SPACING.md,      // 12dp
     backgroundColor: 'rgba(255, 255, 255, 0.25)',
     borderRadius: 4,
     // Minimum touch target: 48x48dp (Requirement 5.1, 15.5)
-    minHeight: UX_SPACING.touchTarget,
-    minWidth: UX_SPACING.touchTarget * 2,
+    minHeight: 48,
+    minWidth: 48 * 2,
     justifyContent: 'center',
     alignItems: 'center',
   },
   forceSyncText: {
-    fontWeight: UX_TYPOGRAPHY.secondary.fontWeight,  // 500
-    lineHeight: UX_TYPOGRAPHY.secondary.lineHeight,
+    fontWeight: '500',  // 500
+    lineHeight: 18,
   },
 });

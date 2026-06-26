@@ -55,6 +55,19 @@ export default function DeliveryKYCScreen({ navigation }: any) {
       const data = await res.json();
       setKycStatus(data.status || 'NOT_STARTED');
       setRejectionReason(data.rejectionReason || '');
+
+      // Pre-mark any documents the backend already has on file (e.g. after a
+      // rejection, so the partner only needs to re-upload what's missing).
+      const uploadedDocs: DocType[] = Array.isArray(data.uploadedDocs) ? data.uploadedDocs : [];
+      if (uploadedDocs.length > 0) {
+        setDocs(prev => {
+          const next = { ...prev };
+          uploadedDocs.forEach((dt) => {
+            if (next[dt]) next[dt] = { ...next[dt], uploaded: true };
+          });
+          return next;
+        });
+      }
     } catch {
       setKycStatus('NOT_STARTED');
     } finally {
@@ -103,23 +116,12 @@ export default function DeliveryKYCScreen({ navigation }: any) {
         body: formData,
       });
 
-      if (res.status === 404) {
-        // Backend not ready
-        Alert.alert(
-          'Coming Soon',
-          'Verification coming soon. Our team will review your documents shortly.',
-          [{ text: 'OK' }]
-        );
-        setDocs(prev => ({ ...prev, [docType]: { ...prev[docType], uploaded: true, uploading: false } }));
-        logEvent('kyc_upload_fallback', { docType });
-        return;
-      }
-
       if (res.ok) {
         setDocs(prev => ({ ...prev, [docType]: { ...prev[docType], uploaded: true, uploading: false } }));
         logEvent('kyc_document_uploaded', { docType });
       } else {
-        throw new Error('Upload failed');
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error || 'Upload failed');
       }
     } catch {
       Alert.alert('Upload Failed', 'Could not upload document. Please try again.');
@@ -141,17 +143,13 @@ export default function DeliveryKYCScreen({ navigation }: any) {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       });
 
-      if (res.status === 404) {
-        setKycStatus('PENDING');
-        Alert.alert('Submitted', 'Verification coming soon. Our team will review your documents shortly.');
-        logEvent('kyc_submit_fallback');
-        return;
-      }
-
       if (res.ok) {
         setKycStatus('PENDING');
         logEvent('kyc_submitted');
         Alert.alert('KYC Submitted', 'Your documents are under review. You will be notified once verified.');
+      } else {
+        const data = await res.json().catch(() => ({}));
+        Alert.alert('Could not submit', data?.error || 'Please ensure all documents are uploaded and try again.');
       }
     } catch {
       Alert.alert('Error', 'Could not submit KYC. Please try again.');

@@ -8,6 +8,7 @@ export interface Order {
   paymentMethod: string;
   paymentStatus?: string;
   arrivedAt?: string;
+  deliveryOtpGeneratedAt?: string; // Set by backend when OTP is sent — used to derive deliveryAttempted
   createdAt?: string;
   cancelReason?: string;
   allowedActions?: string[];
@@ -28,6 +29,18 @@ export interface Order {
  * Calculates the great-circle distance between two coordinates using the Haversine formula.
  * @returns Distance in kilometres
  */
+const digitsOnly = (value: string): string => value.replace(/\D/g, '');
+
+/** Avoid showing the same phone number as both name and phone line. */
+export const getCustomerDisplayName = (name?: string, phone?: string): string => {
+  const n = (name ?? '').trim();
+  const p = (phone ?? '').trim();
+  if (!n) return 'Customer';
+  if (p && digitsOnly(n) === digitsOnly(p)) return 'Customer';
+  if (/^\+?[\d\s\-()]{8,}$/.test(n)) return 'Customer';
+  return n;
+};
+
 export const haversineDistance = (
   lat1: number,
   lng1: number,

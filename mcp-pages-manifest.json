@@ -1,0 +1,123 @@
+{
+  "baseUrl": "http://localhost:3000",
+  "fixtures": {
+    "productId": "1",
+    "orderId": null,
+    "routeId": null,
+    "adminOrderId": null
+  },
+  "categories": {
+    "public": {
+      "description": "No authentication required",
+      "pages": [
+        { "path": "/", "name": "Home", "description": "Landing page with categories and featured products" },
+        { "path": "/login", "name": "Customer Login", "description": "Email/password and OTP login" },
+        { "path": "/signup", "name": "Customer Signup", "description": "New customer registration" },
+        { "path": "/products", "name": "Products Listing", "description": "Browse all products with filters" },
+        { "path": "/search", "name": "Search Results", "description": "Product search with query params" },
+        { "path": "/product/:id", "name": "Product Detail", "description": "Single product view (use /product/1)" },
+        { "path": "/menu", "name": "Menu", "description": "Category menu overlay page" },
+        { "path": "/categories", "name": "Categories", "description": "All product categories" },
+        { "path": "/download-app", "name": "Download App", "description": "App download CTA page" },
+        { "path": "/contact-us", "name": "Contact Us", "description": "Contact information and form" },
+        { "path": "/customer-care", "name": "Customer Care", "description": "Support and help center" },
+        { "path": "/about-us", "name": "About Us", "description": "Company information" },
+        { "path": "/careers", "name": "Careers", "description": "Job openings and careers" },
+        { "path": "/cs-store-stories", "name": "CS Store Stories", "description": "Brand stories and blog" },
+        { "path": "/corporate-information", "name": "Corporate Info", "description": "Legal corporate details" },
+        { "path": "/help-support", "name": "Help & Support", "description": "FAQ and support topics" },
+        { "path": "/become-seller", "name": "Become a Seller", "description": "Seller onboarding (Coming Soon)" },
+        { "path": "/privacy", "name": "Privacy Policy", "description": "Privacy policy page" },
+        { "path": "/terms", "name": "Terms & Conditions", "description": "Terms of service" },
+        { "path": "/cancellation", "name": "Cancellation & Returns", "description": "Return policy" }
+      ]
+    },
+    "customer": {
+      "description": "Requires customer authentication",
+      "credentials": { "email": "test@example.com", "password": "password123" },
+      "pages": [
+        { "path": "/dashboard", "name": "Customer Dashboard", "description": "Orders, addresses, profile summary" },
+        { "path": "/cart", "name": "Shopping Cart", "description": "Cart items and checkout CTA" },
+        { "path": "/checkout", "name": "Checkout", "description": "Address, payment, place order" },
+        { "path": "/order-success/:orderId", "name": "Order Success", "description": "Post-purchase confirmation" },
+        { "path": "/orders", "name": "My Orders", "description": "Order history list" },
+        { "path": "/orders/:orderId", "name": "Order Details", "description": "Single order detail with timeline" },
+        { "path": "/order/:id", "name": "Order Tracking", "description": "Live delivery tracking" },
+        { "path": "/profile", "name": "Profile", "description": "User profile overview" },
+        { "path": "/addresses", "name": "Addresses", "description": "Saved delivery addresses" },
+        { "path": "/notification-preferences", "name": "Notification Preferences", "description": "Push/email settings" },
+        { "path": "/settings", "name": "Settings", "description": "Account settings" },
+        { "path": "/account", "name": "Account", "description": "Account management" },
+        { "path": "/account/profile", "name": "Account Profile", "description": "Profile sub-page" },
+        { "path": "/account/profile/edit", "name": "Edit Profile", "description": "Profile editing form" },
+        { "path": "/account/settings", "name": "Account Settings", "description": "Settings sub-page" },
+        { "path": "/account/notifications", "name": "Notifications", "description": "Notifications sub-page" }
+      ]
+    },
+    "admin": {
+      "description": "Requires admin authentication",
+      "credentials": { "email": "admin@vyaparasetu.com", "password": "admin123" },
+      "pages": [
+        { "path": "/admin", "name": "Admin Dashboard", "description": "Overview cards, stats, quick actions" },
+        { "path": "/admin/products", "name": "Admin Products", "description": "Product listing with CRUD" },
+        { "path": "/admin/products/new", "name": "Create Product", "description": "Product creation form" },
+        { "path": "/admin/users", "name": "Admin Users", "description": "User management table" },
+        { "path": "/admin/orders", "name": "Admin Orders", "description": "Order management table" },
+        { "path": "/admin/orders/:orderId", "name": "Admin Order Detail", "description": "Single order admin view" },
+        { "path": "/admin/routes", "name": "Admin Routes", "description": "Delivery route listing" },
+        { "path": "/admin/routes/recent", "name": "Recent Routes", "description": "Recently created routes" },
+        { "path": "/admin/routes/preview", "name": "Route Preview", "description": "Route preview before creation" },
+        { "path": "/admin/routes/:routeId", "name": "Route Detail", "description": "Single route with orders and map" },
+        { "path": "/admin/routes/:routeId/map", "name": "Route Map", "description": "Full-screen route map view" },
+        { "path": "/admin/delivery-boys", "name": "Delivery Partners", "description": "Rider management" },
+        { "path": "/admin/analytics", "name": "Analytics", "description": "Sales and delivery analytics" },
+        { "path": "/admin/finance", "name": "Finance", "description": "Financial overview and reports" },
+        { "path": "/admin/payments", "name": "Payment Logs", "description": "Transaction logs" },
+        { "path": "/admin/ops/payments/recovery", "name": "Payment Recovery", "description": "Failed payment recovery" },
+        { "path": "/admin/ops/finance", "name": "Finance Reports", "description": "Detailed finance reports" },
+        { "path": "/admin/settings", "name": "Admin Settings", "description": "Platform settings" },
+        { "path": "/admin-profile", "name": "Admin Profile", "description": "Admin user profile" }
+      ]
+    },
+    "delivery": {
+      "description": "Requires delivery partner authentication",
+      "credentials": {
+        "email": "delivery@test.com",
+        "password": "delivery123",
+        "phone": "9391795162"
+      },
+      "pages": [
+        { "path": "/delivery/login", "name": "Delivery Login", "description": "Delivery partner login" },
+        { "path": "/delivery/signup", "name": "Delivery Signup", "description": "Delivery partner registration" },
+        { "path": "/delivery", "name": "Delivery Dashboard", "description": "Main delivery partner dashboard" },
+        { "path": "/delivery/dashboard", "name": "Delivery Dashboard (alt)", "description": "Alias for /delivery" },
+        { "path": "/delivery/profile", "name": "Delivery Profile", "description": "Rider profile and stats" },
+        { "path": "/delivery/earnings-info", "name": "Earnings Info", "description": "How to earn more" },
+        { "path": "/delivery/refer", "name": "Refer & Earn", "description": "Referral program" },
+        { "path": "/delivery/support", "name": "Delivery Support", "description": "Help for delivery partners" },
+        { "path": "/delivery/messages", "name": "Message Center", "description": "In-app messages" },
+        { "path": "/delivery/settings", "name": "Delivery Settings", "description": "Rider app settings" },
+        { "path": "/delivery-selfie", "name": "Selfie Verification", "description": "KYC selfie upload" },
+        { "path": "/delivery-profile", "name": "Delivery Profile (alt)", "description": "Alt route for profile" },
+        { "path": "/delivery/emergency", "name": "Emergency", "description": "Emergency contacts" },
+        { "path": "/delivery/help-center", "name": "Delivery Help", "description": "Help center for riders" },
+        { "path": "/delivery-settings", "name": "Delivery Settings (alt)", "description": "Alt route for settings" }
+      ]
+    },
+    "shared": {
+      "description": "Requires any authentication",
+      "pages": [
+        { "path": "/ways-to-earn", "name": "Ways to Earn", "description": "Earning opportunities" },
+        { "path": "/refer-and-earn", "name": "Refer & Earn", "description": "Customer referral program" },
+        { "path": "/message-center", "name": "Message Center", "description": "Customer messages" }
+      ]
+    },
+    "debug": {
+      "description": "Development only",
+      "pages": [
+        { "path": "/test-otp", "name": "Test OTP", "description": "OTP testing utility" },
+        { "path": "/debug", "name": "Debug", "description": "Development debug page" }
+      ]
+    }
+  }
+}

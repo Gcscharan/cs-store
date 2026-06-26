@@ -43,14 +43,22 @@ const isValidCoord = (lat?: number, lng?: number): boolean => {
   return true;
 };
 
+type RouteStop = {
+  order: Order;
+  score: number;
+  warehouseDist: number;
+  driverDist: number;
+  roadMetres: number;
+};
+
 // ─── 2-opt optimization ────────────────────────────────────────────────────────
 // Improves route by swapping segments to reduce total distance
 // This fixes greedy routing inefficiencies (e.g., zig-zag patterns)
 const twoOptOptimize = (
-  route: Array<{ order: Order; [key: string]: any }>,
+  route: RouteStop[],
   startLat: number,
-  startLng: number
-): typeof route => {
+  startLng: number,
+): RouteStop[] => {
   if (route.length < 3) return route; // need at least 3 stops to optimize
 
   let improved = true;
@@ -62,27 +70,29 @@ const twoOptOptimize = (
     for (let i = 0; i < optimized.length - 1; i++) {
       for (let j = i + 2; j < optimized.length; j++) {
         // Calculate current segment distance
-        const prevLat = i === 0 ? startLat : optimized[i - 1].order.address.lat;
-        const prevLng = i === 0 ? startLng : optimized[i - 1].order.address.lng;
+        const prevLat = i === 0 ? startLat : optimized[i - 1].order.address?.lat ?? startLat;
+        const prevLng = i === 0 ? startLng : optimized[i - 1].order.address?.lng ?? startLng;
+        const iLat = optimized[i].order.address?.lat;
+        const iLng = optimized[i].order.address?.lng;
+        const jPrevLat = optimized[j - 1].order.address?.lat;
+        const jPrevLng = optimized[j - 1].order.address?.lng;
+        const jLat = optimized[j].order.address?.lat;
+        const jLng = optimized[j].order.address?.lng;
+        if (
+          iLat == null || iLng == null || jPrevLat == null || jPrevLng == null ||
+          jLat == null || jLng == null
+        ) {
+          continue;
+        }
 
         const currentDist =
-          haversineKm(prevLat, prevLng, optimized[i].order.address.lat, optimized[i].order.address.lng) +
-          haversineKm(
-            optimized[j - 1].order.address.lat,
-            optimized[j - 1].order.address.lng,
-            optimized[j].order.address.lat,
-            optimized[j].order.address.lng
-          );
+          haversineKm(prevLat, prevLng, iLat, iLng) +
+          haversineKm(jPrevLat, jPrevLng, jLat, jLng);
 
         // Calculate distance after reversing segment [i...j-1]
         const newDist =
-          haversineKm(prevLat, prevLng, optimized[j - 1].order.address.lat, optimized[j - 1].order.address.lng) +
-          haversineKm(
-            optimized[i].order.address.lat,
-            optimized[i].order.address.lng,
-            optimized[j].order.address.lat,
-            optimized[j].order.address.lng
-          );
+          haversineKm(prevLat, prevLng, jPrevLat, jPrevLng) +
+          haversineKm(iLat, iLng, jLat, jLng);
 
         // If reversing improves distance, apply it
         if (newDist < currentDist) {
@@ -246,7 +256,7 @@ export const useRouteArrangement = (activeOrders: Order[]) => {
 
       // 2. Filter eligible orders — picked up + valid coords only
       const eligible = activeOrders.filter(order => {
-        const s = order.orderStatus.toLowerCase();
+        const s = (order.orderStatus ?? '').toLowerCase();
         return (
           ['picked_up', 'in_transit', 'out_for_delivery', 'arrived'].includes(s) &&
           isValidCoord(order.address?.lat, order.address?.lng)
@@ -254,7 +264,10 @@ export const useRouteArrangement = (activeOrders: Order[]) => {
       });
 
       if (eligible.length < 1) {
-        console.log('[ROUTE_ARRANGEMENT] No eligible orders');
+        Alert.alert(
+          'Cannot Arrange Route',
+          'Pick up at least one order with a valid delivery address before arranging your route.',
+        );
         return;
       }
 
@@ -265,7 +278,7 @@ export const useRouteArrangement = (activeOrders: Order[]) => {
         ? eligible.find(
             o =>
               o._id === currentOrderId &&
-              IN_PROGRESS_STATUSES.includes(o.orderStatus.toLowerCase())
+              IN_PROGRESS_STATUSES.includes((o.orderStatus ?? '').toLowerCase())
           ) ?? null
         : null;
 
@@ -287,7 +300,7 @@ export const useRouteArrangement = (activeOrders: Order[]) => {
         inProgressOrderId: inProgressOrder?._id?.slice(-6) ?? 'none',
       });
 
-      let optimizedRoute: Array<{ order: Order; score: number; warehouseDist: number; driverDist: number; roadMetres: number }> = [];
+      let optimizedRoute: RouteStop[] = [];
 
       if (toOptimize.length > 0) {
         let currentLat = driverLat;
@@ -307,8 +320,12 @@ export const useRouteArrangement = (activeOrders: Order[]) => {
           let bestDriverDist = 0;
 
           remaining.forEach((order, idx) => {
-            const distFromCurrent = haversineKm(currentLat, currentLng, order.address.lat, order.address.lng);
-            const distFromWarehouse = haversineKm(WAREHOUSE.lat, WAREHOUSE.lng, order.address.lat, order.address.lng);
+            const lat = order.address?.lat;
+            const lng = order.address?.lng;
+            if (!isValidCoord(lat, lng)) return;
+
+            const distFromCurrent = haversineKm(currentLat, currentLng, lat!, lng!);
+            const distFromWarehouse = haversineKm(WAREHOUSE.lat, WAREHOUSE.lng, lat!, lng!);
 
             let score: number;
             if (isFirstPick) {
@@ -329,10 +346,10 @@ export const useRouteArrangement = (activeOrders: Order[]) => {
             }
           });
 
-          if (bestOrder) {
+          if (bestOrder && isValidCoord(bestOrder.address?.lat, bestOrder.address?.lng)) {
             route.push({ order: bestOrder, score: bestScore, warehouseDist: bestWarehouseDist, driverDist: bestDriverDist, roadMetres: Infinity });
-            currentLat = bestOrder.address.lat;
-            currentLng = bestOrder.address.lng;
+            currentLat = bestOrder.address!.lat!;
+            currentLng = bestOrder.address!.lng!;
             remaining.splice(bestIndex, 1);
           }
         }
@@ -388,7 +405,7 @@ export const useRouteArrangement = (activeOrders: Order[]) => {
   const isOrderCurrent = useCallback((id: string) => isArranged && id === currentOrderId, [isArranged, currentOrderId]);
 
   const canArrangeRoute = activeOrders.filter(o =>
-    ['picked_up', 'in_transit', 'out_for_delivery', 'arrived'].includes(o.orderStatus.toLowerCase())
+    ['picked_up', 'in_transit', 'out_for_delivery', 'arrived'].includes((o.orderStatus ?? '').toLowerCase())
   ).length >= 1;
 
   return {

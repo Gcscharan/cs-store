@@ -1,6 +1,6 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { View, Text, TouchableOpacity, StyleSheet, StatusBar } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {
   DELIVERY_COLORS,
@@ -21,54 +21,55 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   onBack,
   rightContent,
 }) => {
-  const insets = useSafeAreaInsets();
-
   return (
-    <View style={[styles.container, { paddingTop: insets.top + DELIVERY_SPACING.sm }]}>
-      <View style={styles.row}>
-        {/* Left: back button or spacer */}
-        {showBack ? (
-          <TouchableOpacity
-            style={styles.backBtn}
-            onPress={onBack}
-            activeOpacity={0.7}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons name="arrow-back" size={22} color={DELIVERY_COLORS.textPrimary} />
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.backBtn} />
-        )}
+    <>
+      {/* Light text on orange background — matches Orders page */}
+      <StatusBar barStyle="light-content" backgroundColor={DELIVERY_COLORS.primary} />
+      <SafeAreaView edges={['top']} style={styles.safeArea}>
+        <View style={styles.row}>
+          {/* Left: back button or spacer */}
+          {showBack ? (
+            <TouchableOpacity
+              style={styles.sideBtn}
+              onPress={onBack}
+              activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="arrow-back" size={22} color={DELIVERY_COLORS.white} />
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.sideBtn} />
+          )}
 
-        {/* Title — left aligned */}
-        <Text style={styles.title} numberOfLines={1}>
-          {title}
-        </Text>
+          {/* Title */}
+          <Text style={styles.title} numberOfLines={1}>
+            {title}
+          </Text>
 
-        {/* Right: optional content or spacer */}
-        <View style={styles.right}>
-          {rightContent ?? null}
+          {/* Right: optional content or spacer */}
+          <View style={styles.sideBtn}>
+            {rightContent ?? null}
+          </View>
         </View>
-      </View>
-    </View>
+      </SafeAreaView>
+    </>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: DELIVERY_COLORS.background,
-    paddingHorizontal: DELIVERY_SPACING.lg,
-    paddingBottom: DELIVERY_SPACING.md,
-    borderBottomWidth: 1,
-    borderBottomColor: DELIVERY_COLORS.border,
+  safeArea: {
+    backgroundColor: DELIVERY_COLORS.primary,   // orange — matches Orders page
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 44,
+    minHeight: 56,
+    paddingHorizontal: DELIVERY_SPACING.lg,
+    paddingVertical: DELIVERY_SPACING.sm,
+    backgroundColor: DELIVERY_COLORS.primary,
   },
-  backBtn: {
-    width: 32,
+  sideBtn: {
+    width: 36,
     alignItems: 'flex-start',
     justifyContent: 'center',
   },
@@ -76,12 +77,8 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: DELIVERY_TYPOGRAPHY.md,
     fontWeight: '700',
-    color: DELIVERY_COLORS.textPrimary,
-  },
-  right: {
-    width: 32,
-    alignItems: 'flex-end',
-    justifyContent: 'center',
+    color: DELIVERY_COLORS.white,              // white text on orange
+    letterSpacing: 0.2,
   },
 });
 

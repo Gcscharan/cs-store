@@ -1,5 +1,6 @@
 import { useGetDeliveryOrdersQuery } from '../../api/deliveryApi';
 import { Order } from '../../utils/deliveryUtils';
+import { isActiveDeliveryOrder } from '../../utils/deliveryOrderFlow';
 
 // Re-export Order type for convenience
 export type { Order } from '../../utils/deliveryUtils';
@@ -17,10 +18,8 @@ export interface DeliveryBoy {
 
 export const AVAILABLE_STATUSES = ['created'] as const;
 
-export const ACTIVE_STATUSES = [
-  'confirmed', 'packed', 'assigned', 'picked_up',
-  'in_transit', 'out_for_delivery', 'arrived', 'cancelled',
-] as const;
+/** @deprecated Use isActiveDeliveryOrder — kept for tests/imports */
+export { ACTIVE_ORDER_STATUSES as ACTIVE_STATUSES } from '../../utils/deliveryOrderFlow';
 
 export interface UseOrdersResult {
   orders: Order[];
@@ -38,10 +37,10 @@ export const useOrders = (): UseOrdersResult => {
   const orders: Order[] = data?.orders ?? [];
   const deliveryBoy: DeliveryBoy | null = data?.deliveryBoy ?? null;
 
-  const availableOrders = orders.filter(o => o.orderStatus.toLowerCase() === 'created');
-  const activeOrders = orders.filter(o =>
-    ACTIVE_STATUSES.includes(o.orderStatus.toLowerCase() as any)
+  const availableOrders = orders.filter(
+    o => (o.orderStatus ?? '').toLowerCase() === 'created',
   );
+  const activeOrders = orders.filter(isActiveDeliveryOrder);
 
   return {
     orders,

@@ -15,23 +15,27 @@ export const ConnectionBanner: React.FC<ConnectionBannerProps> = ({
   socketStatus,
   isSyncing,
 }) => {
-  if (isOnline && socketStatus === 'connected' && !isSyncing) {
+  // Offline is handled by GlobalConnectivityBanner on the home screen
+  if (!isOnline) {
+    return null;
+  }
+
+  if (socketStatus === 'connected' && !isSyncing) {
     return null;
   }
 
   let backgroundColor: string;
   let message: string;
 
-  if (!isOnline) {
-    backgroundColor = DELIVERY_COLORS.danger;
-    message = 'No Internet Connection';
-  } else if (isSyncing) {
+  if (isSyncing) {
     backgroundColor = DELIVERY_COLORS.warning;
-    message = 'Syncing...';
+    message = 'Syncing queued actions…';
+  } else if (socketStatus === 'disconnected') {
+    backgroundColor = DELIVERY_COLORS.warning;
+    message = 'Live updates paused — polling for orders';
   } else {
-    // isOnline && socketStatus === 'reconnecting'
     backgroundColor = DELIVERY_COLORS.warning;
-    message = 'Reconnecting...';
+    message = 'Reconnecting to server…';
   }
 
   return (

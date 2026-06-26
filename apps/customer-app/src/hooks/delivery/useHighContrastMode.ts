@@ -1,45 +1,36 @@
 /**
  * useHighContrastMode Hook
- * 
- * Detects and provides high contrast mode state for accessibility.
- * Allows components to adapt their styling for users with visual impairments.
- * 
- * Requirement 15.7: Support high contrast mode for drivers with visual impairments
+ *
+ * Detects high text contrast accessibility setting where supported.
+ * On unsupported platforms, returns false.
  */
 
 import { useState, useEffect } from 'react';
 import { AccessibilityInfo } from 'react-native';
 
-/**
- * Detect if high contrast mode is enabled on the device
- * 
- * @returns Boolean indicating if high contrast mode is enabled
- * 
- * @example
- * const isHighContrast = useHighContrastMode();
- * const textColor = isHighContrast ? UX_COLORS.textHighContrast : DELIVERY_COLORS.textPrimary;
- */
 export const useHighContrastMode = (): boolean => {
   const [isHighContrast, setIsHighContrast] = useState(false);
 
   useEffect(() => {
-    // Check initial high contrast state
-    AccessibilityInfo.isHighContrastEnabled()
-      .then(setIsHighContrast)
-      .catch(() => {
-        // Fallback to false if API is not available
-        setIsHighContrast(false);
-      });
+    let mounted = true;
 
-    // Listen for high contrast mode changes
-    const subscription = AccessibilityInfo.addEventListener(
-      'highContrastChanged',
-      setIsHighContrast
-    );
+    const readContrast = async () => {
+      try {
+        if (typeof AccessibilityInfo.isHighTextContrastEnabled === 'function') {
+          const enabled = await AccessibilityInfo.isHighTextContrastEnabled();
+          if (mounted) setIsHighContrast(enabled);
+          return;
+        }
+        if (mounted) setIsHighContrast(false);
+      } catch {
+        if (mounted) setIsHighContrast(false);
+      }
+    };
 
-    // Cleanup listener on unmount
+    readContrast();
+
     return () => {
-      subscription?.remove();
+      mounted = false;
     };
   }, []);
 

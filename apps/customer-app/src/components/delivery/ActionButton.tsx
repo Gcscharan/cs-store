@@ -30,10 +30,10 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import {
-  UX_COLORS,
-  UX_TYPOGRAPHY,
-  UX_SPACING,
-} from '../../delivery/constants/UXDesignSystem';
+  DELIVERY_COLORS,
+  DELIVERY_TYPOGRAPHY,
+  DELIVERY_SPACING,
+} from '../../constants/deliveryTheme';
 import { ActionButtonState } from '../../hooks/delivery/useActionFeedback';
 import { useDynamicFontSize } from '../../hooks/delivery/useDynamicFontSize';
 import { useHighContrastMode } from '../../hooks/delivery/useHighContrastMode';
@@ -88,7 +88,7 @@ const IDLE_VARIANT_COLORS: Record<
   { backgroundColor: string; textColor: string }
 > = {
   primary: {
-    backgroundColor: UX_COLORS.primaryAction, // #2B6CB0 — dark blue (Requirement 5.2)
+    backgroundColor: DELIVERY_COLORS.primary, // #2B6CB0 — dark blue (Requirement 5.2)
     textColor: '#FFFFFF',
   },
   secondary: {
@@ -96,7 +96,7 @@ const IDLE_VARIANT_COLORS: Record<
     textColor: '#FFFFFF',
   },
   danger: {
-    backgroundColor: UX_COLORS.dangerAction, // #C53030 — dark red (Requirement 5.2)
+    backgroundColor: DELIVERY_COLORS.danger, // #C53030 — dark red (Requirement 5.2)
     textColor: '#FFFFFF',
   },
 };
@@ -112,7 +112,7 @@ function getStateConfig(
       return {
         displayLabel: 'Processing…',
         displayIcon: null,
-        backgroundColor: UX_COLORS.processing, // #3182CE — blue
+        backgroundColor: DELIVERY_COLORS.info, // #3182CE — blue
         textColor: '#FFFFFF',
         showSpinner: true,
         interactive: false,
@@ -124,7 +124,7 @@ function getStateConfig(
       return {
         displayLabel: 'Queued Offline',
         displayIcon: '📶',
-        backgroundColor: UX_COLORS.queued, // #D69E2E — yellow
+        backgroundColor: DELIVERY_COLORS.warning, // #D69E2E — yellow
         textColor: '#1A202C', // dark text for yellow bg contrast
         showSpinner: false,
         interactive: false,
@@ -136,7 +136,7 @@ function getStateConfig(
       return {
         displayLabel: 'Synced',
         displayIcon: '✓',
-        backgroundColor: UX_COLORS.synced, // #38A169 — green
+        backgroundColor: DELIVERY_COLORS.success, // #38A169 — green
         textColor: '#FFFFFF',
         showSpinner: false,
         interactive: false,
@@ -148,7 +148,7 @@ function getStateConfig(
       return {
         displayLabel: 'Failed — Retry',
         displayIcon: '✕',
-        backgroundColor: UX_COLORS.failed, // #E53E3E — red
+        backgroundColor: DELIVERY_COLORS.danger, // #E53E3E — red
         textColor: '#FFFFFF',
         showSpinner: false,
         interactive: true, // allows retry (Requirement 3.4)
@@ -213,7 +213,7 @@ const ActionButtonInner: React.FC<ActionButtonProps> = ({
   accessibilityHint,
 }) => {
   // Dynamic font sizing for button label (Requirement 15.2)
-  const labelFontSize = useDynamicFontSize(UX_TYPOGRAPHY.critical.fontSize);
+  const labelFontSize = useDynamicFontSize(DELIVERY_TYPOGRAPHY.base);
 
   // High contrast mode (Requirement 15.7)
   const isHighContrast = useHighContrastMode();
@@ -256,13 +256,13 @@ const ActionButtonInner: React.FC<ActionButtonProps> = ({
 
   // ── Dynamic styles ────────────────────────────────────────────────────────
 
-  const resolvedBg = disabled ? UX_COLORS.locked : config.backgroundColor;
+  const resolvedBg = disabled ? DELIVERY_COLORS.textMuted : config.backgroundColor;
 
   // Apply high contrast text color when enabled (Requirement 15.7)
   const resolvedTextColor = (() => {
     if (disabled) return '#718096';
     if (isHighContrast && config.textColor === '#FFFFFF') return '#FFFFFF'; // keep white on colored bg
-    if (isHighContrast && config.textColor !== '#FFFFFF') return UX_COLORS.textHighContrast;
+    if (isHighContrast && config.textColor !== '#FFFFFF') return DELIVERY_COLORS.textPrimary;
     return config.textColor;
   })();
 
@@ -350,12 +350,12 @@ const styles = StyleSheet.create({
    * Distinct visual states are achieved via dynamic backgroundColor + opacity.
    */
   button: {
-    minHeight: UX_SPACING.touchTarget,   // 48dp
-    minWidth: UX_SPACING.touchTarget,    // 48dp
+    minHeight: 48,   // 48dp
+    minWidth: 48,    // 48dp
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 8,
-    marginHorizontal: UX_SPACING.edgePadding, // 16dp edge padding (Requirement 5.6)
+    marginHorizontal: DELIVERY_SPACING.lg, // 16dp edge padding (Requirement 5.6)
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -381,8 +381,8 @@ const styles = StyleSheet.create({
    * fontSize is overridden dynamically via useDynamicFontSize (Requirement 15.2).
    */
   label: {
-    lineHeight: UX_TYPOGRAPHY.critical.lineHeight,
-    fontWeight: UX_TYPOGRAPHY.critical.fontWeight,
+    lineHeight: 20,
+    fontWeight: '700',
     textAlign: 'center',
   },
 });

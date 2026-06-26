@@ -17,7 +17,16 @@ import {
   useApproveDeliveryBoyMutation,
   useGetDeliveryBoysQuery,
   useSuspendDeliveryBoyMutation,
+  useReviewDeliveryKycMutation,
 } from '../../api/adminApi';
+
+type KycInfo = {
+  status?: 'NOT_STARTED' | 'PENDING' | 'VERIFIED' | 'REJECTED' | string;
+  submittedAt?: string | null;
+  reviewedAt?: string | null;
+  rejectionReason?: string;
+  documents?: Array<{ docType: string; url: string; uploadedAt?: string }>;
+};
 
 type DeliveryBoyLike = {
   user: {
@@ -33,9 +42,11 @@ type DeliveryBoyLike = {
     createdAt?: string;
   };
   deliveryBoy?: {
+    _id?: string;
     availability?: 'available' | 'busy' | 'offline' | string;
     earnings?: number;
     completedOrdersCount?: number;
+    kyc?: KycInfo;
   } | null;
 };
 
@@ -65,6 +76,7 @@ const AdminDeliveryBoysScreen: React.FC = () => {
 
   const [approve, { isLoading: approving }] = useApproveDeliveryBoyMutation();
   const [suspend, { isLoading: suspending }] = useSuspendDeliveryBoyMutation();
+  const [reviewKyc, { isLoading: reviewingKyc }] = useReviewDeliveryKycMutation();
 
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase();
@@ -108,6 +120,69 @@ const AdminDeliveryBoysScreen: React.FC = () => {
     } catch (err: any) {
       console.error('Approve partner error:', err);
       Alert.alert('Error', err.data?.message || 'Failed to approve partner');
+    }
+  };
+
+  const doVerifyKyc = async (deliveryBoyId?: string) => {
+    if (!deliveryBoyId) return;
+    try {
+      await reviewKyc({ deliveryBoyId, decision: 'VERIFIED' }).unwrap();
+      Alert.alert('KYC Verified', 'The delivery partner KYC has been verified.');
+    } catch (err: any) {
+      console.error('Verify KYC error:', err);
+      Alert.alert('Error', err.data?.error || 'Failed to verify KYC');
+    }
+  };
+
+  const doRejectKyc = (deliveryBoyId?: string) => {
+    if (!deliveryBoyId) return;
+    Alert.prompt?.(
+      'Reject KYC',
+      'Enter a reason for rejection (the partner will see this):',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reject',
+          style: 'destructive',
+          onPress: async (reason?: string) => {
+            const rejectionReason = String(reason || '').trim();
+            if (!rejectionReason) {
+              Alert.alert('Reason required', 'Please provide a rejection reason.');
+              return;
+            }
+            try {
+              await reviewKyc({ deliveryBoyId, decision: 'REJECTED', rejectionReason }).unwrap();
+              Alert.alert('KYC Rejected', 'The partner has been notified to re-upload documents.');
+            } catch (err: any) {
+              console.error('Reject KYC error:', err);
+              Alert.alert('Error', err.data?.error || 'Failed to reject KYC');
+            }
+          },
+        },
+      ],
+      'plain-text'
+    );
+    // Android fallback: Alert.prompt is iOS-only. Reject with a default reason.
+    if (!Alert.prompt) {
+      Alert.alert('Reject KYC', 'Reject this KYC submission?', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reject',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await reviewKyc({
+                deliveryBoyId,
+                decision: 'REJECTED',
+                rejectionReason: 'Documents unclear. Please re-upload.',
+              }).unwrap();
+              Alert.alert('KYC Rejected', 'The partner has been notified to re-upload documents.');
+            } catch (err: any) {
+              Alert.alert('Error', err.data?.error || 'Failed to reject KYC');
+            }
+          },
+        },
+      ]);
     }
   };
 
@@ -173,7 +248,7 @@ const AdminDeliveryBoysScreen: React.FC = () => {
           <FlatList
             data={filtered}
             keyExtractor={(item) => String(item.user._id)}
-            refreshControl={<RefreshControl refreshing={isFetching || approving || suspending} onRefresh={refetch} />}
+            refreshControl={<RefreshControl refreshing={isFetching || approving || suspending || reviewingKyc} onRefresh={refetch} />}
             contentContainerStyle={styles.listContent}
             ListEmptyComponent={
               <View style={styles.center}>
@@ -189,6 +264,8 @@ const AdminDeliveryBoysScreen: React.FC = () => {
               const areas = item.user.deliveryProfile?.assignedAreas || [];
               const completed = Number(item.deliveryBoy?.completedOrdersCount || 0);
               const earnings = Number(item.deliveryBoy?.earnings || 0);
+              const kyc = item.deliveryBoy?.kyc;
+              const kycStatus = String(kyc?.status || 'NOT_STARTED').toUpperCase();
 
               return (
                 <View style={styles.card}>
@@ -226,7 +303,48 @@ const AdminDeliveryBoysScreen: React.FC = () => {
                     <Text style={styles.v}>Completed: {completed} | Earnings: ₹{earnings}</Text>
                   </View>
 
+                  <View style={styles.infoRow}>
+                    <Text style={styles.k}>KYC</Text>
+                    <Text
+                      style={[
+                        styles.v,
+                        {
+                          color:
+                            kycStatus === 'VERIFIED'
+                              ? '#16a34a'
+                              : kycStatus === 'PENDING'
+                              ? Colors.primary
+                              : kycStatus === 'REJECTED'
+                              ? Colors.error
+                              : Colors.textMuted,
+                        },
+                      ]}
+                    >
+                      {kycStatus}
+                      {kyc?.documents?.length ? ` (${kyc.documents.length} docs)` : ''}
+                    </Text>
+                  </View>
+
                   <Text style={styles.joined}>Joined: {formatDate(item.user.createdAt)}</Text>
+
+                  {kycStatus === 'PENDING' ? (
+                    <View style={styles.actionsRow}>
+                      <TouchableOpacity
+                        style={[styles.actionBtn, styles.btnGreen, { marginRight: 10 }]}
+                        onPress={() => doVerifyKyc(item.deliveryBoy?._id)}
+                        activeOpacity={0.9}
+                      >
+                        <Text style={styles.actionText}>Verify KYC ✓</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.actionBtn, styles.btnRed]}
+                        onPress={() => doRejectKyc(item.deliveryBoy?._id)}
+                        activeOpacity={0.9}
+                      >
+                        <Text style={styles.actionText}>Reject KYC</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : null}
 
                   <View style={styles.actionsRow}>
                     {st === 'PENDING' ? (

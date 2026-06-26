@@ -1,5 +1,5 @@
-import 'expo-dev-client';
 import './src/utils/sentryPolyfill';
+import 'expo-dev-client';
 import 'react-native-gesture-handler';
 import { registerRootComponent } from 'expo';
 // Register the headless background location task

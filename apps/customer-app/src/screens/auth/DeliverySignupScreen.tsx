@@ -80,7 +80,7 @@ export default function DeliverySignupScreen({ navigation }: any) {
 
   if (success) {
     return (
-      <View style={s.container}>
+      <SafeAreaView style={s.container} edges={['top', 'left', 'right']}>
         <ScreenHeader title="Success" />
         <View style={s.successContainer}>
           <Text style={s.successIcon}>✅</Text>
@@ -91,12 +91,12 @@ export default function DeliverySignupScreen({ navigation }: any) {
           <ActivityIndicator color={Colors.secondary} style={{ marginTop: 20 }} />
           <Text style={s.redirectText}>Redirecting to login...</Text>
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={s.container}>
+    <SafeAreaView style={s.container} edges={['top', 'left', 'right']}>
       <ScreenHeader title="Apply Now" showBackButton />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={s.scrollContent} keyboardShouldPersistTaps="handled">
@@ -197,7 +197,7 @@ export default function DeliverySignupScreen({ navigation }: any) {
           <View style={{ height: 40 }} />
         </ScrollView>
       </KeyboardAvoidingView>
-    </View>
+    </SafeAreaView>
   );
 }
 

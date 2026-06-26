@@ -32,9 +32,9 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 1
 fi
 
-sed -i '' "s|EXPO_PUBLIC_API_URL=.*|EXPO_PUBLIC_API_URL=http://$IP:5002/api|" "$ENV_FILE"
+sed -i '' "s|EXPO_PUBLIC_API_URL=.*|EXPO_PUBLIC_API_URL=http://$IP:5001/api|" "$ENV_FILE"
 
-echo "✅  EXPO_PUBLIC_API_URL=http://$IP:5002/api"
+echo "✅  EXPO_PUBLIC_API_URL=http://$IP:5001/api"
 echo ""
 echo "Next steps:"
 echo "  • Already have the dev build installed? → npm run dev:android:local (rebuilds with new IP)"

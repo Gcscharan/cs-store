@@ -1,6 +1,7 @@
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import useDeliveryLocation from '../hooks/useDeliveryLocation';
+import { useDashboardData } from '../hooks/delivery/useDashboardData';
 import DeliveryDashboardScreen from '../screens/delivery/DeliveryDashboardScreen';
 import DeliveryProfileScreen from '../screens/delivery/DeliveryProfileScreen';
 import DeliveryEmergencyScreen from '../screens/delivery/DeliveryEmergencyScreen';
@@ -13,9 +14,9 @@ import DeliveryRouteScreen from '../screens/delivery/DeliveryRouteScreen';
 const Stack = createStackNavigator();
 
 export default function DeliveryNavigator() {
-  // Global location tracking for Delivery Partners
-  // Always runs when delivery navigator is mounted; relies on routeId check internally
-  useDeliveryLocation(true, true);
+  const { isOnline } = useDashboardData();
+  // Track location only while the rider is on duty (availability = online)
+  useDeliveryLocation(isOnline, true);
 
   return (
     <Stack.Navigator id="DeliveryStack">

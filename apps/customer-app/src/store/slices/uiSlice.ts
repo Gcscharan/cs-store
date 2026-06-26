@@ -6,6 +6,27 @@ interface ToastMessage {
   type: 'success' | 'error' | 'info' | 'warning';
 }
 
+/** A queued notification toast with optional deep link and metadata */
+export interface NotificationToast {
+  id: string;
+  title: string;
+  body: string;
+  deepLink?: string;
+  category?: string;
+  priority?: string;
+}
+
+interface ToastQueueState {
+  /** The toast currently being displayed */
+  current: NotificationToast | null;
+  /** Pending toasts waiting to be shown */
+  queue: NotificationToast[];
+  /** Whether a toast is actively visible on screen */
+  isDisplaying: boolean;
+  /** Count of collapsed notifications (shown as summary) */
+  overflowCount: number;
+}
+
 interface ModalState {
   isOpen: boolean;
   type: string | null;
@@ -19,6 +40,8 @@ interface UIState {
     visible: boolean;
     message: string;
   };
+  /** Queue-based notification toast system */
+  notificationToastQueue: ToastQueueState;
   modal: ModalState;
   error: string | null;
 }
@@ -30,6 +53,12 @@ const initialState: UIState = {
     visible: false,
     message: '',
   },
+  notificationToastQueue: {
+    current: null,
+    queue: [],
+    isDisplaying: false,
+    overflowCount: 0,
+  },
   modal: {
     isOpen: false,
     type: null,
@@ -37,6 +66,8 @@ const initialState: UIState = {
   },
   error: null,
 };
+
+const MAX_QUEUED_TOASTS = 3;
 
 const uiSlice = createSlice({
   name: 'ui',
@@ -63,6 +94,53 @@ const uiSlice = createSlice({
     removeToast: (state, action: PayloadAction<string>) => {
       state.toasts = state.toasts.filter((t) => t.id !== action.payload);
     },
+
+    // ── Notification Toast Queue Actions ──
+
+    /** Enqueue a new notification toast. If queue exceeds max, increments overflow count. */
+    enqueueNotificationToast: (state, action: PayloadAction<NotificationToast>) => {
+      if (state.notificationToastQueue.queue.length >= MAX_QUEUED_TOASTS) {
+        // Beyond max queue — increment overflow counter
+        state.notificationToastQueue.overflowCount += 1;
+      } else {
+        state.notificationToastQueue.queue.push(action.payload);
+      }
+    },
+
+    /** Show the next toast from the queue (or summary toast if overflow). */
+    showNextNotificationToast: (state) => {
+      if (state.notificationToastQueue.overflowCount > 0) {
+        // Show summary toast for overflow
+        const totalOverflow = state.notificationToastQueue.overflowCount + state.notificationToastQueue.queue.length;
+        state.notificationToastQueue.current = {
+          id: `summary-${Date.now()}`,
+          title: `${totalOverflow} more notifications`,
+          body: 'Tap to view all notifications',
+          deepLink: '/notifications',
+        };
+        state.notificationToastQueue.queue = [];
+        state.notificationToastQueue.overflowCount = 0;
+        state.notificationToastQueue.isDisplaying = true;
+      } else if (state.notificationToastQueue.queue.length > 0) {
+        state.notificationToastQueue.current = state.notificationToastQueue.queue.shift()!;
+        state.notificationToastQueue.isDisplaying = true;
+      }
+    },
+
+    /** Dismiss the current notification toast. */
+    dismissNotificationToast: (state) => {
+      state.notificationToastQueue.current = null;
+      state.notificationToastQueue.isDisplaying = false;
+    },
+
+    /** Clear all queued notification toasts. */
+    clearNotificationToastQueue: (state) => {
+      state.notificationToastQueue.current = null;
+      state.notificationToastQueue.queue = [];
+      state.notificationToastQueue.isDisplaying = false;
+      state.notificationToastQueue.overflowCount = 0;
+    },
+
     openModal: (state, action: PayloadAction<{ type: string; data?: any }>) => {
       state.modal.isOpen = true;
       state.modal.type = action.payload.type;
@@ -88,10 +166,16 @@ export const {
   hideToast,
   addToast,
   removeToast,
+  enqueueNotificationToast,
+  showNextNotificationToast,
+  dismissNotificationToast,
+  clearNotificationToastQueue,
   openModal,
   closeModal,
   setError,
   clearError,
 } = uiSlice.actions;
+
+export { uiSlice };
 
 export default uiSlice.reducer;

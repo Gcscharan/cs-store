@@ -23,7 +23,7 @@
 import React, { useRef, useCallback, useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  Linking, Alert, ActivityIndicator, AppState, AppStateStatus,
+  Linking, Alert, ActivityIndicator, AppState, AppStateStatus, StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
@@ -31,16 +31,11 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useDispatch } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { DELIVERY_COLORS } from '../../constants/deliveryTheme';
-import { useGetDeliveryOrdersQuery } from '../../api/deliveryApi';
+import { DELIVERY_COLORS, DELIVERY_TYPOGRAPHY } from '../../constants/deliveryTheme';
+import { useGetDeliveryOrdersQuery, useDeliverAttemptMutation } from '../../api/deliveryApi';
 import { showToast } from '../../store/slices/uiSlice';
 import { AppDispatch } from '../../store';
-import { haversineDistance } from '../../utils/deliveryUtils';
-import {
-  UX_COLORS,
-  UX_TYPOGRAPHY,
-  UX_SPACING,
-} from '../../delivery/constants/UXDesignSystem';
+import { haversineDistance, getCustomerDisplayName } from '../../utils/deliveryUtils';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -160,6 +155,7 @@ const DeliveryRouteScreen: React.FC = () => {
 
   // Fix 6: offline queue
   const [offlineQueue, setOfflineQueue] = useState<OfflineQueueEntry[]>([]);
+  const [deliverAttempt] = useDeliverAttemptMutation();
   const [pendingSyncIds, setPendingSyncIds] = useState<Set<string>>(new Set());
   const lastPingSuccessRef = useRef<number>(0);  // Fix 4: fast-path ping skip
 
@@ -410,17 +406,16 @@ const DeliveryRouteScreen: React.FC = () => {
     if (navigatingRef.current.has(order._id)) return;
 
     // Fix 3: validate coords before doing anything
-    if (!validCoords(order.address.lat, order.address.lng)) {
-      console.warn(`[NAV_INVALID_COORDS] orderId=${order._id} lat=${order.address.lat} lng=${order.address.lng}`);
+    const destLat = order.address?.lat;
+    const destLng = order.address?.lng;
+    if (!validCoords(destLat, destLng)) {
+      console.warn(`[NAV_INVALID_COORDS] orderId=${order._id} lat=${destLat} lng=${destLng}`);
       Alert.alert('Invalid location', 'This order has invalid delivery coordinates.');
       return;
     }
 
     navigatingRef.current.add(order._id);
     setNavigatingIds(new Set(navigatingRef.current));
-
-    const destLat = order.address.lat!;
-    const destLng = order.address.lng!;
 
     await persistCurrentOrder(order._id);
     setResumeBanner(null);
@@ -519,15 +514,27 @@ const DeliveryRouteScreen: React.FC = () => {
       return;
     }
 
+    // Actually call the delivery API — critical bug fix
+    try {
+      await deliverAttempt(order._id).unwrap();
+    } catch (err: any) {
+      dispatch(showToast(err?.data?.error || 'Delivery failed — please try again'));
+      return;
+    }
+
     const currentIdx = allOrders.findIndex(o => o._id === order._id);
     const nextOrder  = allOrders[currentIdx + 1] ?? null;
     await AsyncStorage.removeItem(STORAGE_KEY);
     setCurrentOrderId(nextOrder?._id ?? null);
     if (nextOrder) await AsyncStorage.setItem(STORAGE_KEY, nextOrder._id);
     console.log(`[DELIVER_SUCCESS] orderId=${order._id} nextOrderId=${nextOrder?._id ?? 'none'} timestamp=${Date.now()}`);
-    setTimeout(() => listRef.current?.scrollToIndex({ index: 0, animated: true }), 200);
+    setTimeout(() => {
+      try {
+        listRef.current?.scrollToIndex({ index: 0, animated: true });
+      } catch { /* FlatList may not have rendered yet */ }
+    }, 200);
     navigation.navigate('DeliveryDashboard');
-  }, [allOrders, dispatch, navigation, offlineQueue]);
+  }, [allOrders, dispatch, navigation, offlineQueue, deliverAttempt]);
 
   const handleDeliver = useCallback(async (order: RouteOrder, distKm: number | null, hasArrived: boolean) => {
     console.log(`[DELIVER_CLICK] orderId=${order._id} distKm=${distKm?.toFixed(2) ?? 'unknown'} hasArrived=${hasArrived}`);
@@ -554,6 +561,7 @@ const DeliveryRouteScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={s.root} edges={['top', 'left', 'right']}>
+      <StatusBar barStyle="dark-content" backgroundColor={DELIVERY_COLORS.card} />
       <View style={s.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
           <Ionicons name="arrow-back" size={22} color={DELIVERY_COLORS.textPrimary} />
@@ -615,16 +623,21 @@ const DeliveryRouteScreen: React.FC = () => {
           // Task 10.1: Expand-on-tap state (Requirement 12.7)
           const isExpanded   = expandedOrderId === item._id;
 
-          const customerName  = item.userId?.name  || 'Customer';
-          const customerPhone = item.userId?.phone || '';
+          const customerPhone = item.userId?.phone?.trim() ?? '';
+          const customerName  = getCustomerDisplayName(item.userId?.name, customerPhone);
           const address       = fmtAddress(item.address);
 
           // Fix 3: validate coords
-          const coordsOk = validCoords(item.address.lat, item.address.lng);
+          const coordsOk = validCoords(item.address?.lat, item.address?.lng);
 
           const distKm =
             driverLoc && coordsOk
-              ? haversineDistance(driverLoc.lat, driverLoc.lng, item.address.lat!, item.address.lng!)
+              ? haversineDistance(
+                  driverLoc.lat,
+                  driverLoc.lng,
+                  item.address!.lat!,
+                  item.address!.lng!,
+                )
               : null;
 
           // Fix 4: GPS jitter — 2 consecutive readings
@@ -810,6 +823,8 @@ const s = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 12,
     backgroundColor: DELIVERY_COLORS.card,
     borderBottomWidth: 1, borderBottomColor: DELIVERY_COLORS.border,
+    shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 2,
+    shadowOffset: { width: 0, height: 1 }, elevation: 1,
   },
   backBtn:     { padding: 4, marginRight: 8 },
   headerTitle: { flex: 1, fontSize: 18, fontWeight: '800', color: DELIVERY_COLORS.textPrimary },
@@ -822,13 +837,13 @@ const s = StyleSheet.create({
   resumeText: { flex: 1, fontSize: 13, fontWeight: '700', color: '#fff' },
   progressBar: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: DELIVERY_COLORS.primary + '15',
+    backgroundColor: '#FFF0E6',                    // light orange tint
     paddingHorizontal: 16, paddingVertical: 8,
     borderBottomWidth: 1, borderBottomColor: DELIVERY_COLORS.border,
   },
   // Task 10.1: "X stops remaining" — Requirement 12.5
   progressText: {
-    fontSize: UX_TYPOGRAPHY.critical.fontSize,  // 16sp
+    fontSize: DELIVERY_TYPOGRAPHY.base,  // 16sp
     fontWeight: '700',
     color: DELIVERY_COLORS.primary,
   },
@@ -841,12 +856,12 @@ const s = StyleSheet.create({
     shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 }, elevation: 1,
   },
-  // Task 10.1: Current stop — distinct background (Requirement 12.1)
+  // Task 10.1: Current stop — orange highlight (Requirement 12.1)
   cardCurrent: {
-    borderColor: UX_COLORS.primaryAction,
+    borderColor: DELIVERY_COLORS.primary,
     borderWidth: 2,
-    backgroundColor: UX_COLORS.primaryAction + '10',
-    elevation: 4,
+    backgroundColor: '#FFF0E6',                    // light orange tint
+    elevation: 3,
   },
   // Task 10.1: Next stops styling (Requirement 12.2)
   cardNext: { borderColor: '#F59E0B', borderWidth: 1.5, backgroundColor: '#FFFBEB' },
@@ -857,16 +872,16 @@ const s = StyleSheet.create({
   },
   seqBadge: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: DELIVERY_COLORS.border,
+    backgroundColor: DELIVERY_COLORS.cardElevated,
     alignItems: 'center', justifyContent: 'center',
     marginRight: 12, marginTop: 2, flexShrink: 0,
-    minWidth: UX_SPACING.touchTarget,  // 48dp touch target — Requirement 5.1
-    minHeight: UX_SPACING.touchTarget,
+    minWidth: 48,  // 48dp touch target — Requirement 5.1
+    minHeight: 48,
   },
-  seqBadgeCurrent: { backgroundColor: UX_COLORS.primaryAction },
+  seqBadgeCurrent: { backgroundColor: DELIVERY_COLORS.primary },   // orange
   seqBadgeNext:    { backgroundColor: '#F59E0B' },
   // Task 10.1: Completed badge — green with checkmark (Requirement 12.3)
-  seqBadgeCompleted: { backgroundColor: UX_COLORS.synced },
+  seqBadgeCompleted: { backgroundColor: DELIVERY_COLORS.success },
   seqText:         { fontSize: 13, fontWeight: '800', color: DELIVERY_COLORS.textSecondary },
   seqTextLight:    { color: '#fff' },
   cardBody: { flex: 1 },
@@ -874,7 +889,7 @@ const s = StyleSheet.create({
   // Task 10.1: 16sp for next stops (Requirement 12.2)
   customerName: {
     flex: 1,
-    fontSize: UX_TYPOGRAPHY.critical.fontSize,  // 16sp
+    fontSize: DELIVERY_TYPOGRAPHY.base,  // 16sp
     fontWeight: '700',
     color: DELIVERY_COLORS.textPrimary,
   },
@@ -887,11 +902,11 @@ const s = StyleSheet.create({
   badgeNext: { backgroundColor: '#F59E0B' },
   badgeSync: { backgroundColor: '#6366F1' },
   // Task 10.1: Completed badge style (Requirement 12.3)
-  badgeCompleted: { backgroundColor: UX_COLORS.synced },
+  badgeCompleted: { backgroundColor: DELIVERY_COLORS.success },
   badgeText: { fontSize: 10, fontWeight: '900', color: '#fff', letterSpacing: 0.5 },
   // Task 10.1: 16sp address text (Requirement 12.2)
   address: {
-    fontSize: UX_TYPOGRAPHY.critical.fontSize,  // 16sp
+    fontSize: DELIVERY_TYPOGRAPHY.base,  // 16sp
     color: DELIVERY_COLORS.textSecondary,
     fontWeight: '500',
     marginBottom: 4,
@@ -905,19 +920,19 @@ const s = StyleSheet.create({
   invalidCoordsText: { fontSize: 11, fontWeight: '700', color: '#EF4444', flex: 1 },
   meta: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 6 },
   amount: { fontSize: 15, fontWeight: '900', color: DELIVERY_COLORS.textPrimary },
-  payChip: { backgroundColor: DELIVERY_COLORS.border, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  payChip: { backgroundColor: DELIVERY_COLORS.cardElevated, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
   payText: { fontSize: 11, fontWeight: '700', color: DELIVERY_COLORS.textSecondary },
   distChip: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: DELIVERY_COLORS.primary + '15',
+    backgroundColor: '#FFF0E6',                    // light orange tint
     paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, gap: 3,
   },
-  distChipArrived: { backgroundColor: DELIVERY_COLORS.success + '20' },
+  distChipArrived: { backgroundColor: DELIVERY_COLORS.successBg },
   distText:        { fontSize: 11, fontWeight: '700', color: DELIVERY_COLORS.primary },
   distTextArrived: { color: DELIVERY_COLORS.success },
   arrivedBanner: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: DELIVERY_COLORS.success + '15',
+    backgroundColor: DELIVERY_COLORS.successBg,
     borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7,
     marginBottom: 8, gap: 6,
   },
@@ -926,20 +941,20 @@ const s = StyleSheet.create({
   actions: { flexDirection: 'row', gap: 8 },
   navBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    backgroundColor: UX_COLORS.primaryAction,  // High-contrast — Requirement 5.2
+    backgroundColor: DELIVERY_COLORS.primary,      // orange CTA — Requirement 5.2
     paddingVertical: 10, borderRadius: 10,
-    minHeight: UX_SPACING.touchTarget,          // 48dp — Requirement 5.1
+    minHeight: 48,              // 48dp — Requirement 5.1
   },
-  navBtnText: { color: '#fff', fontSize: UX_TYPOGRAPHY.critical.fontSize, fontWeight: '800' },
+  navBtnText: { color: '#fff', fontSize: DELIVERY_TYPOGRAPHY.base, fontWeight: '800' },
   deliverBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     borderWidth: 1.5, borderColor: DELIVERY_COLORS.success,
     paddingVertical: 10, borderRadius: 10,
-    minHeight: UX_SPACING.touchTarget,          // 48dp — Requirement 5.1
+    minHeight: 48,              // 48dp — Requirement 5.1
   },
-  deliverBtnArrived:    { backgroundColor: DELIVERY_COLORS.success + '15' },
+  deliverBtnArrived:    { backgroundColor: DELIVERY_COLORS.successBg },
   deliverBtnSync:       { borderColor: '#6366F1', backgroundColor: '#EEF2FF' },
-  deliverBtnText:       { fontSize: UX_TYPOGRAPHY.critical.fontSize, fontWeight: '800', color: DELIVERY_COLORS.success },
+  deliverBtnText:       { fontSize: DELIVERY_TYPOGRAPHY.base, fontWeight: '800', color: DELIVERY_COLORS.success },
   deliverBtnLocked:     { borderColor: DELIVERY_COLORS.border, backgroundColor: DELIVERY_COLORS.background },
   deliverBtnLockedText: { fontSize: 13, fontWeight: '700', color: DELIVERY_COLORS.textSecondary },
   btnDisabled: { opacity: 0.5 },
@@ -947,7 +962,7 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     marginTop: 8, paddingVertical: 8, borderRadius: 8,
     borderWidth: 1, borderColor: DELIVERY_COLORS.primary + '50',
-    backgroundColor: DELIVERY_COLORS.primary + '08',
+    backgroundColor: '#FFF0E6',
   },
   fallbackBtnText: { fontSize: 12, fontWeight: '700', color: DELIVERY_COLORS.primary },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },

@@ -8,6 +8,7 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
 
 interface EmergencyContact {
@@ -59,7 +60,7 @@ const DeliveryEmergencyScreen: React.FC = () => {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       {/* Header */}
       <View style={styles.header}>
         <Ionicons name="alert-circle" size={48} color={Colors.error} />
@@ -71,10 +72,10 @@ const DeliveryEmergencyScreen: React.FC = () => {
 
       {/* Emergency Buttons */}
       <View style={styles.contactsContainer}>
-        {EMERGENCY_CONTACTS.map((contact, index) => (
+        {EMERGENCY_CONTACTS.map((contact) => (
           <TouchableOpacity
-            key={index}
-            style={[styles.contactButton, { backgroundColor: contact.bgColor, marginBottom: 16 }]}
+            key={contact.number}
+            style={[styles.contactButton, { backgroundColor: contact.bgColor }]}
             onPress={() => handleCall(contact)}
             activeOpacity={0.7}
           >
@@ -99,7 +100,7 @@ const DeliveryEmergencyScreen: React.FC = () => {
           Use these contacts only in case of emergencies. False calls to emergency services may result in legal action.
         </Text>
       </View>
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -128,6 +129,7 @@ const styles = StyleSheet.create({
   },
   contactsContainer: {
     padding: 16,
+    gap: 16,
   },
   contactButton: {
     flexDirection: 'row',

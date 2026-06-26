@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
+  Text,
   StyleSheet,
   ActivityIndicator,
   Alert,
   ScrollView,
   RefreshControl,
-  Linking,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
@@ -20,11 +21,13 @@ import {
   useStartDeliveryMutation,
   useMarkArrivedMutation,
   useDeliverAttemptMutation,
+  useResendOtpMutation,
   useVerifyDeliveryOtpMutation,
   useRecordDeliveryAttemptMutation,
   useCreateCodCollectionMutation,
   useToggleStatusMutation,
-  useEscalateOrderMutation,
+  // P0 FIX #1: Removed useEscalateOrderMutation - replaced with recordDeliveryAttempt
+  // useEscalateOrderMutation,
 } from '../../api/deliveryApi';
 import { registerActionHandler } from '../../hooks/delivery/useActionQueue';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -36,12 +39,12 @@ import { useActionQueue } from '../../hooks/delivery/useActionQueue';
 import { useRouteArrangement } from '../../hooks/delivery/useRouteArrangement';
 import { ControlBar } from '../../components/delivery/ControlBar/ControlBar';
 import { IdleCard } from '../../components/delivery/StateCard/IdleCard';
+import { OfflineCard } from '../../components/delivery/StateCard/OfflineCard';
 import { NewOrderCard } from '../../components/delivery/StateCard/NewOrderCard';
 import { ActiveOrderCard } from '../../components/delivery/StateCard/ActiveOrderCard';
 import { ConnectionBanner } from '../../components/delivery/ConnectionBanner/ConnectionBanner';
 import { GlobalConnectivityBanner } from '../../components/delivery/GlobalConnectivityBanner/GlobalConnectivityBanner';
-import { StickyCurrentOrderPanel } from '../../components/delivery/StickyCurrentOrderPanel';
-import { DELIVERY_COLORS, DELIVERY_SPACING } from '../../constants/deliveryTheme';
+import { DELIVERY_COLORS, DELIVERY_SPACING, DELIVERY_TYPOGRAPHY } from '../../constants/deliveryTheme';
 import { DELIVERY_CONFIG } from '../../constants/deliveryConfig';
 import { useAttemptTracker } from '../../hooks/delivery/useAttemptTracker';
 import { FailureReasonKey } from '../../components/delivery/StateCard/ActiveOrderCard';
@@ -50,7 +53,16 @@ const DeliveryHomeTab: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
 
   // Dashboard data
-  const { activeOrders, availableOrders, isOnline, isLoading, isFetching, refetch, deliveryBoy } = useDashboardData();
+  const {
+    activeOrders,
+    availableOrders,
+    isOnline,
+    isLoading,
+    isFetching,
+    refetch,
+    deliveryBoy,
+    motivation,
+  } = useDashboardData();
 
   // Production hardening hooks
   const { socketStatus } = useDeliverySocket();
@@ -159,7 +171,6 @@ const DeliveryHomeTab: React.FC = () => {
   // Route arrangement hook
   const {
     sortedOrderIds,
-    currentOrderId,
     isArranged,
     isArranging,
     canArrangeRoute,
@@ -169,15 +180,6 @@ const DeliveryHomeTab: React.FC = () => {
     isOrderCurrent,
     driverLocation,
   } = useRouteArrangement(activeOrders);
-
-  // Derive current order for StickyCurrentOrderPanel (Task 14.1)
-  // When route is arranged, use currentOrderId; otherwise fall back to first active order.
-  const currentOrder = useMemo(() => {
-    if (isArranged && currentOrderId) {
-      return activeOrders.find(o => o._id === currentOrderId) ?? null;
-    }
-    return activeOrders.length > 0 ? activeOrders[0] : null;
-  }, [isArranged, currentOrderId, activeOrders]);
 
   // Attempt tracker for multi-attempt failure flow
   const {
@@ -266,10 +268,12 @@ const DeliveryHomeTab: React.FC = () => {
   const [startDelivery] = useStartDeliveryMutation();
   const [markArrived] = useMarkArrivedMutation();
   const [deliverAttempt] = useDeliverAttemptMutation();
+  const [resendOtp] = useResendOtpMutation();
   const [verifyDeliveryOtp] = useVerifyDeliveryOtpMutation();
   const [recordDeliveryAttempt] = useRecordDeliveryAttemptMutation();
   const [createCodCollection] = useCreateCodCollectionMutation();
-  const [escalateOrder] = useEscalateOrderMutation();
+  // P0 FIX #1: Removed escalateOrder - replaced with recordDeliveryAttempt
+    // const [escalateOrder] = useEscalateOrderMutation();
 
   // Register action handlers for crash-recovery fn reconstruction.
   // These run on every render but registerActionHandler is idempotent (Map.set).
@@ -295,9 +299,15 @@ const DeliveryHomeTab: React.FC = () => {
       await verifyDeliveryOtp({ orderId: id, otp, idempotencyKey: key }).unwrap();
     });
     registerActionHandler('escalate', (_args, key) => async (id: string, reason: string, notes?: string) => {
-      await escalateOrder({ orderId: id, reason, notes, idempotencyKey: key }).unwrap();
+      // P0 FIX #1: Replace escalate with recordDeliveryAttempt FAILED
+      await recordDeliveryAttempt({ 
+        orderId: id, 
+        status: 'FAILED', 
+        failureReason: reason, 
+        failureNotes: notes 
+      }).unwrap();
     });
-  }, [acceptOrder, rejectOrder, pickupOrder, startDelivery, markArrived, verifyDeliveryOtp, escalateOrder]);
+  }, [acceptOrder, rejectOrder, pickupOrder, startDelivery, markArrived, verifyDeliveryOtp, recordDeliveryAttempt]);
 
   // Fetch COD collection status from backend
   const fetchCodCollection = async (orderId: string): Promise<void> => {
@@ -311,13 +321,19 @@ const DeliveryHomeTab: React.FC = () => {
 
   // Fetch COD collections when activeOrders change
   useEffect(() => {
-    activeOrders.forEach(order => {
+    activeOrders.forEach(async (order) => {
       const isCod = order.paymentMethod?.toLowerCase() === 'cod';
       const hasArrived = !!order.arrivedAt;
       if (isCod && hasArrived && !(order._id in codCollectionByOrderId)) {
-        fetchCodCollection(order._id);
+        try {
+          const result = await dispatch(deliveryApi.endpoints.getCodCollection.initiate(order._id)).unwrap();
+          setCodCollectionByOrderId(prev => ({ ...prev, [order._id]: result?.codCollection ?? null }));
+        } catch {
+          setCodCollectionByOrderId(prev => ({ ...prev, [order._id]: null }));
+        }
       }
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeOrders]);
 
   // Replay queued actions when network comes back online
@@ -349,37 +365,6 @@ const DeliveryHomeTab: React.FC = () => {
       setIsToggling(false);
     }
   };
-
-  // ── StickyCurrentOrderPanel callbacks (Task 14.1) ─────────────────────────
-
-  /** Opens the phone dialer for the customer's phone number. */
-  const handleCallCustomer = useCallback((phone: string) => {
-    const url = `tel:${phone}`;
-    Linking.canOpenURL(url)
-      .then(supported => {
-        if (supported) {
-          Linking.openURL(url);
-        } else {
-          Alert.alert('Error', 'Phone calls are not supported on this device');
-        }
-      })
-      .catch(() => Alert.alert('Error', 'Could not open phone dialer'));
-  }, []);
-
-  /** Opens Google Maps navigation to the delivery address. */
-  const handleNavigateToOrder = useCallback((order: any) => {
-    const lat = order?.address?.lat;
-    const lng = order?.address?.lng;
-    const label = encodeURIComponent(order?.address?.addressLine ?? 'Delivery Address');
-    if (lat && lng) {
-      const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&destination_place_id=${label}`;
-      Linking.openURL(url).catch(() =>
-        Alert.alert('Error', 'Could not open Google Maps')
-      );
-    } else {
-      Alert.alert('Navigation', 'No coordinates available for this address');
-    }
-  }, []);
 
   const { guarded: handleAcceptOrder } = useActionGuard(async (orderId: string) => {
     const idempotencyKey = `accept:${orderId}:${Date.now()}`;
@@ -521,12 +506,27 @@ const DeliveryHomeTab: React.FC = () => {
       Alert.alert('Success', 'Marked as arrived!');
     } catch (error: any) {
       if (!error?.status) {
-        enqueue({ id: `${orderId}-markArrived-${Date.now()}`, action: 'markArrived', orderId, targetStatus: 'arrived', args: [orderId], fn: async (id: string) => { await markArrived({ orderId: id, idempotencyKey }).unwrap(); }, idempotencyKey, enqueuedAt: Date.now() });
+        // P0 FIX #4: markArrived sets arrivedAt but does NOT change orderStatus — stays in_transit
+        enqueue({ id: `${orderId}-markArrived-${Date.now()}`, action: 'markArrived', orderId, targetStatus: 'in_transit', args: [orderId], fn: async (id: string) => { await markArrived({ orderId: id, idempotencyKey }).unwrap(); }, idempotencyKey, enqueuedAt: Date.now() });
       } else {
         Alert.alert('Error', error?.data?.error || 'Failed to mark arrived');
       }
     } finally {
       releaseOrderLock(orderId); // cross-action guard (Fix #27)
+    }
+  });
+
+  const { guarded: handleResendOtp } = useActionGuard(async (orderId: string) => {
+    try {
+      const result = await resendOtp(orderId).unwrap();
+      Alert.alert('Success', 'OTP resent successfully!');
+    } catch (error: any) {
+      if (!error?.status) {
+        Alert.alert('No Internet', 'Cannot resend OTP while offline. Please check your connection.');
+      } else {
+        Alert.alert('Error', error?.data?.error || 'Failed to resend OTP');
+      }
+      throw error; // propagate so ActiveOrderCard can show inline state if needed
     }
   });
 
@@ -570,6 +570,7 @@ const DeliveryHomeTab: React.FC = () => {
         // Clear OTP on server error so rider can re-enter
         setOtpInputs(prev => ({ ...prev, [orderId]: '' }));
         Alert.alert('Error', error?.data?.error || 'Invalid OTP');
+        throw error; // propagate to child for inline incorrect banner
       }
     } finally {
       releaseOrderLock(orderId); // cross-action guard (Fix #27)
@@ -590,6 +591,14 @@ const DeliveryHomeTab: React.FC = () => {
   };
 
   const handleCollectCOD = async (orderId: string, mode: 'CASH' | 'UPI'): Promise<void> => {
+    // P0 FIX #3: Block COD collection when offline — never fake-queue payment confirmation
+    if (!networkIsOnline) {
+      Alert.alert(
+        'No Internet',
+        'COD collection requires an internet connection. Please try again when you are back online.'
+      );
+      return;
+    }
     if (codInFlight[orderId]) return;
     setCodInFlight(prev => ({ ...prev, [orderId]: true }));
     const idempotencyKey = `cod_collection_idem_${orderId}`;
@@ -620,11 +629,17 @@ const DeliveryHomeTab: React.FC = () => {
       // Escalation path — stable idempotency key generated once here
       const escalateKey = `escalate:${orderId}:${currentCount + 1}`;
       try {
-        await escalateOrder({ orderId, reason, notes, idempotencyKey: escalateKey }).unwrap();
+        // P0 FIX #1: Replace escalate with recordDeliveryAttempt FAILED
+        await recordDeliveryAttempt({ 
+          orderId, 
+          status: 'FAILED', 
+          failureReason: reason, 
+          failureNotes: notes 
+        }).unwrap();
         // Only remove + mark escalated AFTER backend confirms (Fix #3)
         await removeAttempt(orderId);
         await markOrderEscalated(orderId);
-        Alert.alert('Order Escalated', 'Order has been escalated for reassignment');
+        Alert.alert('Order Failed', 'Order has been marked as failed');
       } catch (error: any) {
         if (!error?.status) {
           // Network error — enqueue for offline replay with stable idempotency key
@@ -636,7 +651,13 @@ const DeliveryHomeTab: React.FC = () => {
             targetStatus: 'escalated',
             args: [orderId, reason, notes],
             fn: async (id: string, r: string, n?: string) => {
-              await escalateOrder({ orderId: id, reason: r, notes: n, idempotencyKey: escalateKey }).unwrap();
+              // P0 FIX #1: Replace escalate with recordDeliveryAttempt FAILED
+              await recordDeliveryAttempt({ 
+                orderId: id, 
+                status: 'FAILED', 
+                failureReason: r, 
+                failureNotes: n 
+              }).unwrap();
             },
             idempotencyKey: escalateKey,
             enqueuedAt: Date.now(),
@@ -698,7 +719,18 @@ const DeliveryHomeTab: React.FC = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+    <View style={styles.container}>
+      {/* Orange header — matches Orders page */}
+      <StatusBar barStyle="light-content" backgroundColor={DELIVERY_COLORS.primary} />
+      <SafeAreaView edges={['top']} style={styles.orangeHeader}>
+        <View style={styles.headerRow}>
+          <View style={styles.headerTextBlock}>
+            <Text style={styles.headerTitle}>Vyapara Setu</Text>
+            <Text style={styles.headerSubtitle}>Delivery Partner</Text>
+          </View>
+        </View>
+      </SafeAreaView>
+
       {/* GlobalConnectivityBanner — persistent network status (Task 14.1, 13.1) */}
       <GlobalConnectivityBanner onForceSync={handleForceSync} />
 
@@ -708,20 +740,7 @@ const DeliveryHomeTab: React.FC = () => {
         connectionType={connectionType}
         isSyncing={isSyncing}
       />
-      <ControlBar
-        isOnline={isOnline}
-        earnings={deliveryBoy?.earnings ?? 0}
-        onToggleOnline={handleToggleStatus}
-        isToggling={isToggling}
-      />
-
-      {/* StickyCurrentOrderPanel — always-visible current order info (Task 14.1) */}
-      <StickyCurrentOrderPanel
-        currentOrder={currentOrder}
-        isArranged={isArranged}
-        onCallCustomer={handleCallCustomer}
-        onNavigate={handleNavigateToOrder}
-      />
+      <ControlBar earnings={deliveryBoy?.earnings ?? 0} />
 
       <ScrollView
         refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refetch} />}
@@ -751,6 +770,7 @@ const DeliveryHomeTab: React.FC = () => {
             onStartDelivery={handleStartDelivery}
             onMarkArrived={handleMarkArrived}
             onStartDeliveryAttempt={handleStartDeliveryAttempt}
+            onResendOtp={handleResendOtp}
             onVerifyOtp={handleVerifyOtp}
             onCollectCOD={handleCollectCOD}
             onFailDelivery={handleFailDelivery}
@@ -774,14 +794,22 @@ const DeliveryHomeTab: React.FC = () => {
 
         {/* Idle — only when nothing else to show */}
         {availableOrders.length === 0 && filteredActiveOrders.length === 0 && (
-          <IdleCard
-            earnings={deliveryBoy?.earnings ?? 0}
-            onRefresh={refetch}
-          />
+          !isOnline ? (
+            <OfflineCard
+              deliveryBoy={deliveryBoy}
+              motivation={motivation}
+              onToggleOnline={handleToggleStatus}
+            />
+          ) : (
+            <IdleCard
+              earnings={deliveryBoy?.earnings ?? 0}
+              onRefresh={refetch}
+            />
+          )
         )}
       </ScrollView>
 
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -790,6 +818,34 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: DELIVERY_COLORS.background,
   },
+  orangeHeader: {
+    backgroundColor: DELIVERY_COLORS.primary,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: DELIVERY_SPACING.lg,
+    paddingVertical: DELIVERY_SPACING.md,
+    minHeight: 56,
+    backgroundColor: DELIVERY_COLORS.primary,
+    gap: DELIVERY_SPACING.md,
+  },
+  headerTextBlock: {
+    flex: 1,
+  },
+  headerTitle: {
+    fontSize: DELIVERY_TYPOGRAPHY.lg,
+    fontWeight: '800',
+    color: DELIVERY_COLORS.white,
+    letterSpacing: -0.3,
+  },
+  headerSubtitle: {
+    fontSize: DELIVERY_TYPOGRAPHY.xs,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.85)',
+    marginTop: 2,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -797,10 +853,9 @@ const styles = StyleSheet.create({
     backgroundColor: DELIVERY_COLORS.background,
   },
   scroll: {
-    // Add top padding to prevent content from hiding under the StickyCurrentOrderPanel
-    // (which is absolutely positioned at 120dp height)
-    paddingTop: 132,
+    paddingTop: DELIVERY_SPACING.md,
     paddingBottom: 40,
+    flexGrow: 1,
   },
 });
 

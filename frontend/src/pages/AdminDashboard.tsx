@@ -10,6 +10,7 @@ import {
   Truck,
   BarChart3,
   CreditCard,
+  Bell,
 } from "lucide-react";
 
 interface DashboardStats {
@@ -170,6 +171,15 @@ const AdminDashboard: React.FC = () => {
       color: "bg-emerald-500",
       hoverColor: "hover:bg-emerald-600",
       path: "/admin/payments",
+    },
+    {
+      id: "notification-analytics",
+      title: "Notification Analytics",
+      description: "Monitor notification delivery and performance",
+      icon: Bell,
+      color: "bg-rose-500",
+      hoverColor: "hover:bg-rose-600",
+      path: "/admin/notifications/analytics",
     },
   ];
 

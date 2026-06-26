@@ -11,13 +11,18 @@
  *   - payment_status_updated → invalidates Orders cache + triggers payment recovery
  *   - order:status:changed   → admin order status updates with complete order object
  *   - order:assigned         → admin order assignment events with delivery partner info
+ *   - notification:read      → marks a specific notification as read (multi-device sync)
+ *   - notification:read_all  → marks all notifications as read (multi-device sync)
+ *   - notification:unread_count → updates unread badge count in real-time
  */
 
 import { io, Socket } from 'socket.io-client';
 import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { storage } from '../utils/storage';
 import { logEvent } from '../utils/analytics';
 import { baseApi, BASE_URL } from '../api/baseApi';
+import { enqueueNotificationToast, showNextNotificationToast } from '../store/slices/uiSlice';
 import type { AppDispatch } from '../store';
 
 const API_URL = BASE_URL;
@@ -29,6 +34,11 @@ console.log("🔥 FINAL SOCKET URL:", SOCKET_URL);
 // ── Reconnection config (exponential backoff: 1s → 2s → 4s → 8s → 16s, max 30s) ──
 const RECONNECT_DELAY_MIN = 1000;
 const RECONNECT_DELAY_MAX = 30000;
+
+// ── Offline Sync Storage Keys ──
+const STORAGE_KEY_LAST_SEEN_TIMESTAMP = 'notifications:lastSeenTimestamp';
+const STORAGE_KEY_CACHED_NOTIFICATIONS = 'notifications:cachedNotifications';
+const MAX_CACHED_NOTIFICATIONS = 50;
 
 type DeliveryLocationData = {
   orderId: string;
@@ -57,15 +67,46 @@ type OrderAssignedData = {
   order?: any; // Complete order object
 };
 
+type NotificationReadData = {
+  notificationId: string;
+};
+
+type NotificationUnreadCountData = {
+  count: number;
+};
+
+type NotificationNewData = {
+  id: string;
+  _id?: string;
+  title: string;
+  body: string;
+  category: string;
+  priority: string;
+  deepLink?: string;
+  createdAt: string;
+  eventType?: string;
+  meta?: Record<string, any>;
+  isRead?: boolean;
+};
+
+type NotificationSyncData = {
+  notifications: NotificationNewData[];
+  totalUnread: number;
+};
+
+type NotificationSyncListener = (data: NotificationSyncData) => void;
+
 type LocationListener = (data: DeliveryLocationData) => void;
 type OrderStatusListener = (data: OrderStatusChangedData) => void;
 type OrderAssignedListener = (data: OrderAssignedData) => void;
+type NotificationNewListener = (data: NotificationNewData) => void;
 
 class SocketClient {
   private socket: Socket | null = null;
   private dispatch: AppDispatch | null = null;
   private isConnecting = false;
   private locationListeners: Map<string, Set<LocationListener>> = new Map();
+  private lastSeenTimestamp: string | null = null;
 
   /**
    * Initialize with Redux dispatch for cache invalidation.
@@ -73,6 +114,128 @@ class SocketClient {
    */
   init(dispatch: AppDispatch) {
     this.dispatch = dispatch;
+    // Load persisted lastSeenTimestamp on init
+    this.loadLastSeenTimestamp();
+  }
+
+  /**
+   * Load last seen timestamp from AsyncStorage.
+   */
+  private async loadLastSeenTimestamp(): Promise<void> {
+    try {
+      const stored = await AsyncStorage.getItem(STORAGE_KEY_LAST_SEEN_TIMESTAMP);
+      if (stored) {
+        this.lastSeenTimestamp = stored;
+      }
+    } catch (err) {
+      logEvent('socket_load_timestamp_error', { error: String(err) });
+    }
+  }
+
+  /**
+   * Update lastSeenTimestamp when a new notification is received.
+   */
+  private async updateLastSeenTimestamp(timestamp: string): Promise<void> {
+    // Only update if this timestamp is newer
+    if (!this.lastSeenTimestamp || new Date(timestamp) > new Date(this.lastSeenTimestamp)) {
+      this.lastSeenTimestamp = timestamp;
+      try {
+        await AsyncStorage.setItem(STORAGE_KEY_LAST_SEEN_TIMESTAMP, timestamp);
+      } catch (err) {
+        logEvent('socket_save_timestamp_error', { error: String(err) });
+      }
+    }
+  }
+
+  /**
+   * Get the current lastSeenTimestamp (for external access by screens).
+   */
+  getLastSeenTimestamp(): string | null {
+    return this.lastSeenTimestamp;
+  }
+
+  /**
+   * Request sync from server with missed notifications since last seen.
+   * Called on reconnect or when app comes to foreground.
+   */
+  requestSync(): void {
+    if (!this.socket?.connected) return;
+    const timestamp = this.lastSeenTimestamp || new Date(0).toISOString();
+    this.socket.emit('notification:request_sync', { lastSeenTimestamp: timestamp });
+    logEvent('socket_request_sync', { lastSeenTimestamp: timestamp });
+  }
+
+  // ── Notification Cache (AsyncStorage) ──
+
+  /**
+   * Save notifications to local cache for immediate display on app open.
+   */
+  async cacheNotifications(notifications: NotificationNewData[]): Promise<void> {
+    try {
+      const limited = notifications.slice(0, MAX_CACHED_NOTIFICATIONS);
+      await AsyncStorage.setItem(STORAGE_KEY_CACHED_NOTIFICATIONS, JSON.stringify(limited));
+    } catch (err) {
+      logEvent('socket_cache_notifications_error', { error: String(err) });
+    }
+  }
+
+  /**
+   * Load cached notifications from AsyncStorage.
+   */
+  async getCachedNotifications(): Promise<NotificationNewData[]> {
+    try {
+      const raw = await AsyncStorage.getItem(STORAGE_KEY_CACHED_NOTIFICATIONS);
+      if (raw) {
+        return JSON.parse(raw) as NotificationNewData[];
+      }
+    } catch (err) {
+      logEvent('socket_load_cache_error', { error: String(err) });
+    }
+    return [];
+  }
+
+  /**
+   * Merge server sync data with local cache.
+   * Server state takes precedence for read/unread status.
+   */
+  async mergeSyncWithCache(syncData: NotificationSyncData): Promise<NotificationNewData[]> {
+    const cached = await this.getCachedNotifications();
+    const serverMap = new Map<string, NotificationNewData>();
+
+    // Index server notifications by ID
+    for (const notif of syncData.notifications) {
+      const id = notif._id || notif.id;
+      serverMap.set(id, notif);
+    }
+
+    // Merge: server state takes precedence
+    const merged: NotificationNewData[] = [];
+    const seenIds = new Set<string>();
+
+    // Add all server notifications first (they have authoritative state)
+    for (const notif of syncData.notifications) {
+      const id = notif._id || notif.id;
+      merged.push(notif);
+      seenIds.add(id);
+    }
+
+    // Add cached notifications that aren't in the server response
+    for (const cachedNotif of cached) {
+      const id = cachedNotif._id || cachedNotif.id;
+      if (!seenIds.has(id)) {
+        merged.push(cachedNotif);
+        seenIds.add(id);
+      }
+    }
+
+    // Sort by createdAt descending (newest first) and limit
+    merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const limited = merged.slice(0, MAX_CACHED_NOTIFICATIONS);
+
+    // Persist the merged result
+    await this.cacheNotifications(limited);
+
+    return limited;
   }
 
   /**
@@ -163,6 +326,78 @@ class SocketClient {
     };
   }
 
+  // ── Notification Event Subscriptions ──
+
+  /**
+   * Subscribe to notification:unread_count events for badge updates.
+   * Returns unsubscribe function.
+   */
+  subscribeToUnreadCount(listener: (data: { count: number }) => void): () => void {
+    if (!this.socket) return () => {};
+
+    this.socket.on('notification:unread_count', listener);
+
+    return () => {
+      this.socket?.off('notification:unread_count', listener);
+    };
+  }
+
+  /**
+   * Subscribe to notification:new events for real-time notification prepend.
+   * Returns unsubscribe function.
+   */
+  subscribeToNewNotification(listener: (data: any) => void): () => void {
+    if (!this.socket) return () => {};
+
+    this.socket.on('notification:new', listener);
+
+    return () => {
+      this.socket?.off('notification:new', listener);
+    };
+  }
+
+  /**
+   * Subscribe to notification:read events for multi-device sync.
+   * Returns unsubscribe function.
+   */
+  subscribeToNotificationRead(listener: (data: { notificationId: string }) => void): () => void {
+    if (!this.socket) return () => {};
+
+    this.socket.on('notification:read', listener);
+
+    return () => {
+      this.socket?.off('notification:read', listener);
+    };
+  }
+
+  /**
+   * Subscribe to notification:read_all events for multi-device sync.
+   * Returns unsubscribe function.
+   */
+  subscribeToNotificationReadAll(listener: () => void): () => void {
+    if (!this.socket) return () => {};
+
+    this.socket.on('notification:read_all', listener);
+
+    return () => {
+      this.socket?.off('notification:read_all', listener);
+    };
+  }
+
+  /**
+   * Subscribe to notification:sync events for offline sync.
+   * Returns unsubscribe function.
+   */
+  subscribeToNotificationSync(listener: NotificationSyncListener): () => void {
+    if (!this.socket) return () => {};
+
+    this.socket.on('notification:sync', listener);
+
+    return () => {
+      this.socket?.off('notification:sync', listener);
+    };
+  }
+
   // ── Admin Event Subscriptions ──
 
   /**
@@ -193,6 +428,22 @@ class SocketClient {
     };
   }
 
+  // ── Notification Event Subscriptions ──
+
+  /**
+   * Subscribe to new notification events (notification:new).
+   * Returns unsubscribe function.
+   */
+  subscribeToNewNotifications(listener: NotificationNewListener): () => void {
+    if (!this.socket) return () => {};
+
+    this.socket.on('notification:new', listener);
+
+    return () => {
+      this.socket?.off('notification:new', listener);
+    };
+  }
+
   // ── Private ──
 
   private setupEventHandlers() {
@@ -200,6 +451,8 @@ class SocketClient {
 
     this.socket.on('connect', () => {
       logEvent('socket_connected', { id: this.socket?.id });
+      // On reconnect, request sync for missed notifications
+      this.requestSync();
     });
 
     this.socket.on('disconnect', (reason) => {
@@ -275,6 +528,67 @@ class SocketClient {
         listeners.forEach(fn => fn(data));
       }
     });
+
+    // ── Notification Sync Events (multi-device read state) ──
+
+    this.socket.on('notification:read', (data: NotificationReadData) => {
+      logEvent('realtime_notification_read', { notificationId: data.notificationId });
+      // Invalidate notifications cache so UI reflects read state from another device
+      this.dispatch?.(baseApi.util.invalidateTags(['Notifications']));
+    });
+
+    this.socket.on('notification:read_all', () => {
+      logEvent('realtime_notification_read_all', {});
+      // Invalidate notifications cache so all notifications show as read
+      this.dispatch?.(baseApi.util.invalidateTags(['Notifications']));
+    });
+
+    this.socket.on('notification:unread_count', (data: NotificationUnreadCountData) => {
+      logEvent('realtime_notification_unread_count', { count: data.count });
+      // Invalidate notifications cache to refresh unread count badge
+      this.dispatch?.(baseApi.util.invalidateTags(['Notifications']));
+    });
+
+    // ── Notification Toast Trigger ──
+
+    this.socket.on('notification:new', (data: NotificationNewData) => {
+      logEvent('realtime_notification_new_toast', { id: data.id, category: data.category });
+      // Track lastSeenTimestamp for offline sync
+      const timestamp = data.createdAt || new Date().toISOString();
+      this.updateLastSeenTimestamp(timestamp);
+      // Enqueue notification as toast and trigger display
+      this.dispatch?.(enqueueNotificationToast({
+        id: data.id || `notif-${Date.now()}`,
+        title: data.title,
+        body: data.body,
+        deepLink: data.deepLink,
+        category: data.category,
+        priority: data.priority,
+      }));
+      this.dispatch?.(showNextNotificationToast());
+      // Also invalidate notifications cache for list/badge
+      this.dispatch?.(baseApi.util.invalidateTags(['Notifications']));
+    });
+
+    // ── Notification Sync (Offline Recovery) ──
+
+    this.socket.on('notification:sync', (data: NotificationSyncData) => {
+      logEvent('realtime_notification_sync', {
+        count: data.notifications?.length || 0,
+        totalUnread: data.totalUnread,
+      });
+      // Update lastSeenTimestamp from the most recent synced notification
+      if (data.notifications && data.notifications.length > 0) {
+        const latest = data.notifications[0]; // Sorted newest first from server
+        if (latest.createdAt) {
+          this.updateLastSeenTimestamp(latest.createdAt);
+        }
+      }
+      // Merge with local cache and persist
+      this.mergeSyncWithCache(data);
+      // Invalidate RTK Query cache so UI refetches
+      this.dispatch?.(baseApi.util.invalidateTags(['Notifications']));
+    });
   }
 
   private handlePaymentUpdate(data: { orderId: string; status: string }) {
@@ -286,5 +600,5 @@ class SocketClient {
 // Singleton — import this everywhere
 export const socketClient = new SocketClient();
 
-// Export types for use in admin screens
-export type { OrderStatusChangedData, OrderAssignedData, OrderStatusListener, OrderAssignedListener };
+// Export types for use in screens
+export type { OrderStatusChangedData, OrderAssignedData, OrderStatusListener, OrderAssignedListener, NotificationNewData, NotificationNewListener, NotificationSyncData, NotificationSyncListener };

@@ -41,9 +41,9 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 1
 fi
 
-sed -i '' "s|EXPO_PUBLIC_API_URL=.*|EXPO_PUBLIC_API_URL=http://$IP:5002/api|" "$ENV_FILE"
+sed -i '' "s|EXPO_PUBLIC_API_URL=.*|EXPO_PUBLIC_API_URL=http://$IP:5001/api|" "$ENV_FILE"
 
-echo "✅  Updated $ENV_FILE → EXPO_PUBLIC_API_URL=http://$IP:5002/api"
+echo "✅  Updated $ENV_FILE → EXPO_PUBLIC_API_URL=http://$IP:5001/api"
 echo ""
 
 # ── Remind about Atlas whitelist ──────────────────────────────────────────────

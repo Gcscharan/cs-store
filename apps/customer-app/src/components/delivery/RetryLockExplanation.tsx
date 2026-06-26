@@ -8,10 +8,10 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
-  UX_COLORS,
-  UX_TYPOGRAPHY,
-  UX_SPACING,
-} from '../../delivery/constants/UXDesignSystem';
+  DELIVERY_COLORS,
+  DELIVERY_TYPOGRAPHY,
+  DELIVERY_SPACING,
+} from '../../constants/deliveryTheme';
 import { useDynamicFontSize } from '../../hooks/delivery/useDynamicFontSize';
 import { useHighContrastMode } from '../../hooks/delivery/useHighContrastMode';
 
@@ -96,10 +96,10 @@ export const RetryLockExplanation: React.FC<RetryLockExplanationProps> = ({
   // ── Accessibility hooks (must be called before any early returns) ──────────
 
   // Dynamic font sizing for countdown and guidance text (Requirement 15.2)
-  const countdownFontSize = useDynamicFontSize(UX_TYPOGRAPHY.secondary.fontSize);
-  const guidanceFontSize = useDynamicFontSize(UX_TYPOGRAPHY.tertiary.fontSize);
-  const titleFontSize = useDynamicFontSize(UX_TYPOGRAPHY.critical.fontSize);
-  const retryFontSize = useDynamicFontSize(UX_TYPOGRAPHY.critical.fontSize);
+  const countdownFontSize = useDynamicFontSize(DELIVERY_TYPOGRAPHY.sm);
+  const guidanceFontSize = useDynamicFontSize(DELIVERY_TYPOGRAPHY.xs);
+  const titleFontSize = useDynamicFontSize(DELIVERY_TYPOGRAPHY.base);
+  const retryFontSize = useDynamicFontSize(DELIVERY_TYPOGRAPHY.base);
 
   // High contrast mode (Requirement 15.7)
   const isHighContrast = useHighContrastMode();
@@ -171,9 +171,9 @@ export const RetryLockExplanation: React.FC<RetryLockExplanationProps> = ({
 
   if (isLocked && !locallyUnlocked) {
     // High contrast text colors (Requirement 15.7)
-    const titleColor = isHighContrast ? UX_COLORS.textHighContrast : UX_COLORS.textHighContrast;
-    const countdownColor = isHighContrast ? UX_COLORS.textHighContrast : UX_COLORS.locked;
-    const guidanceColor = isHighContrast ? UX_COLORS.textHighContrast : UX_COLORS.locked;
+    const titleColor = isHighContrast ? DELIVERY_COLORS.textPrimary : DELIVERY_COLORS.textPrimary;
+    const countdownColor = isHighContrast ? DELIVERY_COLORS.textPrimary : DELIVERY_COLORS.textMuted;
+    const guidanceColor = isHighContrast ? DELIVERY_COLORS.textPrimary : DELIVERY_COLORS.textMuted;
 
     return (
       <View
@@ -186,7 +186,7 @@ export const RetryLockExplanation: React.FC<RetryLockExplanationProps> = ({
           <Ionicons
             name="time-outline"
             size={20}
-            color={UX_COLORS.locked}
+            color={DELIVERY_COLORS.textMuted}
             accessibilityElementsHidden
             importantForAccessibility="no"
           />
@@ -211,7 +211,7 @@ export const RetryLockExplanation: React.FC<RetryLockExplanationProps> = ({
           <Ionicons
             name="information-circle-outline"
             size={16}
-            color={UX_COLORS.locked}
+            color={DELIVERY_COLORS.textMuted}
             accessibilityElementsHidden
             importantForAccessibility="no"
           />
@@ -253,11 +253,11 @@ export const RetryLockExplanation: React.FC<RetryLockExplanationProps> = ({
 const styles = StyleSheet.create({
   // ── Locked container ────────────────────────────────────────────────────────
   lockedContainer: {
-    backgroundColor: UX_COLORS.lockedBg,
+    backgroundColor: DELIVERY_COLORS.textMutedBg,
     borderRadius: 8,
-    padding: UX_SPACING.edgePadding,
-    marginHorizontal: UX_SPACING.edgePadding,
-    marginVertical: UX_SPACING.componentGap,
+    padding: DELIVERY_SPACING.lg,
+    marginHorizontal: DELIVERY_SPACING.lg,
+    marginVertical: DELIVERY_SPACING.md,
     gap: 8,
   },
 
@@ -268,19 +268,20 @@ const styles = StyleSheet.create({
   },
 
   titleText: {
-    ...UX_TYPOGRAPHY.critical,
-    color: UX_COLORS.textHighContrast,
+    fontSize: DELIVERY_TYPOGRAPHY.base, fontWeight: '700', lineHeight: 20,
+    color: DELIVERY_COLORS.textPrimary,
   },
 
   countdownText: {
-    ...UX_TYPOGRAPHY.secondary,
-    color: UX_COLORS.locked,
+    fontSize: DELIVERY_TYPOGRAPHY.sm, fontWeight: '500', lineHeight: 18,
+    color: DELIVERY_COLORS.textMuted,
   },
 
   countdownHighlight: {
-    ...UX_TYPOGRAPHY.secondary,
+    fontSize: DELIVERY_TYPOGRAPHY.sm,
     fontWeight: '700',
-    color: UX_COLORS.textHighContrast,
+    lineHeight: 18,
+    color: DELIVERY_COLORS.textPrimary,
   },
 
   guidanceRow: {
@@ -291,23 +292,23 @@ const styles = StyleSheet.create({
   },
 
   guidanceText: {
-    ...UX_TYPOGRAPHY.tertiary,
-    color: UX_COLORS.locked,
+    fontSize: DELIVERY_TYPOGRAPHY.xs, fontWeight: '400', lineHeight: 16,
+    color: DELIVERY_COLORS.textMuted,
     flex: 1,
   },
 
   // ── Retry button ────────────────────────────────────────────────────────────
   retryButton: {
     // Minimum 48x48dp touch target (Requirements 5.1, 15.5)
-    minHeight: UX_SPACING.touchTarget,
+    minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: UX_COLORS.primaryAction,
+    backgroundColor: DELIVERY_COLORS.primary,
     borderRadius: 8,
-    paddingHorizontal: UX_SPACING.edgePadding,
-    marginHorizontal: UX_SPACING.edgePadding,
-    marginVertical: UX_SPACING.componentGap,
+    paddingHorizontal: DELIVERY_SPACING.lg,
+    marginHorizontal: DELIVERY_SPACING.lg,
+    marginVertical: DELIVERY_SPACING.md,
   },
 
   retryIcon: {
@@ -315,7 +316,7 @@ const styles = StyleSheet.create({
   },
 
   retryText: {
-    ...UX_TYPOGRAPHY.critical,
+    fontSize: DELIVERY_TYPOGRAPHY.base, fontWeight: '700', lineHeight: 20,
     color: '#FFFFFF',
   },
 });

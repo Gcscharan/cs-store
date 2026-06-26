@@ -70,7 +70,7 @@ export default function DeliveryLoginScreen({ navigation }: any) {
   };
 
   return (
-    <View style={s.container}>
+    <SafeAreaView style={s.container} edges={['top', 'left', 'right']}>
       <ScreenHeader title="Delivery Partner" showBackButton />
       <KeyboardAvoidingView style={s.inner} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         {/* Logo */}
@@ -152,7 +152,7 @@ export default function DeliveryLoginScreen({ navigation }: any) {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
-    </View>
+    </SafeAreaView>
   );
 }
 

@@ -25,6 +25,7 @@ export interface StatusChangedPayload {
   version: number;
   eventId: string;
   timestamp: string;
+  arrivedAt?: string | null; // P1 FIX #5: patch arrivedAt for reconnect correctness
 }
 
 export const useDeliverySocket = (): UseDeliverySocketReturn => {
@@ -207,6 +208,8 @@ export const useDeliverySocket = (): UseDeliverySocketReturn => {
             cached.allowedActions = event.allowedActions;
             cached.version = event.version;
             cached.timestamp = event.timestamp;
+            // P1 FIX #5: patch arrivedAt so hasArrived is correct after reconnect
+            if (event.arrivedAt !== undefined) cached.arrivedAt = event.arrivedAt;
           })
         );
       } catch (e) {
@@ -264,6 +267,8 @@ export const useDeliverySocket = (): UseDeliverySocketReturn => {
                 cached.allowedActions = event.allowedActions;
                 cached.version = event.version;
                 cached.timestamp = event.timestamp;
+                // P1 FIX #5: patch arrivedAt so hasArrived is correct after reconnect
+                if (event.arrivedAt !== undefined) cached.arrivedAt = event.arrivedAt;
               }
             } else {
               // New order discovered via sync — insert it
@@ -274,6 +279,21 @@ export const useDeliverySocket = (): UseDeliverySocketReturn => {
       );
     };
 
+    // --- Earnings credited handler ---
+    const handleEarningCredited = (data: {
+      orderId: string;
+      amount: number;
+      totalEarnings: number;
+      timestamp: string;
+      alreadyExisted?: boolean;
+    }) => {
+      if (!data?.orderId) return;
+      // Invalidate earnings query so DeliveryEarningsTab auto-refreshes
+      dispatch(deliveryApi.util.invalidateTags(['Earnings']));
+      // Also refresh orders (delivered status)
+      dispatch(deliveryApi.util.invalidateTags(['DeliveryOrders']));
+    };
+
     // --- Register listeners ---
     socket.on('order:assigned', handleOrderAssigned);
     socket.on('new_order', handleNewOrder);
@@ -281,6 +301,7 @@ export const useDeliverySocket = (): UseDeliverySocketReturn => {
     socket.on('order:cancelled', handleOrderCancelled);
     socket.on('order:reassigned', handleOrderReassigned);
     socket.on('sync_response', handleSyncResponse);
+    socket.on('delivery:earning:credited', handleEarningCredited);
 
     // --- AppState (background/foreground) ---
     const appStateSubscription = AppState.addEventListener('change', async (nextState) => {
@@ -304,6 +325,7 @@ export const useDeliverySocket = (): UseDeliverySocketReturn => {
       socket.off('order:cancelled', handleOrderCancelled);
       socket.off('order:reassigned', handleOrderReassigned);
       socket.off('sync_response', handleSyncResponse);
+      socket.off('delivery:earning:credited', handleEarningCredited);
       stopPolling();
       appStateSubscription.remove();
       socket.disconnect();

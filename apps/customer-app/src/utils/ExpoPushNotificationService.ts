@@ -3,17 +3,24 @@ import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 import { profileApi } from '../api/profileApi';
 import { store } from '../store';
-import { navigationRef } from '../navigation/RootNavigator';
-import { showToast } from '../store/slices/uiSlice';
+import { navigateFromNotification } from './notificationDeepLink';
 
-// Configure how notifications should be handled when the app is foregrounded
+/**
+ * Foreground notification handling.
+ *
+ * The app shows its own rich in-app toast (driven by the socket `notification:new`
+ * event, see socketClient.ts). To avoid a DOUBLE notification when the app is in
+ * the foreground (system banner + in-app toast), we suppress the OS banner while
+ * foregrounded. Background / terminated delivery still shows the system tray
+ * banner normally (this handler only runs for foreground notifications).
+ */
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: false, // Don't show system banner, we use custom Toast
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: false,
-    shouldShowList: true,
+    shouldShowAlert: false,  // in-app toast handles foreground; avoid double-notify
+    shouldPlaySound: false,
+    shouldSetBadge: true,
+    shouldShowBanner: false, // SDK 49+
+    shouldShowList: true,    // still record it in the notification center/tray
   }),
 });
 
@@ -22,11 +29,27 @@ export class ExpoPushNotificationService {
     let token;
 
     if (Platform.OS === 'android') {
+      // Category-specific channels (match backend pushGateway channelIds)
       await Notifications.setNotificationChannelAsync('default', {
-        name: 'default',
+        name: 'General',
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#FF231F7C',
+      });
+      await Notifications.setNotificationChannelAsync('orders', {
+        name: 'Order Updates',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#E95C1E',
+      });
+      await Notifications.setNotificationChannelAsync('payments', {
+        name: 'Payments',
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 250, 250, 250],
+      });
+      await Notifications.setNotificationChannelAsync('promotions', {
+        name: 'Offers & Promotions',
+        importance: Notifications.AndroidImportance.DEFAULT,
       });
     }
 
@@ -41,18 +64,16 @@ export class ExpoPushNotificationService {
         console.log('Failed to get push token for push notification!');
         return;
       }
-      
+
       try {
         const tokenData = await Notifications.getExpoPushTokenAsync();
         token = tokenData.data;
         console.log('✅ [Push] Expo Push Token (FCM Verified):', token);
-        
-        // Update token on backend if authenticated
+
         if (token) {
           await this.saveTokenToBackend(token);
         }
       } catch (error: any) {
-        // This is a common warning in development when google-services.json is missing or Firebase is not fully configured
         console.warn(
           '⚠️ [Push] Push notifications disabled: Missing FCM configuration (google-services.json). ' +
           'Complete the setup guide at: https://docs.expo.dev/push-notifications/fcm-credentials/',
@@ -68,19 +89,19 @@ export class ExpoPushNotificationService {
 
   static async saveTokenToBackend(token: string) {
     try {
-      // Check if user is authenticated before attempting to save
       const state = store.getState() as any;
       const isAuthenticated = state.auth?.status === 'ACTIVE';
-      
+
       if (!isAuthenticated) {
         console.log('Skipping push token save: User not authenticated');
         return;
       }
 
-      // Use the profileApi to update the token
-      // We use store.dispatch because this is called outside a React component
       await store.dispatch(
-        profileApi.endpoints.updatePushToken.initiate({ pushToken: token })
+        profileApi.endpoints.updatePushToken.initiate({
+          pushToken: token,
+          platform: Platform.OS,
+        })
       ).unwrap();
       console.log('Push token saved to backend successfully');
     } catch (error) {
@@ -88,39 +109,62 @@ export class ExpoPushNotificationService {
     }
   }
 
+  /**
+   * Removes this device's push token from the backend (call on logout) so a
+   * shared device stops receiving the previous user's notifications.
+   */
+  static async removeTokenFromBackend() {
+    try {
+      const token = (await Notifications.getExpoPushTokenAsync().catch(() => null))?.data;
+      await store.dispatch(
+        profileApi.endpoints.removePushToken.initiate({ pushToken: token || undefined })
+      ).unwrap();
+      console.log('Push token removed from backend');
+    } catch (error) {
+      // Non-fatal — logout proceeds regardless.
+      console.warn('Failed to remove push token from backend:', error);
+    }
+  }
+
+  /**
+   * Handles the case where the app was launched (cold start) by tapping a
+   * notification while it was terminated. Expo buffers that response and exposes
+   * it via getLastNotificationResponseAsync(). Must be called once after
+   * navigation is ready.
+   */
+  static async handleTerminatedStateNotification() {
+    try {
+      const response = await Notifications.getLastNotificationResponseAsync();
+      if (response) {
+        const data = response.notification.request.content.data as any;
+        console.log('[Push] Cold-start from notification tap:', data);
+        // Small delay to ensure navigation tree is mounted.
+        setTimeout(() => navigateFromNotification(data), 300);
+      }
+    } catch (error) {
+      console.warn('[Push] Failed to handle terminated-state notification:', error);
+    }
+  }
+
   static addNotificationListeners() {
+    // Foreground receipt — the in-app toast (socket-driven) handles display.
+    // We still process silent data payloads here.
     const notificationListener = Notifications.addNotificationReceivedListener(notification => {
-      console.log('Notification Received (Foreground):', notification);
-      const title = notification.request.content.title;
-      const body = notification.request.content.body;
-      const data = notification.request.content.data;
-      
-      // If backend sends generic content-available or we want to show a custom toast
-      if (title || body) {
-        store.dispatch(showToast(title || body || 'New Notification'));
-      }
-      
-      // If it's a silent order update payload, redux logic could respond here
+      const data = notification.request.content.data as any;
       if (data?.['content-available'] === 1) {
-        console.log('Silent data payload received, refreshing data...');
-        // trigger redundant fetches or state updates silently
+        console.log('[Push] Silent data payload received');
       }
     });
 
+    // Notification tap (app in foreground or background — NOT terminated).
+    // Terminated taps are handled by handleTerminatedStateNotification().
     const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
-      console.log('Notification Response Tapped:', response);
-      const data = response.notification.request.content.data;
-      
-      if (navigationRef.isReady()) {
-        if (data?.type === 'ORDER_UPDATE' && data?.orderId) {
-          navigationRef.navigate('OrderTracking', { orderId: data.orderId });
-        } else if (data?.type === 'OFFER') {
-          navigationRef.navigate('Main', { screen: 'Home' }); // Or a dedicated Offers tab
-        }
-      }
+      const data = response.notification.request.content.data as any;
+      console.log('[Push] Notification tapped:', data);
+      navigateFromNotification(data);
     });
 
-    // Handle background token rotation natively given by APNS/FCM
+    // Background token rotation (APNS/FCM).
     const tokenListener = Notifications.addPushTokenListener(token => {
       console.log('Push token rotated, updating backend...');
       this.saveTokenToBackend(token.data);

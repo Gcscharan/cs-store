@@ -137,7 +137,7 @@ export default function DeliverySelfieScreen({ navigation }: any) {
           <View style={s.previewSection}>
             <Image source={{ uri: preview }} style={s.previewImage} />
             <View style={s.previewActions}>
-              <TouchableOpacity style={[s.retakeBtn, { marginRight: 12 }]} onPress={handleRetake} disabled={state === 'uploading'}>
+              <TouchableOpacity style={s.retakeBtn} onPress={handleRetake} disabled={state === 'uploading'}>
                 <Text style={s.retakeBtnText}>❌ Retake</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -186,8 +186,8 @@ export default function DeliverySelfieScreen({ navigation }: any) {
               'Look directly at the camera with a neutral expression',
               'Make sure your entire face is visible in the frame',
               'Maximum file size: 5MB (auto-compressed)',
-            ].map((tip, i) => (
-              <View key={i} style={s.tipRow}>
+            ].map((tip) => (
+              <View key={tip} style={s.tipRow}>
                 <View style={s.tipDot} />
                 <Text style={s.tipText}>{tip}</Text>
               </View>
@@ -217,7 +217,7 @@ const s = StyleSheet.create({
   ctaText: { color: Colors.white, fontSize: 18, fontWeight: '700' },
   previewSection: { alignItems: 'center' },
   previewImage: { width: 280, height: 280, borderRadius: 16, marginBottom: 20 },
-  previewActions: { flexDirection: 'row' },
+  previewActions: { flexDirection: 'row', gap: 12 },
   retakeBtn: { flex: 1, backgroundColor: '#6b7280', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
   retakeBtnText: { color: Colors.white, fontWeight: '700', fontSize: 15 },
   uploadBtn: { flex: 1, backgroundColor: Colors.success, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },

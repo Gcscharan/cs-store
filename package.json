@@ -61,7 +61,21 @@
     "docker:logs": "docker compose logs -f backend",
     "docker:logs:all": "docker compose logs -f",
     "docker:restart": "docker compose restart backend",
-    "docker:shell": "docker compose exec backend sh"
+    "docker:shell": "docker compose exec backend sh",
+    "qa": "node qa/run-qa.mjs",
+    "qa:delivery": "node qa/run-qa.mjs delivery",
+    "qa:delivery:ai": "node qa/run-qa.mjs delivery --ai",
+    "qa:discover": "node qa/run-qa.mjs discover",
+    "qa:full": "node qa/run-qa.mjs full",
+    "qa:full:ai": "node qa/run-qa.mjs full --ai",
+    "qa:customer": "node qa/run-qa.mjs customer",
+    "qa:admin": "node qa/run-qa.mjs admin",
+    "qa:offline": "node qa/run-qa.mjs offline",
+    "qa:reconnect": "node qa/run-qa.mjs reconnect",
+    "qa:pages": "node qa/run-qa.mjs pages:full",
+    "qa:pages:load": "node qa/run-qa.mjs pages",
+    "qa:mobile:delivery": "node qa/run-qa.mjs mobile:delivery",
+    "qa:audit": "node qa/run-qa.mjs audit"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",

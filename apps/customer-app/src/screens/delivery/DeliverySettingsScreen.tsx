@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, TouchableOpacity, ScrollView, Switch, StyleSheet, Alert,
+  View, Text, TouchableOpacity, ScrollView, Switch, StyleSheet, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -17,6 +17,7 @@ interface SettingsState {
   updates: boolean;
   emergencyAlerts: boolean;
   darkMode: boolean;
+  autoOffline: boolean;
 }
 
 const DEFAULT_SETTINGS: SettingsState = {
@@ -25,6 +26,7 @@ const DEFAULT_SETTINGS: SettingsState = {
   updates: true,
   emergencyAlerts: true,
   darkMode: false,
+  autoOffline: false,
 };
 
 export default function DeliverySettingsScreen({ navigation }: any) {
@@ -53,7 +55,22 @@ export default function DeliverySettingsScreen({ navigation }: any) {
 
   const handleNavAction = (dest: string) => {
     logEvent('setting_navigation', { destination: dest });
-    Alert.alert('Coming Soon', `${dest} will be available in the next update.`);
+    switch (dest) {
+      case 'Location Settings':
+        // Open the OS-level app settings so the rider can grant/adjust location.
+        Linking.openSettings().catch(() => {});
+        break;
+      case 'Emergency Contacts':
+      case 'Safety Tips':
+        navigation.navigate('DeliveryEmergency');
+        break;
+      case 'Availability':
+        // Availability (online/offline) is controlled from the dashboard control bar.
+        navigation.navigate('DeliveryDashboard');
+        break;
+      default:
+        break;
+    }
   };
 
   const sections = [
@@ -83,14 +100,14 @@ export default function DeliverySettingsScreen({ navigation }: any) {
     {
       title: '⏰ Working Hours',
       items: [
-        { label: 'Set Availability', desc: 'Configure your working hours', type: 'nav', dest: 'Availability' },
-        { label: 'Auto-Offline', desc: 'Go offline after work hours', type: 'nav', dest: 'Auto-Offline' },
+        { label: 'Set Availability', desc: 'Go online/offline from the dashboard', type: 'nav', dest: 'Availability' },
+        { label: 'Auto-Offline', desc: 'Go offline automatically after work hours', key: 'autoOffline' as const, type: 'toggle' },
       ],
     },
   ];
 
   return (
-    <View style={s.container}>
+    <SafeAreaView style={s.container} edges={['top', 'left', 'right']}>
       <ScreenHeader title="Settings" showBackButton />
 
       <ScrollView style={s.content} showsVerticalScrollIndicator={false}>
@@ -141,7 +158,7 @@ export default function DeliverySettingsScreen({ navigation }: any) {
 
         <View style={{ height: 40 }} />
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 

@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Order } from '../../../hooks/delivery/useOrders';
+import { getCustomerDisplayName } from '../../../utils/deliveryUtils';
 import {
   DELIVERY_COLORS,
   DELIVERY_TYPOGRAPHY,
@@ -20,8 +21,11 @@ export const NewOrderCard: React.FC<NewOrderCardProps> = ({ availableOrders, onA
   if (!availableOrders || availableOrders.length === 0) return null;
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {availableOrders.map(order => (
+    <View style={styles.container}>
+      {availableOrders.map(order => {
+        const phone = order.userId?.phone?.trim() ?? '';
+        const displayName = getCustomerDisplayName(order.userId?.name, phone);
+        return (
         <View key={order._id} style={styles.card}>
           {/* Header */}
           <View style={styles.header}>
@@ -31,18 +35,22 @@ export const NewOrderCard: React.FC<NewOrderCardProps> = ({ availableOrders, onA
           </View>
 
           {/* Amount */}
-          <Text style={styles.amount}>₹{order.totalAmount}</Text>
+          <Text style={styles.amount}>
+            ₹{(order.totalAmount ?? 0).toLocaleString('en-IN')}
+          </Text>
 
           {/* Customer Info */}
           <View style={styles.infoSection}>
             <View style={styles.infoRow}>
               <Ionicons name="person-outline" size={16} color={DELIVERY_COLORS.textSecondary} />
-              <Text style={styles.infoText}>{order.userId?.name ?? '—'}</Text>
+              <Text style={styles.infoText}>{displayName}</Text>
             </View>
+            {phone ? (
             <View style={styles.infoRow}>
               <Ionicons name="call-outline" size={16} color={DELIVERY_COLORS.textSecondary} />
-              <Text style={styles.infoText}>{order.userId?.phone ?? '—'}</Text>
+              <Text style={styles.infoText}>{phone}</Text>
             </View>
+            ) : null}
           </View>
 
           {/* Address */}
@@ -75,14 +83,16 @@ export const NewOrderCard: React.FC<NewOrderCardProps> = ({ availableOrders, onA
             </TouchableOpacity>
           </View>
         </View>
-      ))}
-    </ScrollView>
+      );
+      })}
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    paddingHorizontal: DELIVERY_SPACING.lg,
+    paddingTop: DELIVERY_SPACING.sm,
   },
   card: {
     backgroundColor: DELIVERY_COLORS.card,

@@ -22,6 +22,7 @@ import { ScreenHeader } from '../../components/ScreenHeader';
 import { persistor } from '../../store';
 import { baseApi } from '../../api/baseApi';
 import type { RootState } from '../../store';
+import { ExpoPushNotificationService } from '../../utils/ExpoPushNotificationService';
 
 const MENU = [ 
   { icon: 'cube-outline', label: 'My Orders', screen: 'Orders' }, 
@@ -48,6 +49,10 @@ const AccountScreen: React.FC = () => {
   const profileData = (profileResponse as any)?.user || profileResponse;
 
   const onLogout = async () => {
+    // 0. De-register this device's push token while still authenticated, so a
+    //    shared device stops receiving this user's notifications.
+    await ExpoPushNotificationService.removeTokenFromBackend();
+
     // 1. Clear RTK Query cache
     dispatch(baseApi.util.resetApiState());
     

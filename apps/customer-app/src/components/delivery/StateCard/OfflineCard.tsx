@@ -61,6 +61,10 @@ const styles = StyleSheet.create({
     borderRadius: DELIVERY_RADIUS.lg,
     padding: DELIVERY_SPACING.xl,
     gap: DELIVERY_SPACING.lg,
+    marginHorizontal: DELIVERY_SPACING.lg,
+    marginVertical: DELIVERY_SPACING.sm,
+    borderWidth: 1,
+    borderColor: DELIVERY_COLORS.border,
     ...DELIVERY_SHADOW.card,
   },
   header: {

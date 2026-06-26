@@ -139,6 +139,14 @@ export const deliveryApi = baseApi.injectEndpoints({
       }),
     }),
 
+    // OTP resend
+    resendOtp: builder.mutation<{ success: boolean; otpExpiresAt?: string; otpSentTo?: { sms: boolean; email: boolean } }, string>({
+      query: (orderId) => ({
+        url: `/delivery/orders/${orderId}/resend-otp`,
+        method: 'POST',
+      }),
+    }),
+
     // Status (on duty toggle)
     toggleStatus: builder.mutation<any, { isOnline: boolean }>({
       query: (body) => ({
@@ -151,6 +159,7 @@ export const deliveryApi = baseApi.injectEndpoints({
     // Earnings
     getEarnings: builder.query<any, void>({
       query: () => ({ url: '/delivery/earnings', method: 'GET' }),
+      providesTags: ['Earnings'],
     }),
 
     // Profile
@@ -197,6 +206,7 @@ export const {
   useStartDeliveryMutation,
   useMarkArrivedMutation,
   useDeliverAttemptMutation,
+  useResendOtpMutation,
   useVerifyDeliveryOtpMutation,
   useRecordDeliveryAttemptMutation,
   useEscalateOrderMutation,

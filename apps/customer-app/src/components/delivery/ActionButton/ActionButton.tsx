@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { UX_COLORS, UX_SPACING, UX_ANIMATIONS } from '../../../delivery/constants/UXDesignSystem';
+import { DELIVERY_COLORS, DELIVERY_TYPOGRAPHY, DELIVERY_SPACING } from '../../../constants/deliveryTheme';
 import { useActionFeedback, ActionButtonState } from '../../../hooks/delivery/useActionFeedback';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -142,7 +142,7 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
         return {
           displayLabel: 'Processing…',
           displayIcon: icon,
-          backgroundColor: UX_COLORS.processing,
+          backgroundColor: DELIVERY_COLORS.info,
           textColor: '#FFFFFF',
           showSpinner: true,
         };
@@ -151,7 +151,7 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
         return {
           displayLabel: 'Queued Offline',
           displayIcon: 'cloud-offline',
-          backgroundColor: UX_COLORS.queued,
+          backgroundColor: DELIVERY_COLORS.warning,
           textColor: '#1A202C',
           showSpinner: false,
         };
@@ -160,7 +160,7 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
         return {
           displayLabel: 'Synced',
           displayIcon: 'checkmark-circle',
-          backgroundColor: UX_COLORS.synced,
+          backgroundColor: DELIVERY_COLORS.success,
           textColor: '#FFFFFF',
           showSpinner: false,
         };
@@ -169,7 +169,7 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
         return {
           displayLabel: 'Failed — Retry',
           displayIcon: 'alert-circle',
-          backgroundColor: UX_COLORS.failed,
+          backgroundColor: DELIVERY_COLORS.danger,
           textColor: '#FFFFFF',
           showSpinner: false,
         };
@@ -179,7 +179,7 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
         // Variant-based styling for idle state
         const variantColors = {
           primary: {
-            backgroundColor: UX_COLORS.primaryAction,
+            backgroundColor: DELIVERY_COLORS.primary,
             textColor: '#FFFFFF',
           },
           secondary: {
@@ -187,7 +187,7 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
             textColor: '#1A202C',
           },
           danger: {
-            backgroundColor: UX_COLORS.dangerAction,
+            backgroundColor: DELIVERY_COLORS.danger,
             textColor: '#FFFFFF',
           },
         };
@@ -209,13 +209,13 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
   
   const buttonStyle: ViewStyle = {
     ...styles.button,
-    backgroundColor: isDisabled ? UX_COLORS.locked : stateConfig.backgroundColor,
+    backgroundColor: isDisabled ? DELIVERY_COLORS.textMuted : stateConfig.backgroundColor,
     opacity: isDisabled ? 0.6 : 1,
   };
 
   const textStyle: TextStyle = {
     ...styles.text,
-    color: isDisabled ? UX_COLORS.textHighContrast : stateConfig.textColor,
+    color: isDisabled ? DELIVERY_COLORS.textPrimary : stateConfig.textColor,
   };
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -265,15 +265,13 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
 const styles = StyleSheet.create({
   button: {
     // Minimum 48x48dp touch target (Requirements 5.1, 15.5)
-    minHeight: UX_SPACING.touchTarget,
-    minWidth: UX_SPACING.touchTarget,
+    minHeight: 48,
+    minWidth: 48,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 8,
     // Avoid accidental touches (Requirement 5.6)
-    marginHorizontal: UX_SPACING.edgePadding,
-    // Smooth transitions (Requirement 3.6, 3.7)
-    transitionDuration: `${UX_ANIMATIONS.buttonTransition}ms`,
+    marginHorizontal: DELIVERY_SPACING.lg,
   },
   content: {
     flexDirection: 'row',

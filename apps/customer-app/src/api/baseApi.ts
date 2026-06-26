@@ -33,12 +33,20 @@ const getRawUrl = (): string => {
     return envUrl;
   }
 
-  // Fallback: Use .local hostname (mDNS) which is more stable across IP changes
+  // No explicit URL. In production builds this is a fatal misconfiguration —
+  // never silently fall back to a developer machine hostname.
+  if (!__DEV__) {
+    throw new Error(
+      'EXPO_PUBLIC_API_URL is not set. Production builds must define the API base URL.'
+    );
+  }
+
+  // Dev-only fallback: .local hostname (mDNS) is more stable across IP changes.
   const hostname = 'GCSCharans-MacBook-Air.local';
   const fallbackUrl = `http://${hostname}:5002/api`;
   
   console.log("🌐 BASE_URL CONFIG:", {
-    source: 'fallback (.local)',
+    source: 'fallback (.local) [DEV ONLY]',
     url: fallbackUrl,
     isDevice: Device.isDevice,
     platform: Platform.OS,
@@ -143,6 +151,7 @@ export const baseApi = createApi({
     'AdminRoutes',
     'AdminSettings',
     'Pincode',
+    'Earnings',
   ],
   endpoints: () => ({}),
 });

@@ -1,4 +1,5 @@
 import React from 'react';
+import { StatusBar } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { DELIVERY_COLORS } from '../../constants/deliveryTheme';
@@ -11,18 +12,25 @@ const Tab = createBottomTabNavigator();
 
 const DeliveryDashboardScreen: React.FC = () => {
   return (
-    <Tab.Navigator id="DeliveryTabs"
+    <>
+      {/* Dark icons on white background — makes time/battery/signal visible */}
+      <StatusBar barStyle="dark-content" backgroundColor={DELIVERY_COLORS.card} />
+      <Tab.Navigator id="DeliveryTabs"
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: DELIVERY_COLORS.primary,
+        tabBarActiveTintColor: DELIVERY_COLORS.primary,   // orange active
         tabBarInactiveTintColor: DELIVERY_COLORS.textMuted,
         tabBarStyle: {
-          backgroundColor: DELIVERY_COLORS.card,
+          backgroundColor: DELIVERY_COLORS.card,           // white tab bar
           borderTopWidth: 1,
           borderTopColor: DELIVERY_COLORS.border,
-          height: 64,
-          paddingBottom: 8,
+          paddingBottom: 12,
           paddingTop: 8,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -1 },
+          shadowOpacity: 0.06,
+          shadowRadius: 4,
+          elevation: 8,
         },
         tabBarLabelStyle: {
           fontSize: 12,
@@ -54,9 +62,9 @@ const DeliveryDashboardScreen: React.FC = () => {
         name="DeliveryNotifications"
         component={NotificationsScreen}
         options={{
-          tabBarLabel: 'Orders',
+          tabBarLabel: 'Alerts',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="list" size={size} color={color} />
+            <Ionicons name="notifications" size={size} color={color} />
           ),
         }}
       />
@@ -71,6 +79,7 @@ const DeliveryDashboardScreen: React.FC = () => {
         }}
       />
     </Tab.Navigator>
+    </>
   );
 };
 

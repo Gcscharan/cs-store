@@ -6,6 +6,7 @@ import {
   FlatList,
   ActivityIndicator,
   RefreshControl,
+  TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -89,7 +90,9 @@ const DeliveryEarningsTab: React.FC = () => {
 
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
-      <Ionicons name="wallet-outline" size={64} color={DELIVERY_COLORS.textMuted} />
+      <View style={styles.emptyIconCircle}>
+        <Ionicons name="wallet-outline" size={40} color={DELIVERY_COLORS.primary} />
+      </View>
       <Text style={styles.emptyTitle}>No Earnings Yet</Text>
       <Text style={styles.emptySubtitle}>
         Complete deliveries to start earning
@@ -99,23 +102,26 @@ const DeliveryEarningsTab: React.FC = () => {
 
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
+      <SafeAreaView style={styles.loadingContainer} edges={['top', 'bottom']}>
         <ActivityIndicator size="large" color={DELIVERY_COLORS.primary} />
-      </View>
+      </SafeAreaView>
     );
   }
 
   if (error) {
     return (
-      <View style={styles.errorContainer}>
+      <SafeAreaView style={styles.errorContainer} edges={['top', 'bottom']}>
         <Ionicons name="alert-circle" size={48} color={DELIVERY_COLORS.danger} />
         <Text style={styles.errorText}>Failed to load earnings</Text>
-      </View>
+        <TouchableOpacity style={styles.retryBtn} onPress={() => refetch()}>
+          <Text style={styles.retryBtnText}>Try Again</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right', 'bottom']}>
       <AppHeader title="Earnings" />
       <FlatList
         data={orders}
@@ -123,14 +129,17 @@ const DeliveryEarningsTab: React.FC = () => {
         keyExtractor={(item) => item._id}
         ListHeaderComponent={
           <>
+            {/* Orange total card — matches Orders page hero card */}
             <View style={styles.totalCard}>
               <Text style={styles.totalCardLabel}>Total Earnings</Text>
               <Text style={styles.totalAmount}>₹{totalEarnings.toLocaleString('en-IN')}</Text>
             </View>
+
+            {/* Breakdown row */}
             <View style={styles.breakdownRow}>
               <View style={styles.breakdownItem}>
-                <View style={[styles.breakdownIcon, { backgroundColor: DELIVERY_COLORS.card }]}>
-                  <Ionicons name="bicycle" size={20} color={DELIVERY_COLORS.info} />
+                <View style={[styles.breakdownIcon, { backgroundColor: '#FFF0E6' }]}>
+                  <Ionicons name="bicycle" size={20} color={DELIVERY_COLORS.primary} />
                 </View>
                 <Text style={styles.breakdownValue}>₹{deliveryFees}</Text>
                 <Text style={styles.breakdownLabel}>Delivery Fees</Text>
@@ -150,6 +159,7 @@ const DeliveryEarningsTab: React.FC = () => {
                 <Text style={styles.breakdownLabel}>Deliveries</Text>
               </View>
             </View>
+
             <Text style={styles.sectionTitle}>Recent Deliveries</Text>
           </>
         }
@@ -176,28 +186,48 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: DELIVERY_COLORS.background,
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
+    backgroundColor: DELIVERY_COLORS.background,
   },
   errorText: {
     fontSize: 16,
     color: DELIVERY_COLORS.textSecondary,
     marginTop: 12,
+    textAlign: 'center',
+  },
+  retryBtn: {
+    marginTop: DELIVERY_SPACING.lg,
+    backgroundColor: DELIVERY_COLORS.primary,
+    paddingHorizontal: DELIVERY_SPACING.xl,
+    paddingVertical: DELIVERY_SPACING.md,
+    borderRadius: DELIVERY_RADIUS.md,
+  },
+  retryBtnText: {
+    color: DELIVERY_COLORS.white,
+    fontWeight: '700',
+    fontSize: DELIVERY_TYPOGRAPHY.base,
   },
   totalCard: {
-    backgroundColor: DELIVERY_COLORS.primary,
+    backgroundColor: DELIVERY_COLORS.primary,   // orange hero card
     margin: 16,
     borderRadius: 16,
     padding: 24,
     alignItems: 'center',
+    shadowColor: DELIVERY_COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   totalCardLabel: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
+    color: 'rgba(255,255,255,0.85)',
     marginBottom: 8,
   },
   totalAmount: {
@@ -207,11 +237,12 @@ const styles = StyleSheet.create({
   },
   breakdownRow: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
-    marginBottom: 16,
+    marginBottom: 8,
   },
   breakdownItem: {
+    flex: 1,
     alignItems: 'center',
   },
   breakdownIcon: {
@@ -248,12 +279,17 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   orderCard: {
-    backgroundColor: DELIVERY_COLORS.card,
+    backgroundColor: DELIVERY_COLORS.card,       // white card
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
     borderColor: DELIVERY_COLORS.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
   },
   orderHeader: {
     flexDirection: 'row',
@@ -333,18 +369,26 @@ const styles = StyleSheet.create({
   },
   emptyContainer: {
     alignItems: 'center',
-    paddingVertical: 40,
+    paddingVertical: 48,
+  },
+  emptyIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#FFF0E6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
   },
   emptyTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: DELIVERY_COLORS.textPrimary,
-    marginTop: 12,
+    marginBottom: 4,
   },
   emptySubtitle: {
     fontSize: 14,
     color: DELIVERY_COLORS.textSecondary,
-    marginTop: 4,
   },
 });
 

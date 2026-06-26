@@ -11,6 +11,7 @@ import {
   Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
 import {
   useGetDeliveryProfileQuery,
@@ -100,7 +101,8 @@ const DeliveryProfileScreen: React.FC = () => {
   const selfieUrl = selfieData?.selfieUrl;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
       {/* Selfie Section */}
       <View style={styles.selfieSection}>
         <View style={styles.selfieContainer}>
@@ -208,6 +210,7 @@ const DeliveryProfileScreen: React.FC = () => {
         )}
       </TouchableOpacity>
     </ScrollView>
+    </SafeAreaView>
   );
 };
 
@@ -215,6 +218,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     padding: 16,

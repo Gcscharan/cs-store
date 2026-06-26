@@ -1,31 +1,37 @@
+/**
+ * Delivery App Design Tokens — Orange + White Theme
+ * Aligned with the customer app's Orders page visual identity.
+ */
 export const DELIVERY_COLORS = {
   // Backgrounds
-  background:    '#0F172A',   // Deep navy - base
-  card:          '#1E293B',   // Slate - card surface
-  cardElevated:  '#263548',   // Lighter slate - elevated cards
-  border:        '#334155',   // Subtle border
+  background:    '#FAFAFA',   // Off-white base — matches Orders page
+  card:          '#FFFFFF',   // White card surface
+  cardElevated:  '#F3F4F6',   // Slightly tinted elevated surface
+  border:        '#EAEAEA',   // Subtle border
 
-  // Brand
-  primary:       '#0B5FFF',   // Electric blue - primary actions
-  primaryDark:   '#0847CC',   // Pressed state
+  // Brand — orange primary (matches Colors.primary)
+  primary:       '#FF6A00',   // Orange — primary actions
+  primaryDark:   '#E65C00',   // Pressed state
+  primaryLight:  '#FF8A33',   // Light orange tint
 
   // Status
-  success:       '#00C853',   // Online / delivered
-  successBg:     '#052E16',
-  warning:       '#F59E0B',   // In transit / caution
-  warningBg:     '#1C1400',
-  danger:        '#FF3B30',   // Offline / failed
-  dangerBg:      '#2D0A08',
-  info:          '#38BDF8',   // Info / navigation
+  success:       '#16A34A',   // Green — online / delivered
+  successBg:     '#DCFCE7',   // Light green background
+  warning:       '#F59E0B',   // Amber — in transit / caution
+  warningBg:     '#FEF3C7',   // Light amber background
+  danger:        '#EF4444',   // Red — offline / failed
+  dangerBg:      '#FEE2E2',   // Light red background
+  info:          '#3B82F6',   // Blue — info / navigation
 
   // Text
-  textPrimary:   '#F8FAFC',
-  textSecondary: '#94A3B8',
-  textMuted:     '#475569',
+  textPrimary:   '#111111',   // Near-black — primary text
+  textSecondary: '#666666',   // Medium grey — secondary text
+  textMuted:     '#9CA3AF',   // Light grey — muted/hint text
+  textMutedBg:   '#F3F4F6',   // Light grey surface (retry lock panel, etc.)
 
   // Special
-  earnings:      '#FFD700',   // Gold - earnings highlight
-  highValue:     '#FF6B00',   // Orange - high value order badge
+  earnings:      '#FF6A00',   // Orange — earnings highlight (brand color)
+  highValue:     '#E65C00',   // Dark orange — high value order badge
   white:         '#FFFFFF',
 };
 
@@ -61,16 +67,24 @@ export const DELIVERY_RADIUS = {
 export const DELIVERY_SHADOW = {
   card: {
     shadowColor:   '#000',
-    shadowOffset:  { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius:  8,
-    elevation:     8,
+    shadowOffset:  { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius:  4,
+    elevation:     2,
   },
   elevated: {
     shadowColor:   '#000',
-    shadowOffset:  { width: 0, height: 8 },
-    shadowOpacity: 0.6,
-    shadowRadius:  16,
-    elevation:     16,
+    shadowOffset:  { width: 0, height: 4 },
+    shadowOpacity: 0.10,
+    shadowRadius:  8,
+    elevation:     4,
   },
+};
+
+export default {
+  DELIVERY_COLORS,
+  DELIVERY_TYPOGRAPHY,
+  DELIVERY_SPACING,
+  DELIVERY_RADIUS,
+  DELIVERY_SHADOW,
 };

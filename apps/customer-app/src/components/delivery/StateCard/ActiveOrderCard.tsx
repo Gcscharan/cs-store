@@ -13,7 +13,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Order } from '../../../hooks/delivery/useOrders';
-import { getStatusConfig } from '../../../utils/deliveryUtils';
+import { getStatusConfig, getCustomerDisplayName } from '../../../utils/deliveryUtils';
+import { getDeliveryFlowState } from '../../../utils/deliveryOrderFlow';
 import {
   DELIVERY_COLORS,
   DELIVERY_TYPOGRAPHY,
@@ -26,11 +27,7 @@ import { RouteProgressHeader } from '../RouteProgressHeader';
 import { useDistanceEta } from '../../../hooks/delivery/useDistanceEta';
 import { AttemptState } from '../../../hooks/delivery/useAttemptTracker';
 import { AttemptBadge } from '../AttemptBadge/AttemptBadge';
-import {
-  UX_COLORS,
-  UX_TYPOGRAPHY,
-  UX_SPACING,
-} from '../../../delivery/constants/UXDesignSystem';
+import { RetryLockExplanation } from '../RetryLockExplanation';
 import { useNetworkStatus } from '../../../hooks/delivery/useNetworkStatus';
 
 // ─── Canonical Failure Reasons ────────────────────────────────────────────────
@@ -65,7 +62,8 @@ interface ActiveOrderCardProps {
   onStartDelivery: (orderId: string) => void;
   onMarkArrived: (orderId: string) => void;
   onStartDeliveryAttempt: (orderId: string) => void;
-  onVerifyOtp: (orderId: string, otp: string) => void;
+  onResendOtp: (orderId: string) => Promise<void>;
+  onVerifyOtp: (orderId: string, otp: string) => Promise<void>;
   onCollectCOD: (orderId: string, mode: 'CASH' | 'UPI') => void;
   onFailDelivery: (orderId: string, reason: FailureReasonKey, notes?: string) => void;
   onRefetch?: () => void;
@@ -227,6 +225,7 @@ const SingleOrderCard: React.FC<SingleOrderCardProps> = ({
   onStartDelivery,
   onMarkArrived,
   onStartDeliveryAttempt,
+  onResendOtp,
   onVerifyOtp,
   onCollectCOD,
   onFailDelivery,
@@ -241,15 +240,16 @@ const SingleOrderCard: React.FC<SingleOrderCardProps> = ({
   getOrderRemainingSeconds,
   isOffline = false,
 }) => {
-  const status = order.orderStatus.toLowerCase();
+  const status = (order.orderStatus ?? '').toLowerCase();
   const isCod = order.paymentMethod?.toLowerCase() === 'cod';
   const codCollection = codCollectionByOrderId[order._id];
-  const isDeliveryAttempted = deliveryAttempted[order._id] ?? false;
+  // Derive from server-side deliveryOtpGeneratedAt as fallback — prevents "Start Delivery Attempt"
+  // reappearing after screen remount when OTP is already in-flight
+  const isDeliveryAttempted = deliveryAttempted[order._id] ?? !!order.deliveryOtpGeneratedAt;
   const isCancelled = status === 'cancelled';
 
-  // allowedActions from server — undefined means the field is absent (stale/missing response)
-  const allowedActions: string[] | undefined = order.allowedActions;
-  const actionsAbsent = allowedActions === undefined;
+  // Web-aligned flow gates (EnhancedHomeTab.tsx)
+  const flow = getDeliveryFlowState(order, codCollection, isDeliveryAttempted);
 
   // ── Removed auto-refetch timer - rely on socket events for real-time updates ──
 
@@ -348,45 +348,60 @@ const SingleOrderCard: React.FC<SingleOrderCardProps> = ({
   );
 
   // ── Customer Info ─────────────────────────────────────────────────────────
+  const customerPhone = order.userId?.phone?.trim() ?? '';
+  const customerDisplayName = getCustomerDisplayName(order.userId?.name, customerPhone);
+
   const renderCustomerInfo = () => (
     <View style={styles.customerRow}>
       <View style={styles.customerDetails}>
-        <View style={styles.customerNameRow}>
-          <Ionicons name="person-circle" size={16} color={DELIVERY_COLORS.info} />
-          <Text style={styles.customerName}>{order.userId?.name || 'Customer'}</Text>
-        </View>
-        {order.userId?.phone ? (
+        <Text style={styles.customerName}>{customerDisplayName}</Text>
+        {customerPhone ? (
           <TouchableOpacity
-            onPress={() => Linking.openURL(`tel:${order.userId!.phone}`)}
+            style={styles.phoneRow}
+            onPress={() => Linking.openURL(`tel:${customerPhone}`)}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={`Call customer at ${customerPhone}`}
           >
-            <Text style={styles.customerPhone}>{order.userId.phone}</Text>
+            <Ionicons name="call-outline" size={14} color={DELIVERY_COLORS.primary} />
+            <Text style={styles.customerPhone}>{customerPhone}</Text>
           </TouchableOpacity>
         ) : null}
-        <Text style={styles.addressText} numberOfLines={2}>
+        <Text style={styles.addressText} numberOfLines={3}>
           {[order.address?.addressLine, order.address?.city, order.address?.pincode]
             .filter(Boolean)
             .join(', ')}
         </Text>
       </View>
+      {customerPhone ? (
+        <TouchableOpacity
+          style={styles.callFab}
+          onPress={() => Linking.openURL(`tel:${customerPhone}`)}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="Call customer"
+        >
+          <Ionicons name="call" size={20} color={DELIVERY_COLORS.white} />
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 
   // ── COD Section ───────────────────────────────────────────────────────────
-  // Informational only — visibility driven by allowedActions.includes("COLLECT_COD")
+  // Same gates as web: COD after arrival, before OTP
   const renderCodSection = () => {
-    if (!allowedActions?.includes('COLLECT_COD')) {
-      // Show collected confirmation if COD was collected (informational)
-      if (isCod && codCollection) {
-        return (
-          <View style={styles.codCollectedBanner}>
-            <Ionicons name="checkmark-circle" size={20} color={UX_COLORS.synced} />
-            <Text style={styles.codCollectedText}>
-              Payment Collected ({codCollection.mode === 'CASH' ? 'Cash' : 'UPI'})
-            </Text>
-          </View>
-        );
-      }
+    if (flow.showCodCollectedBanner && codCollection) {
+      return (
+        <View style={styles.codCollectedBanner}>
+          <Ionicons name="checkmark-circle" size={20} color={DELIVERY_COLORS.success} />
+          <Text style={styles.codCollectedText}>
+            Payment Collected ({codCollection.mode === 'CASH' ? 'Cash' : 'UPI'})
+          </Text>
+        </View>
+      );
+    }
+
+    if (!flow.showCodCollect) {
       return null;
     }
 
@@ -394,7 +409,7 @@ const SingleOrderCard: React.FC<SingleOrderCardProps> = ({
     if (codStatus === 'queued') {
       return (
         <View style={styles.codQueuedBanner}>
-          <Ionicons name="cloud-upload-outline" size={20} color={UX_COLORS.queued} />
+          <Ionicons name="cloud-upload-outline" size={20} color={DELIVERY_COLORS.warning} />
           <Text style={styles.codQueuedText}>
             Payment recorded — will confirm when back online
           </Text>
@@ -406,7 +421,7 @@ const SingleOrderCard: React.FC<SingleOrderCardProps> = ({
     if (codStatus === 'collected') {
       return (
         <View style={styles.codCollectedBanner}>
-          <Ionicons name="checkmark-circle" size={20} color={UX_COLORS.synced} />
+          <Ionicons name="checkmark-circle" size={20} color={DELIVERY_COLORS.success} />
           <Text style={styles.codCollectedText}>Payment Collected</Text>
         </View>
       );
@@ -468,7 +483,7 @@ const SingleOrderCard: React.FC<SingleOrderCardProps> = ({
               </Text>
               {isOffline && (
                 <View style={styles.codOfflineNote}>
-                  <Ionicons name="cloud-upload-outline" size={14} color={UX_COLORS.queued} />
+                  <Ionicons name="cloud-upload-outline" size={14} color={DELIVERY_COLORS.warning} />
                   <Text style={styles.codOfflineNoteText}>
                     You are offline — payment will be confirmed when you reconnect
                   </Text>
@@ -476,7 +491,7 @@ const SingleOrderCard: React.FC<SingleOrderCardProps> = ({
               )}
               <View style={styles.modalButtons}>
                 <TouchableOpacity
-                  style={[styles.modalCancelBtn, { marginRight: DELIVERY_SPACING.sm }]}
+                  style={styles.modalCancelBtn}
                   onPress={() => {
                     setCodConfirmVisible(false);
                     setPendingCodMode(null);
@@ -520,7 +535,7 @@ const SingleOrderCard: React.FC<SingleOrderCardProps> = ({
 
   // ── OTP Section ───────────────────────────────────────────────────────────
   const renderOtpSection = () => {
-    if (!allowedActions?.includes('VERIFY_OTP') && !isDeliveryAttempted) return null;
+    if (!flow.showOtpInput) return null;
     const otpValue = otpInputs[order._id] ?? '';
     const isComplete = otpValue.length === 4;
 
@@ -529,7 +544,7 @@ const SingleOrderCard: React.FC<SingleOrderCardProps> = ({
       return (
         <View style={styles.otpContainer}>
           <View style={styles.otpStatusBanner}>
-            <Ionicons name="cloud-upload-outline" size={18} color={UX_COLORS.queued} />
+            <Ionicons name="cloud-upload-outline" size={18} color={DELIVERY_COLORS.warning} />
             <Text style={styles.otpQueuedText}>
               OTP submitted — will verify when back online
             </Text>
@@ -543,7 +558,7 @@ const SingleOrderCard: React.FC<SingleOrderCardProps> = ({
       return (
         <View style={styles.otpContainer}>
           <View style={styles.otpStatusBanner}>
-            <Ionicons name="checkmark-circle" size={18} color={UX_COLORS.synced} />
+            <Ionicons name="checkmark-circle" size={18} color={DELIVERY_COLORS.success} />
             <Text style={styles.otpVerifiedText}>OTP Verified</Text>
           </View>
         </View>
@@ -557,7 +572,7 @@ const SingleOrderCard: React.FC<SingleOrderCardProps> = ({
         {/* Incorrect OTP feedback — Requirement 10.4 */}
         {otpStatus === 'incorrect' && (
           <View style={styles.otpErrorBanner}>
-            <Ionicons name="close-circle" size={16} color={UX_COLORS.failed} />
+            <Ionicons name="close-circle" size={16} color={DELIVERY_COLORS.danger} />
             <Text style={styles.otpErrorText}>Incorrect OTP — try again</Text>
           </View>
         )}
@@ -569,7 +584,7 @@ const SingleOrderCard: React.FC<SingleOrderCardProps> = ({
             otpStatus === 'incorrect' && styles.otpInputError,
           ]}
           value={otpValue}
-          onChangeText={(val) => {
+          onChangeText={async (val) => {
             const digits = val.replace(/\D/g, '');
             onOtpChange(order._id, digits);
             // Reset error state when user starts typing again
@@ -584,12 +599,16 @@ const SingleOrderCard: React.FC<SingleOrderCardProps> = ({
                 setOtpStatus('queued');
                 onVerifyOtp(order._id, digits);
               } else {
-                // Online — submit immediately
-                // The parent handler will call Alert on success/failure.
-                // We track local state for immediate feedback.
-                onVerifyOtp(order._id, digits);
-                // Reset ref after a short delay to allow re-entry if needed
-                setTimeout(() => { otpSubmittedRef.current = false; }, 1000);
+                // Online — submit immediately and await for inline feedback
+                try {
+                  await onVerifyOtp(order._id, digits);
+                  setOtpStatus('verified');
+                } catch {
+                  setOtpStatus('incorrect');
+                } finally {
+                  // Reset ref after a short delay to allow re-entry if needed
+                  setTimeout(() => { otpSubmittedRef.current = false; }, 1000);
+                }
               }
             }
           }}
@@ -602,6 +621,15 @@ const SingleOrderCard: React.FC<SingleOrderCardProps> = ({
           accessibilityHint="OTP will be submitted automatically when 4 digits are entered"
         />
 
+        {/* Resend OTP link */}
+        <TouchableOpacity
+          onPress={() => onResendOtp(order._id)}
+          style={styles.resendOtpButton}
+          disabled={isOffline}
+        >
+          <Text style={styles.resendOtpText}>Resend OTP</Text>
+        </TouchableOpacity>
+
         {isOffline && (
           <Text style={styles.otpOfflineHint}>
             Offline — OTP will be verified when you reconnect
@@ -611,35 +639,26 @@ const SingleOrderCard: React.FC<SingleOrderCardProps> = ({
     );
   };
 
-  // ── Action Buttons ────────────────────────────────────────────────────────
-  const renderActionButtons = () => {
-    /*
-    console.log('[ACTION_BUTTONS_RENDER]', {
-      orderId: order._id.slice(-6),
-      isCancelled,
-      actionsAbsent,
-      allowedActions,
-      status,
-    });
-    */
+  // ── Action Buttons (web EnhancedHomeTab flow) ─────────────────────────────
+  const renderActionButtons = (phase: 'primary' | 'completion' | 'all' = 'all') => {
+    if (flow.isCancelled) return null;
 
-    if (isCancelled) return null;
-
-    // If allowedActions is absent, show syncing skeleton with timeout fallback (Fix #23)
-    if (actionsAbsent) {
-      return <SyncingSkeleton onRefetch={onRefetch} />;
-    }
-
-    const actions = allowedActions!;
-    // console.log('[ACTION_BUTTONS] Rendering buttons for actions:', actions);
-
-    // Show persistent Navigate button after pickup (replaces START_DELIVERY button)
-    // Show for: picked_up, in_transit, out_for_delivery, arrived
-    const showPersistentNavigate = ['picked_up', 'in_transit', 'out_for_delivery', 'arrived'].includes(status);
+    const showPrimary = phase === 'primary' || phase === 'all';
+    const showCompletion = phase === 'completion' || phase === 'all';
 
     return (
       <View style={styles.actionsContainer}>
-        {actions.includes('PICKUP') && (
+        {showPrimary && flow.showUnassignedWarning && (
+          <View style={styles.unassignedBanner}>
+            <Ionicons name="time-outline" size={18} color={DELIVERY_COLORS.warning} />
+            <View style={styles.unassignedTextWrap}>
+              <Text style={styles.unassignedTitle}>Order not yet assigned to you</Text>
+              <Text style={styles.unassignedSubtitle}>Waiting for assignment…</Text>
+            </View>
+          </View>
+        )}
+
+        {showPrimary && flow.showPickup && (
           <TouchableOpacity
             style={[styles.primaryBtn, isLocked && styles.primaryBtnDisabled]}
             onPress={() => {
@@ -650,38 +669,30 @@ const SingleOrderCard: React.FC<SingleOrderCardProps> = ({
             disabled={isLocked}
             accessibilityRole="button"
             accessibilityLabel="Mark as picked up"
-            accessibilityHint="Confirms you have collected the order from the warehouse"
-            accessibilityState={{ disabled: isLocked }}
           >
             <Ionicons name="cube" size={20} color="#FFFFFF" />
             <Text style={styles.primaryBtnText}>Mark as Picked Up</Text>
           </TouchableOpacity>
         )}
 
-        {/* Persistent Navigate Button - Replaces "Start Delivery" button after pickup */}
-        {showPersistentNavigate && validCoords(order.address.lat, order.address.lng) && (
+        {showPrimary && flow.showStartDelivery && (
           <TouchableOpacity
-            style={[styles.navigateBtn, isLocked && styles.navigateBtnDisabled]}
+            style={[styles.primaryBtn, isLocked && styles.primaryBtnDisabled]}
             onPress={() => {
               if (isLocked) return;
-              if (actions.includes('START_DELIVERY')) {
-                onStartDelivery(order._id);
-              }
-              openNavigation(order);
+              onStartDelivery(order._id);
             }}
             activeOpacity={isLocked ? 1 : 0.85}
             disabled={isLocked}
             accessibilityRole="button"
-            accessibilityLabel="Navigate to customer"
-            accessibilityHint="Opens navigation to the customer delivery address"
-            accessibilityState={{ disabled: isLocked }}
+            accessibilityLabel="Start delivery"
           >
             <Ionicons name="navigate" size={20} color="#FFFFFF" />
-            <Text style={styles.navigateBtnText}>Navigate to Customer</Text>
+            <Text style={styles.primaryBtnText}>Start Delivery</Text>
           </TouchableOpacity>
         )}
 
-        {actions.includes('MARK_ARRIVED') && (
+        {showPrimary && flow.showMarkArrived && (
           <TouchableOpacity
             style={[styles.primaryBtn, isLocked && styles.primaryBtnDisabled]}
             onPress={() => {
@@ -692,14 +703,13 @@ const SingleOrderCard: React.FC<SingleOrderCardProps> = ({
             disabled={isLocked}
             accessibilityRole="button"
             accessibilityLabel="Mark as arrived"
-            accessibilityHint="Confirms you have arrived at the customer location"
-            accessibilityState={{ disabled: isLocked }}
           >
             <Ionicons name="location" size={20} color="#FFFFFF" />
             <Text style={styles.primaryBtnText}>Mark as Arrived</Text>
           </TouchableOpacity>
         )}
-        {actions.includes('SEND_OTP') && !isDeliveryAttempted && (
+
+        {showCompletion && flow.showStartDeliveryAttempt && (
           <TouchableOpacity
             style={[styles.primaryBtn, isLocked && styles.primaryBtnDisabled]}
             onPress={() => {
@@ -710,25 +720,41 @@ const SingleOrderCard: React.FC<SingleOrderCardProps> = ({
             disabled={isLocked}
             accessibilityRole="button"
             accessibilityLabel="Start delivery attempt"
-            accessibilityHint="Sends OTP to the customer to verify delivery"
-            accessibilityState={{ disabled: isLocked }}
           >
             <Ionicons name="send" size={20} color="#FFFFFF" />
             <Text style={styles.primaryBtnText}>Start Delivery Attempt</Text>
           </TouchableOpacity>
         )}
-        {(actions.includes('VERIFY_OTP') || isDeliveryAttempted) && !isLocked && renderOtpSection()}
-        {actions.includes('CUSTOMER_NOT_AVAILABLE') && !isLocked && (
+
+        {showCompletion && !isLocked && renderOtpSection()}
+
+        {showCompletion && flow.showCancelDelivery && !isLocked && (
           <TouchableOpacity
             style={styles.failBtn}
             onPress={handleOpenFailModal}
             activeOpacity={0.85}
             accessibilityRole="button"
-            accessibilityLabel="Cancel delivery"
-            accessibilityHint="Opens options to record a failed delivery attempt"
+            accessibilityLabel="Customer not available"
           >
             <Ionicons name="close-circle" size={20} color="#FFFFFF" />
-            <Text style={styles.failBtnText}>Cancel Delivery</Text>
+            <Text style={styles.failBtnText}>Customer Not Available</Text>
+          </TouchableOpacity>
+        )}
+
+        {showCompletion && flow.showNavigate && validCoords(order.address?.lat, order.address?.lng) && (
+          <TouchableOpacity
+            style={[styles.navigateBtn, isLocked && styles.navigateBtnDisabled]}
+            onPress={() => {
+              if (isLocked) return;
+              openNavigation(order);
+            }}
+            activeOpacity={isLocked ? 1 : 0.85}
+            disabled={isLocked}
+            accessibilityRole="button"
+            accessibilityLabel="Navigate to location"
+          >
+            <Ionicons name="navigate-outline" size={20} color={DELIVERY_COLORS.info} />
+            <Text style={styles.navigateBtnText}>Navigate to Location</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -746,8 +772,20 @@ const SingleOrderCard: React.FC<SingleOrderCardProps> = ({
     </View>
   );
 
+  const showRetryPanel = attemptCount > 0;
+
   return (
-    <View pointerEvents={(isLocked || isRetryLocked) ? 'none' : 'auto'}>
+    <View>
+      {showRetryPanel && (
+        <RetryLockExplanation
+          orderId={order._id}
+          attemptCount={attemptCount}
+          remainingSeconds={remainingSeconds}
+          isLocked={isRetryLocked}
+          onRetry={handleOpenFailModal}
+        />
+      )}
+      <View pointerEvents={(isLocked || isRetryLocked) ? 'none' : 'auto'}>
       <View style={[
         styles.card,
         isCurrent && styles.cardCurrent,
@@ -818,7 +856,9 @@ const SingleOrderCard: React.FC<SingleOrderCardProps> = ({
 
       {/* Amount + Payment */}
       <View style={styles.amountRow}>
-        <Text style={styles.orderAmount}>₹{order.totalAmount.toLocaleString('en-IN')}</Text>
+        <Text style={styles.orderAmount}>
+          ₹{(order.totalAmount ?? 0).toLocaleString('en-IN')}
+        </Text>
         <View style={styles.paymentBadgesRow}>
           <View style={[styles.paymentBadge, { backgroundColor: paymentBadge.bg }]}>
             <Text style={[styles.paymentBadgeText, { color: paymentBadge.color }]}>{paymentBadge.label}</Text>
@@ -829,17 +869,17 @@ const SingleOrderCard: React.FC<SingleOrderCardProps> = ({
         </View>
       </View>
 
-      {/* 3-Segment Progress Bar */}
+      {/* Web order: pickup → start → mark arrived → COD → OTP → cancel → navigate */}
+      {/* Hard guard: never render action buttons when order is delivered — prevents stale cache ghost buttons */}
+      {!isCancelled && !flow.isDelivered && isCurrent && renderActionButtons('primary')}
+
       {renderProgressBar()}
-
-      {/* Customer Info + Navigate */}
       {renderCustomerInfo()}
+      {!flow.isDelivered && renderCodSection()}
 
-      {/* COD Gate */}
-      {renderCodSection()}
+      {!isCancelled && !flow.isDelivered && isCurrent && renderActionButtons('completion')}
 
-      {/* Cancellation or Actions */}
-      {isCancelled ? renderCancellationSummary() : renderActionButtons()}
+      {isCancelled ? renderCancellationSummary() : !isCurrent && !flow.isDelivered && renderActionButtons('all')}
 
       {/* Failure Reason Modal */}
       <Modal visible={failModalVisible} transparent animationType="fade">
@@ -877,7 +917,7 @@ const SingleOrderCard: React.FC<SingleOrderCardProps> = ({
             )}
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={[styles.modalCancelBtn, { marginRight: DELIVERY_SPACING.sm }]}
+                style={styles.modalCancelBtn}
                 onPress={() => setFailModalVisible(false)}
               >
                 <Text style={styles.modalCancelText}>Cancel</Text>
@@ -894,7 +934,8 @@ const SingleOrderCard: React.FC<SingleOrderCardProps> = ({
         </View>
       </Modal>
     </View>
-    </View>
+  </View>
+</View>
   );
 };
 
@@ -983,7 +1024,10 @@ export const ActiveOrderCard: React.FC<ActiveOrderCardProps> = ({
           key={order._id} 
           order={order} 
           isLocked={isOrderLocked?.(order._id) ?? false}
-          isCurrent={isOrderCurrent?.(order._id) ?? false}
+          isCurrent={
+            isOrderCurrent?.(order._id) ??
+            (!isArranged && displayOrders.length === 1)
+          }
           stopIndex={isArranged ? index + 1 : undefined}
           totalStops={isArranged ? totalStops : undefined}
           driverLocation={driverLocation}
@@ -1064,7 +1108,7 @@ const styles = StyleSheet.create({
     backgroundColor: DELIVERY_COLORS.card,
     borderRadius: DELIVERY_RADIUS.lg,
     padding: DELIVERY_SPACING.lg,
-    marginHorizontal: UX_SPACING.edgePadding, // 16dp edge padding — Requirement 5.6
+    marginHorizontal: DELIVERY_SPACING.lg, // 16dp edge padding — Requirement 5.6
     marginVertical: DELIVERY_SPACING.sm,
     ...DELIVERY_SHADOW.card,
   },
@@ -1273,28 +1317,37 @@ const styles = StyleSheet.create({
   customerDetails: {
     flex: 1,
   },
-  customerNameRow: {
+  phoneRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: DELIVERY_SPACING.xs,
+    marginTop: DELIVERY_SPACING.xs,
     marginBottom: DELIVERY_SPACING.xs,
   },
+  callFab: {
+    width: 44,
+    height: 44,
+    borderRadius: DELIVERY_RADIUS.full,
+    backgroundColor: DELIVERY_COLORS.success,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
   customerName: {
-    fontSize: UX_TYPOGRAPHY.critical.fontSize,   // 16sp minimum — Requirement 5.3
-    lineHeight: UX_TYPOGRAPHY.critical.lineHeight,
+    fontSize: DELIVERY_TYPOGRAPHY.base,   // 16sp minimum — Requirement 5.3
+    lineHeight: 20,
     color: DELIVERY_COLORS.textPrimary,
-    fontWeight: UX_TYPOGRAPHY.critical.fontWeight,
+    fontWeight: '700',
   },
   customerPhone: {
     fontSize: DELIVERY_TYPOGRAPHY.sm,
-    color: DELIVERY_COLORS.info,
-    textDecorationLine: 'underline',
-    marginBottom: DELIVERY_SPACING.xs,
+    color: DELIVERY_COLORS.primary,
+    fontWeight: '600',
   },
   addressText: {
-    fontSize: UX_TYPOGRAPHY.critical.fontSize,   // 16sp minimum — Requirement 5.3
+    fontSize: DELIVERY_TYPOGRAPHY.base,   // 16sp minimum — Requirement 5.3
     color: DELIVERY_COLORS.textSecondary,
-    lineHeight: UX_TYPOGRAPHY.critical.lineHeight,
+    lineHeight: 20,
   },
   codBanner: {
     backgroundColor: DELIVERY_COLORS.warningBg,
@@ -1311,16 +1364,16 @@ const styles = StyleSheet.create({
     marginBottom: DELIVERY_SPACING.xs,
   },
   codBannerTitle: {
-    fontSize: UX_TYPOGRAPHY.critical.fontSize,  // 16sp — Requirement 5.3
+    fontSize: DELIVERY_TYPOGRAPHY.base,  // 16sp — Requirement 5.3
     color: DELIVERY_COLORS.warning,
     fontWeight: '700',
   },
   // 24sp bold COD amount — Requirement 9.5
   codAmountLarge: {
-    fontSize: UX_TYPOGRAPHY.codAmount.fontSize,   // 24sp
-    lineHeight: UX_TYPOGRAPHY.codAmount.lineHeight,
-    fontWeight: UX_TYPOGRAPHY.codAmount.fontWeight,
-    color: UX_COLORS.textHighContrast,
+    fontSize: DELIVERY_TYPOGRAPHY.xl,   // 24sp
+    lineHeight: 28,
+    fontWeight: '700',
+    color: DELIVERY_COLORS.textPrimary,
     marginBottom: DELIVERY_SPACING.md,
     textAlign: 'center',
   },
@@ -1344,7 +1397,7 @@ const styles = StyleSheet.create({
     paddingVertical: DELIVERY_SPACING.sm,
     borderRadius: DELIVERY_RADIUS.sm,
     borderWidth: 1.5,
-    minHeight: UX_SPACING.touchTarget,  // 48dp minimum — Requirement 5.1
+    minHeight: 48,  // 48dp minimum — Requirement 5.1
   },
   codCashBtn: {
     borderColor: DELIVERY_COLORS.success,
@@ -1355,9 +1408,9 @@ const styles = StyleSheet.create({
     backgroundColor: DELIVERY_COLORS.card,
   },
   codMethodText: {
-    fontSize: UX_TYPOGRAPHY.critical.fontSize,  // 16sp — Requirement 5.3
+    fontSize: DELIVERY_TYPOGRAPHY.base,  // 16sp — Requirement 5.3
     color: DELIVERY_COLORS.textPrimary,
-    fontWeight: UX_TYPOGRAPHY.critical.fontWeight,
+    fontWeight: '700',
   },
   codCollectedBanner: {
     flexDirection: 'row',
@@ -1377,29 +1430,51 @@ const styles = StyleSheet.create({
   },
   actionsContainer: {
     gap: DELIVERY_SPACING.sm,
-    zIndex: 10,
-    elevation: 10,
+    marginBottom: DELIVERY_SPACING.md,
+  },
+  unassignedBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: DELIVERY_SPACING.sm,
+    backgroundColor: DELIVERY_COLORS.warningBg,
+    borderRadius: DELIVERY_RADIUS.md,
+    padding: DELIVERY_SPACING.md,
+    borderWidth: 1,
+    borderColor: DELIVERY_COLORS.warning,
+  },
+  unassignedTextWrap: {
+    flex: 1,
+  },
+  unassignedTitle: {
+    fontSize: DELIVERY_TYPOGRAPHY.sm,
+    fontWeight: '700',
+    color: DELIVERY_COLORS.warning,
+  },
+  unassignedSubtitle: {
+    fontSize: DELIVERY_TYPOGRAPHY.xs,
+    color: DELIVERY_COLORS.textSecondary,
+    marginTop: 2,
   },
   primaryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: DELIVERY_SPACING.sm,
-    backgroundColor: UX_COLORS.primaryAction,  // High-contrast dark blue — Requirement 5.2
+    backgroundColor: DELIVERY_COLORS.primary,  // Orange primary button
     borderRadius: DELIVERY_RADIUS.md,
     paddingVertical: DELIVERY_SPACING.md,
-    minHeight: UX_SPACING.touchTarget,          // 48dp minimum — Requirement 5.1
-    paddingHorizontal: UX_SPACING.edgePadding,  // 16dp edge padding — Requirement 5.6
+    minHeight: 48,
+    paddingHorizontal: DELIVERY_SPACING.lg,
   },
   primaryBtnDisabled: {
-    backgroundColor: UX_COLORS.locked,          // Distinct disabled state — Requirement 5.7
+    backgroundColor: DELIVERY_COLORS.border,  // Disabled state
     opacity: 0.6,
   },
   primaryBtnText: {
-    fontSize: UX_TYPOGRAPHY.critical.fontSize,  // 16sp — Requirement 5.3
-    lineHeight: UX_TYPOGRAPHY.critical.lineHeight,
-    color: '#FFFFFF',
-    fontWeight: UX_TYPOGRAPHY.critical.fontWeight,
+    fontSize: DELIVERY_TYPOGRAPHY.base,
+    lineHeight: 20,
+    color: DELIVERY_COLORS.white,
+    fontWeight: '700',
   },
   navigateBtn: {
     flexDirection: 'row',
@@ -1409,15 +1484,36 @@ const styles = StyleSheet.create({
     backgroundColor: DELIVERY_COLORS.info,
     borderRadius: DELIVERY_RADIUS.md,
     paddingVertical: DELIVERY_SPACING.md,
-    minHeight: UX_SPACING.touchTarget,          // 48dp minimum — Requirement 5.1
-    paddingHorizontal: UX_SPACING.edgePadding,
+    minHeight: 48,          // 48dp minimum — Requirement 5.1
+    paddingHorizontal: DELIVERY_SPACING.lg,
     borderWidth: 2,
     borderColor: DELIVERY_COLORS.info,
   },
   navigateBtnText: {
-    fontSize: UX_TYPOGRAPHY.critical.fontSize,  // 16sp — Requirement 5.3
-    color: '#FFFFFF',
-    fontWeight: UX_TYPOGRAPHY.critical.fontWeight,
+    fontSize: DELIVERY_TYPOGRAPHY.base,
+    color: DELIVERY_COLORS.white,
+    fontWeight: '700',
+  },
+  navigateBtnDisabled: {
+    opacity: 0.6,
+    backgroundColor: DELIVERY_COLORS.border,
+    borderColor: DELIVERY_COLORS.border,
+  },
+  failBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: DELIVERY_SPACING.sm,
+    backgroundColor: DELIVERY_COLORS.danger,
+    borderRadius: DELIVERY_RADIUS.md,
+    paddingVertical: DELIVERY_SPACING.md,
+    minHeight: 48,
+    paddingHorizontal: DELIVERY_SPACING.lg,
+  },
+  failBtnText: {
+    fontSize: DELIVERY_TYPOGRAPHY.base,
+    color: DELIVERY_COLORS.white,
+    fontWeight: '700',
   },
   otpContainer: {
     backgroundColor: DELIVERY_COLORS.cardElevated,
@@ -1426,9 +1522,9 @@ const styles = StyleSheet.create({
     gap: DELIVERY_SPACING.sm,
   },
   otpTitle: {
-    fontSize: UX_TYPOGRAPHY.critical.fontSize,  // 16sp — Requirement 5.3
+    fontSize: DELIVERY_TYPOGRAPHY.base,  // 16sp — Requirement 5.3
     color: DELIVERY_COLORS.textSecondary,
-    fontWeight: UX_TYPOGRAPHY.critical.fontWeight,
+    fontWeight: '700',
   },
   otpInput: {
     backgroundColor: DELIVERY_COLORS.card,
@@ -1440,10 +1536,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     paddingVertical: DELIVERY_SPACING.sm,
     letterSpacing: 8,
-    minHeight: UX_SPACING.touchTarget,  // 48dp minimum — Requirement 5.1
+    minHeight: 48,  // 48dp minimum — Requirement 5.1
   },
   otpInputError: {
-    borderColor: UX_COLORS.failed,
+    borderColor: DELIVERY_COLORS.danger,
     backgroundColor: '#FFF5F5',
   },
   otpStatusBanner: {
@@ -1453,14 +1549,14 @@ const styles = StyleSheet.create({
     paddingVertical: DELIVERY_SPACING.sm,
   },
   otpVerifiedText: {
-    fontSize: UX_TYPOGRAPHY.critical.fontSize,
-    color: UX_COLORS.synced,
-    fontWeight: UX_TYPOGRAPHY.critical.fontWeight,
+    fontSize: DELIVERY_TYPOGRAPHY.base,
+    color: DELIVERY_COLORS.success,
+    fontWeight: '700',
   },
   otpQueuedText: {
-    fontSize: UX_TYPOGRAPHY.critical.fontSize,
-    color: UX_COLORS.queued,
-    fontWeight: UX_TYPOGRAPHY.critical.fontWeight,
+    fontSize: DELIVERY_TYPOGRAPHY.base,
+    color: DELIVERY_COLORS.warning,
+    fontWeight: '700',
     flex: 1,
   },
   otpErrorBanner: {
@@ -1473,15 +1569,25 @@ const styles = StyleSheet.create({
   },
   otpErrorText: {
     fontSize: DELIVERY_TYPOGRAPHY.sm,
-    color: UX_COLORS.failed,
+    color: DELIVERY_COLORS.danger,
     fontWeight: '600',
     flex: 1,
   },
   otpOfflineHint: {
     fontSize: DELIVERY_TYPOGRAPHY.sm,
-    color: UX_COLORS.queued,
+    color: DELIVERY_COLORS.warning,
     fontWeight: '500',
     textAlign: 'center',
+  },
+  resendOtpButton: {
+    marginTop: DELIVERY_SPACING.xs,
+    alignSelf: 'center',
+  },
+  resendOtpText: {
+    fontSize: DELIVERY_TYPOGRAPHY.sm,
+    color: DELIVERY_COLORS.primary,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
   // Legacy verifyBtn kept for backward compat (no longer rendered but avoids TS errors)
   verifyBtn: {
@@ -1492,15 +1598,15 @@ const styles = StyleSheet.create({
     backgroundColor: DELIVERY_COLORS.success,
     borderRadius: DELIVERY_RADIUS.md,
     paddingVertical: DELIVERY_SPACING.md,
-    minHeight: UX_SPACING.touchTarget,
+    minHeight: 48,
   },
   verifyBtnDisabled: {
     backgroundColor: DELIVERY_COLORS.border,
   },
   verifyBtnText: {
-    fontSize: UX_TYPOGRAPHY.critical.fontSize,
+    fontSize: DELIVERY_TYPOGRAPHY.base,
     color: DELIVERY_COLORS.white,
-    fontWeight: UX_TYPOGRAPHY.critical.fontWeight,
+    fontWeight: '700',
   },
   // ── COD Queued / Confirm styles (Task 9.2) ───────────────────────────────
   codQueuedBanner: {
@@ -1510,14 +1616,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#FEEBC8',
     borderRadius: DELIVERY_RADIUS.md,
     borderWidth: 1,
-    borderColor: UX_COLORS.queued,
+    borderColor: DELIVERY_COLORS.warning,
     padding: DELIVERY_SPACING.md,
     marginBottom: DELIVERY_SPACING.md,
   },
   codQueuedText: {
-    fontSize: UX_TYPOGRAPHY.critical.fontSize,
+    fontSize: DELIVERY_TYPOGRAPHY.base,
     color: '#744210',
-    fontWeight: UX_TYPOGRAPHY.critical.fontWeight,
+    fontWeight: '700',
     flex: 1,
   },
   codConfirmSubtitle: {
@@ -1527,10 +1633,10 @@ const styles = StyleSheet.create({
     marginBottom: DELIVERY_SPACING.xs,
   },
   codConfirmAmount: {
-    fontSize: UX_TYPOGRAPHY.codAmount.fontSize,   // 24sp — Requirement 9.5
-    lineHeight: UX_TYPOGRAPHY.codAmount.lineHeight,
-    fontWeight: UX_TYPOGRAPHY.codAmount.fontWeight,
-    color: UX_COLORS.textHighContrast,
+    fontSize: DELIVERY_TYPOGRAPHY.xl,   // 24sp — Requirement 9.5
+    lineHeight: 28,
+    fontWeight: '700',
+    color: DELIVERY_COLORS.textPrimary,
     textAlign: 'center',
     marginBottom: DELIVERY_SPACING.md,
   },
@@ -1550,6 +1656,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   codConfirmBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1557,13 +1664,13 @@ const styles = StyleSheet.create({
     paddingVertical: DELIVERY_SPACING.sm,
     paddingHorizontal: DELIVERY_SPACING.md,
     borderRadius: DELIVERY_RADIUS.sm,
-    backgroundColor: UX_COLORS.synced,
-    minHeight: UX_SPACING.touchTarget,  // 48dp — Requirement 5.1
+    backgroundColor: DELIVERY_COLORS.success,
+    minHeight: 48,  // 48dp — Requirement 5.1
   },
   codConfirmBtnText: {
-    fontSize: UX_TYPOGRAPHY.critical.fontSize,
+    fontSize: DELIVERY_TYPOGRAPHY.base,
     color: '#FFFFFF',
-    fontWeight: UX_TYPOGRAPHY.critical.fontWeight,
+    fontWeight: '700',
   },
   cancelledBanner: {
     flexDirection: 'row',
@@ -1671,10 +1778,13 @@ const styles = StyleSheet.create({
   },
   modalButtons: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
     marginTop: DELIVERY_SPACING.xs,
+    gap: DELIVERY_SPACING.sm,
   },
   modalCancelBtn: {
+    flex: 1,
+    alignItems: 'center',
     paddingVertical: DELIVERY_SPACING.sm,
     paddingHorizontal: DELIVERY_SPACING.md,
     borderRadius: DELIVERY_RADIUS.sm,
@@ -1687,6 +1797,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   modalConfirmBtn: {
+    flex: 1,
+    alignItems: 'center',
     paddingVertical: DELIVERY_SPACING.sm,
     paddingHorizontal: DELIVERY_SPACING.md,
     borderRadius: DELIVERY_RADIUS.sm,

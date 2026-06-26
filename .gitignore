@@ -24,6 +24,8 @@ android-sdk/
 !app.json
 !eas.json
 !.cursor/worktrees.json
+!.windsurf/mcp.json
+!mcp-pages-manifest.json
 !apps/customer-app/app.json
 !apps/customer-app/eas.json
 
@@ -36,3 +38,7 @@ test-results/
 
 # Vite internal cache
 .vite/
+
+# Redis runtime dump (should never be committed)
+dump.rdb
+*.rdb

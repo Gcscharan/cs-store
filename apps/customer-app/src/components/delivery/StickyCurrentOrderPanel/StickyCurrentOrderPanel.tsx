@@ -20,7 +20,7 @@ export interface StickyCurrentOrderPanelProps {
  * Returns action-oriented language (e.g., "Collect OTP", "Confirm Pickup").
  */
 const deriveNextAction = (order: Order): string => {
-  const status = order.orderStatus.toLowerCase();
+  const status = (order.orderStatus ?? '').toLowerCase();
   const isCod = order.paymentMethod?.toLowerCase() === 'cod';
   const hasArrived = !!order.arrivedAt;
 

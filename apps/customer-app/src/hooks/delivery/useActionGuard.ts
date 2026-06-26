@@ -26,7 +26,7 @@ export const useActionGuard = <T extends unknown[]>(
       isProcessingRef.current = true;
 
       try {
-        await fn(...args);
+        return await fn(...args);
       } finally {
         // Always release — even if fn throws
         isProcessingRef.current = false;

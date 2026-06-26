@@ -99,6 +99,8 @@ function AppContent() {
   useEffect(() => {
     const initPushNotifications = async () => {
       await ExpoPushNotificationService.registerForPushNotificationsAsync();
+      // Handle cold-start: app launched by tapping a notification while terminated.
+      await ExpoPushNotificationService.handleTerminatedStateNotification();
     };
 
     initPushNotifications();

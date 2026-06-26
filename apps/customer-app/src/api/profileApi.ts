@@ -70,10 +70,18 @@ export const profileApi = baseApi.injectEndpoints({
       }),
     }),
 
-    updatePushToken: builder.mutation<void, { pushToken: string }>({
+    updatePushToken: builder.mutation<void, { pushToken: string; platform?: string }>({
       query: (body) => ({
         url: '/user/push-token',
         method: 'POST',
+        body,
+      }),
+    }),
+
+    removePushToken: builder.mutation<void, { pushToken?: string }>({
+      query: (body) => ({
+        url: '/user/push-token',
+        method: 'DELETE',
         body,
       }),
     }),

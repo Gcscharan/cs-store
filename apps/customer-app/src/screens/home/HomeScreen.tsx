@@ -24,7 +24,7 @@ import {
   useGetCategoriesQuery,
   productsApi,
 } from '../../api/productsApi';
-import { useGetUnreadCountQuery } from '../../api/notificationsApi';
+import { NotificationBell } from '../../components/NotificationBell';
 import { cartApi } from '../../api/cartApi';
 import { ordersApi } from '../../api/ordersApi';
 import { addressesApi } from '../../api/addressesApi';
@@ -68,30 +68,6 @@ const s = StyleSheet.create({
     backgroundColor: Colors.primary
   },
   brandName: { fontSize: 20, fontWeight: '900', color: Colors.white, fontFamily: 'Inter-Bold', letterSpacing: -0.5 },
-  notifBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  notifIcon: { fontSize: 20, color: Colors.white },
-  notifBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    backgroundColor: Colors.white,
-    borderRadius: 10,
-    minWidth: 16,
-    height: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: Colors.primary,
-  },
-  notifBadgeTxt: { color: Colors.primary, fontSize: 9, fontWeight: '900' },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -419,12 +395,6 @@ export default function HomeScreen({ navigation }: any) {
   // Use curated categories instead of API data
   const categories = CURATED_CATEGORIES;
 
-  const { unreadCount } = useGetUnreadCountQuery(undefined, {
-    selectFromResult: (result) => ({
-      unreadCount: result.data?.count || 0,
-    }),
-  });
-
   const cartTotal = useSelector((state: RootState) => state.cart.total);
   const cartItems = useSelector((state: RootState) => state.cart.items) || [];
 
@@ -525,19 +495,7 @@ export default function HomeScreen({ navigation }: any) {
       <ScreenHeader 
         title="Vyapara Setu" 
         rightComponent={
-          <TouchableOpacity
-            style={s.notifBtn}
-            onPress={() => navigation.navigate('Notifications')}
-          >
-            <Text style={s.notifIcon}>🔔</Text>
-            {unreadCount > 0 && (
-              <View style={s.notifBadge}>
-                <Text style={s.notifBadgeTxt}>
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
+          <NotificationBell onPress={() => navigation.navigate('Notifications')} />
         }
       />
 

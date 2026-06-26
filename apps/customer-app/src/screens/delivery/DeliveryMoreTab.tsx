@@ -19,10 +19,15 @@ import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { persistor } from '../../store';
 import { baseApi } from '../../api/baseApi';
+import { ExpoPushNotificationService } from '../../utils/ExpoPushNotificationService';
 
 type DeliveryStackParamList = {
   DeliveryDashboard: undefined;
   DeliveryProfile: undefined;
+  DeliverySelfie: undefined;
+  DeliverySettings: undefined;
+  DeliveryHelpCenter: undefined;
+  DeliveryKYC: undefined;
   DeliveryEmergency: undefined;
 };
 
@@ -51,6 +56,9 @@ const DeliveryMoreTab: React.FC = () => {
           text: 'Logout',
           style: 'destructive',
           onPress: async () => {
+            // 0. De-register this device's push token while still authenticated.
+            await ExpoPushNotificationService.removeTokenFromBackend();
+
             // 1. Clear RTK Query cache
             dispatch(baseApi.util.resetApiState());
             
@@ -82,7 +90,25 @@ const DeliveryMoreTab: React.FC = () => {
     {
       icon: 'camera',
       label: 'Update Selfie',
-      onPress: () => navigation.navigate('DeliveryProfile'),
+      onPress: () => navigation.navigate('DeliverySelfie'),
+      showArrow: true,
+    },
+    {
+      icon: 'settings',
+      label: 'Settings',
+      onPress: () => navigation.navigate('DeliverySettings'),
+      showArrow: true,
+    },
+    {
+      icon: 'help-circle',
+      label: 'Help Center',
+      onPress: () => navigation.navigate('DeliveryHelpCenter'),
+      showArrow: true,
+    },
+    {
+      icon: 'document-text',
+      label: 'KYC Documents',
+      onPress: () => navigation.navigate('DeliveryKYC'),
       showArrow: true,
     },
     {
@@ -102,7 +128,7 @@ const DeliveryMoreTab: React.FC = () => {
   ];
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right', 'bottom']}>
       <AppHeader title="Profile" />
       <ScrollView>
         {/* Profile info */}
@@ -118,15 +144,15 @@ const DeliveryMoreTab: React.FC = () => {
 
         {/* Menu Items */}
         <View style={styles.menuSection}>
-        {menuItems.map((item, index) => (
+        {menuItems.map((item) => (
           <TouchableOpacity
-            key={index}
+            key={item.label}
             style={styles.menuItem}
             onPress={item.onPress}
             activeOpacity={0.7}
           >
             <View style={styles.menuLeft}>
-              <View style={[styles.menuIcon, item.color && { backgroundColor: `${item.color}15` }, { marginRight: 12 }]}>
+              <View style={[styles.menuIcon, item.color && { backgroundColor: item.color === DELIVERY_COLORS.danger ? DELIVERY_COLORS.dangerBg : `${item.color}15` }, { marginRight: 12 }]}>
                 <Ionicons
                   name={item.icon as any}
                   size={20}
@@ -154,19 +180,23 @@ const DeliveryMoreTab: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: DELIVERY_COLORS.background,
+    backgroundColor: DELIVERY_COLORS.background,  // off-white
   },
   profileRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    gap: 12,
+    padding: 20,
+    gap: 14,
+    backgroundColor: DELIVERY_COLORS.card,
+    borderBottomWidth: 1,
+    borderBottomColor: DELIVERY_COLORS.border,
+    marginBottom: 16,
   },
   avatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: DELIVERY_COLORS.primary,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: DELIVERY_COLORS.primary,      // orange avatar
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -174,7 +204,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   userName: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '700',
     color: DELIVERY_COLORS.textPrimary,
   },
@@ -184,11 +214,17 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   menuSection: {
-    marginTop: 16,
     marginHorizontal: 16,
-    backgroundColor: DELIVERY_COLORS.card,
-    borderRadius: 12,
+    backgroundColor: DELIVERY_COLORS.card,         // white card
+    borderRadius: 14,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: DELIVERY_COLORS.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
   },
   menuItem: {
     flexDirection: 'row',
@@ -206,7 +242,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: DELIVERY_COLORS.cardElevated,
+    backgroundColor: '#FFF0E6',                    // light orange tint default
     alignItems: 'center',
     justifyContent: 'center',
   },

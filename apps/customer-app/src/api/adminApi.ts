@@ -200,6 +200,14 @@ export const adminApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ['DeliveryBoys'],
     }),
+    reviewDeliveryKyc: builder.mutation({
+      query: ({ deliveryBoyId, decision, rejectionReason }) => ({
+        url: `/admin/delivery-boys/${deliveryBoyId}/kyc/review`,
+        method: 'POST',
+        body: { decision, ...(rejectionReason ? { rejectionReason } : {}) },
+      }),
+      invalidatesTags: ['DeliveryBoys'],
+    }),
 
     // Analytics
     getAnalytics: builder.query({
@@ -328,6 +336,7 @@ export const {
   useGetDeliveryPartnersQuery,
   useApproveDeliveryBoyMutation,
   useSuspendDeliveryBoyMutation,
+  useReviewDeliveryKycMutation,
   useGetAnalyticsQuery,
   useGetOutboxFailuresQuery,
   useGetInventoryDriftQuery,
