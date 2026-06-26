@@ -20,6 +20,7 @@ import {
   PREVIEW_MAX_DISTANCE_KM,
 } from "../services/cvrpRouteAssignmentService";
 import { getGstReport } from "../domains/finance/services/gstReportService";
+import { v2 as cloudinary } from "cloudinary";
 
 export const getStats = async (req: Request, res: Response) => {
   try {
@@ -932,11 +933,30 @@ export const getAdminDeliveryBoys = async (req: Request, res: Response) => {
             submittedAt: deliveryBoy.kyc?.submittedAt || null,
             reviewedAt: deliveryBoy.kyc?.reviewedAt || null,
             rejectionReason: deliveryBoy.kyc?.rejectionReason || "",
-            documents: (deliveryBoy.kyc?.documents || []).map((d: any) => ({
-              docType: d.docType,
-              url: d.url,
-              uploadedAt: d.uploadedAt,
-            })),
+            documents: (deliveryBoy.kyc?.documents || []).map((d: any) => {
+              // KYC docs are stored as Cloudinary "authenticated" assets, so the
+              // raw secure_url is not viewable. Generate a signed delivery URL so
+              // the admin review UI can render the documents. Fall back to the
+              // stored url if signing fails (e.g. missing publicId).
+              let signedUrl = d.url;
+              try {
+                if (d.publicId) {
+                  signedUrl = cloudinary.url(d.publicId, {
+                    type: "authenticated",
+                    sign_url: true,
+                    secure: true,
+                    resource_type: "image",
+                  });
+                }
+              } catch (e) {
+                logger.warn("Failed to sign KYC document url", e);
+              }
+              return {
+                docType: d.docType,
+                url: signedUrl,
+                uploadedAt: d.uploadedAt,
+              };
+            }),
           },
         },
       };

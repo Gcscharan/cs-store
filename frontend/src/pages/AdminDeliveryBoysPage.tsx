@@ -46,6 +46,17 @@ interface DeliveryBoy {
       lng: number;
       lastUpdatedAt: string;
     };
+    kyc?: {
+      status: "NOT_STARTED" | "PENDING" | "VERIFIED" | "REJECTED";
+      submittedAt: string | null;
+      reviewedAt: string | null;
+      rejectionReason: string;
+      documents: Array<{
+        docType: string;
+        url: string;
+        uploadedAt: string;
+      }>;
+    };
   } | null;
 }
 
@@ -60,6 +71,12 @@ const AdminDeliveryBoysPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedBoy, setSelectedBoy] = useState<DeliveryBoy | null>(null);
   const [showApprovalModal, setShowApprovalModal] = useState(false);
+
+  // KYC review state
+  const [kycBoy, setKycBoy] = useState<DeliveryBoy | null>(null);
+  const [showKycModal, setShowKycModal] = useState(false);
+  const [kycRejectionReason, setKycRejectionReason] = useState("");
+  const [isReviewingKyc, setIsReviewingKyc] = useState(false);
 
   useEffect(() => {
     fetchDeliveryBoys();
@@ -181,6 +198,71 @@ const AdminDeliveryBoysPage: React.FC = () => {
     } catch (error: any) {
       console.error("Error suspending delivery boy:", error);
       toast.error(error.message || t("admin.failedSuspendPartner"));
+    }
+  };
+
+  const handleReviewKyc = async (
+    deliveryBoyId: string,
+    decision: "VERIFIED" | "REJECTED"
+  ) => {
+    if (decision === "REJECTED" && !kycRejectionReason.trim()) {
+      toast.error("Please provide a rejection reason");
+      return;
+    }
+
+    try {
+      setIsReviewingKyc(true);
+
+      if (!tokens?.accessToken) {
+        throw new Error("No authentication token available");
+      }
+
+      const response = await fetch(
+        toApiUrl(`/admin/delivery-boys/${deliveryBoyId}/kyc/review`),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${tokens.accessToken}`,
+          },
+          body: JSON.stringify({
+            decision,
+            rejectionReason:
+              decision === "REJECTED" ? kycRejectionReason.trim() : undefined,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to review KYC");
+      }
+
+      toast.success(
+        decision === "VERIFIED" ? "KYC verified" : "KYC rejected"
+      );
+      setShowKycModal(false);
+      setKycBoy(null);
+      setKycRejectionReason("");
+      fetchDeliveryBoys();
+    } catch (error: any) {
+      console.error("Error reviewing KYC:", error);
+      toast.error(error.message || "Failed to review KYC");
+    } finally {
+      setIsReviewingKyc(false);
+    }
+  };
+
+  const getKycBadge = (status?: string) => {
+    switch (status) {
+      case "VERIFIED":
+        return "bg-green-100 text-green-800";
+      case "PENDING":
+        return "bg-yellow-100 text-yellow-800";
+      case "REJECTED":
+        return "bg-red-100 text-red-800";
+      default:
+        return "bg-gray-100 text-gray-600";
     }
   };
 
@@ -350,6 +432,16 @@ const AdminDeliveryBoysPage: React.FC = () => {
                       >
                         {boy.user.status.toUpperCase()}
                       </span>
+                      {boy.deliveryBoy?.kyc && (
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-semibold ${getKycBadge(
+                            boy.deliveryBoy.kyc.status
+                          )}`}
+                          title="KYC status"
+                        >
+                          KYC: {boy.deliveryBoy.kyc.status.replace("_", " ")}
+                        </span>
+                      )}
                       {boy.deliveryBoy && (
                         <div className="flex items-center gap-2">
                           <div
@@ -410,6 +502,22 @@ const AdminDeliveryBoysPage: React.FC = () => {
                   </div>
 
                   <div className="flex flex-col gap-2 ml-4">
+                    {boy.deliveryBoy?.kyc &&
+                      (boy.deliveryBoy.kyc.status === "PENDING" ||
+                        (boy.deliveryBoy.kyc.documents?.length || 0) > 0) && (
+                        <button
+                          onClick={() => {
+                            setKycBoy(boy);
+                            setKycRejectionReason("");
+                            setShowKycModal(true);
+                          }}
+                          className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2"
+                        >
+                          <Search className="h-4 w-4" />
+                          Review KYC
+                        </button>
+                      )}
+
                     {boy.user.status === "pending" && (
                       <button
                         onClick={() => {
@@ -484,6 +592,141 @@ const AdminDeliveryBoysPage: React.FC = () => {
                   setShowApprovalModal(false);
                   setSelectedBoy(null);
                 }}
+                className="flex-1 py-3 bg-gray-200 text-gray-800 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+              >
+                {t("ui.cancel")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* KYC Review Modal */}
+      {showKycModal && kycBoy && kycBoy.deliveryBoy?.kyc && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 my-8">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-gray-900">
+                KYC Review — {kycBoy.user.name}
+              </h3>
+              <span
+                className={`px-3 py-1 rounded-full text-xs font-semibold ${getKycBadge(
+                  kycBoy.deliveryBoy.kyc.status
+                )}`}
+              >
+                {kycBoy.deliveryBoy.kyc.status.replace("_", " ")}
+              </span>
+            </div>
+
+            <div className="mb-4 text-sm text-gray-600 space-y-1">
+              <p>
+                <strong>Phone:</strong> {kycBoy.user.phone}
+              </p>
+              {kycBoy.deliveryBoy.kyc.submittedAt && (
+                <p>
+                  <strong>Submitted:</strong>{" "}
+                  {new Date(
+                    kycBoy.deliveryBoy.kyc.submittedAt
+                  ).toLocaleString()}
+                </p>
+              )}
+              {kycBoy.deliveryBoy.kyc.status === "REJECTED" &&
+                kycBoy.deliveryBoy.kyc.rejectionReason && (
+                  <p className="text-red-600">
+                    <strong>Previous rejection:</strong>{" "}
+                    {kycBoy.deliveryBoy.kyc.rejectionReason}
+                  </p>
+                )}
+            </div>
+
+            {/* Documents */}
+            <div className="mb-6">
+              <h4 className="text-sm font-semibold text-gray-900 mb-3">
+                Submitted Documents
+              </h4>
+              {(kycBoy.deliveryBoy.kyc.documents?.length || 0) === 0 ? (
+                <p className="text-sm text-gray-500">
+                  No documents uploaded yet.
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {kycBoy.deliveryBoy.kyc.documents.map((doc, idx) => (
+                    <div
+                      key={idx}
+                      className="border border-gray-200 rounded-lg overflow-hidden"
+                    >
+                      <div className="px-3 py-2 bg-gray-50 border-b border-gray-200">
+                        <p className="text-xs font-semibold text-gray-700 capitalize">
+                          {doc.docType.replace(/_/g, " ")}
+                        </p>
+                      </div>
+                      <a
+                        href={doc.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block"
+                      >
+                        <img
+                          src={doc.url}
+                          alt={doc.docType}
+                          className="w-full h-40 object-cover hover:opacity-90 transition-opacity"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display =
+                              "none";
+                          }}
+                        />
+                        <p className="px-3 py-2 text-xs text-blue-600 hover:underline">
+                          Open full size ↗
+                        </p>
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Rejection reason input */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Rejection reason (required to reject)
+              </label>
+              <textarea
+                value={kycRejectionReason}
+                onChange={(e) => setKycRejectionReason(e.target.value)}
+                rows={2}
+                placeholder="e.g. Aadhaar image is blurry / details do not match"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() =>
+                  handleReviewKyc(kycBoy.deliveryBoy!._id, "VERIFIED")
+                }
+                disabled={isReviewingKyc}
+                className="flex-1 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+              >
+                <CheckCircle className="h-4 w-4" />
+                {isReviewingKyc ? "Saving..." : "Verify"}
+              </button>
+              <button
+                onClick={() =>
+                  handleReviewKyc(kycBoy.deliveryBoy!._id, "REJECTED")
+                }
+                disabled={isReviewingKyc}
+                className="flex-1 py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+              >
+                <XCircle className="h-4 w-4" />
+                {isReviewingKyc ? "Saving..." : "Reject"}
+              </button>
+              <button
+                onClick={() => {
+                  setShowKycModal(false);
+                  setKycBoy(null);
+                  setKycRejectionReason("");
+                }}
+                disabled={isReviewingKyc}
                 className="flex-1 py-3 bg-gray-200 text-gray-800 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
               >
                 {t("ui.cancel")}
