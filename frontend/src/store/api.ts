@@ -671,6 +671,22 @@ export const api = createApi({
     }),
 
     // ---------- SUPPORT (admin inbox) ----------
+    createSupportRequest: builder.mutation<
+      any,
+      {
+        category: string;
+        message: string;
+        subject?: string;
+        contactPhone?: string;
+        orderId?: string;
+      }
+    >({
+      query: (body) => ({
+        url: toApiUrl("/support/requests"),
+        method: "POST",
+        body,
+      }),
+    }),
     getSupportRequests: builder.query<any, { status?: string; page?: number; limit?: number } | void>({
       query: (params) => ({
         url: toApiUrl("/admin/support-requests"),
@@ -737,6 +753,7 @@ export const {
   useGetDeliveryProfileQuery,
   useGetSupportRequestsQuery,
   useResolveSupportRequestMutation,
+  useCreateSupportRequestMutation,
 } = api;
 
 export default api;

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -8,10 +8,23 @@ import {
   Calendar,
   CreditCard,
   LogOut,
+  X,
 } from "lucide-react";
+import { useCreateSupportRequestMutation } from "../store/api";
+import { useToast } from "../components/AccessibleToast";
 
 const DeliveryHelpCenterPage: React.FC = () => {
   const navigate = useNavigate();
+  const { success, error: showError } = useToast();
+  const [createSupportRequest, { isLoading: isSubmitting }] =
+    useCreateSupportRequestMutation();
+
+  const [selectedIssue, setSelectedIssue] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
+  const [message, setMessage] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
 
   const issueOptions = [
     {
@@ -49,9 +62,54 @@ const DeliveryHelpCenterPage: React.FC = () => {
   ];
 
   const handleIssueClick = (issueId: string) => {
-    // For now, show an alert. In the future, this can navigate to specific issue pages
     const issue = issueOptions.find((opt) => opt.id === issueId);
-    alert(`Opening ${issue?.title} form. This feature will be available soon!`);
+    if (!issue) return;
+    setSelectedIssue({ id: issue.id, title: issue.title });
+    setMessage("");
+    setContactPhone("");
+  };
+
+  const closeModal = () => {
+    setSelectedIssue(null);
+    setMessage("");
+    setContactPhone("");
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedIssue) return;
+
+    const trimmed = message.trim();
+    if (trimmed.length < 3) {
+      showError("Please describe your issue", "Add a few more details.");
+      return;
+    }
+    const phone = contactPhone.trim();
+    if (phone && !/^\d{10}$/.test(phone)) {
+      showError("Invalid phone", "Contact phone must be 10 digits.");
+      return;
+    }
+
+    try {
+      await createSupportRequest({
+        category: selectedIssue.id,
+        subject: selectedIssue.title,
+        message: trimmed,
+        contactPhone: phone || undefined,
+      }).unwrap();
+      success("Request submitted", "Our support team will reach out soon.");
+      closeModal();
+    } catch (err: any) {
+      console.error("Support request failed:", err);
+      if (err?.status === 401) {
+        navigate("/delivery/login");
+      } else {
+        showError(
+          "Could not submit",
+          err?.data?.error || "Please try again."
+        );
+      }
+    }
   };
 
   return (
@@ -191,6 +249,71 @@ const DeliveryHelpCenterPage: React.FC = () => {
           </motion.div>
         </motion.div>
       </div>
+
+      {/* Issue Submission Modal */}
+      {selectedIssue && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-gray-900">
+                {selectedIssue.title}
+              </h3>
+              <button
+                onClick={closeModal}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+                aria-label="Close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Describe your issue
+                </label>
+                <textarea
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  rows={4}
+                  placeholder="Tell us what went wrong so we can help."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Contact phone (optional)
+                </label>
+                <input
+                  type="tel"
+                  value={contactPhone}
+                  onChange={(e) => setContactPhone(e.target.value)}
+                  placeholder="10-digit number to reach you"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {isSubmitting ? "Submitting..." : "Submit Request"}
+                </button>
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  disabled={isSubmitting}
+                  className="flex-1 py-3 bg-gray-200 text-gray-800 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
