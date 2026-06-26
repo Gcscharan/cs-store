@@ -108,9 +108,10 @@ export function navigateFromNotification(data: NotificationPayloadData | undefin
   if (!target) return;
   if (!navigationRef.isReady()) return;
 
+  const navigate = navigationRef.navigate as (...args: any[]) => void;
   if (target.params) {
-    navigationRef.navigate(target.screen as never, target.params as never);
+    navigate(target.screen, target.params);
   } else {
-    navigationRef.navigate(target.screen as never);
+    navigate(target.screen);
   }
 }

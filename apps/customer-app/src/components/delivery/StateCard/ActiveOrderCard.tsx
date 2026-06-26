@@ -63,7 +63,7 @@ interface ActiveOrderCardProps {
   onMarkArrived: (orderId: string) => void;
   onStartDeliveryAttempt: (orderId: string) => void;
   onResendOtp: (orderId: string) => Promise<void>;
-  onVerifyOtp: (orderId: string, otp: string) => Promise<void>;
+  onVerifyOtp: (orderId: string, otp: string) => void | Promise<void>;
   onCollectCOD: (orderId: string, mode: 'CASH' | 'UPI') => void;
   onFailDelivery: (orderId: string, reason: FailureReasonKey, notes?: string) => void;
   onRefetch?: () => void;

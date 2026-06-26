@@ -33,7 +33,8 @@ interface StateCardProps {
   onStartDelivery: (orderId: string) => void;
   onMarkArrived: (orderId: string) => void;
   onStartDeliveryAttempt: (orderId: string) => void;
-  onVerifyOtp: (orderId: string, otp: string) => void;
+  onResendOtp: (orderId: string) => Promise<void>;
+  onVerifyOtp: (orderId: string, otp: string) => void | Promise<void>;
   onCollectCOD: (orderId: string, mode: 'CASH' | 'UPI') => void;
   onFailDelivery: (orderId: string, reason: string, notes?: string) => void;
 }
@@ -69,6 +70,7 @@ export const StateCard: React.FC<StateCardProps> = ({ state, ...props }) => {
           onStartDelivery={props.onStartDelivery}
           onMarkArrived={props.onMarkArrived}
           onStartDeliveryAttempt={props.onStartDeliveryAttempt}
+          onResendOtp={props.onResendOtp}
           onVerifyOtp={props.onVerifyOtp}
           onCollectCOD={props.onCollectCOD}
           onFailDelivery={props.onFailDelivery}
