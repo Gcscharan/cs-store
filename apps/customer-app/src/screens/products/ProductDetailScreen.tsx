@@ -417,15 +417,18 @@ export default function ProductDetailScreen({ route, navigation }: any) {
       {/* Title */}
       <Text style={s.name}>{product.name}</Text> 
 
-      {/* Brand (clickable blue text) */}
-      <TouchableOpacity onPress={() => {}}>
+      {/* Brand (clickable blue text) — opens the catalog ("the store") */}
+      <TouchableOpacity onPress={() => navigation.navigate('Home')}>
         <Text style={s.brand}>Visit the Store</Text>
       </TouchableOpacity>
 
       {/* Rating Row + Bestseller Badge */}
       <View style={s.ratingBadgeRow}>
         {avgRating && ( 
-          <TouchableOpacity style={s.ratingRow} onPress={() => {}}> 
+          <TouchableOpacity
+            style={s.ratingRow}
+            onPress={() => navigation.navigate('AllReviews', { productId: id, productName: product.name })}
+          > 
             <Text style={s.stars}>{avgRating}</Text>
             <Ionicons name="star" size={12} color="#FFA41C" style={{ marginLeft: 2, marginRight: 4 }} />
             <Text style={s.reviewCount}>({reviews.length})</Text> 
