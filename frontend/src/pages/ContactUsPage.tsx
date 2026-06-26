@@ -1,12 +1,80 @@
-import React from "react";
+import React, { useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowLeft, Mail, Phone, MapPin, Clock } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useSelector } from "react-redux";
+import { RootState } from "../store";
+import { useCreateSupportRequestMutation } from "../store/api";
+import { useToast } from "../components/AccessibleToast";
 import { useLanguage } from "../contexts/LanguageContext";
 
 const ContactUsPage: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useLanguage();
+  const auth = useSelector((state: RootState) => state.auth);
+  const { success, error: showError } = useToast();
+  const [createSupportRequest, { isLoading: isSubmitting }] =
+    useCreateSupportRequestMutation();
+
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    subject: "",
+    message: "",
+  });
+
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!auth.isAuthenticated) {
+      showError(
+        "Please log in to submit",
+        "Log in to send a message, or reach us by phone/email."
+      );
+      navigate("/login");
+      return;
+    }
+
+    const message = form.message.trim();
+    if (message.length < 3) {
+      showError("Please enter a message", "Add a few more details.");
+      return;
+    }
+
+    const contextLines = [
+      form.name.trim() ? `Name: ${form.name.trim()}` : "",
+      form.email.trim() ? `Email: ${form.email.trim()}` : "",
+    ].filter(Boolean);
+    const fullMessage = contextLines.length
+      ? `${message}\n\n---\n${contextLines.join("\n")}`
+      : message;
+
+    try {
+      await createSupportRequest({
+        category: "general",
+        subject: form.subject.trim() || undefined,
+        message: fullMessage,
+      }).unwrap();
+      success("Message sent", "We'll get back to you soon.");
+      setForm({ name: "", email: "", subject: "", message: "" });
+    } catch (err: any) {
+      console.error("Contact form submit failed:", err);
+      if (err?.status === 401) {
+        navigate("/login");
+      } else {
+        showError(
+          "Could not send message",
+          err?.data?.error || "Please try again."
+        );
+      }
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -104,13 +172,16 @@ const ContactUsPage: React.FC = () => {
                 {t("legal.sendMessage")}
               </h3>
 
-              <form className="space-y-4">
+              <form className="space-y-4" onSubmit={handleSubmit}>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {t("legal.fullName")}
                   </label>
                   <input
                     type="text"
+                    name="name"
+                    value={form.name}
+                    onChange={handleChange}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                     placeholder={t("legal.enterFullName")}
                   />
@@ -122,6 +193,9 @@ const ContactUsPage: React.FC = () => {
                   </label>
                   <input
                     type="email"
+                    name="email"
+                    value={form.email}
+                    onChange={handleChange}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                     placeholder={t("legal.enterEmail")}
                   />
@@ -133,6 +207,9 @@ const ContactUsPage: React.FC = () => {
                   </label>
                   <input
                     type="text"
+                    name="subject"
+                    value={form.subject}
+                    onChange={handleChange}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                     placeholder={t("legal.enterSubject")}
                   />
@@ -144,6 +221,9 @@ const ContactUsPage: React.FC = () => {
                   </label>
                   <textarea
                     rows={4}
+                    name="message"
+                    value={form.message}
+                    onChange={handleChange}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                     placeholder={t("legal.enterMessage")}
                   ></textarea>
@@ -151,9 +231,10 @@ const ContactUsPage: React.FC = () => {
 
                 <button
                   type="submit"
-                  className="w-full bg-orange-500 hover:bg-orange-600 text-white font-medium py-2 px-4 rounded-md transition-colors duration-200"
+                  disabled={isSubmitting}
+                  className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-md transition-colors duration-200"
                 >
-                  {t("legal.sendMessageBtn")}
+                  {isSubmitting ? "Sending..." : t("legal.sendMessageBtn")}
                 </button>
               </form>
             </div>
