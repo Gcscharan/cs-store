@@ -55,6 +55,9 @@ function makeOrder(overrides: Record<string, any> = {}) {
     _id: "order-123",
     userId: "user-456",
     deliveryBoyId: "rider-789",
+    // Rooms are keyed by deliveryPartnerId (the rider's User._id) to match the
+    // mobile app's `delivery:${userId}` subscription (see P0 FIX #2 in the emitter).
+    deliveryPartnerId: "rider-789",
     orderStatus: "PICKED_UP",
     deliveryStatus: "picked_up",
     paymentMethod: "cod",
@@ -87,7 +90,7 @@ describe("DeliverySocketEmitter", () => {
   // -------------------------------------------------------------------------
 
   describe("emitStatusChanged", () => {
-    it("emits to all three rooms when both deliveryBoyId and userId are present", async () => {
+    it("emits to all three rooms when both deliveryPartnerId and userId are present", async () => {
       const io = makeIo();
       const emitter = new DeliverySocketEmitter(io);
       const order = makeOrder();
@@ -104,10 +107,10 @@ describe("DeliverySocketEmitter", () => {
       expect(calledRooms).toContain("order:user-456");
     });
 
-    it("skips delivery: room and logs warn when deliveryBoyId is null", async () => {
+    it("skips delivery: room and logs warn when deliveryPartnerId is null", async () => {
       const io = makeIo();
       const emitter = new DeliverySocketEmitter(io);
-      const order = makeOrder({ deliveryBoyId: null });
+      const order = makeOrder({ deliveryPartnerId: null });
 
       await emitter.emitStatusChanged({
         order,
@@ -119,7 +122,7 @@ describe("DeliverySocketEmitter", () => {
       expect(calledRooms).not.toContain(expect.stringMatching(/^delivery:/));
       expect(calledRooms).toContain("admin_room");
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("deliveryBoyId is null"),
+        expect.stringContaining("deliveryPartnerId is null"),
         expect.any(Object)
       );
     });
@@ -334,12 +337,12 @@ describe("DeliverySocketEmitter", () => {
     it("logs warn and skips delivery room when riderId is null", async () => {
       const io = makeIo();
       const emitter = new DeliverySocketEmitter(io);
-      const order = makeOrder({ deliveryBoyId: null });
+      const order = makeOrder({ deliveryPartnerId: null });
 
       await emitter.emitOrderAssigned({ order, options: defaultOptions });
 
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("riderId is null"),
+        expect.stringContaining("riderId (deliveryPartnerId) is null"),
         expect.any(Object)
       );
     });
