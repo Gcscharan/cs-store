@@ -10,9 +10,10 @@ evidence · Remaining open risks · Exit decision.
 | M2 | Money Integrity | ❄️ Frozen (staging payment validation pending before public release) |
 | M3 | Fulfilment Integrity | ✅ Complete (staging validation pending for live socket/GPS) |
 | M7 | Notification Integrity | ✅ Complete in-repo (push-to-device is a staging validation) |
-| M4 | Operations (Admin/Retailer) | 🚧 Next |
-| M5 | Offline & Synchronization | ⏳ Not started |
-| M6 | Production Hardening / Security | ⏳ Not started |
+| M4 | Operations (Admin/Retailer) | 🟡 Partial (dead-ends clean, authz verified; bulk/export/pagination breadth audit pending) |
+| M5 | Offline & Synchronization | 🟡 Partial (offline queue convergence verified) |
+| M6 | Production Hardening / Security | 🟡 Partial (authz/IDOR/anti-fraud verified; load/chaos = staging) |
+| M8 | Security & Release Readiness | 🚧 See M8_SECURITY.md — no critical findings open |
 
 ## Freeze policy
 A frozen milestone is not modified unless: a bug is discovered, a security
