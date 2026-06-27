@@ -9,6 +9,9 @@ import { RazorpayAdapter } from "../adapters/RazorpayAdapter";
 import { isProviderUnavailableError } from "../types";
 import { isRefundExecutionEnabled } from "../config/killSwitches";
 import { logger } from "../../../utils/logger";
+import { publish } from "../../events/eventBus";
+import { stableEventId } from "../../events/eventId";
+import { createRefundCompletedEvent } from "../../events/payment.events";
 
 const MIN_REASON_LEN = 5;
 
@@ -299,6 +302,8 @@ export async function markRefundCompleted(args: {
 
   try {
     let out: { updated: boolean; status: RefundRequestStatus; ledgerCreated: boolean } | undefined;
+    // Captured inside the txn for the post-commit customer notification.
+    let completed: { orderId: string; amount: number; currency: string } | null = null;
 
     await session.withTransaction(async () => {
       const rr = await RefundRequest.findById(rrObjectId)
@@ -352,10 +357,50 @@ export async function markRefundCompleted(args: {
       await rr.save({ session });
 
       out = { updated: true, status: "COMPLETED", ledgerCreated: ledgerRes.created };
+      completed = {
+        orderId: String(orderObjectId),
+        amount: refundAmount,
+        currency: String((rr as any).currency || "INR"),
+      };
     });
 
     if (!out) {
       throw Object.assign(new Error("INTERNAL_ERROR"), { statusCode: 500 });
+    }
+
+    // ── Post-commit customer notification (REFUND_COMPLETED) ──────────────────
+    // Additive and non-throwing: the refund money path (ledger + RefundRequest)
+    // is already durably committed above. Publishing here does NOT affect money
+    // correctness. Exactly-once is guaranteed by the deterministic eventId
+    // (OutboxEvent.eventId unique) + ProcessedEvent dedup in notificationWriter.
+    // This only runs on the real PROCESSING→COMPLETED transition (a duplicate
+    // refund webhook hits the COMPLETED→COMPLETED guard above and never reaches
+    // here), so the customer is notified exactly once.
+    if ((out as any).updated && completed) {
+      try {
+        const orderDoc = await Order.findById((completed as any).orderId).select("userId").lean();
+        const userId = String((orderDoc as any)?.userId || "");
+        if (userId) {
+          const amt = (completed as any).amount;
+          await publish(
+            createRefundCompletedEvent({
+              source: "refundService",
+              actor: { type: "system" },
+              eventId: stableEventId(`refund:${String(rrObjectId)}:completed`),
+              userId,
+              orderId: (completed as any).orderId,
+              amount: amt,
+              title: "Refund completed",
+              body: `Your refund of ₹${amt} has been processed and will reflect in your account shortly.`,
+            })
+          );
+        }
+      } catch (e) {
+        logger.warn("[Refund] post-commit REFUND_COMPLETED publish failed (non-fatal)", {
+          refundRequestId: String(rrObjectId),
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
     }
 
     return out;
