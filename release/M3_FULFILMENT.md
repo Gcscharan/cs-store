@@ -26,7 +26,7 @@ Customer Tracking → Notifications → Completion
 | OTP / Delivery | ✅ | orderStateService OTP guard: required + expiry + issued-to + exact match; IN_TRANSIT→DELIVERED only |
 | Wallet / Earnings | ✅ | **exactly-once** via unique partial index `{riderId,orderId,type}` (EARNING/COD_COLLECTED); 11000 race handled; immutable; reversal idempotent |
 | Customer Tracking | ✅ | **bug found+fixed**: polling endpoint read wrong Order fields (user/status/deliveryPartner) → always 403; now userId/orderStatus/deliveryBoyId. Socket fanout keyed by orderIds + ingest ownership-gated (reassigned rider's GPS rejected 403). Execution evidence: customerTrackingProjection 5/5 |
-| Notifications | ⏳ | order events published in-txn via outbox (verified in orderStateService); per-event delivery to audit |
+| Notifications | ✅ | exactly-once pipeline: OutboxEvent.eventId unique (dedup at publish, deterministic stableEventId) + OutboxDispatcher lock/retry/dead-letter + ProcessedEvent (eventId,consumerName) unique in notificationWriter (skip on 11000) + compensation on Notification.create failure. **Gap fixed**: refund completion now publishes REFUND_COMPLETED (commit 11307b919). See M7_NOTIFICATIONS.md |
 | Completion | ✅ | DELIVERED terminal; earnings credited; inventory already committed |
 | Rider socket rooms | ✅ | keyed by deliveryPartnerId to match mobile `delivery:${userId}` (tests fixed commit d5ec37fa3) |
 | Offline connectivity/feedback UI | ✅ (by inspection) | useConnectivityState precedence + useActionFeedback transient SM correct; see RF-002 |
@@ -45,11 +45,11 @@ Customer Tracking → Notifications → Completion
 | RF-004 | Projection lag: time until tracking reflects Rider B after reassignment | Low | **Assessed/Accepted** — deliveryBoyId updates immediately (DB); socket fanout + polling both read current rider; old rider A's GPS rejected at ingest (no stale projection). Residual lag = time until B's first GPS sample (inherent — cannot project a location B hasn't sent). ETA/rider-name recompute from the current rider. |
 
 ## Exit decision
-_In progress. Verified: Assignment, Reassignment, Pickup, Arrival, OTP/Delivery,
-Wallet/Earnings (exactly-once), Customer Tracking (RF-001 fixed + execution
-evidence; RF-004 assessed), Completion, rider socket rooms, offline UI logic,
-offline replay-after-reassignment (RF-003). **Remaining for exit: Notification
-integrity** — for every transition (ASSIGNED/PICKED_UP/IN_TRANSIT/ARRIVED/
-DELIVERED/FAILED/RETURNED/CANCELLED/REFUNDED): exactly-one outbox event,
-exactly-one notification, retries, duplicate suppression, offline delivery,
-reconnect behavior._
+**Milestone 3 — Fulfilment Integrity: COMPLETE (pending the same staging
+validation as M2 for live socket/GPS behavior).** All journey nodes verified
+with code + execution evidence: Assignment, Reassignment, Pickup, Navigation,
+Arrival, OTP/Delivery, Wallet/Earnings (exactly-once), Customer Tracking
+(RF-001 bug fixed + 5/5 execution tests; RF-004 assessed), Notifications
+(exactly-once pipeline + REFUND_COMPLETED gap fixed), Completion.
+
+Open: RF-002 (test-harness, Low/Deferred). No production-correctness items open.
