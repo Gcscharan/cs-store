@@ -25,7 +25,7 @@ Customer Tracking → Notifications → Completion
 | Arrival | ✅ | markArrived sets arrivedAt only (orderStatus stays IN_TRANSIT); idempotent (arrivedAt guard); ARRIVED enum/schema aligned (commit 73615167d) |
 | OTP / Delivery | ✅ | orderStateService OTP guard: required + expiry + issued-to + exact match; IN_TRANSIT→DELIVERED only |
 | Wallet / Earnings | ✅ | **exactly-once** via unique partial index `{riderId,orderId,type}` (EARNING/COD_COLLECTED); 11000 race handled; immutable; reversal idempotent |
-| Customer Tracking | ⏳ | live location store + socket; route-based tracking inconsistency flagged (R-006 from prior audit) |
+| Customer Tracking | ✅ | **bug found+fixed**: polling endpoint read wrong Order fields (user/status/deliveryPartner) → always 403; now userId/orderStatus/deliveryBoyId. Socket fanout keyed by orderIds + ingest ownership-gated (reassigned rider's GPS rejected 403). Execution evidence: customerTrackingProjection 5/5 |
 | Notifications | ⏳ | order events published in-txn via outbox (verified in orderStateService); per-event delivery to audit |
 | Completion | ✅ | DELIVERED terminal; earnings credited; inventory already committed |
 | Rider socket rooms | ✅ | keyed by deliveryPartnerId to match mobile `delivery:${userId}` (tests fixed commit d5ec37fa3) |
@@ -34,17 +34,22 @@ Customer Tracking → Notifications → Completion
 ## Bugs found & fixed (this milestone)
 - (M2-adjacent, already shipped) ARRIVED enum/schema misalignment + missing `DELIVERY_ALLOWED_TRANSITIONS` export (commit 73615167d).
 - (already shipped) Stale `deliverySocketEmitter` tests after deliveryPartnerId room refactor (commit d5ec37fa3).
+- **RF-001 customer polling-tracking broken (commit 281937b77)**: `GET /api/orders/:orderId/tracking` read non-existent Order fields (`user`/`status`/`deliveryPartner`) → returned 403 for every customer and never resolved the rider. The customer app uses this as the socket-down polling fallback. Fixed to `userId`/`orderStatus`/`deliveryBoyId`; rider resolved from the order's current `deliveryBoyId` so reassignment projects Rider B. 5/5 execution tests.
 
 ## Risk register (fulfilment)
 | ID | Risk | Severity | Status |
 |----|------|----------|--------|
-| RF-001 | Route-based customer tracking stale/inconsistent after reassignment | Medium | Open (to audit) |
-| RF-002 | `useConnectivityState`/`useActionFeedback` tests fail under renderHook+fakeTimers+React19 (production logic verified correct by inspection) | Low | Deferred (test-harness only; not a correctness defect) |
-| RF-003 | Offline action replay after reassignment | High | **Closed** — backend rejects non-assigned actor (403 ForbiddenTransitionError); client `replayQueue` pre-flight stale-discard + drops on 403/409, retries only on network error, MAX_RETRIES/TTL drop, FIFO + per-order isolation → converges |
+| RF-001 | Customer tracking stale/broken after reassignment | High | **Closed** — field-name bug fixed; polling resolves current deliveryBoyId; A's GPS rejected on ingest (403); 5/5 execution tests prove B-not-A projection |
+| RF-002 | `useConnectivityState`/`useActionFeedback` tests fail under renderHook+fakeTimers+React19 (production logic verified correct by inspection) | Low | Deferred (test-harness only) |
+| RF-003 | Offline action replay after reassignment | High | **Closed** — backend 403 + client replayQueue drop-on-403/409, retry-on-network, MAX_RETRIES/TTL drop, FIFO isolation |
+| RF-004 | Projection lag: time until tracking reflects Rider B after reassignment | Low | **Assessed/Accepted** — deliveryBoyId updates immediately (DB); socket fanout + polling both read current rider; old rider A's GPS rejected at ingest (no stale projection). Residual lag = time until B's first GPS sample (inherent — cannot project a location B hasn't sent). ETA/rider-name recompute from the current rider. |
 
 ## Exit decision
 _In progress. Verified: Assignment, Reassignment, Pickup, Arrival, OTP/Delivery,
-Wallet/Earnings (exactly-once), Completion, rider socket rooms, offline UI logic,
-and offline replay-after-reassignment convergence (RF-003 closed). Remaining:
-Customer Tracking consistency after reassignment (RF-001), Notification per-event
-delivery coverage._
+Wallet/Earnings (exactly-once), Customer Tracking (RF-001 fixed + execution
+evidence; RF-004 assessed), Completion, rider socket rooms, offline UI logic,
+offline replay-after-reassignment (RF-003). **Remaining for exit: Notification
+integrity** — for every transition (ASSIGNED/PICKED_UP/IN_TRANSIT/ARRIVED/
+DELIVERED/FAILED/RETURNED/CANCELLED/REFUNDED): exactly-one outbox event,
+exactly-one notification, retries, duplicate suppression, offline delivery,
+reconnect behavior._
