@@ -18,9 +18,9 @@ Customer Tracking → Notifications → Completion
 
 | Node | Verified | Notes |
 |------|----------|-------|
-| Assignment | ⏳ | admin push-assignment model; orderStateService PACKED→ASSIGNED (role-guarded) |
-| Reassignment | ⏳ | ASSIGNED→PACKED allowed; emitOrderReassigned to OLD rider room — to audit |
-| Pickup | ⏳ | ASSIGNED→PICKED_UP (delivery-partner role + ownership guard) verified in code |
+| Assignment | ✅ | admin push-assignment; PACKED→ASSIGNED role-guarded via orderStateService |
+| Reassignment | ✅ | ASSIGNED→PACKED; old rider rejected on any later action (ownership guard → 403); client drops stale queued action |
+| Pickup | ✅ | pickup/start/deliver/fail all route through orderStateService as DELIVERY_PARTNER + ownership guard |
 | Navigation | ⏳ | client-only (maps deeplink); low risk |
 | Arrival | ✅ | markArrived sets arrivedAt only (orderStatus stays IN_TRANSIT); idempotent (arrivedAt guard); ARRIVED enum/schema aligned (commit 73615167d) |
 | OTP / Delivery | ✅ | orderStateService OTP guard: required + expiry + issued-to + exact match; IN_TRANSIT→DELIVERED only |
@@ -40,10 +40,11 @@ Customer Tracking → Notifications → Completion
 |----|------|----------|--------|
 | RF-001 | Route-based customer tracking stale/inconsistent after reassignment | Medium | Open (to audit) |
 | RF-002 | `useConnectivityState`/`useActionFeedback` tests fail under renderHook+fakeTimers+React19 (production logic verified correct by inspection) | Low | Deferred (test-harness only; not a correctness defect) |
-| RF-003 | Offline action replay after reassignment (rider reassigned while actions queued offline) | High | Open (to audit — Milestone 5 overlap) |
+| RF-003 | Offline action replay after reassignment | High | **Closed** — backend rejects non-assigned actor (403 ForbiddenTransitionError); client `replayQueue` pre-flight stale-discard + drops on 403/409, retries only on network error, MAX_RETRIES/TTL drop, FIFO + per-order isolation → converges |
 
 ## Exit decision
-_In progress. Verified: Arrival, OTP/Delivery, Wallet/Earnings (exactly-once),
-Completion, rider socket rooms, offline UI logic. Remaining: Assignment/
-Reassignment concurrency, Customer Tracking (RF-001), Notification per-event
-coverage, offline replay-after-reassignment (RF-003)._
+_In progress. Verified: Assignment, Reassignment, Pickup, Arrival, OTP/Delivery,
+Wallet/Earnings (exactly-once), Completion, rider socket rooms, offline UI logic,
+and offline replay-after-reassignment convergence (RF-003 closed). Remaining:
+Customer Tracking consistency after reassignment (RF-001), Notification per-event
+delivery coverage._
