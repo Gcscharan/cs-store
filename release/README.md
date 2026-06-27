@@ -10,6 +10,7 @@ evidence · Remaining open risks · Exit decision.
 | M2 | Money Integrity | ❄️ Frozen (staging payment validation pending before public release) |
 | M3 | Fulfilment Integrity | ✅ Complete (staging validation pending for live socket/GPS) |
 | M7 | Notification Integrity | ✅ Complete in-repo (push-to-device is a staging validation) |
+| M5 (doc) | Customer Journey | 🟡 Reviews fixed (orphan API mounted + fake UI rewired); see M5_CUSTOMER.md |
 | M4 | Operations (Admin/Retailer) | 🟡 Partial (dead-ends clean, authz verified; bulk/export/pagination breadth audit pending) |
 | M5 | Offline & Synchronization | 🟡 Partial (offline queue convergence verified) |
 | M6 | Production Hardening / Security | 🟡 Partial (authz/IDOR/anti-fraud verified; load/chaos = staging) |
