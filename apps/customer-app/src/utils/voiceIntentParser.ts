@@ -139,3 +139,106 @@ export function buildSearchQuery(rawText: string): string {
 
   return uniqueIntents.join(' ');
 }
+
+// ─── Voice Filter Extraction ───────────────────────────────────────────────
+
+/**
+ * Structured filter hints extracted from a FILTER-intent voice utterance.
+ * Field names/values mirror FilterState so they can be spread directly into
+ * the SearchScreen filter state.
+ */
+export interface VoiceFilters {
+  minPrice?: number;
+  maxPrice?: number;
+  sortBy?: 'relevance' | 'price' | 'newest' | 'sales' | 'rating';
+  sortOrder?: 'asc' | 'desc';
+}
+
+/**
+ * Convert words like "twenty", "fifty", "hundred" into numbers, and parse a
+ * leading "rs"/"rupees" amount. Returns null when no number is present.
+ */
+function parseSpokenNumber(token: string): number | null {
+  const WORD_NUMBERS: Record<string, number> = {
+    ten: 10, twenty: 20, thirty: 30, forty: 40, fifty: 50,
+    sixty: 60, seventy: 70, eighty: 80, ninety: 90,
+    hundred: 100, thousand: 1000,
+  };
+  const t = token.toLowerCase().trim();
+  if (WORD_NUMBERS[t] !== undefined) return WORD_NUMBERS[t];
+  const digits = t.replace(/[^0-9]/g, '');
+  if (digits.length > 0) return Number(digits);
+  return null;
+}
+
+/**
+ * extractVoiceFilters
+ * Parses price bounds and sort hints from a natural-language filter phrase.
+ *
+ * Examples:
+ *   "biscuits under 50"           -> { maxPrice: 50 }
+ *   "show me cheap chips"         -> { sortBy: 'price', sortOrder: 'asc' }
+ *   "premium chocolates"          -> { sortBy: 'price', sortOrder: 'desc' }
+ *   "snacks between 20 and 100"   -> { minPrice: 20, maxPrice: 100 }
+ *   "top rated coffee"            -> { sortBy: 'rating', sortOrder: 'desc' }
+ *   "newest drinks"               -> { sortBy: 'newest', sortOrder: 'desc' }
+ *
+ * Returns an empty object when no recognizable hints are present, so callers
+ * can safely spread the result without overriding existing filters.
+ */
+export function extractVoiceFilters(rawText: string): VoiceFilters {
+  const text = (rawText || '').toLowerCase().replace(/[₹,]/g, ' ');
+  const filters: VoiceFilters = {};
+
+  // ── Price bounds ──────────────────────────────────────────────────────
+  // "between X and Y"
+  const between = text.match(/between\s+(\w+)\s+(?:and|to)\s+(\w+)/);
+  if (between) {
+    const lo = parseSpokenNumber(between[1]);
+    const hi = parseSpokenNumber(between[2]);
+    if (lo !== null) filters.minPrice = Math.min(lo, hi ?? lo);
+    if (hi !== null) filters.maxPrice = Math.max(lo ?? hi, hi);
+  }
+
+  // "under / below / less than / cheaper than / within / up to X"
+  if (filters.maxPrice === undefined) {
+    const upper = text.match(
+      /(?:under|below|less than|cheaper than|within|up to|max|maximum|upto)\s+(?:rs\.?\s*|rupees?\s*)?(\w+)/
+    );
+    if (upper) {
+      const n = parseSpokenNumber(upper[1]);
+      if (n !== null && n > 0) filters.maxPrice = n;
+    }
+  }
+
+  // "above / over / more than / at least / starting from X"
+  if (filters.minPrice === undefined) {
+    const lower = text.match(
+      /(?:above|over|more than|at least|starting from|min|minimum)\s+(?:rs\.?\s*|rupees?\s*)?(\w+)/
+    );
+    if (lower) {
+      const n = parseSpokenNumber(lower[1]);
+      if (n !== null && n > 0) filters.minPrice = n;
+    }
+  }
+
+  // ── Sort hints ────────────────────────────────────────────────────────
+  if (/\b(cheap(est)?|low(est)? price|budget|affordable|low to high)\b/.test(text)) {
+    filters.sortBy = 'price';
+    filters.sortOrder = 'asc';
+  } else if (/\b(expensive|premium|costly|high(est)? price|luxury|high to low)\b/.test(text)) {
+    filters.sortBy = 'price';
+    filters.sortOrder = 'desc';
+  } else if (/\b(top rated|best rated|highest rated|best reviewed|top rating)\b/.test(text)) {
+    filters.sortBy = 'rating';
+    filters.sortOrder = 'desc';
+  } else if (/\b(newest|latest|new arrivals?|recent)\b/.test(text)) {
+    filters.sortBy = 'newest';
+    filters.sortOrder = 'desc';
+  } else if (/\b(best ?sell(er|ing)|popular|most sold|trending)\b/.test(text)) {
+    filters.sortBy = 'sales';
+    filters.sortOrder = 'desc';
+  }
+
+  return filters;
+}

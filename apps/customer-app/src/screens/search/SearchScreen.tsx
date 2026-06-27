@@ -35,6 +35,7 @@ import {
   type ResolvedItem 
 } from '../../utils/voiceToCartEngine';
 import { correctionEngine } from '../../utils/voiceCorrection';
+import { extractVoiceFilters } from '../../utils/voiceIntentParser';
 
 import { logEvent } from '../../utils/analytics';
 import { useDispatch } from 'react-redux';
@@ -570,13 +571,17 @@ const SearchScreen: React.FC = () => {
         showToast('No exact matches found. Showing search results.');
       }
     } else if (result.intent === 'FILTER') {
-      // Handle filter intent
+      // Handle filter intent: apply structured price/sort hints parsed from the
+      // utterance, then run the search with the cleaned query.
       console.log('[VoiceCart] Filter intent');
+      const voiceFilters = extractVoiceFilters(text);
       setTimeout(() => {
         setVoiceModalVisible(false);
+        if (Object.keys(voiceFilters).length > 0) {
+          setFilters((prev) => ({ ...prev, ...voiceFilters }));
+        }
         setSearchQuery(result.searchQuery || text);
       }, 800);
-      // TODO: Apply filters based on voice input
     } else {
       // SEARCH intent - use existing flow
       console.log('[VoiceCart] Search intent');
