@@ -2,6 +2,7 @@ import { logger } from '../utils/logger';
 import express, { Request, Response } from "express";
 import { authenticateToken } from "../middleware/auth";
 import { Order } from "../models/Order";
+import { DeliveryBoy } from "../models/DeliveryBoy";
 import { liveLocationStore } from "../services/liveLocationStore";
 import { calculateETA } from "../domains/tracking/services/etaCalculator";
 
@@ -22,19 +23,21 @@ router.get("/:orderId/tracking", authenticateToken, async (req: Request, res: Re
 
   try {
     // Verify user owns this order
-    const order = await Order.findById(orderId).select("user status address deliveryPartner").lean();
-    
+    const order = await Order.findById(orderId)
+      .select("userId orderStatus address deliveryBoyId deliveryPartnerId")
+      .lean();
+
     if (!order) {
       return res.status(404).json({ error: "Order not found" });
     }
 
-    if (String((order as any).user) !== userId) {
+    if (String((order as any).userId) !== userId) {
       return res.status(403).json({ error: "Not authorized to view this order" });
     }
 
     // Check if order is in a trackable state
-    const status = String((order as any).status || "").toUpperCase();
-    if (["DELIVERED", "CANCELLED", "REFUNDED"].includes(status)) {
+    const status = String((order as any).orderStatus || "").toUpperCase();
+    if (["DELIVERED", "CANCELLED", "REFUNDED", "FAILED", "RETURNED"].includes(status)) {
       return res.json({
         location: null,
         status,
@@ -42,8 +45,11 @@ router.get("/:orderId/tracking", authenticateToken, async (req: Request, res: Re
       });
     }
 
-    // Get live location from store
-    const riderId = (order as any).deliveryPartner?._id || (order as any).deliveryPartner;
+    // Resolve the order's CURRENT delivery partner. liveLocationStore is keyed by
+    // DeliveryBoy._id (see deliveryOrderController.updateLocation), and reassignment
+    // updates deliveryBoyId — so reading it here always reflects the current rider
+    // (Rider B after an A→B reassignment), never a stale one.
+    const riderId = (order as any).deliveryBoyId;
     if (!riderId) {
       return res.json({
         location: null,
@@ -91,6 +97,15 @@ router.get("/:orderId/tracking", authenticateToken, async (req: Request, res: Re
       }
     }
 
+    // Resolve rider display name (best-effort; never blocks tracking).
+    let riderName: string | undefined;
+    try {
+      const boy = await DeliveryBoy.findById(String(riderId)).select("name").lean();
+      riderName = (boy as any)?.name || undefined;
+    } catch {
+      riderName = undefined;
+    }
+
     return res.json({
       location: {
         riderLat: roundedLat,
@@ -101,9 +116,7 @@ router.get("/:orderId/tracking", authenticateToken, async (req: Request, res: Re
         stale: isStale,
       },
       status,
-      deliveryPartner: (order as any).deliveryPartner?.name 
-        ? { name: (order as any).deliveryPartner.name }
-        : undefined,
+      deliveryPartner: riderName ? { name: riderName } : undefined,
     });
   } catch (error: any) {
     logger.error("[TrackingAPI] Error:", error);
