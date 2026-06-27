@@ -60,10 +60,36 @@ const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   [OrderStatus.PICKED_UP]: [OrderStatus.IN_TRANSIT],
   [OrderStatus.IN_TRANSIT]: [OrderStatus.DELIVERED, OrderStatus.FAILED],
   [OrderStatus.OUT_FOR_DELIVERY]: [],
+  // ARRIVED is a delivery sub-state; if an order is ever persisted in ARRIVED it
+  // can still complete or fail. Current flows keep orderStatus=IN_TRANSIT through
+  // arrival (arrivedAt timestamp), so this entry is inert for existing paths.
+  [OrderStatus.ARRIVED]: [OrderStatus.DELIVERED, OrderStatus.FAILED],
   [OrderStatus.FAILED]: [OrderStatus.RETURNED],
   [OrderStatus.DELIVERED]: [],
   [OrderStatus.RETURNED]: [],
   [OrderStatus.CANCELLED]: [],
+};
+
+/**
+ * DELIVERY_ALLOWED_TRANSITIONS — the delivery-partner UI sub-state machine.
+ *
+ * This is the contract `computeAllowedActions` (delivery UI source of truth)
+ * implements, and intentionally models the ARRIVED sub-state that the customer
+ * order timeline exposes:
+ *
+ *   ASSIGNED → PICKED_UP → IN_TRANSIT → ARRIVED → DELIVERED | FAILED
+ *
+ * It is distinct from ALLOWED_TRANSITIONS (the authoritative orderStatus
+ * enforcer used by transition()): the authoritative machine completes from
+ * IN_TRANSIT directly, while the delivery UI surfaces an explicit ARRIVED
+ * (COD/OTP) phase. Keep the two consistent: every delivery action's [from,to]
+ * pair must appear here.
+ */
+export const DELIVERY_ALLOWED_TRANSITIONS: Partial<Record<OrderStatus, OrderStatus[]>> = {
+  [OrderStatus.ASSIGNED]: [OrderStatus.PICKED_UP],
+  [OrderStatus.PICKED_UP]: [OrderStatus.IN_TRANSIT],
+  [OrderStatus.IN_TRANSIT]: [OrderStatus.ARRIVED],
+  [OrderStatus.ARRIVED]: [OrderStatus.DELIVERED, OrderStatus.FAILED],
 };
 
 type TransitionInput = {
@@ -88,6 +114,7 @@ function normalizeOrderStatus(raw: any): OrderStatus | null {
   if (v === OrderStatus.PICKED_UP) return OrderStatus.PICKED_UP;
   if (v === OrderStatus.IN_TRANSIT) return OrderStatus.IN_TRANSIT;
   if (v === OrderStatus.OUT_FOR_DELIVERY) return OrderStatus.IN_TRANSIT;
+  if (v === OrderStatus.ARRIVED) return OrderStatus.ARRIVED;
   if (v === OrderStatus.DELIVERED) return OrderStatus.DELIVERED;
   if (v === OrderStatus.FAILED) return OrderStatus.FAILED;
   if (v === OrderStatus.RETURNED) return OrderStatus.RETURNED;
@@ -181,6 +208,7 @@ function getTimestampField(to: OrderStatus):
   | "packedAt"
   | "pickedUpAt"
   | "inTransitAt"
+  | "arrivedAt"
   | "outForDeliveryAt"
   | "deliveredAt"
   | "failedAt"
@@ -196,6 +224,8 @@ function getTimestampField(to: OrderStatus):
       return "pickedUpAt";
     case OrderStatus.IN_TRANSIT:
       return "inTransitAt";
+    case OrderStatus.ARRIVED:
+      return "arrivedAt";
     case OrderStatus.OUT_FOR_DELIVERY:
       return "outForDeliveryAt";
     case OrderStatus.DELIVERED:
