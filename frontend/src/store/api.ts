@@ -146,6 +146,7 @@ export const api = createApi({
     "NotificationUnreadCount",
     "DeliveryProfile",
     "SupportRequest",
+    "Review",
   ],
   endpoints: (builder) => ({
     // ---------- AUTH ----------
@@ -287,6 +288,33 @@ export const api = createApi({
         }
       },
       providesTags: ["Product"],
+    }),
+    getProductReviews: builder.query<
+      any,
+      { productId: string; page?: number; limit?: number }
+    >({
+      query: ({ productId, page = 1, limit = 10 }) => ({
+        url: toApiUrl(`/products/${productId}/reviews`),
+        params: { page, limit },
+      }),
+      transformResponse: (r: any) => r?.data ?? r,
+      providesTags: (_res, _err, arg) => [
+        { type: "Review" as const, id: arg.productId },
+      ],
+    }),
+    createProductReview: builder.mutation<
+      any,
+      { productId: string; rating: number; comment?: string }
+    >({
+      query: ({ productId, rating, comment }) => ({
+        url: toApiUrl(`/products/${productId}/reviews`),
+        method: "POST",
+        body: { rating, ...(comment ? { comment } : {}) },
+      }),
+      invalidatesTags: (_res, _err, arg) => [
+        { type: "Review" as const, id: arg.productId },
+        { type: "Product" as const, id: arg.productId },
+      ],
     }),
     getCategories: builder.query<{ categories: { name: string; count: number }[] }, void>({
       async queryFn() {
@@ -721,6 +749,8 @@ export const {
   useGetProductsQuery,
   useGetProductByIdQuery,
   useGetSimilarProductsQuery,
+  useGetProductReviewsQuery,
+  useCreateProductReviewMutation,
   useGetCategoriesQuery,
   useGetSearchSuggestionsQuery,
   useSearchProductsQuery,

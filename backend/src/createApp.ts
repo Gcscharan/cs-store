@@ -265,6 +265,10 @@ export function createApp(config: AppConfig = {}): Application {
 
   apiRouter.use("/user", userRoutes);
   apiRouter.use("/users", mobileVerifyRoutes);
+  // Product reviews (mergeParams reads :productId). Mounted before /products so
+  // the nested reviews routes resolve. Previously this router was only mounted
+  // in tests, leaving the reviews API unreachable in production.
+  apiRouter.use("/products/:productId/reviews", require("./routes/reviews").default);
   apiRouter.use("/products", productRoutes);
   apiRouter.use("/cart", cartRoutes);
   apiRouter.use("/orders", orderRoutes);

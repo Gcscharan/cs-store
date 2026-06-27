@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useParams, useNavigate } from "react-router-dom";
 import {
@@ -6,8 +6,6 @@ import {
   ShoppingCart,
   Heart,
   Send,
-  Camera,
-  X,
   Share2,
   Star,
   Truck,
@@ -16,7 +14,7 @@ import {
   Shield,
 } from "lucide-react";
 import { useGetProductByIdQuery } from "../store/api";
-import { useAddToCartMutation, useGetSimilarProductsQuery } from "../store/api";
+import { useAddToCartMutation, useGetSimilarProductsQuery, useGetProductReviewsQuery, useCreateProductReviewMutation } from "../store/api";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "../store";
 import { addToCart, setCart } from "../store/slices/cartSlice";
@@ -50,31 +48,23 @@ const ProductDetailPage = () => {
   // Cart feedback
   const { triggerGlobalConfirmation } = useCartFeedback();
 
-  // Review state
-  const [reviews, setReviews] = useState([
-    {
-      id: 1,
-      customerName: "Rajesh Kumar",
-      rating: 5,
-      text: "Excellent product! Very good quality and fast delivery.",
-      images: ["https://dummyimage.com/200x200/4ade80/ffffff&text=Review+1"],
-      date: "2024-01-15",
-    },
-    {
-      id: 2,
-      customerName: "Priya Sharma",
-      rating: 4,
-      text: "Good product, but delivery was a bit slow.",
-      images: [],
-      date: "2024-01-10",
-    },
-  ]);
+  // Review state — real reviews from the backend (GET /products/:id/reviews).
+  const { data: reviewsData, isLoading: isLoadingReviews } =
+    useGetProductReviewsQuery({ productId: id || "" }, { skip: !id });
+  const [createProductReview] = useCreateProductReviewMutation();
+  const reviews = (reviewsData?.reviews || []).map((r: any) => ({
+    id: r._id,
+    customerName: r.user?.name || "Customer",
+    rating: r.rating,
+    text: r.comment || "",
+    images: Array.isArray(r.images) ? r.images : [],
+    date: r.createdAt ? new Date(r.createdAt).toLocaleDateString() : "",
+  }));
+  const reviewStats = reviewsData?.stats;
 
   const [newReview, setNewReview] = useState({
-    customerName: "",
     rating: 0,
     text: "",
-    images: [] as string[],
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -243,61 +233,38 @@ const ProductDetailPage = () => {
     }
   };
 
-  // Review handling functions
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (files) {
-      const imageUrls = Array.from(files).map((file) =>
-        URL.createObjectURL(file)
-      );
-      setNewReview((prev) => ({
-        ...prev,
-        images: [...prev.images, ...imageUrls],
-      }));
-    }
-  };
-
-  const removeImage = (index: number) => {
-    setNewReview((prev) => ({
-      ...prev,
-      images: prev.images.filter((_, i) => i !== index),
-    }));
-  };
-
+  // Review handling — submits to the real reviews API (POST /products/:id/reviews).
   const handleSubmitReview = async () => {
-    if (
-      !newReview.customerName.trim() ||
-      !newReview.text.trim() ||
-      newReview.rating === 0
-    ) {
-      alert("Please fill in all required fields and select a rating.");
+    if (newReview.rating === 0 || !newReview.text.trim()) {
+      showError("Incomplete review", "Please select a rating and write a review.");
+      return;
+    }
+
+    if (!auth.isAuthenticated) {
+      setShowLoginPopup(true);
       return;
     }
 
     setIsSubmitting(true);
-
     try {
-      const review = {
-        id: Date.now(),
-        customerName: newReview.customerName,
+      await createProductReview({
+        productId: id || "",
         rating: newReview.rating,
-        text: newReview.text,
-        images: newReview.images,
-        date: new Date().toISOString().split("T")[0],
-      };
+        comment: newReview.text.trim(),
+      }).unwrap();
 
-      setReviews((prev) => [review, ...prev]);
-      setNewReview({
-        customerName: "",
-        rating: 0,
-        text: "",
-        images: [],
-      });
-
-      // Here you would typically save to your backend
-      console.log("Review submitted:", review);
-    } catch (error) {
-      console.error("Error submitting review:", error);
+      setNewReview({ rating: 0, text: "" });
+      success("Review submitted", "Thanks for sharing your feedback!");
+      // RTK invalidates the Review tag → the list refetches automatically.
+    } catch (err: any) {
+      console.error("Error submitting review:", err);
+      if (err?.status === 401) {
+        setShowLoginPopup(true);
+      } else if (err?.status === 409 || err?.data?.error?.code === "DUPLICATE_REVIEW") {
+        showError("Already reviewed", "You've already reviewed this product.");
+      } else {
+        showError("Could not submit review", err?.data?.error?.message || "Please try again.");
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -631,6 +598,13 @@ const ProductDetailPage = () => {
         <div className="mt-16">
           <h2 className="text-2xl font-bold text-gray-900 mb-6">
             Customer Reviews
+            {reviewStats && reviewStats.totalReviews > 0 && (
+              <span className="ml-3 text-base font-normal text-gray-600">
+                ★ {Number(reviewStats.averageRating).toFixed(1)} ·{" "}
+                {reviewStats.totalReviews} review
+                {reviewStats.totalReviews === 1 ? "" : "s"}
+              </span>
+            )}
           </h2>
 
           {/* Review Submission Form */}
@@ -640,25 +614,6 @@ const ProductDetailPage = () => {
             </h3>
 
             <div className="space-y-4">
-              {/* Customer Name */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Your Name *
-                </label>
-                <input
-                  type="text"
-                  value={newReview.customerName}
-                  onChange={(e) =>
-                    setNewReview((prev) => ({
-                      ...prev,
-                      customerName: e.target.value,
-                    }))
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                  placeholder="Enter your name"
-                />
-              </div>
-
               {/* Rating */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -701,51 +656,6 @@ const ProductDetailPage = () => {
                 />
               </div>
 
-              {/* Image Upload */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Upload Images (Optional)
-                </label>
-                <div className="flex items-center space-x-4">
-                  <input
-                    type="file"
-                    multiple
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    className="hidden"
-                    id="review-images"
-                  />
-                  <label
-                    htmlFor="review-images"
-                    className="flex items-center space-x-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg cursor-pointer transition-colors"
-                  >
-                    <Camera className="h-4 w-4" />
-                    <span>Choose Images</span>
-                  </label>
-                </div>
-
-                {/* Display uploaded images */}
-                {newReview.images.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {newReview.images.map((image, index) => (
-                      <div key={index} className="relative">
-                        <img
-                          src={image}
-                          alt={`Review image ${index + 1}`}
-                          className="w-20 h-20 object-cover rounded-lg"
-                        />
-                        <button
-                          onClick={() => removeImage(index)}
-                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
               {/* Submit Button */}
               <div className="flex justify-end">
                 <button
@@ -764,7 +674,14 @@ const ProductDetailPage = () => {
 
           {/* Existing Reviews */}
           <div className="space-y-6">
-            {reviews.map((review) => (
+            {isLoadingReviews ? (
+              <div className="text-center py-8 text-gray-500">Loading reviews...</div>
+            ) : reviews.length === 0 ? (
+              <div className="bg-white rounded-xl shadow p-6 text-center text-gray-500">
+                No reviews yet. Be the first to review this product!
+              </div>
+            ) : (
+              reviews.map((review: any) => (
               <div
                 key={review.id}
                 className="bg-white rounded-xl shadow-lg p-6"
@@ -795,7 +712,7 @@ const ProductDetailPage = () => {
                 {/* Review Images */}
                 {review.images.length > 0 && (
                   <div className="flex flex-wrap gap-2">
-                    {review.images.map((image, index) => (
+                    {review.images.map((image: string, index: number) => (
                       <img
                         key={index}
                         src={image}
@@ -806,7 +723,8 @@ const ProductDetailPage = () => {
                   </div>
                 )}
               </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 
