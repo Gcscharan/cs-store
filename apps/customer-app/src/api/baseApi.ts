@@ -27,8 +27,8 @@ const getRawUrl = (): string => {
     console.log("🌐 BASE_URL CONFIG:", {
       source: 'EXPO_PUBLIC_API_URL',
       url: envUrl,
-      isDevice: Device.isDevice,
-      platform: Platform.OS,
+      isDevice: Device?.isDevice,
+      platform: Platform?.OS,
     });
     return envUrl;
   }
@@ -48,8 +48,8 @@ const getRawUrl = (): string => {
   console.log("🌐 BASE_URL CONFIG:", {
     source: 'fallback (.local) [DEV ONLY]',
     url: fallbackUrl,
-    isDevice: Device.isDevice,
-    platform: Platform.OS,
+    isDevice: Device?.isDevice,
+    platform: Platform?.OS,
   });
   return fallbackUrl;
 };
