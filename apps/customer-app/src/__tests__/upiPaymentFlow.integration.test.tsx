@@ -321,8 +321,10 @@ describe('Mobile App UPI Payment End-to-End Flow Integration Tests', () => {
         await new Promise(resolve => setTimeout(resolve, 5));
       }
 
-      // Reached maximum attempts
-      expect(attempt).toBe(maxAttempts);
+      // Reached maximum attempts. The for-loop increments past the bound before
+      // exiting, so the loop counter lands on maxAttempts + 1 after all polls.
+      expect(attempt).toBe(maxAttempts + 1);
+      expect(attempt - 1).toBe(maxAttempts);
 
       // Should show timeout alert
       const timeoutMessage = 'Payment verification is taking longer than expected. Please check your order status in "My Orders".';
