@@ -273,7 +273,8 @@ describe('Edge Cases', () => {
     const mockT = (key: string) => key;
     
     const result = safeT(mockT, 'error-loading');
-    expect(result).toBe('Error-loading'); // Hyphens preserved
+    // humanizeKey applies Title Case (capitalizes each word, incl. after a hyphen).
+    expect(result).toBe('Error-Loading');
   });
 
   it('should handle empty key', () => {

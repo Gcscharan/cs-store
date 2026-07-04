@@ -27,7 +27,8 @@ describe('Delivery Configuration', () => {
 
     it('should have correct default values', () => {
       expect(DELIVERY_CONFIG.MAX_DELIVERY_ATTEMPTS).toBe(3);
-      expect(DELIVERY_CONFIG.RETRY_BACKOFF_SECONDS).toBe(30);
+      // 600s (10 min) matches backend RETRY_COOLDOWN_MS; 30 caused silent rejections.
+      expect(DELIVERY_CONFIG.RETRY_BACKOFF_SECONDS).toBe(600);
       expect(DELIVERY_CONFIG.COUNTDOWN_UPDATE_INTERVAL).toBe(1000);
     });
 
@@ -139,8 +140,8 @@ describe('Delivery Configuration', () => {
     });
 
     it('should satisfy Requirement 3.5: RETRY_BACKOFF_SECONDS is configurable', () => {
-      // The constant exists and defaults to 30
-      expect(DELIVERY_CONFIG.RETRY_BACKOFF_SECONDS).toBe(30);
+      // Defaults to 600s (10 min) to match backend RETRY_COOLDOWN_MS.
+      expect(DELIVERY_CONFIG.RETRY_BACKOFF_SECONDS).toBe(600);
     });
   });
 });

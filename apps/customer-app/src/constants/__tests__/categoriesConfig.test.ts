@@ -152,13 +152,17 @@ describe('Category Mapping Integrity', () => {
     });
 
     it('should return empty array for invalid UI category', () => {
-      // Suppress console.warn in test
+      // getBackendCategories hard-throws in __DEV__ (fail-fast) and falls back
+      // in production. This asserts the PRODUCTION contract, so disable __DEV__.
       const originalWarn = console.warn;
+      const originalDev = (global as any).__DEV__;
       console.warn = jest.fn();
+      (global as any).__DEV__ = false;
 
       const result = getBackendCategories('InvalidCategory');
       expect(result).toEqual([]);
 
+      (global as any).__DEV__ = originalDev;
       console.warn = originalWarn;
     });
 
@@ -179,13 +183,17 @@ describe('Category Mapping Integrity', () => {
     });
 
     it('should return fallback for unmapped backend category', () => {
-      // Suppress console.warn in test
+      // getUICategory hard-throws in __DEV__ (fail-fast) and falls back to
+      // "Chocolates" in production. Assert the PRODUCTION contract.
       const originalWarn = console.warn;
+      const originalDev = (global as any).__DEV__;
       console.warn = jest.fn();
+      (global as any).__DEV__ = false;
 
       const result = getUICategory('unknown_category');
       expect(result).toBe('Chocolates');
 
+      (global as any).__DEV__ = originalDev;
       console.warn = originalWarn;
     });
   });
