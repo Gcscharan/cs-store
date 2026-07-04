@@ -25,6 +25,8 @@
     "crawl:fast": "playwright test liveCrawl --project=chromium",
     "crawl:ai": "playwright test aiCrawl --headed --project=chromium",
     "crawl:ai:fast": "playwright test aiCrawl --project=chromium",
+    "crawl:full": "playwright test fullCrawl --headed --project=chromium",
+    "crawl:full:fast": "playwright test fullCrawl --project=chromium",
     "test:e2e:chrome": "playwright test --project=chromium",
     "test:e2e:firefox": "playwright test --project=firefox",
     "test:e2e:safari": "playwright test --project=webkit",
