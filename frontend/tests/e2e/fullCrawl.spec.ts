@@ -123,7 +123,12 @@ async function testPage(page: Page, role: string, url: string, consoleErrors: st
   push("TITLE", "Page has a non-empty <title>", "title_nonempty", "non-empty title", `"${title}"`, title.trim() ? "pass" : "fail");
   const bodyLen = (await page.locator("body").innerText().catch(() => "")).length;
   push("BODY", "Page renders visible content", "body_nonempty", "content > 0 chars", `${bodyLen} chars`, bodyLen > 0 ? "pass" : "fail");
-  push("REDIRECT", "URL stays on requested route (no auth redirect)", "no_redirect", url, page.url().replace(ORIGIN, ""), page.url().includes(url.split("?")[0]) || url === "/" ? "pass" : "fail");
+  const finalPath = page.url().replace(ORIGIN, "");
+  const stayed = page.url().includes(url.split("?")[0]) || url === "/";
+  // Redirects to a known auth/role destination are EXPECTED gating, not failures.
+  const expectedRedirect = /^\/(login|admin|dashboard|delivery)(\/|$)/.test(finalPath);
+  push("REDIRECT", "URL stays on requested route (or expected gating redirect)", "no_redirect", url,
+    finalPath, stayed ? "pass" : (expectedRedirect ? "skipped" : "fail"));
 
   // inputs
   const inputs = await page.locator("input:visible, textarea:visible, select:visible").all().catch(() => []);

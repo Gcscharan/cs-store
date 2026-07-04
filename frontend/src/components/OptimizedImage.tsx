@@ -232,7 +232,9 @@ export default function OptimizedImage({
 
   const src = resolveUrl(size);
   const srcThumb = resolveUrl("thumb");
-  const fetchPriorityProps = fetchPriority && fetchPriority !== "auto" ? ({ fetchpriority: fetchPriority } as any) : {};
+  // React 19 supports the camelCase `fetchPriority` prop on <img>; the lowercase
+  // DOM attribute name triggers an "Invalid DOM property" warning.
+  const fetchPriorityProps = fetchPriority && fetchPriority !== "auto" ? ({ fetchPriority } as any) : {};
   const sizesAttr = size === "micro" || size === "thumb" ? THUMB_SIZES : DEFAULT_SIZES;
   const srcSetAttr = buildVariantSrcSet(variants);
 
