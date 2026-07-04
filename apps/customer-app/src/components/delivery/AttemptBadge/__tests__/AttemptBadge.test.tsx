@@ -138,8 +138,11 @@ describe('AttemptBadge unit tests', () => {
       expect(getBadgeColor(1, 2)).toBe(DELIVERY_COLORS.danger);
     });
 
-    it('danger color is #FF3B30', () => {
-      expect(getBadgeColor(2, 3)).toBe('#FF3B30');
+    it('danger color matches the design token (#EF4444)', () => {
+      // Danger is sourced from DELIVERY_COLORS.danger (design token), not a
+      // hardcoded hex; the palette moved from #FF3B30 to #EF4444.
+      expect(DELIVERY_COLORS.danger).toBe('#EF4444');
+      expect(getBadgeColor(2, 3)).toBe(DELIVERY_COLORS.danger);
     });
 
     it('color transitions from warning to danger at the final attempt boundary', () => {

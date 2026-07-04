@@ -233,8 +233,8 @@ describe('DeliveryHomeTab source verification (Requirement 10.1, 10.2, 10.6)', (
     const componentPath = path.resolve(__dirname, '../DeliveryHomeTab.tsx');
     const source = fs.readFileSync(componentPath, 'utf-8');
 
-    // IdleCard is rendered when both lists are empty
-    expect(source).toContain('availableOrders.length === 0 && activeOrders.length === 0');
+    // IdleCard is rendered when both lists are empty (active list is filtered).
+    expect(source).toContain('availableOrders.length === 0 && filteredActiveOrders.length === 0');
     expect(source).toContain('IdleCard');
   });
 
@@ -261,11 +261,20 @@ describe('DeliveryHomeTab source verification (Requirement 10.1, 10.2, 10.6)', (
     );
     const source = fs.readFileSync(bannerPath, 'utf-8');
 
-    // Banner returns null when online+connected+not syncing
-    expect(source).toContain("if (isOnline && socketStatus === 'connected' && !isSyncing)");
-    // Offline message
-    expect(source).toContain('No Internet Connection');
-    // Offline uses danger color
-    expect(source).toContain('DELIVERY_COLORS.danger');
+    // Banner hides when connected and not syncing (refactored into a separate guard).
+    expect(source).toContain("socketStatus === 'connected' && !isSyncing");
+    // Offline handling was moved OUT of ConnectionBanner to GlobalConnectivityBanner:
+    // ConnectionBanner now returns null when offline.
+    expect(source).toContain('if (!isOnline)');
+    expect(source).toContain('GlobalConnectivityBanner');
+
+    // The offline indicator is now rendered by GlobalConnectivityBanner ('Offline' text).
+    const globalBannerPath = path.resolve(
+      __dirname,
+      '../../../components/delivery/GlobalConnectivityBanner/GlobalConnectivityBanner.tsx'
+    );
+    const globalSource = fs.readFileSync(globalBannerPath, 'utf-8');
+    expect(globalSource).toContain("case 'offline'");
+    expect(globalSource).toContain("'Offline'");
   });
 });
