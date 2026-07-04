@@ -81,9 +81,10 @@ const ProductsPage: React.FC = () => {
         {/* Results Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
           <div className="mb-4 sm:mb-0">
-            <p className="text-sm text-gray-600">
+            {/* div (not p) so the loading SkeletonBox <div> is valid HTML nesting */}
+            <div className="text-sm text-gray-600">
               {isLoading ? <SkeletonBox height={14} width={140} /> : t("products.productsFound", { count: products.length })}
-            </p>
+            </div>
           </div>
           <div className="flex items-center space-x-4">
             <SortingDropdown
