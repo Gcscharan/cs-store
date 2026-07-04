@@ -183,13 +183,9 @@ const CheckoutPage = () => {
     }
   };
 
-  if (isAuthenticated && isLoadingCart && cart.items.length === 0) {
-    return <CheckoutPageSkeleton />;
-  }
-
-  if (isAuthenticated && isLoadingAddresses && cart.items.length > 0) {
-    return <CheckoutPageSkeleton />;
-  }
+  // Loading-skeleton guards were moved BELOW all hooks (before the render
+  // return) to avoid "Rendered more hooks than during the previous render":
+  // returning here skipped the useEffect/useMemo hooks declared further down.
 
   React.useEffect(() => {
     return () => {
@@ -1026,6 +1022,14 @@ const CheckoutPage = () => {
       : selectedPaymentMethod === "cod"
         ? t("checkout.placeOrder")
         : `${t("checkout.pay")} ₹${priceBreakdown.total}`;
+
+  // Loading skeletons — placed AFTER all hooks so hook order stays stable.
+  if (isAuthenticated && isLoadingCart && cart.items.length === 0) {
+    return <CheckoutPageSkeleton />;
+  }
+  if (isAuthenticated && isLoadingAddresses && cart.items.length > 0) {
+    return <CheckoutPageSkeleton />;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
