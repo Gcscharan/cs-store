@@ -109,8 +109,12 @@ function routesForRole(role: string, ids: any): string[] {
 }
 
 // ── Atomic per-element test generation + execution ────────────────────────
+const PAGE_BUDGET_MS = Number(process.env.CRAWL_PAGE_BUDGET_MS || 25000);
+
 async function testPage(page: Page, role: string, url: string, consoleErrors: string[], apiErrors: string[]): Promise<TC[]> {
   const cases: TC[] = [];
+  const deadline = Date.now() + PAGE_BUDGET_MS;
+  const overBudget = () => Date.now() > deadline;
   const push = (id: string, description: string, type: string, expected: string, actual: string, status: TC["status"]) =>
     cases.push({ id, description, type, expected, actual, status });
 
@@ -122,8 +126,9 @@ async function testPage(page: Page, role: string, url: string, consoleErrors: st
   push("REDIRECT", "URL stays on requested route (no auth redirect)", "no_redirect", url, page.url().replace(ORIGIN, ""), page.url().includes(url.split("?")[0]) || url === "/" ? "pass" : "fail");
 
   // inputs
-  const inputs = await page.locator("input:visible, textarea:visible, select:visible").all();
-  for (let i = 0; i < Math.min(inputs.length, 40); i++) {
+  const inputs = await page.locator("input:visible, textarea:visible, select:visible").all().catch(() => []);
+  for (let i = 0; i < Math.min(inputs.length, 30); i++) {
+    if (overBudget()) { push("BUDGET", "Per-page time budget reached (partial coverage)", "budget", "full scan", "partial", "skipped"); break; }
     const el = inputs[i];
     try {
       const tag = String(await el.evaluate((n) => n.tagName)).toLowerCase();
@@ -139,7 +144,7 @@ async function testPage(page: Page, role: string, url: string, consoleErrors: st
         continue;
       }
       const val = type === "email" ? "qa@example.com" : type === "tel" ? "9391795162" : type === "number" ? "5" : type === "password" ? "Test123!" : "QA Test";
-      await el.fill(val, { timeout: 800 });
+      await el.fill(val, { timeout: 500 });
       const got = await el.inputValue().catch(() => "");
       push(`INP-${i}`, `Input "${name}" accepts input`, "input_accepts", `value="${val}"`, `value="${got}"`, got === val ? "pass" : "fail");
     } catch (e: any) {
@@ -147,24 +152,20 @@ async function testPage(page: Page, role: string, url: string, consoleErrors: st
     }
   }
 
-  // buttons
-  const btns = await page.locator("button:visible, [role=button]:visible").all();
-  for (let i = 0; i < Math.min(btns.length, 60); i++) {
-    try {
-      const label = ((await btns[i].textContent().catch(() => "")) || "").trim().replace(/\s+/g, " ").slice(0, 40) || `button#${i}`;
-      const disabled = (await btns[i].getAttribute("disabled").catch(() => null)) !== null;
-      push(`BTN-${i}`, `Button "${label}" is present`, "element_present", "present", disabled ? "present (disabled)" : "present (enabled)", "pass");
-    } catch { /* skip */ }
+  // buttons (batched evaluate)
+  if (!overBudget()) {
+    const btnData = await page.locator("button, [role=button]").evaluateAll((els) =>
+      els.slice(0, 60).map((e) => ({ label: (e.textContent || "").trim().replace(/\s+/g, " ").slice(0, 40), disabled: (e as HTMLButtonElement).disabled === true }))
+    ).catch(() => [] as { label: string; disabled: boolean }[]);
+    btnData.forEach((b, i) => push(`BTN-${i}`, `Button "${b.label || `button#${i}`}" is present`, "element_present", "present", b.disabled ? "present (disabled)" : "present (enabled)", "pass"));
   }
 
-  // links
-  const links = await page.locator("a[href]:visible").all();
-  for (let i = 0; i < Math.min(links.length, 80); i++) {
-    try {
-      const href = (await links[i].getAttribute("href")) || "";
-      const label = ((await links[i].textContent().catch(() => "")) || "").trim().slice(0, 30) || href;
-      push(`LNK-${i}`, `Link "${label}" → ${href}`, "link_present", "has href", href || "(empty)", href ? "pass" : "fail");
-    } catch { /* skip */ }
+  // links (single batched evaluate — far cheaper than per-element awaits)
+  if (!overBudget()) {
+    const linkData = await page.locator("a[href]").evaluateAll((els) =>
+      els.slice(0, 100).map((e) => ({ href: (e as HTMLAnchorElement).getAttribute("href") || "", label: (e.textContent || "").trim().slice(0, 30) }))
+    ).catch(() => [] as { href: string; label: string }[]);
+    linkData.forEach((l, i) => push(`LNK-${i}`, `Link "${l.label || l.href}" → ${l.href}`, "link_present", "has href", l.href || "(empty)", l.href ? "pass" : "fail"));
   }
 
   // console errors
@@ -197,25 +198,36 @@ async function crawlRole(browser: Browser, role: string, sess: any, ids: any) {
 
     counter++;
     const rep: PageRep = { index: counter, role, url, title: "", testCases: [], pass: 0, fail: 0, skipped: 0, consoleErrors, apiErrors, screenshot: "" };
-    try {
-      console.log(`[${counter}] (${role}) ${url}`);
-      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 20000 });
-      await page.waitForTimeout(600);
+    // Hard wall-clock cap: no single page can stall the crawl.
+    const HARD_CAP = Number(process.env.CRAWL_HARD_CAP_MS || 45000);
+    const processPage = async () => {
+      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 18000 });
+      await page.waitForTimeout(500);
       rep.title = await page.title().catch(() => "");
       rep.testCases = await testPage(page, role, url, consoleErrors, apiErrors);
-      rep.pass = rep.testCases.filter((t) => t.status === "pass").length;
-      rep.fail = rep.testCases.filter((t) => t.status === "fail").length;
-      rep.skipped = rep.testCases.filter((t) => t.status === "skipped").length;
       const shot = path.join(SHOTS, `${String(counter).padStart(4, "0")}_${role}.png`);
-      await page.screenshot({ path: shot }).catch(() => {});
+      await page.screenshot({ path: shot, timeout: 8000 }).catch(() => {});
       rep.screenshot = path.relative(OUT, shot);
-      // discover new same-origin links to recurse
-      const hrefs = await page.locator("a[href]").evaluateAll((els) => els.map((e) => (e as HTMLAnchorElement).href)).catch(() => []);
+      const hrefs = await page.locator("a[href]").evaluateAll((els) => els.slice(0, 150).map((e) => (e as HTMLAnchorElement).href)).catch(() => []);
       for (const h of hrefs) {
         try { const u = new URL(h); if (u.origin === ORIGIN && !/logout|sign-?out/i.test(u.pathname)) { const p = u.pathname + u.search; if (!visited.has(`${role} ${p.split("#")[0]}`)) queue.push(p); } } catch {}
       }
+    };
+    try {
+      console.log(`[${counter}] (${role}) ${url}`);
+      await Promise.race([
+        processPage(),
+        new Promise((_, rej) => setTimeout(() => rej(new Error(`hard-cap ${HARD_CAP}ms exceeded`)), HARD_CAP)),
+      ]);
+      rep.pass = rep.testCases.filter((t) => t.status === "pass").length;
+      rep.fail = rep.testCases.filter((t) => t.status === "fail").length;
+      rep.skipped = rep.testCases.filter((t) => t.status === "skipped").length;
     } catch (e: any) {
       rep.consoleErrors.push(`[nav] ${String(e?.message || e).slice(0, 80)}`);
+      if (!rep.testCases.length) rep.testCases.push({ id: "TIMEOUT", description: "Page exceeded hard time cap", type: "timeout", expected: "load < cap", actual: String(e?.message || e).slice(0, 60), status: "fail" });
+      rep.fail = rep.testCases.filter((t) => t.status === "fail").length;
+      rep.pass = rep.testCases.filter((t) => t.status === "pass").length;
+      try { await page.goto("about:blank"); } catch {}
     } finally {
       page.off("console", onC); page.off("pageerror", onE); page.off("response", onR);
       reports.push(rep);

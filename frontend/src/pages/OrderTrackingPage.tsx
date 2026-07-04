@@ -148,48 +148,9 @@ const OrderTrackingPage = () => {
     }
   }, [paymentStatus, order]);
 
-  if (isLoading) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="min-h-screen bg-gray-50 py-8 px-4"
-      >
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading order details...</p>
-          </div>
-        </div>
-      </motion.div>
-    );
-  }
-
-  if (!order) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="min-h-screen bg-gray-50 py-8 px-4"
-      >
-        <div className="max-w-7xl mx-auto">
-          <h1 className="text-3xl font-bold text-gray-900 mb-8">
-            Order Tracking
-          </h1>
-          <div className="text-center py-12">
-            <div className="text-6xl mb-4">❌</div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">
-              Order not found
-            </h3>
-            <p className="text-gray-600">
-              The order you're looking for doesn't exist.
-            </p>
-          </div>
-        </div>
-      </motion.div>
-    );
-  }
-
+  // NOTE: All hooks must run on every render. These useMemo hooks are declared
+  // BEFORE the early returns below to avoid "Rendered more hooks than during the
+  // previous render" (they read order defensively, so null order is safe).
   const backendTimeline = Array.isArray((order as any)?.timeline) ? ((order as any).timeline as any[]) : [];
   const timeline = buildCustomerOrderTimeline(backendTimeline);
 
@@ -288,6 +249,49 @@ const OrderTrackingPage = () => {
     if (!refundTimeline.length) return timeline as any[];
     return [...timeline, ...refundTimeline] as any[];
   }, [refundTimeline, timeline]);
+
+  if (isLoading) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="min-h-screen bg-gray-50 py-8 px-4"
+      >
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading order details...</p>
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
+
+  if (!order) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="min-h-screen bg-gray-50 py-8 px-4"
+      >
+        <div className="max-w-7xl mx-auto">
+          <h1 className="text-3xl font-bold text-gray-900 mb-8">
+            Order Tracking
+          </h1>
+          <div className="text-center py-12">
+            <div className="text-6xl mb-4">❌</div>
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">
+              Order not found
+            </h3>
+            <p className="text-gray-600">
+              The order you're looking for doesn't exist.
+            </p>
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
+
   const currentStep = timeline.find((s: any) => String(s?.state || "") === "current");
   const showPartner = shouldShowDeliveryPartner({
     currentCustomerStepKey: String((currentStep as any)?.key || ""),
