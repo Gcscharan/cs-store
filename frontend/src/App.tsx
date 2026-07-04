@@ -405,6 +405,17 @@ function AuthRouter() {
       <Route path="/categories" element={<Layout><CategoriesPage /></Layout>} />
       <Route path="/help-support" element={<Layout><HelpSupportPage /></Layout>} />
       <Route path="/become-seller" element={<Layout><ComingSoonPage /></Layout>} />
+      {/* Footer links — route to ComingSoon (intentional) instead of dead catch-all redirects */}
+      <Route path="/seller" element={<Layout><ComingSoonPage /></Layout>} />
+      <Route path="/advertise" element={<Layout><ComingSoonPage /></Layout>} />
+      <Route path="/gift-cards" element={<Layout><ComingSoonPage /></Layout>} />
+      <Route path="/payment" element={<Layout><ComingSoonPage /></Layout>} />
+      <Route path="/shipping" element={<Layout><ComingSoonPage /></Layout>} />
+      <Route path="/faq" element={<Layout><HelpSupportPage /></Layout>} />
+      <Route path="/report-infringement" element={<Layout><ComingSoonPage /></Layout>} />
+      <Route path="/security" element={<Layout><ComingSoonPage /></Layout>} />
+      <Route path="/sitemap" element={<Layout><ComingSoonPage /></Layout>} />
+      <Route path="/grievance" element={<Layout><ComingSoonPage /></Layout>} />
 
       {/* ========== OAUTH & ONBOARDING ========== */}
       <Route path="/auth/callback" element={<OAuthCallbackPage />} />
