@@ -31,6 +31,14 @@ describe('Order State Utils', () => {
     confirmedAt: '2024-01-01T00:00:00Z',
   };
 
+  // createOrderListUpdater / updateSingleOrderState DERIVE allowedActions from
+  // status (getAllowedActions('CONFIRMED') === ['PACK','CANCEL'], mirroring the
+  // server). So results from those functions carry the derived actions.
+  const updatedOrder1Derived: OrderLike = {
+    ...updatedOrder1,
+    allowedActions: ['PACK', 'CANCEL'],
+  };
+
   describe('updateOrderInOrdersList', () => {
     it('should replace order with matching ID', () => {
       const orders = [mockOrder1, mockOrder2];
@@ -66,7 +74,7 @@ describe('Order State Utils', () => {
       const result = updater(orders);
       
       expect(result).toHaveLength(2);
-      expect(result[0]).toEqual(updatedOrder1);
+      expect(result[0]).toEqual(updatedOrder1Derived);
       expect(result[1]).toEqual(mockOrder2);
     });
   });
@@ -74,7 +82,7 @@ describe('Order State Utils', () => {
   describe('updateSingleOrderState', () => {
     it('should return updated order when IDs match', () => {
       const result = updateSingleOrderState(mockOrder1, updatedOrder1);
-      expect(result).toEqual(updatedOrder1);
+      expect(result).toEqual(updatedOrder1Derived);
     });
 
     it('should return current order when IDs do not match', () => {
@@ -84,12 +92,12 @@ describe('Order State Utils', () => {
 
     it('should return updated order when current order is null', () => {
       const result = updateSingleOrderState(null, updatedOrder1);
-      expect(result).toEqual(updatedOrder1);
+      expect(result).toEqual(updatedOrder1Derived);
     });
 
     it('should return updated order when current order is undefined', () => {
       const result = updateSingleOrderState(undefined, updatedOrder1);
-      expect(result).toEqual(updatedOrder1);
+      expect(result).toEqual(updatedOrder1Derived);
     });
   });
 });
